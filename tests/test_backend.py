@@ -1,10 +1,12 @@
+import json
+import shutil
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from qibocal_report import config
-from qibocal_report.api import app, set_report_root
+from qibocal_report.api import app, get_report_root, set_report_root
 from qibocal_report.generator import (
     has_cached_report,
     load_cached_protocols,
@@ -16,8 +18,10 @@ from qibocal_report.scanner import compute_filter_stats, filter_reports, scan_re
 @pytest.fixture(autouse=True)
 def setup_env(tmp_path, monkeypatch):
     monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
-    sample_dir = Path(__file__).parent.parent / "sample_data"
-    set_report_root(sample_dir)
+    sample_src = Path(__file__).parent.parent / "sample_data"
+    test_reports = tmp_path / "sample_data"
+    shutil.copytree(sample_src, test_reports, ignore=shutil.ignore_patterns("*.zip"))
+    set_report_root(test_reports)
 
 
 def test_config_servers(tmp_path):
@@ -58,21 +62,53 @@ def test_scanner_and_filters():
     assert counts == sorted(counts, reverse=True)
 
 
-def test_generator_modes(tmp_path):
-    # Test pre-cached reading
-    sample_dir = Path(__file__).parent.parent / "sample_data"
-    rep1 = sample_dir / "21:47:29_[3]_pi-pulse"
+def test_generator_modes():
+    test_reports = get_report_root()
+    rep1 = test_reports / "21:47:29_[3]_pi-pulse"
+    cache_dir = rep1 / "report"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    proto_data = [
+        {
+            "id": "rabi_amplitude",
+            "name": "Rabi Amplitude",
+            "category": "calibration",
+            "status": "success",
+            "figures": [{"id": "fig1", "title": "Rabi Plot", "data": [], "layout": {}}],
+            "html": "<p>Rabi results</p>",
+        }
+    ]
+    with open(cache_dir / "protocols.json", "w", encoding="utf-8") as f:
+        json.dump(proto_data, f)
+
     assert has_cached_report(rep1) is True
     cached_protos = load_cached_protocols(rep1)
-    assert len(cached_protos) >= 2
-    assert any("rabi" in p.id for p in cached_protos)
+    assert len(cached_protos) == 1
+    assert "rabi" in cached_protos[0].id
     assert len(cached_protos[0].figures) > 0
 
-    # Test regeneration
-    rep2 = sample_dir / "21:39:54_[3]_single_shot_classification"
+    # Test regeneration on-the-fly with Qibocal
+    rep2 = test_reports / "21:39:54_[3]_single_shot_classification"
     regenerated = regenerate_report(rep2)
     assert len(regenerated) > 0
+    assert regenerated[0].status == "success"
+    assert len(regenerated[0].figures) > 0
     assert has_cached_report(rep2) is True
+
+    # Test error reporting when Qibocal is not available / cannot generate
+    from unittest.mock import patch
+
+    from qibocal_report.generator import generate_report_on_the_fly
+
+    with patch(
+        "qibocal_report.generator._generate_qibocal_protocols",
+        return_value=(None, "Qibocal is not installed in the environment."),
+    ):
+        rep_unavail = test_reports / "nonexistent_run"
+        rep_unavail.mkdir()
+        err_protos = generate_report_on_the_fly(rep_unavail)
+        assert len(err_protos) > 0
+        assert err_protos[0].status == "error"
+        assert "Qibocal is not installed" in (err_protos[0].error or "")
 
 
 def test_api_endpoints():

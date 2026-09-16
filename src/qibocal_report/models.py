@@ -54,6 +54,7 @@ class ProtocolDetail(BaseModel):
     status: str = "success"
     html: str | None = ""
     figures: list[dict[str, Any]] = Field(default_factory=list)
+    error: str | None = None
 
 
 class ReportSummary(BaseModel):

@@ -184,9 +184,21 @@
 
               <div class="flex items-center gap-2">
                 <span class="text-xs font-mono text-gray-400">⏱️ {{ proto.execution_time || 'N/A' }}</span>
-                <span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
+                <span
+                  class="px-2 py-0.5 rounded text-xs font-semibold"
+                  :class="proto.status === 'error' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'"
+                >
                   {{ proto.status }}
                 </span>
+              </div>
+            </div>
+
+            <!-- Error message if plot could not be generated -->
+            <div v-if="proto.error" class="my-4 p-4 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-900 flex items-start gap-3">
+              <span class="text-lg leading-none mt-0.5">⚠️</span>
+              <div>
+                <p class="font-semibold text-xs tracking-wide uppercase text-amber-950">Plot Unavailable</p>
+                <p class="text-xs text-amber-800 mt-0.5 leading-relaxed">{{ proto.error }}</p>
               </div>
             </div>
 
@@ -200,6 +212,9 @@
                 :key="fig.id || fig.title"
                 :figure="fig"
               />
+            </div>
+            <div v-else-if="!proto.error && !proto.html" class="my-4 text-xs text-gray-400 italic">
+              No figures or tables available for this routine.
             </div>
           </div>
         </div>
