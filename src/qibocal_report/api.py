@@ -75,8 +75,8 @@ def health_check() -> HealthResponse:
 
 
 # --- Server Management Endpoints (Issue #4, #11) ---
-@app.get("/api/servers", response_model=List[ServerModel], tags=["Servers"])
-def list_servers() -> List[ServerModel]:
+@app.get("/api/servers", response_model=list[ServerModel], tags=["Servers"])
+def list_servers() -> list[ServerModel]:
     """List all registered servers."""
     servers = config.load_servers()
     return [ServerModel(**s) for s in servers]
@@ -104,7 +104,7 @@ def update_server_endpoint(server_id: str, data: ServerUpdate) -> ServerModel:
 
 
 @app.delete("/api/servers/{server_id}", tags=["Servers"])
-def delete_server_endpoint(server_id: str) -> Dict[str, bool]:
+def delete_server_endpoint(server_id: str) -> dict[str, bool]:
     """Delete a registered server."""
     success = config.delete_server(server_id)
     if not success:
@@ -113,7 +113,7 @@ def delete_server_endpoint(server_id: str) -> Dict[str, bool]:
 
 
 @app.post("/api/servers/save", tags=["Servers"])
-def save_servers_endpoint() -> Dict[str, Any]:
+def save_servers_endpoint() -> dict[str, Any]:
     """Explicitly persist current servers to the configuration file."""
     servers = config.load_servers()
     config.save_servers(servers)
@@ -121,16 +121,16 @@ def save_servers_endpoint() -> Dict[str, Any]:
 
 
 # --- Reports & Search Endpoints (Issue #10, #3) ---
-@app.get("/api/reports", response_model=List[ReportSummary], tags=["Reports"])
+@app.get("/api/reports", response_model=list[ReportSummary], tags=["Reports"])
 def get_reports(
-    q: Optional[str] = None,
-    author: Optional[List[str]] = Query(None),
-    protocol: Optional[List[str]] = Query(None),
-    label: Optional[List[str]] = Query(None),
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    q: str | None = None,
+    author: list[str] | None = Query(None),
+    protocol: list[str] | None = Query(None),
+    label: list[str] | None = Query(None),
+    start_date: str | None = None,
+    end_date: str | None = None,
     sort_by: str = "date_desc"
-) -> List[ReportSummary]:
+) -> list[ReportSummary]:
     """List and filter Qibocal reports."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
     return filter_reports(
@@ -152,8 +152,8 @@ def get_filter_statistics() -> FilterStats:
     return compute_filter_stats(all_reports)
 
 
-@app.get("/api/reports/{report_id:path}/protocols", response_model=List[ProtocolDetail], tags=["Reports"])
-def get_protocols_for_report(report_id: str) -> List[ProtocolDetail]:
+@app.get("/api/reports/{report_id:path}/protocols", response_model=list[ProtocolDetail], tags=["Reports"])
+def get_protocols_for_report(report_id: str) -> list[ProtocolDetail]:
     """Get all protocol outputs (HTML and Plotly figures) for a report."""
     target_dir = REPORT_ROOT_DIR / report_id
     if not target_dir.is_dir():
@@ -168,8 +168,8 @@ def get_protocols_for_report(report_id: str) -> List[ProtocolDetail]:
     return get_report_protocols(target_dir)
 
 
-@app.post("/api/reports/{report_id:path}/regenerate", response_model=List[ProtocolDetail], tags=["Reports"])
-def regenerate_report_plots(report_id: str) -> List[ProtocolDetail]:
+@app.post("/api/reports/{report_id:path}/regenerate", response_model=list[ProtocolDetail], tags=["Reports"])
+def regenerate_report_plots(report_id: str) -> list[ProtocolDetail]:
     """Regenerate protocol plots by deleting cached report and re-evaluating."""
     target_dir = REPORT_ROOT_DIR / report_id
     if not target_dir.is_dir():

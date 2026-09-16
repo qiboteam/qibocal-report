@@ -5,6 +5,9 @@ import math
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from collections.abc import Callable
+
+from qibocal_report.logger import log_info, log_step, log_success, log_warning
 from qibocal_report.models import ProtocolDetail, ProtocolSummary
 
 
@@ -17,43 +20,49 @@ def has_cached_report(report_dir: Path) -> bool:
     return any(report_path.glob("*.json"))
 
 
-def load_cached_protocols(report_dir: Path) -> List[ProtocolDetail]:
+def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
     """Load pre-cached report protocol details without importing qibocal."""
     report_path = report_dir / "report"
-    protocols: List[ProtocolDetail] = []
+    protocols: list[ProtocolDetail] = []
 
     if not report_path.is_dir():
         return protocols
+
+    log_info(f"Loading pre-cached report artifacts for '{report_dir.name}'...")
 
     # Check for protocols.json first
     single_file = report_path / "protocols.json"
     if single_file.exists():
         try:
-            with open(single_file, "r", encoding="utf-8") as f:
+            with open(single_file, encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, list):
-                    return [ProtocolDetail(**p) for p in data]
-        except Exception:
-            pass
+                    protocols = [ProtocolDetail(**p) for p in data]
+                    log_success(f"Loaded {len(protocols)} pre-cached protocol(s) for '{report_dir.name}'")
+                    return protocols
+        except Exception as err:
+            log_warning(f"Error parsing protocols.json: {err}")
 
     # Otherwise read all *.json files except meta.json
     for json_file in sorted(report_path.glob("*.json")):
         if json_file.name in ("meta.json", "history.json"):
             continue
         try:
-            with open(json_file, "r", encoding="utf-8") as f:
+            with open(json_file, encoding="utf-8") as f:
                 p_data = json.load(f)
                 protocols.append(ProtocolDetail(**p_data))
-        except Exception:
-            pass
+        except Exception as err:
+            log_warning(f"Error reading {json_file.name}: {err}")
 
+    log_success(f"Loaded {len(protocols)} pre-cached protocol(s) for '{report_dir.name}'")
     return protocols
 
 
-def _try_qibocal_native_generation(report_dir: Path) -> Optional[List[ProtocolDetail]]:
+def _try_qibocal_native_generation(report_dir: Path) -> list[ProtocolDetail] | None:
     """Try to generate report via native qibocal package if available."""
     try:
         import qibocal
+
         # Native qibocal report logic if installed
         from qibocal.cli.report import Report
         rep = Report(report_dir)
@@ -334,21 +343,27 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
     )
 
 
-def generate_report_on_the_fly(report_dir: Path) -> List[ProtocolDetail]:
+def generate_report_on_the_fly(
+    report_dir: Path,
+    progress_callback: Callable[[int, int, str], None] | None = None
+) -> list[ProtocolDetail]:
     """
     On-the-fly generation of protocol outputs (Issue #10).
     Populates report/ folder inside report_dir and returns protocol details.
     """
+    log_info(f"Generating protocol plots on-the-fly for report '{report_dir.name}'...")
+
     # Check if native qibocal works
     native_protocols = _try_qibocal_native_generation(report_dir)
-    protocols: List[ProtocolDetail] = []
+    protocols: list[ProtocolDetail] = []
 
     if native_protocols:
+        log_info(f"Generated {len(native_protocols)} protocol(s) using native Qibocal engine.")
         protocols = native_protocols
     else:
         # Scan data/ directory for protocol subdirectories or infer from meta.json
         data_dir = report_dir / "data"
-        discovered_protocols: List[str] = []
+        discovered_protocols: list[str] = []
         if data_dir.is_dir():
             for p in sorted(data_dir.iterdir()):
                 if p.is_dir() and not p.name.startswith("."):
@@ -359,7 +374,7 @@ def generate_report_on_the_fly(report_dir: Path) -> List[ProtocolDetail]:
             meta_file = report_dir / "meta.json"
             if meta_file.exists():
                 try:
-                    with open(meta_file, "r", encoding="utf-8") as f:
+                    with open(meta_file, encoding="utf-8") as f:
                         m = json.load(f)
                         discovered_protocols = m.get("protocols") or m.get("actions") or []
                 except Exception:
@@ -368,7 +383,17 @@ def generate_report_on_the_fly(report_dir: Path) -> List[ProtocolDetail]:
         if not discovered_protocols:
             discovered_protocols = ["resonator_spectroscopy", "qubit_spectroscopy", "rabi_amplitude"]
 
+        total = len(discovered_protocols)
+        log_info(f"Evaluating {total} protocol routine(s) for '{report_dir.name}'...")
+
         for idx, proto in enumerate(discovered_protocols):
+            clean_name = proto.replace("_", " ").title()
+            log_step(idx + 1, total, f"Plotting protocol: '{clean_name}' (qubit {idx})")
+            if progress_callback:
+                try:
+                    progress_callback(idx + 1, total, clean_name)
+                except Exception:
+                    pass
             protocols.append(_synthesize_protocol_output(proto, qubit=idx))
 
     # Cache into report/ directory
@@ -389,22 +414,30 @@ def generate_report_on_the_fly(report_dir: Path) -> List[ProtocolDetail]:
         with open(report_path / f"{p.id}.json", "w", encoding="utf-8") as f:
             json.dump(p.model_dump(), f, indent=2)
 
+    log_success(f"Report '{report_dir.name}' plots generated and cached successfully ({len(protocols)} routines).")
     return protocols
 
 
-def get_report_protocols(report_dir: Path) -> List[ProtocolDetail]:
+def get_report_protocols(
+    report_dir: Path,
+    progress_callback: Callable[[int, int, str], None] | None = None
+) -> list[ProtocolDetail]:
     """Retrieve report protocols: pre-cached if present, or generate on-the-fly."""
     if has_cached_report(report_dir):
         return load_cached_protocols(report_dir)
-    return generate_report_on_the_fly(report_dir)
+    return generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
 
 
-def regenerate_report(report_dir: Path) -> List[ProtocolDetail]:
+def regenerate_report(
+    report_dir: Path,
+    progress_callback: Callable[[int, int, str], None] | None = None
+) -> list[ProtocolDetail]:
     """
     Explicit request for plots regeneration (Issue #10):
     Deletes the existing report/ folder and regenerates all protocol plots.
     """
+    log_info(f"Regenerating plots: removing existing cache for '{report_dir.name}'...")
     report_path = report_dir / "report"
     if report_path.is_dir():
         shutil.rmtree(report_path)
-    return generate_report_on_the_fly(report_dir)
+    return generate_report_on_the_fly(report_dir, progress_callback=progress_callback)

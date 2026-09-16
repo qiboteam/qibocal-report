@@ -8,39 +8,39 @@ class ServerModel(BaseModel):
     id: str
     name: str
     url: str
-    description: Optional[str] = ""
-    avatar: Optional[str] = "quantum-ring"
+    description: str | None = ""
+    avatar: str | None = "quantum-ring"
     is_default: bool = False
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 class ServerCreate(BaseModel):
     url: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    avatar: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    avatar: str | None = None
 
 
 class ServerUpdate(BaseModel):
-    url: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    avatar: Optional[str] = None
-    is_default: Optional[bool] = None
+    url: str | None = None
+    name: str | None = None
+    description: str | None = None
+    avatar: str | None = None
+    is_default: bool | None = None
 
 
 class ProtocolFigure(BaseModel):
     id: str
     title: str
-    data: List[Dict[str, Any]] = Field(default_factory=list)
-    layout: Dict[str, Any] = Field(default_factory=dict)
+    data: list[dict[str, Any]] = Field(default_factory=list)
+    layout: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProtocolSummary(BaseModel):
     id: str
     name: str
-    category: Optional[str] = "characterization"
-    execution_time: Optional[str] = None
+    category: str | None = "characterization"
+    execution_time: str | None = None
     status: str = "success"
     num_figures: int = 0
 
@@ -48,11 +48,11 @@ class ProtocolSummary(BaseModel):
 class ProtocolDetail(BaseModel):
     id: str
     name: str
-    category: Optional[str] = "characterization"
-    execution_time: Optional[str] = None
+    category: str | None = "characterization"
+    execution_time: str | None = None
     status: str = "success"
-    html: Optional[str] = ""
-    figures: List[Dict[str, Any]] = Field(default_factory=list)
+    html: str | None = ""
+    figures: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ReportSummary(BaseModel):
@@ -60,20 +60,20 @@ class ReportSummary(BaseModel):
     path: str
     title: str
     date: str
-    time: Optional[str] = ""
-    author: Optional[str] = "Unknown"
-    platform: Optional[str] = "Unknown"
-    targets: List[Any] = Field(default_factory=list)
-    protocols: List[str] = Field(default_factory=list)
-    labels: List[str] = Field(default_factory=list)
-    total_execution_time: Optional[str] = None
+    time: str | None = ""
+    author: str | None = "Unknown"
+    platform: str | None = "Unknown"
+    targets: list[Any] = Field(default_factory=list)
+    protocols: list[str] = Field(default_factory=list)
+    labels: list[str] = Field(default_factory=list)
+    total_execution_time: str | None = None
     has_cached_report: bool = False
 
 
 class ReportDetail(ReportSummary):
-    history: Optional[Any] = Field(default_factory=dict)
-    platform_snapshot: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    protocols_summary: List[ProtocolSummary] = Field(default_factory=list)
+    history: Any | None = Field(default_factory=dict)
+    platform_snapshot: dict[str, Any] | None = Field(default_factory=dict)
+    protocols_summary: list[ProtocolSummary] = Field(default_factory=list)
 
 
 class ProtocolFrequency(BaseModel):
@@ -87,10 +87,10 @@ class DateHistogramBin(BaseModel):
 
 
 class FilterStats(BaseModel):
-    authors: List[str]
-    labels: List[str]
-    protocols: List[ProtocolFrequency]
-    date_histogram: List[DateHistogramBin]
+    authors: list[str]
+    labels: list[str]
+    protocols: list[ProtocolFrequency]
+    date_histogram: list[DateHistogramBin]
 
 
 class HealthResponse(BaseModel):

@@ -39,7 +39,7 @@ def get_config_file() -> Path:
     return get_config_dir() / "servers.json"
 
 
-def get_default_servers() -> List[Dict[str, Any]]:
+def get_default_servers() -> list[dict[str, Any]]:
     """Return default initial server list."""
     return [
         {
@@ -54,7 +54,7 @@ def get_default_servers() -> List[Dict[str, Any]]:
     ]
 
 
-def load_servers() -> List[Dict[str, Any]]:
+def load_servers() -> list[dict[str, Any]]:
     """Load registered servers from config file."""
     config_file = get_config_file()
     if not config_file.exists():
@@ -62,7 +62,7 @@ def load_servers() -> List[Dict[str, Any]]:
         save_servers(defaults)
         return defaults
     try:
-        with open(config_file, "r", encoding="utf-8") as f:
+        with open(config_file, encoding="utf-8") as f:
             data = json.load(f)
             if isinstance(data, list):
                 return data
@@ -73,7 +73,7 @@ def load_servers() -> List[Dict[str, Any]]:
     return get_default_servers()
 
 
-def save_servers(servers: List[Dict[str, Any]]) -> None:
+def save_servers(servers: list[dict[str, Any]]) -> None:
     """Save servers to config file."""
     config_file = get_config_file()
     with open(config_file, "w", encoding="utf-8") as f:
@@ -82,10 +82,10 @@ def save_servers(servers: List[Dict[str, Any]]) -> None:
 
 def add_server(
     url: str,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    avatar: Optional[str] = None
-) -> Dict[str, Any]:
+    name: str | None = None,
+    description: str | None = None,
+    avatar: str | None = None
+) -> dict[str, Any]:
     """Register a new server."""
     servers = load_servers()
     clean_url = url.strip().rstrip("/")
@@ -109,7 +109,7 @@ def add_server(
     return new_server
 
 
-def update_server(server_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def update_server(server_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
     """Update a registered server."""
     servers = load_servers()
     for s in servers:

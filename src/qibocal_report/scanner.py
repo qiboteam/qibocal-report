@@ -29,18 +29,18 @@ def is_report_directory(path: Path) -> bool:
     return False
 
 
-def _parse_meta_json(meta_path: Path) -> Dict[str, Any]:
+def _parse_meta_json(meta_path: Path) -> dict[str, Any]:
     """Safely parse meta.json."""
     if not meta_path.is_file():
         return {}
     try:
-        with open(meta_path, "r", encoding="utf-8") as f:
+        with open(meta_path, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
 
 
-def _discover_protocols(report_dir: Path, meta_data: Dict[str, Any]) -> List[str]:
+def _discover_protocols(report_dir: Path, meta_data: dict[str, Any]) -> list[str]:
     """Discover protocols in a report folder."""
     # From meta.json
     if "protocols" in meta_data and isinstance(meta_data["protocols"], list):
@@ -69,7 +69,7 @@ def _discover_protocols(report_dir: Path, meta_data: Dict[str, Any]) -> List[str
     return ["characterization"]
 
 
-def _format_date(raw_date: Optional[str]) -> str:
+def _format_date(raw_date: str | None) -> str:
     """Normalize date string to YYYY-MM-DD."""
     if not raw_date:
         return datetime.utcnow().strftime("%Y-%m-%d")
@@ -113,9 +113,9 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
     )
 
 
-def scan_reports(root_dir: Path) -> List[ReportSummary]:
+def scan_reports(root_dir: Path) -> list[ReportSummary]:
     """Scan the root directory for all Qibocal report directories."""
-    reports: List[ReportSummary] = []
+    reports: list[ReportSummary] = []
     if not root_dir.exists() or not root_dir.is_dir():
         return reports
 
@@ -139,15 +139,15 @@ def scan_reports(root_dir: Path) -> List[ReportSummary]:
 
 
 def filter_reports(
-    reports: List[ReportSummary],
-    query: Optional[str] = None,
-    authors: Optional[List[str]] = None,
-    labels: Optional[List[str]] = None,
-    protocols: Optional[List[str]] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
+    reports: list[ReportSummary],
+    query: str | None = None,
+    authors: list[str] | None = None,
+    labels: list[str] | None = None,
+    protocols: list[str] | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     sort_by: str = "date_desc",
-) -> List[ReportSummary]:
+) -> list[ReportSummary]:
     """Filter and sort reports based on search criteria."""
     filtered = list(reports)
 
@@ -189,7 +189,7 @@ def filter_reports(
     return filtered
 
 
-def compute_filter_stats(reports: List[ReportSummary]) -> FilterStats:
+def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
     """Compute aggregate filter statistics (Issue #3)."""
     authors = sorted(list({r.author for r in reports if r.author}))
     labels = sorted(list({lab for r in reports for lab in r.labels}))
@@ -219,7 +219,7 @@ def compute_filter_stats(reports: List[ReportSummary]) -> FilterStats:
     )
 
 
-def get_report_detail(root_dir: Path, report_id: str) -> Optional[ReportDetail]:
+def get_report_detail(root_dir: Path, report_id: str) -> ReportDetail | None:
     """Retrieve full details for a specific report."""
     target_dir = root_dir / report_id
     if not target_dir.is_dir():
@@ -239,7 +239,7 @@ def get_report_detail(root_dir: Path, report_id: str) -> Optional[ReportDetail]:
     hist_path = target_dir / "history.json"
     if hist_path.is_file():
         try:
-            with open(hist_path, "r", encoding="utf-8") as f:
+            with open(hist_path, encoding="utf-8") as f:
                 history_data = json.load(f)
         except Exception:
             pass
@@ -250,14 +250,14 @@ def get_report_detail(root_dir: Path, report_id: str) -> Optional[ReportDetail]:
     if plat_dir.is_dir():
         for f in plat_dir.glob("*.json"):
             try:
-                with open(f, "r", encoding="utf-8") as pf:
+                with open(f, encoding="utf-8") as pf:
                     platform_data[f.stem] = json.load(pf)
             except Exception:
                 pass
         for f in plat_dir.glob("*.yaml"):
             try:
                 import yaml
-                with open(f, "r", encoding="utf-8") as yf:
+                with open(f, encoding="utf-8") as yf:
                     platform_data[f.stem] = yaml.safe_load(yf)
             except Exception:
                 pass
