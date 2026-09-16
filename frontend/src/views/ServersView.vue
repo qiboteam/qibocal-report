@@ -3,7 +3,7 @@
     <div class="max-w-3xl mx-auto">
       <!-- Top Utility Nav: Back to Dashboard & Save Config -->
       <div class="flex items-center justify-between pb-6 mb-6 border-b border-gray-200/60">
-        <router-link 
+        <router-link
           to="/dashboard"
           class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 transition"
         >
@@ -13,7 +13,7 @@
           Dashboard
         </router-link>
 
-        <button 
+        <button
           @click="handleSaveConfig"
           class="border-0 text-xs font-medium px-3 py-1 rounded-full bg-white hover:bg-gray-50 text-gray-700 shadow-xs hover:shadow-sm transition flex items-center gap-1.5 active:scale-[0.98]"
         >
@@ -36,21 +36,21 @@
 
       <!-- Seamless Paste Box without borders -->
       <div class="max-w-xl mx-auto mb-8">
-        <form 
-          @submit.prevent="handleQuickAdd" 
+        <form
+          @submit.prevent="handleQuickAdd"
           class="border-0 relative flex items-center bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-1.5 pl-4"
         >
           <svg class="w-4 h-4 text-gray-400 shrink-0 mr-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
           </svg>
-          <input 
+          <input
             v-model="newServerUrl"
             type="text"
             placeholder="Paste server URL and press Enter (e.g. http://127.0.0.1:8000)..."
             class="border-0 outline-none w-full bg-transparent text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none py-1.5"
             required
           />
-          <button 
+          <button
             type="submit"
             :disabled="!newServerUrl.trim()"
             class="border-0 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] disabled:opacity-35 transition shrink-0 shadow-2xs"
@@ -61,8 +61,8 @@
       </div>
 
       <!-- Notification banner if saved -->
-      <div 
-        v-if="toastMessage" 
+      <div
+        v-if="toastMessage"
         class="mb-4 p-2.5 bg-purple-50/90 rounded-xl text-xs text-purple-900 flex items-center justify-between shadow-2xs"
       >
         <span>✓ {{ toastMessage }}</span>
@@ -78,7 +78,7 @@
 
       <!-- Grid of Lightweight Server Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        <server-card 
+        <server-card
           v-for="server in servers"
           :key="server.id"
           :server="server"
@@ -90,7 +90,7 @@
       </div>
 
       <!-- Refined Edit Modal -->
-      <server-modal 
+      <server-modal
         v-if="modalOpen"
         :server="editingServer"
         @close="modalOpen = false"

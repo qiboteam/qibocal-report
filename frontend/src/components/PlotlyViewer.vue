@@ -8,7 +8,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, toRaw } from 'vue'
 import Plotly from 'plotly.js-dist-min'
 
 const props = defineProps({
@@ -16,20 +16,28 @@ const props = defineProps({
 })
 
 const plotContainer = ref(null)
+let isRendered = false
 
-async function renderPlot() {
-  await nextTick()
-  if (!plotContainer.value || !props.figure) return
-
-  const layout = {
+function getCleanDataAndLayout() {
+  const fig = toRaw(props.figure)
+  const rawData = fig.data ? JSON.parse(JSON.stringify(fig.data)) : []
+  const rawLayout = {
     autosize: true,
     font: { family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
     margin: { t: 30, r: 20, b: 40, l: 50 },
     hovermode: 'closest',
-    ...(props.figure.layout || {})
+    ...(fig.layout ? JSON.parse(JSON.stringify(fig.layout)) : {})
   }
+  return { rawData, rawLayout }
+}
+
+async function renderPlot() {
+  await nextTick()
+  if (!plotContainer.value || !props.figure) return
+
+  const { rawData, rawLayout } = getCleanDataAndLayout()
 
   const config = {
     responsive: true,
@@ -39,29 +47,39 @@ async function renderPlot() {
   }
 
   try {
-    Plotly.newPlot(plotContainer.value, props.figure.data || [], layout, config)
+    // Plotly.react is high-performance and reuses the graph div safely
+    await Plotly.react(plotContainer.value, rawData, rawLayout, config)
+    isRendered = true
   } catch (err) {
     console.error('Error rendering Plotly figure:', err)
   }
 }
 
+let resizeTimer = null
 function handleResize() {
-  if (plotContainer.value) {
-    Plotly.Plots.resize(plotContainer.value)
-  }
+  if (resizeTimer) cancelAnimationFrame(resizeTimer)
+  resizeTimer = requestAnimationFrame(() => {
+    if (plotContainer.value && isRendered) {
+      Plotly.Plots.resize(plotContainer.value)
+    }
+  })
 }
 
 onMounted(() => {
-  renderPlot()
+  requestAnimationFrame(() => {
+    renderPlot()
+  })
   window.addEventListener('resize', handleResize)
 })
 
-watch(() => props.figure, () => {
+// Shallow watch on figure identity/title only - NEVER deep watch mutable Plotly figures!
+watch(() => [props.figure?.id, props.figure?.title], () => {
   renderPlot()
-}, { deep: true })
+})
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  if (resizeTimer) cancelAnimationFrame(resizeTimer)
   if (plotContainer.value) {
     Plotly.purge(plotContainer.value)
   }

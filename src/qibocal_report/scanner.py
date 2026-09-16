@@ -1,11 +1,16 @@
 """Directory scanner and search indexing for Qibocal reports (Issue #10, Issue #3)."""
 
 import json
+import os
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from qibocal_report.generator import has_cached_report, get_report_protocols
+from typing import Any
+
+from qibocal_report.generator import (
+    has_cached_report,
+    load_cached_protocols,
+)
 from qibocal_report.models import (
     DateHistogramBin,
     FilterStats,
@@ -15,18 +20,48 @@ from qibocal_report.models import (
     ReportSummary,
 )
 
+IGNORED_DIRS = {
+    "node_modules",
+    ".venv",
+    "venv",
+    ".git",
+    "dist",
+    ".devenv",
+    "__pycache__",
+    ".pytest_cache",
+    ".gemini",
+    "build",
+    ".cache",
+}
+
 
 def is_report_directory(path: Path) -> bool:
-    """Check if a directory is a Qibocal report folder."""
+    """Check if a directory is a genuine Qibocal report folder."""
     if not path.is_dir() or path.name.startswith("."):
         return False
+    # Check if any parent component is in IGNORED_DIRS
+    for part in path.parts:
+        if part in IGNORED_DIRS:
+            return False
+
+    # Standard Qibocal output contains meta.json
     if (path / "meta.json").is_file():
         return True
-    if (path / "data").is_dir():
+
+    # Pre-cached report directory containing json artifacts
+    report_sub = path / "report"
+    if report_sub.is_dir() and (
+        (report_sub / "meta.json").is_file() or any(report_sub.glob("*.json"))
+    ):
         return True
-    if (path / "report").is_dir():
-        return True
-    return False
+
+    # Raw acquisition run directory containing action.yml in subdirectories
+    data_sub = path / "data"
+    return data_sub.is_dir() and (
+        any(data_sub.glob("*/action.yml"))
+        or any(data_sub.glob("*/results.json"))
+        or any(data_sub.glob("*/data.json"))
+    )
 
 
 def _parse_meta_json(meta_path: Path) -> dict[str, Any]:
@@ -36,7 +71,7 @@ def _parse_meta_json(meta_path: Path) -> dict[str, Any]:
     try:
         with open(meta_path, encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except (json.JSONDecodeError, OSError):
         return {}
 
 
@@ -48,21 +83,29 @@ def _discover_protocols(report_dir: Path, meta_data: dict[str, Any]) -> list[str
     if "actions" in meta_data and isinstance(meta_data["actions"], list):
         return meta_data["actions"]
     if "stats" in meta_data and isinstance(meta_data["stats"], dict):
-        protos = list(dict.fromkeys(k.rsplit("-", 1)[0] for k in meta_data["stats"].keys()))
+        protos = list(dict.fromkeys(k.rsplit("-", 1)[0] for k in meta_data["stats"]))
         if protos:
             return protos
 
     # From data/ directory
     data_dir = report_dir / "data"
     if data_dir.is_dir():
-        protos = [p.name for p in sorted(data_dir.iterdir()) if p.is_dir() and not p.name.startswith(".")]
+        protos = [
+            p.name
+            for p in sorted(data_dir.iterdir())
+            if p.is_dir() and not p.name.startswith(".")
+        ]
         if protos:
             return protos
 
     # From report/ directory
     report_path = report_dir / "report"
     if report_path.is_dir():
-        protos = [p.stem for p in sorted(report_path.glob("*.json")) if p.stem not in ("meta", "history")]
+        protos = [
+            p.stem
+            for p in sorted(report_path.glob("*.json"))
+            if p.stem not in ("meta", "history")
+        ]
         if protos:
             return protos
 
@@ -72,7 +115,7 @@ def _discover_protocols(report_dir: Path, meta_data: dict[str, Any]) -> list[str
 def _format_date(raw_date: str | None) -> str:
     """Normalize date string to YYYY-MM-DD."""
     if not raw_date:
-        return datetime.utcnow().strftime("%Y-%m-%d")
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
     clean = raw_date.strip().split("T")[0]
     return clean
 
@@ -82,9 +125,13 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
     meta = _parse_meta_json(report_dir / "meta.json")
 
     report_id = report_dir.relative_to(root_dir).as_posix()
-    title = meta.get("title") or report_dir.name.replace("_", " ").replace("-", " ").title()
+    title = (
+        meta.get("title") or report_dir.name.replace("_", " ").replace("-", " ").title()
+    )
     date_str = _format_date(meta.get("date"))
-    time_str = meta.get("time") or meta.get("start-time") or meta.get("start_time") or ""
+    time_str = (
+        meta.get("time") or meta.get("start-time") or meta.get("start_time") or ""
+    )
     author = meta.get("author") or meta.get("user") or "Unknown"
     platform = meta.get("platform") or "Generic QPU"
     targets = meta.get("targets") or meta.get("qubits") or []
@@ -114,7 +161,7 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
 
 
 def scan_reports(root_dir: Path) -> list[ReportSummary]:
-    """Scan the root directory for all Qibocal report directories."""
+    """Scan the root directory for all Qibocal report directories efficiently."""
     reports: list[ReportSummary] = []
     if not root_dir.exists() or not root_dir.is_dir():
         return reports
@@ -123,17 +170,17 @@ def scan_reports(root_dir: Path) -> list[ReportSummary]:
     if is_report_directory(root_dir):
         return [parse_report_directory(root_dir, root_dir.parent)]
 
-    # Breadth-first / directory traversal
-    for path in sorted(root_dir.rglob("*")):
-        if path.is_dir() and is_report_directory(path):
-            # Don't recurse into subdirectories of a report dir
-            try:
-                # Check if an ancestor has already been added
-                already_parent = any(str(path).startswith(str(r.path) + "/") for r in reports)
-                if not already_parent:
-                    reports.append(parse_report_directory(path, root_dir))
-            except Exception:
-                pass
+    # Fast directory walk skipping ignored subtrees
+    for dirpath, dirnames, _ in os.walk(root_dir):
+        # Exclude ignored directories in-place to avoid expensive traversal
+        dirnames[:] = [
+            d for d in dirnames if d not in IGNORED_DIRS and not d.startswith(".")
+        ]
+        p = Path(dirpath)
+        if p != root_dir and is_report_directory(p):
+            reports.append(parse_report_directory(p, root_dir))
+            # Don't recurse into subdirectories of a discovered report
+            dirnames.clear()
 
     return reports
 
@@ -154,7 +201,8 @@ def filter_reports(
     if query:
         q_lower = query.lower().strip()
         filtered = [
-            r for r in filtered
+            r
+            for r in filtered
             if q_lower in r.title.lower()
             or q_lower in r.id.lower()
             or q_lower in (r.author or "").lower()
@@ -191,8 +239,8 @@ def filter_reports(
 
 def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
     """Compute aggregate filter statistics (Issue #3)."""
-    authors = sorted(list({r.author for r in reports if r.author}))
-    labels = sorted(list({lab for r in reports for lab in r.labels}))
+    authors = sorted({r.author for r in reports if r.author})
+    labels = sorted({lab for r in reports for lab in r.labels})
 
     proto_counter = Counter()
     for r in reports:
@@ -207,8 +255,7 @@ def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
 
     date_counter = Counter(r.date for r in reports if r.date)
     date_histogram = [
-        DateHistogramBin(date=d, count=date_counter[d])
-        for d in sorted(date_counter.keys())
+        DateHistogramBin(date=d, count=date_counter[d]) for d in sorted(date_counter)
     ]
 
     return FilterStats(
@@ -241,7 +288,7 @@ def get_report_detail(root_dir: Path, report_id: str) -> ReportDetail | None:
         try:
             with open(hist_path, encoding="utf-8") as f:
                 history_data = json.load(f)
-        except Exception:
+        except (json.JSONDecodeError, OSError):
             pass
 
     # Read platform/ snapshot
@@ -252,29 +299,44 @@ def get_report_detail(root_dir: Path, report_id: str) -> ReportDetail | None:
             try:
                 with open(f, encoding="utf-8") as pf:
                     platform_data[f.stem] = json.load(pf)
-            except Exception:
+            except (json.JSONDecodeError, OSError):
                 pass
         for f in plat_dir.glob("*.yaml"):
             try:
                 import yaml
+
                 with open(f, encoding="utf-8") as yf:
                     platform_data[f.stem] = yaml.safe_load(yf)
-            except Exception:
+            except (yaml.YAMLError, OSError):
                 pass
 
-    # Load protocols (cached or generated)
-    protocols = get_report_protocols(target_dir)
-    proto_summaries = [
-        ProtocolSummary(
-            id=p.id,
-            name=p.name,
-            category=p.category,
-            execution_time=p.execution_time,
-            status=p.status,
-            num_figures=len(p.figures),
-        )
-        for p in protocols
-    ]
+    # Protocol summaries: read from cache if available, otherwise summarize from
+    # metadata
+    if has_cached_report(target_dir):
+        protocols = load_cached_protocols(target_dir)
+        proto_summaries = [
+            ProtocolSummary(
+                id=p.id,
+                name=p.name,
+                category=p.category,
+                execution_time=p.execution_time,
+                status=p.status,
+                num_figures=len(p.figures),
+            )
+            for p in protocols
+        ]
+    else:
+        proto_summaries = [
+            ProtocolSummary(
+                id=p_name,
+                name=p_name.replace("_", " ").title(),
+                category="calibration",
+                execution_time="N/A",
+                status="pending",
+                num_figures=0,
+            )
+            for p_name in summary.protocols
+        ]
 
     return ReportDetail(
         id=summary.id,

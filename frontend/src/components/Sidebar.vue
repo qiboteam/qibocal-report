@@ -1,5 +1,5 @@
 <template>
-  <aside 
+  <aside
     class="no-print h-screen bg-white border-r border-gray-200/80 flex flex-col transition-all duration-300 z-30 shrink-0"
     :class="isCollapsed ? 'w-16' : 'w-72'"
   >
@@ -8,7 +8,7 @@
       <div v-if="!isCollapsed" class="flex-1 min-w-0">
         <!-- Quick Switch between registered servers (Issue #3) -->
         <div class="relative">
-          <button 
+          <button
             @click="serverDropdownOpen = !serverDropdownOpen"
             class="w-full flex items-center justify-between p-2 rounded-xl bg-gray-50 hover:bg-purple-50 text-left transition border border-gray-100"
           >
@@ -22,13 +22,13 @@
           </button>
 
           <!-- Dropdown -->
-          <div 
-            v-if="serverDropdownOpen" 
+          <div
+            v-if="serverDropdownOpen"
             class="absolute top-full left-0 mt-1 w-full bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 text-xs"
           >
             <div class="px-3 py-1 font-semibold text-gray-400 uppercase text-[10px]">Registered Servers</div>
-            <div 
-              v-for="s in servers" 
+            <div
+              v-for="s in servers"
               :key="s.id"
               @click="switchServer(s)"
               class="px-3 py-2 hover:bg-purple-50 cursor-pointer flex items-center justify-between gap-2"
@@ -38,8 +38,8 @@
               <span v-if="s.id === activeServer?.id" class="w-1.5 h-1.5 rounded-full bg-[#833dff]"></span>
             </div>
             <div class="border-t border-gray-100 mt-1 pt-1">
-              <router-link 
-                to="/servers" 
+              <router-link
+                to="/servers"
                 @click="serverDropdownOpen = false"
                 class="px-3 py-1.5 text-[#833dff] hover:bg-purple-50 flex items-center gap-1.5 font-medium block"
               >
@@ -51,7 +51,7 @@
       </div>
 
       <!-- Collapse / Expand Button -->
-      <button 
+      <button
         @click="isCollapsed = !isCollapsed"
         class="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition shrink-0"
         :title="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
@@ -67,7 +67,7 @@
     <div class="h-1/2 overflow-y-auto p-3 flex flex-col justify-between border-b border-gray-200/80">
       <div class="space-y-1">
         <!-- Search Page -->
-        <router-link 
+        <router-link
           to="/dashboard"
           class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition"
           :class="$route.path === '/dashboard' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-700 hover:bg-gray-100'"
@@ -79,7 +79,7 @@
         </router-link>
 
         <!-- Current Report -->
-        <router-link 
+        <router-link
           v-if="currentReportId"
           :to="`/reports/${currentReportId}`"
           class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition"
@@ -93,7 +93,7 @@
 
         <!-- Collapsible Opened Reports History (Issue #3) -->
         <div v-if="!isCollapsed" class="pt-2">
-          <button 
+          <button
             @click="historyOpen = !historyOpen"
             class="w-full flex items-center justify-between text-[11px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1 hover:text-gray-600"
           >
@@ -104,14 +104,14 @@
           </button>
 
           <div v-if="historyOpen" class="mt-1 space-y-0.5 max-h-36 overflow-y-auto">
-            <div 
-              v-if="history.length === 0" 
+            <div
+              v-if="history.length === 0"
               class="px-3 py-1 text-[11px] text-gray-400 italic"
             >
               No reports viewed yet
             </div>
-            <router-link 
-              v-for="h in history" 
+            <router-link
+              v-for="h in history"
               :key="h.id"
               :to="`/reports/${h.id}`"
               class="block px-3 py-1.5 rounded-lg text-xs hover:bg-gray-100 transition truncate"
@@ -127,7 +127,7 @@
 
       <!-- Docs Button (Issue #12) -->
       <div v-if="!isCollapsed" class="pt-2 border-t border-gray-100">
-        <router-link 
+        <router-link
           to="/docs"
           class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition"
         >
@@ -145,7 +145,7 @@
       <div v-if="isSearchMode">
         <div class="flex items-center justify-between mb-3">
           <span class="text-xs font-bold uppercase tracking-wider text-gray-800">Filters</span>
-          <button 
+          <button
             @click="$emit('reset-filters')"
             class="text-[11px] text-[#833dff] hover:underline font-semibold"
           >
@@ -155,7 +155,7 @@
 
         <!-- Date Range & Histogram (Issue #3) -->
         <div class="mb-4">
-          <date-histogram 
+          <date-histogram
             :histogram="filterStats?.date_histogram"
             @select-date="d => $emit('update-filter', { key: 'date', value: d })"
           />
@@ -164,7 +164,7 @@
         <!-- Author Filter -->
         <div class="mb-4">
           <label class="block text-xs font-semibold text-gray-700 mb-1">Author</label>
-          <select 
+          <select
             :value="selectedAuthor"
             @change="$emit('update-filter', { key: 'author', value: $event.target.value })"
             class="w-full text-xs p-2 rounded-lg bg-gray-50 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#833dff]"
@@ -181,13 +181,13 @@
             <span class="text-[10px] text-gray-400">By frequency</span>
           </div>
           <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-            <label 
-              v-for="p in filterStats?.protocols" 
+            <label
+              v-for="p in filterStats?.protocols"
               :key="p.name"
               class="flex items-center justify-between text-xs text-gray-700 hover:bg-gray-50 p-1 rounded cursor-pointer"
             >
               <div class="flex items-center gap-2 truncate">
-                <input 
+                <input
                   type="checkbox"
                   :value="p.name"
                   :checked="selectedProtocols.includes(p.name)"
@@ -206,18 +206,18 @@
         <!-- Labels / Tags Checklist with Search (Issue #3) -->
         <div>
           <label class="block text-xs font-semibold text-gray-700 mb-1">Labels</label>
-          <input 
+          <input
             v-model="labelSearch"
             placeholder="Filter labels..."
             class="w-full text-xs px-2.5 py-1 mb-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none"
           />
           <div class="space-y-1 max-h-24 overflow-y-auto">
-            <label 
-              v-for="lab in filteredLabels" 
+            <label
+              v-for="lab in filteredLabels"
               :key="lab"
               class="flex items-center gap-2 text-xs text-gray-700 hover:bg-gray-50 p-1 rounded cursor-pointer"
             >
-              <input 
+              <input
                 type="checkbox"
                 :value="lab"
                 :checked="selectedLabels.includes(lab)"
@@ -240,11 +240,11 @@
         </div>
 
         <div class="space-y-1.5 overflow-y-auto flex-1">
-          <a 
-            v-for="p in reportProtocols" 
+          <a
+            v-for="p in reportProtocols"
             :key="p.id"
-            :href="`#proto-${p.id}`"
-            class="block p-2 rounded-xl text-xs hover:bg-purple-50/70 border border-gray-100 hover:border-purple-200 transition group"
+            @click.prevent="scrollToProtocol(p.id)"
+            class="block p-2 rounded-xl text-xs hover:bg-purple-50/70 border border-gray-100 hover:border-purple-200 transition group cursor-pointer"
           >
             <div class="flex items-center justify-between">
               <span class="font-semibold text-gray-800 group-hover:text-[#833dff] truncate">{{ p.name }}</span>
@@ -301,5 +301,12 @@ const filteredLabels = computed(() => {
 function switchServer(s) {
   setActiveServer(s)
   serverDropdownOpen.value = false
+}
+
+function scrollToProtocol(id) {
+  const el = document.getElementById(`proto-${id}`)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth' })
+  }
 }
 </script>

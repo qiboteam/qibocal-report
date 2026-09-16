@@ -1,6 +1,7 @@
 """Pydantic models for qibocal-report."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 

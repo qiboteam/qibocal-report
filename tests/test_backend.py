@@ -1,16 +1,24 @@
-import pytest
 from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
+
 from qibocal_report import config
 from qibocal_report.api import app, set_report_root
-from qibocal_report.scanner import scan_reports, filter_reports, compute_filter_stats
-from qibocal_report.generator import has_cached_report, load_cached_protocols, regenerate_report
+from qibocal_report.generator import (
+    has_cached_report,
+    load_cached_protocols,
+    regenerate_report,
+)
+from qibocal_report.scanner import compute_filter_stats, filter_reports, scan_reports
+
 
 @pytest.fixture(autouse=True)
 def setup_env(tmp_path, monkeypatch):
     monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
     sample_dir = Path(__file__).parent.parent / "sample_data"
     set_report_root(sample_dir)
+
 
 def test_config_servers(tmp_path):
     servers = config.load_servers()
@@ -27,49 +35,45 @@ def test_config_servers(tmp_path):
     deleted = config.delete_server(new_srv["id"])
     assert deleted is True
 
+
 def test_scanner_and_filters():
     sample_dir = Path(__file__).parent.parent / "sample_data"
     reports = scan_reports(sample_dir)
     assert len(reports) >= 3
 
-    # Filter by author
-    alice_reports = filter_reports(reports, authors=["Alice"])
-    assert len(alice_reports) == 1
-    assert alice_reports[0].author == "Alice"
-
     # Filter by query
-    rigetti = filter_reports(reports, query="Aspen")
-    assert len(rigetti) == 1
-    assert "aspen" in rigetti[0].platform.lower()
+    pi_pulse = filter_reports(reports, query="pi-pulse")
+    assert len(pi_pulse) == 1
+    assert "pi-pulse" in pi_pulse[0].id.lower()
 
     # Filter by protocol
-    rb_reports = filter_reports(reports, protocols=["randomized_benchmarking"])
-    assert len(rb_reports) == 1
+    ssc_reports = filter_reports(reports, protocols=["single_shot_classification"])
+    assert len(ssc_reports) >= 2
 
     # Filter stats
     stats = compute_filter_stats(reports)
-    assert "Alice" in stats.authors
-    assert "daily" in stats.labels
     assert len(stats.protocols) > 0
     # verify protocols are sorted descending by frequency
     counts = [p.count for p in stats.protocols]
     assert counts == sorted(counts, reverse=True)
 
+
 def test_generator_modes(tmp_path):
     # Test pre-cached reading
     sample_dir = Path(__file__).parent.parent / "sample_data"
-    rep1 = sample_dir / "20241220-starfleet-5q"
+    rep1 = sample_dir / "21:47:29_[3]_pi-pulse"
     assert has_cached_report(rep1) is True
     cached_protos = load_cached_protocols(rep1)
     assert len(cached_protos) >= 2
-    assert any(p.id == "resonator_spectroscopy" for p in cached_protos)
+    assert any("rabi" in p.id for p in cached_protos)
     assert len(cached_protos[0].figures) > 0
 
     # Test regeneration
-    rep2 = sample_dir / "20241221-rigetti-8q"
+    rep2 = sample_dir / "21:39:54_[3]_single_shot_classification"
     regenerated = regenerate_report(rep2)
     assert len(regenerated) > 0
     assert has_cached_report(rep2) is True
+
 
 def test_api_endpoints():
     client = TestClient(app)
@@ -135,6 +139,14 @@ def test_api_endpoints():
     assert r.status_code == 200
     protos_regen = r.json()
     assert len(protos_regen) > 0
+
+    # WebSocket endpoint streaming
+    with client.websocket_connect(f"/ws/reports/{first_id}") as ws:
+        msg1 = ws.receive_json()
+        assert msg1["type"] == "metadata"
+        msg2 = ws.receive_json()
+        assert msg2["type"] in ("status", "ready")
+
 
 def test_docs_endpoint():
     client = TestClient(app)

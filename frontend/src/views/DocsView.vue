@@ -3,7 +3,7 @@
     <div class="max-w-4xl mx-auto">
       <!-- Top Navigation -->
       <div class="flex items-center justify-between pb-6 border-b border-gray-200">
-        <router-link 
+        <router-link
           to="/dashboard"
           class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-[#833dff] transition"
         >
@@ -13,8 +13,8 @@
           Back to Dashboard
         </router-link>
 
-        <a 
-          href="/api/docs/swagger" 
+        <a
+          href="/api/docs/swagger"
           target="_blank"
           class="inline-flex items-center gap-1 text-xs font-semibold text-[#833dff] hover:underline"
         >
@@ -33,8 +33,8 @@
 
         <!-- Document Tabs (Issue #12) -->
         <div class="flex items-center gap-2 mt-4 border-b border-gray-200 pb-2">
-          <button 
-            v-for="tab in tabs" 
+          <button
+            v-for="tab in tabs"
             :key="tab.id"
             @click="activeTab = tab.id; loadDoc(tab.id)"
             class="px-4 py-2 rounded-xl text-xs font-semibold transition"
@@ -50,8 +50,8 @@
         <div v-if="loading" class="text-center py-12 text-xs text-gray-400">
           Loading documentation...
         </div>
-        <article 
-          v-else 
+        <article
+          v-else
           class="prose prose-purple max-w-none text-sm text-gray-800 leading-relaxed"
           v-html="renderedContent"
         ></article>

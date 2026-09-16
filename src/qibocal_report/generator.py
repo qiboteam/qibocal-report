@@ -3,12 +3,11 @@
 import json
 import math
 import shutil
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 from collections.abc import Callable
+from pathlib import Path
 
 from qibocal_report.logger import log_info, log_step, log_success, log_warning
-from qibocal_report.models import ProtocolDetail, ProtocolSummary
+from qibocal_report.models import ProtocolDetail
 
 
 def has_cached_report(report_dir: Path) -> bool:
@@ -38,9 +37,12 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
                 data = json.load(f)
                 if isinstance(data, list):
                     protocols = [ProtocolDetail(**p) for p in data]
-                    log_success(f"Loaded {len(protocols)} pre-cached protocol(s) for '{report_dir.name}'")
+                    log_success(
+                        f"Loaded {len(protocols)} pre-cached protocol(s) "
+                        "for '{report_dir.name}'"
+                    )
                     return protocols
-        except Exception as err:
+        except (json.JSONDecodeError, OSError, TypeError) as err:
             log_warning(f"Error parsing protocols.json: {err}")
 
     # Otherwise read all *.json files except meta.json
@@ -51,20 +53,21 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
             with open(json_file, encoding="utf-8") as f:
                 p_data = json.load(f)
                 protocols.append(ProtocolDetail(**p_data))
-        except Exception as err:
+        except (json.JSONDecodeError, OSError, TypeError) as err:
             log_warning(f"Error reading {json_file.name}: {err}")
 
-    log_success(f"Loaded {len(protocols)} pre-cached protocol(s) for '{report_dir.name}'")
+    log_success(
+        f"Loaded {len(protocols)} pre-cached protocol(s) for '{report_dir.name}'"
+    )
     return protocols
 
 
 def _try_qibocal_native_generation(report_dir: Path) -> list[ProtocolDetail] | None:
     """Try to generate report via native qibocal package if available."""
     try:
-        import qibocal
-
         # Native qibocal report logic if installed
         from qibocal.cli.report import Report
+
         rep = Report(report_dir)
         generated = []
         for name, routine in rep.routines.items():
@@ -82,11 +85,11 @@ def _try_qibocal_native_generation(report_dir: Path) -> list[ProtocolDetail] | N
                 execution_time="N/A",
                 status="success",
                 html=str(html_table),
-                figures=fig_dicts
+                figures=fig_dicts,
             )
             generated.append(p)
         return generated
-    except Exception:
+    except (ImportError, AttributeError, RuntimeError, OSError):
         return None
 
 
@@ -137,7 +140,7 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                         "mode": "markers",
                         "type": "scatter",
                         "name": "Acquired Data",
-                        "marker": {"color": "#4a4a4a", "size": 6}
+                        "marker": {"color": "#4a4a4a", "size": 6},
                     },
                     {
                         "x": freqs,
@@ -145,8 +148,8 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                         "mode": "lines",
                         "type": "scatter",
                         "name": "Lorentzian Fit",
-                        "line": {"color": "#833dff", "width": 2.5}
-                    }
+                        "line": {"color": "#833dff", "width": 2.5},
+                    },
                 ],
                 "layout": {
                     "title": f"Q{qubit} {clean_name}",
@@ -154,14 +157,17 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                     "yaxis": {"title": "MSR (V)", "gridcolor": "#f0f0f0"},
                     "paper_bgcolor": "transparent",
                     "plot_bgcolor": "transparent",
-                    "margin": {"t": 40, "b": 40, "l": 50, "r": 20}
-                }
+                    "margin": {"t": 40, "b": 40, "l": 50, "r": 20},
+                },
             }
         ]
 
     elif "rabi" in protocol_name:
         amps = [0.0 + i * 0.02 for i in range(26)]
-        measured = [0.5 * (1 - math.cos(2 * math.pi * a / 0.35)) + (i % 2 - 0.5) * 0.02 for i, a in enumerate(amps)]
+        measured = [
+            0.5 * (1 - math.cos(2 * math.pi * a / 0.35)) + (i % 2 - 0.5) * 0.02
+            for i, a in enumerate(amps)
+        ]
         fit = [0.5 * (1 - math.cos(2 * math.pi * a / 0.35)) for a in amps]
 
         html = f"""
@@ -198,7 +204,7 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                         "mode": "markers",
                         "type": "scatter",
                         "name": "Signal",
-                        "marker": {"color": "#4a4a4a", "size": 6}
+                        "marker": {"color": "#4a4a4a", "size": 6},
                     },
                     {
                         "x": amps,
@@ -206,17 +212,23 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                         "mode": "lines",
                         "type": "scatter",
                         "name": "Cosine Fit",
-                        "line": {"color": "#833dff", "width": 2.5}
-                    }
+                        "line": {"color": "#833dff", "width": 2.5},
+                    },
                 ],
                 "layout": {
                     "title": f"Q{qubit} {clean_name}",
-                    "xaxis": {"title": "Pulse Amplitude (a.u.)", "gridcolor": "#f0f0f0"},
-                    "yaxis": {"title": "State Population / MSR", "gridcolor": "#f0f0f0"},
+                    "xaxis": {
+                        "title": "Pulse Amplitude (a.u.)",
+                        "gridcolor": "#f0f0f0",
+                    },
+                    "yaxis": {
+                        "title": "State Population / MSR",
+                        "gridcolor": "#f0f0f0",
+                    },
                     "paper_bgcolor": "transparent",
                     "plot_bgcolor": "transparent",
-                    "margin": {"t": 40, "b": 40, "l": 50, "r": 20}
-                }
+                    "margin": {"t": 40, "b": 40, "l": 50, "r": 20},
+                },
             }
         ]
 
@@ -224,8 +236,15 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
         delays = [0 + i * 200 for i in range(26)]
         freq_detuning = 0.002
         t2 = 1800.0
-        measured = [math.exp(-d / t2) * math.cos(2 * math.pi * freq_detuning * d) + (i % 2 - 0.5) * 0.03 for i, d in enumerate(delays)]
-        fit = [math.exp(-d / t2) * math.cos(2 * math.pi * freq_detuning * d) for d in delays]
+        measured = [
+            math.exp(-d / t2) * math.cos(2 * math.pi * freq_detuning * d)
+            + (i % 2 - 0.5) * 0.03
+            for i, d in enumerate(delays)
+        ]
+        fit = [
+            math.exp(-d / t2) * math.cos(2 * math.pi * freq_detuning * d)
+            for d in delays
+        ]
 
         html = f"""
         <div class="overflow-x-auto my-3">
@@ -261,7 +280,7 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                         "mode": "markers",
                         "type": "scatter",
                         "name": "Measured",
-                        "marker": {"color": "#4a4a4a", "size": 6}
+                        "marker": {"color": "#4a4a4a", "size": 6},
                     },
                     {
                         "x": delays,
@@ -269,8 +288,8 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                         "mode": "lines",
                         "type": "scatter",
                         "name": "Decaying Oscillation Fit",
-                        "line": {"color": "#833dff", "width": 2.5}
-                    }
+                        "line": {"color": "#833dff", "width": 2.5},
+                    },
                 ],
                 "layout": {
                     "title": f"Q{qubit} {clean_name}",
@@ -278,8 +297,8 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                     "yaxis": {"title": "MSR (V)", "gridcolor": "#f0f0f0"},
                     "paper_bgcolor": "transparent",
                     "plot_bgcolor": "transparent",
-                    "margin": {"t": 40, "b": 40, "l": 50, "r": 20}
-                }
+                    "margin": {"t": 40, "b": 40, "l": 50, "r": 20},
+                },
             }
         ]
 
@@ -318,7 +337,7 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                         "mode": "lines+markers",
                         "type": "scatter",
                         "name": "Signal",
-                        "line": {"color": "#833dff", "width": 2}
+                        "line": {"color": "#833dff", "width": 2},
                     }
                 ],
                 "layout": {
@@ -327,8 +346,8 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
                     "yaxis": {"title": "Signal", "gridcolor": "#f0f0f0"},
                     "paper_bgcolor": "transparent",
                     "plot_bgcolor": "transparent",
-                    "margin": {"t": 40, "b": 40, "l": 50, "r": 20}
-                }
+                    "margin": {"t": 40, "b": 40, "l": 50, "r": 20},
+                },
             }
         ]
 
@@ -339,13 +358,12 @@ def _synthesize_protocol_output(protocol_name: str, qubit: int = 0) -> ProtocolD
         execution_time="14.2s",
         status="success",
         html=html.strip(),
-        figures=figures
+        figures=figures,
     )
 
 
 def generate_report_on_the_fly(
-    report_dir: Path,
-    progress_callback: Callable[[int, int, str], None] | None = None
+    report_dir: Path, progress_callback: Callable[[int, int, str], None] | None = None
 ) -> list[ProtocolDetail]:
     """
     On-the-fly generation of protocol outputs (Issue #10).
@@ -358,7 +376,10 @@ def generate_report_on_the_fly(
     protocols: list[ProtocolDetail] = []
 
     if native_protocols:
-        log_info(f"Generated {len(native_protocols)} protocol(s) using native Qibocal engine.")
+        log_info(
+            f"Generated {len(native_protocols)} protocol(s) "
+            "using native Qibocal engine."
+        )
         protocols = native_protocols
     else:
         # Scan data/ directory for protocol subdirectories or infer from meta.json
@@ -376,12 +397,18 @@ def generate_report_on_the_fly(
                 try:
                     with open(meta_file, encoding="utf-8") as f:
                         m = json.load(f)
-                        discovered_protocols = m.get("protocols") or m.get("actions") or []
-                except Exception:
+                        discovered_protocols = (
+                            m.get("protocols") or m.get("actions") or []
+                        )
+                except (json.JSONDecodeError, OSError):
                     pass
 
         if not discovered_protocols:
-            discovered_protocols = ["resonator_spectroscopy", "qubit_spectroscopy", "rabi_amplitude"]
+            discovered_protocols = [
+                "resonator_spectroscopy",
+                "qubit_spectroscopy",
+                "rabi_amplitude",
+            ]
 
         total = len(discovered_protocols)
         log_info(f"Evaluating {total} protocol routine(s) for '{report_dir.name}'...")
@@ -392,7 +419,7 @@ def generate_report_on_the_fly(
             if progress_callback:
                 try:
                     progress_callback(idx + 1, total, clean_name)
-                except Exception:
+                except (TypeError, RuntimeError, OSError):
                     pass
             protocols.append(_synthesize_protocol_output(proto, qubit=idx))
 
@@ -404,7 +431,7 @@ def generate_report_on_the_fly(
     meta_summary = {
         "protocols": [p.id for p in protocols],
         "generated_by": "qibocal-report-server",
-        "count": len(protocols)
+        "count": len(protocols),
     }
     with open(report_path / "meta.json", "w", encoding="utf-8") as f:
         json.dump(meta_summary, f, indent=2)
@@ -414,13 +441,15 @@ def generate_report_on_the_fly(
         with open(report_path / f"{p.id}.json", "w", encoding="utf-8") as f:
             json.dump(p.model_dump(), f, indent=2)
 
-    log_success(f"Report '{report_dir.name}' plots generated and cached successfully ({len(protocols)} routines).")
+    log_success(
+        f"Report '{report_dir.name}' plots generated and cached "
+        "successfully ({len(protocols)} routines)."
+    )
     return protocols
 
 
 def get_report_protocols(
-    report_dir: Path,
-    progress_callback: Callable[[int, int, str], None] | None = None
+    report_dir: Path, progress_callback: Callable[[int, int, str], None] | None = None
 ) -> list[ProtocolDetail]:
     """Retrieve report protocols: pre-cached if present, or generate on-the-fly."""
     if has_cached_report(report_dir):
@@ -429,8 +458,7 @@ def get_report_protocols(
 
 
 def regenerate_report(
-    report_dir: Path,
-    progress_callback: Callable[[int, int, str], None] | None = None
+    report_dir: Path, progress_callback: Callable[[int, int, str], None] | None = None
 ) -> list[ProtocolDetail]:
     """
     Explicit request for plots regeneration (Issue #10):

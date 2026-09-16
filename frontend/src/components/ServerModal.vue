@@ -6,7 +6,7 @@
         <h2 class="text-sm font-semibold text-gray-900">
           {{ isEdit ? 'Edit Server Configuration' : 'Add Server Instance' }}
         </h2>
-        <button 
+        <button
           @click="$emit('close')"
           class="border-0 w-6 h-6 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
         >
@@ -23,9 +23,9 @@
           <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">
             Endpoint URL
           </label>
-          <input 
-            v-model="form.url" 
-            type="url" 
+          <input
+            v-model="form.url"
+            type="url"
             required
             placeholder="http://127.0.0.1:8000"
             class="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-lg text-xs font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#833dff]/15 focus:border-[#833dff] transition"
@@ -37,9 +37,9 @@
           <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">
             Display Name
           </label>
-          <input 
-            v-model="form.name" 
-            type="text" 
+          <input
+            v-model="form.name"
+            type="text"
             placeholder="e.g. quantum-curie"
             class="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#833dff]/15 focus:border-[#833dff] transition"
           />
@@ -50,8 +50,8 @@
           <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">
             Description
           </label>
-          <textarea 
-            v-model="form.description" 
+          <textarea
+            v-model="form.description"
             rows="2"
             placeholder="Lab QPU calibration archive..."
             class="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#833dff]/15 focus:border-[#833dff] transition resize-none"
@@ -64,8 +64,8 @@
             Abstract Icon
           </label>
           <div class="grid grid-cols-5 gap-2">
-            <div 
-              v-for="key in AVATAR_KEYS" 
+            <div
+              v-for="key in AVATAR_KEYS"
               :key="key"
               @click="form.avatar = key"
               class="w-10 h-10 p-1 rounded-lg cursor-pointer border transition flex items-center justify-center bg-gray-50/50"
@@ -79,15 +79,15 @@
 
         <!-- Actions -->
         <div class="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
-          <button 
-            type="button" 
+          <button
+            type="button"
             @click="$emit('close')"
             class="border-0 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition"
           >
             Cancel
           </button>
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             class="border-0 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs"
           >
             {{ isEdit ? 'Save Changes' : 'Register' }}

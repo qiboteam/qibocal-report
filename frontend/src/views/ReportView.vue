@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-screen overflow-hidden bg-[#f7f7f7]">
     <!-- Left Sidebar with Protocols Summary in lower half (Issue #3) -->
-    <sidebar 
+    <sidebar
       :report-protocols="protocols"
     />
 
@@ -9,7 +9,8 @@
     <main class="flex-1 overflow-y-auto p-4 sm:p-8 report-print-container">
       <div v-if="loading" class="flex flex-col items-center justify-center h-64">
         <div class="w-8 h-8 border-3 border-[#833dff] border-t-transparent rounded-full animate-spin"></div>
-        <p class="mt-3 text-xs text-gray-500 font-medium">Loading report artifacts...</p>
+        <p class="mt-3 text-xs text-gray-700 font-medium">{{ loadingStatus }}</p>
+        <p class="mt-1 text-[11px] text-gray-400 font-mono">Server is preparing plots in the background...</p>
       </div>
 
       <div v-else-if="error" class="bg-red-50 text-red-700 p-6 rounded-2xl border border-red-200">
@@ -23,7 +24,7 @@
       <div v-else-if="report" class="max-w-5xl mx-auto space-y-6">
         <!-- Top Navigation / Action Bar (hidden when printing) -->
         <div class="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-200">
-          <router-link 
+          <router-link
             to="/dashboard"
             class="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-[#833dff] transition"
           >
@@ -36,17 +37,17 @@
           <!-- Actions: Print to PDF & Regenerate plots (Issue #3, #10) -->
           <div class="flex items-center gap-2">
             <!-- Regenerate button -->
-            <button 
+            <button
               @click="handleRegenerate"
               :disabled="regenerating"
               class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 hover:border-purple-300 text-gray-700 shadow-2xs flex items-center gap-1.5 transition disabled:opacity-50"
               title="Delete cached plots and re-evaluate protocols"
             >
-              <svg 
-                class="w-3.5 h-3.5 text-[#833dff]" 
+              <svg
+                class="w-3.5 h-3.5 text-[#833dff]"
                 :class="regenerating ? 'animate-spin' : ''"
-                fill="none" 
-                stroke="currentColor" 
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -55,7 +56,7 @@
             </button>
 
             <!-- Print to PDF button (Issue #3) -->
-            <button 
+            <button
               @click="handlePrintPDF"
               class="px-3.5 py-1.5 rounded-xl text-xs font-semibold bm-btn-primary shadow-2xs flex items-center gap-1.5"
             >
@@ -68,8 +69,8 @@
         </div>
 
         <!-- Notification if regenerated -->
-        <div 
-          v-if="statusBanner" 
+        <div
+          v-if="statusBanner"
           class="no-print p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-center justify-between"
         >
           <span>✓ {{ statusBanner }}</span>
@@ -91,8 +92,8 @@
               <span class="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
                 {{ report.platform }}
               </span>
-              <span 
-                v-if="report.has_cached_report" 
+              <span
+                v-if="report.has_cached_report"
                 class="px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase bg-emerald-100 text-emerald-800"
               >
                 Pre-cached
@@ -136,7 +137,7 @@
 
         <!-- Collapsible Platform Snapshot Card -->
         <div v-if="hasPlatformData" class="bm-card overflow-hidden border border-gray-100">
-          <button 
+          <button
             @click="platformAccordionOpen = !platformAccordionOpen"
             class="w-full p-4 flex items-center justify-between text-left hover:bg-gray-50/70 transition"
           >
@@ -146,11 +147,11 @@
                 Hardware Platform Snapshot
               </h3>
             </div>
-            <svg 
-              class="w-4 h-4 text-gray-400 transition" 
+            <svg
+              class="w-4 h-4 text-gray-400 transition"
               :class="platformAccordionOpen ? 'rotate-180' : ''"
-              fill="none" 
-              stroke="currentColor" 
+              fill="none"
+              stroke="currentColor"
               viewBox="0 0 24 24"
             >
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -164,8 +165,8 @@
 
         <!-- Protocols List with HTML & Plotly Figures (Issue #10) -->
         <div class="space-y-6">
-          <div 
-            v-for="(proto, idx) in protocols" 
+          <div
+            v-for="(proto, idx) in protocols"
             :key="proto.id"
             :id="`proto-${proto.id}`"
             class="bm-card p-6 border border-gray-100 page-break"
@@ -194,8 +195,8 @@
 
             <!-- Injected Plotly Figures (Issue #10) -->
             <div v-if="proto.figures && proto.figures.length > 0" class="mt-4 space-y-4">
-              <plotly-viewer 
-                v-for="fig in proto.figures" 
+              <plotly-viewer
+                v-for="fig in proto.figures"
                 :key="fig.id || fig.title"
                 :figure="fig"
               />
@@ -208,7 +209,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { state, addToHistory } from '../store.js'
 import Sidebar from '../components/Sidebar.vue'
@@ -216,12 +217,15 @@ import PlotlyViewer from '../components/PlotlyViewer.vue'
 
 const route = useRoute()
 const loading = ref(true)
+const loadingStatus = ref('Connecting to server...')
 const regenerating = ref(false)
 const error = ref(null)
 const report = ref(null)
 const protocols = ref([])
 const platformAccordionOpen = ref(false)
 const statusBanner = ref('')
+
+let activeWs = null
 
 const reportId = computed(() => route.params.id)
 
@@ -233,21 +237,123 @@ onMounted(async () => {
   await loadReportData()
 })
 
+onUnmounted(() => {
+  if (activeWs) {
+    try { activeWs.close() } catch {}
+  }
+})
+
 async function loadReportData() {
   loading.value = true
   error.value = null
+  loadingStatus.value = 'Connecting to server...'
+
+  // 1. Attempt WebSocket connection for server-initiated streaming
   try {
-    const res = await fetch(`/api/reports/${reportId.value}`)
+    const wsOk = await connectWebSocket()
+    if (wsOk) return
+  } catch (err) {
+    console.warn('WebSocket streaming unavailable, falling back to HTTP:', err)
+  }
+
+  // 2. Fallback to HTTP if WebSocket cannot connect
+  await loadViaHttp()
+}
+
+function connectWebSocket() {
+  return new Promise((resolve, reject) => {
+    const isHttps = window.location.protocol === 'https:'
+    const wsProto = isHttps ? 'wss:' : 'ws:'
+    const host = window.location.host || '127.0.0.1:8000'
+    const encodedId = encodeURIComponent(reportId.value)
+    const wsUrl = `${wsProto}//${host}/ws/reports/${encodedId}`
+
+    let ws = null
+    try {
+      ws = new WebSocket(wsUrl)
+      activeWs = ws
+    } catch (e) {
+      reject(e)
+      return
+    }
+
+    let resolved = false
+
+    // 15-second safety timer before falling back to HTTP
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        try { ws.close() } catch {}
+        reject(new Error('WebSocket connection timed out'))
+      }
+    }, 15000)
+
+    ws.onopen = () => {
+      loadingStatus.value = 'Analyzing report directory...'
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.type === 'metadata') {
+          report.value = msg.report
+          state.currentReportId = msg.report.id
+          addToHistory(msg.report)
+        } else if (msg.type === 'status') {
+          loadingStatus.value = msg.message
+        } else if (msg.type === 'progress') {
+          loadingStatus.value = msg.message || `Plotting routine (${msg.step}/${msg.total})...`
+        } else if (msg.type === 'ready') {
+          clearTimeout(timer)
+          resolved = true
+          protocols.value = msg.protocols
+          loading.value = false
+          resolve(true)
+        } else if (msg.type === 'error') {
+          clearTimeout(timer)
+          resolved = true
+          reject(new Error(msg.message || 'Report not found'))
+        }
+      } catch (e) {
+        console.error('Failed to parse WS payload', e)
+      }
+    }
+
+    ws.onerror = (e) => {
+      if (!resolved) {
+        clearTimeout(timer)
+        resolved = true
+        reject(e)
+      }
+    }
+
+    ws.onclose = () => {
+      if (!resolved && loading.value) {
+        clearTimeout(timer)
+        resolved = true
+        reject(new Error('WebSocket closed before completion'))
+      }
+    }
+  })
+}
+
+async function loadViaHttp() {
+  try {
+    loadingStatus.value = 'Fetching report metadata...'
+    const encodedId = encodeURIComponent(reportId.value)
+    const res = await fetch(`/api/reports/${encodedId}`)
     if (!res.ok) throw new Error(`Report not found (${res.status})`)
     const data = await res.json()
     report.value = data
     state.currentReportId = data.id
     addToHistory(data)
 
-    // Load protocol details (HTML + Plotly figures)
-    const protoRes = await fetch(`/api/reports/${reportId.value}/protocols`)
+    loadingStatus.value = 'Retrieving report protocols...'
+    const protoRes = await fetch(`/api/reports/${encodedId}/protocols`)
     if (protoRes.ok) {
       protocols.value = await protoRes.json()
+    } else {
+      throw new Error(`Failed to load protocols (${protoRes.status})`)
     }
   } catch (err) {
     error.value = err.message
@@ -258,12 +364,18 @@ async function loadReportData() {
 
 async function handleRegenerate() {
   regenerating.value = true
+  statusBanner.value = ''
   try {
-    const res = await fetch(`/api/reports/${reportId.value}/regenerate`, { method: 'POST' })
+    const encodedId = encodeURIComponent(reportId.value)
+    const res = await fetch(`/api/reports/${encodedId}/regenerate`, { method: 'POST' })
     if (res.ok) {
       protocols.value = await res.json()
       statusBanner.value = 'Report plots regenerated successfully!'
-      report.value.has_cached_report = true
+      if (report.value) {
+        report.value.has_cached_report = true
+      }
+    } else {
+      throw new Error(`Regeneration failed (${res.status})`)
     }
   } catch (err) {
     alert('Regeneration failed: ' + err.message)

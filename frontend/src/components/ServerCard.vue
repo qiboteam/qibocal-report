@@ -1,5 +1,5 @@
 <template>
-  <div 
+  <div
     @click="$emit('select', server)"
     class="bm-card border-0 p-4.5 cursor-pointer relative group flex flex-col justify-between transition-all duration-150"
     :class="isActive ? 'shadow-md bg-purple-50/25' : 'hover:shadow-md'"
@@ -9,7 +9,7 @@
       <div class="flex items-start justify-between gap-3">
         <div class="flex items-center gap-3 min-w-0">
           <!-- Elegant Compact Avatar Icon -->
-          <div 
+          <div
             class="w-9 h-9 rounded-lg flex items-center justify-center p-1 bg-[#fcfaff] shadow-2xs shrink-0"
             v-html="renderAvatar(server.avatar, server.name)"
           ></div>
@@ -17,8 +17,8 @@
           <div class="min-w-0">
             <div class="flex items-center gap-1.5">
               <h3 class="font-medium text-sm text-gray-900 truncate leading-snug">{{ server.name }}</h3>
-              <span 
-                v-if="isActive" 
+              <span
+                v-if="isActive"
                 class="px-1.5 py-0.2 text-[10px] font-medium bg-[#833dff]/10 text-[#833dff] rounded"
               >
                 Active
@@ -30,7 +30,7 @@
 
         <!-- Horizontal 3-dots menu button -->
         <div class="relative shrink-0" @click.stop>
-          <button 
+          <button
             @click="menuOpen = !menuOpen"
             class="border-0 w-7 h-7 flex items-center justify-center rounded-md bg-transparent text-gray-400 hover:text-gray-700 hover:shadow-xs transition-shadow focus:outline-none"
             title="Options"
@@ -41,11 +41,11 @@
           </button>
 
           <!-- Dropdown menu -->
-          <div 
-            v-if="menuOpen" 
+          <div
+            v-if="menuOpen"
             class="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-lg py-1 z-30 animate-fade-in"
           >
-            <button 
+            <button
               @click="onEdit"
               class="border-0 w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 hover:text-[#833dff] flex items-center gap-2 bg-transparent"
             >
@@ -54,7 +54,7 @@
               </svg>
               Edit
             </button>
-            <button 
+            <button
               @click="onDelete"
               class="border-0 w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 bg-transparent"
             >

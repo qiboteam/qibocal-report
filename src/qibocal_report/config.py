@@ -5,16 +5,39 @@ import os
 import random
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 ADJECTIVES = [
-    "zen", "clever", "brave", "quantum", "eager", "swift", "calm",
-    "keen", "bold", "radiant", "lucid", "serene", "agile", "stellar"
+    "zen",
+    "clever",
+    "brave",
+    "quantum",
+    "eager",
+    "swift",
+    "calm",
+    "keen",
+    "bold",
+    "radiant",
+    "lucid",
+    "serene",
+    "agile",
+    "stellar",
 ]
 
 SCIENTISTS = [
-    "bohr", "curie", "feynman", "dirac", "planck", "fermi", "bell",
-    "schrodinger", "einstein", "wu", "aspect", "zeilinger", "clauser"
+    "bohr",
+    "curie",
+    "feynman",
+    "dirac",
+    "planck",
+    "fermi",
+    "bell",
+    "schrodinger",
+    "einstein",
+    "wu",
+    "aspect",
+    "zeilinger",
+    "clauser",
 ]
 
 
@@ -49,7 +72,7 @@ def get_default_servers() -> list[dict[str, Any]]:
             "description": "Local Qibocal Report Server",
             "avatar": "quantum-ring",
             "is_default": True,
-            "created_at": "2024-12-20T10:00:00Z"
+            "created_at": "2024-12-20T10:00:00Z",
         }
     ]
 
@@ -68,7 +91,7 @@ def load_servers() -> list[dict[str, Any]]:
                 return data
             elif isinstance(data, dict) and "servers" in data:
                 return data["servers"]
-    except Exception:
+    except (json.JSONDecodeError, OSError):
         pass
     return get_default_servers()
 
@@ -84,7 +107,7 @@ def add_server(
     url: str,
     name: str | None = None,
     description: str | None = None,
-    avatar: str | None = None
+    avatar: str | None = None,
 ) -> dict[str, Any]:
     """Register a new server."""
     servers = load_servers()
@@ -102,7 +125,7 @@ def add_server(
         "description": description.strip() if description else f"Server at {clean_url}",
         "avatar": avatar or "quantum-ring",
         "is_default": len(servers) == 0,
-        "created_at": "now"
+        "created_at": "now",
     }
     servers.append(new_server)
     save_servers(servers)

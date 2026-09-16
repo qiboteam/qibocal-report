@@ -13,8 +13,8 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
-        <tr 
-          v-for="report in reports" 
+        <tr
+          v-for="report in reports"
           :key="report.id"
           @click="$emit('select', report)"
           class="hover:bg-purple-50/30 cursor-pointer transition"
@@ -33,15 +33,15 @@
           </td>
           <td class="py-3.5 px-4">
             <div class="flex flex-wrap gap-1 max-w-sm">
-              <span 
-                v-for="proto in report.protocols.slice(0, 3)" 
+              <span
+                v-for="proto in report.protocols.slice(0, 3)"
                 :key="proto"
                 class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700"
               >
                 {{ proto.replace('_', ' ') }}
               </span>
-              <span 
-                v-if="report.protocols.length > 3" 
+              <span
+                v-if="report.protocols.length > 3"
                 class="text-[11px] text-gray-400 font-medium px-1"
               >
                 +{{ report.protocols.length - 3 }}
@@ -56,7 +56,7 @@
             <div class="text-[10px] text-gray-400">{{ report.time }}</div>
           </td>
           <td class="py-3.5 px-4 text-right">
-            <button 
+            <button
               @click.stop="$emit('select', report)"
               class="px-3 py-1.5 text-xs font-semibold rounded-lg bm-btn-secondary"
             >

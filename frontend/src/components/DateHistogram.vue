@@ -9,8 +9,8 @@
 
     <!-- Mini Histogram Bars -->
     <div class="h-12 flex items-end gap-1 bg-gray-50 p-1.5 rounded-lg border border-gray-100">
-      <div 
-        v-for="bin in histogram" 
+      <div
+        v-for="bin in histogram"
         :key="bin.date"
         @click="$emit('select-date', bin.date)"
         :title="`${bin.date}: ${bin.count} reports`"

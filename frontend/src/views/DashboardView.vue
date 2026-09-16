@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-screen overflow-hidden bg-[#f7f7f7]">
     <!-- Left Sidebar (Issue #3) -->
-    <sidebar 
+    <sidebar
       :filter-stats="filterStats"
       :selected-author="filters.author"
       :selected-protocols="filters.protocols"
@@ -24,7 +24,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
-            <input 
+            <input
               v-model="filters.q"
               @input="fetchReports"
               type="text"
@@ -36,7 +36,7 @@
           <!-- Controls: View Mode & Sort -->
           <div class="flex items-center gap-2">
             <!-- Sort dropdown -->
-            <select 
+            <select
               v-model="filters.sort_by"
               @change="fetchReports"
               class="text-xs py-2 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none text-gray-700 shadow-xs"
@@ -48,7 +48,7 @@
 
             <!-- Visualization Mode Switcher: Table (default) vs Cards (Issue #3) -->
             <div class="flex items-center bg-white p-0.5 rounded-xl border border-gray-200 shadow-xs">
-              <button 
+              <button
                 @click="viewMode = 'table'"
                 class="p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1"
                 :class="viewMode === 'table' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-500 hover:text-gray-800'"
@@ -58,7 +58,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </button>
-              <button 
+              <button
                 @click="viewMode = 'cards'"
                 class="p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1"
                 :class="viewMode === 'cards' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-500 hover:text-gray-800'"
@@ -75,31 +75,31 @@
         <!-- Active Filter Pills -->
         <div v-if="hasActiveFilters" class="flex flex-wrap items-center gap-1.5 mt-2.5">
           <span class="text-[11px] text-gray-500 font-medium">Active Filters:</span>
-          <span 
-            v-if="filters.author" 
+          <span
+            v-if="filters.author"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800"
           >
             Author: {{ filters.author }}
             <button @click="filters.author = ''; fetchReports()" class="hover:text-black">&times;</button>
           </span>
-          <span 
-            v-for="p in filters.protocols" 
+          <span
+            v-for="p in filters.protocols"
             :key="p"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             {{ p }}
             <button @click="toggleProtocol(p)" class="hover:text-black">&times;</button>
           </span>
-          <span 
-            v-for="l in filters.labels" 
+          <span
+            v-for="l in filters.labels"
             :key="l"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-800"
           >
             #{{ l }}
             <button @click="toggleLabel(l)" class="hover:text-black">&times;</button>
           </span>
-          <span 
-            v-if="filters.date" 
+          <span
+            v-if="filters.date"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             Date: {{ filters.date }}
@@ -119,8 +119,8 @@
         </div>
 
         <!-- Empty State -->
-        <div 
-          v-if="reports.length === 0" 
+        <div
+          v-if="reports.length === 0"
           class="bg-white rounded-2xl p-12 text-center border border-gray-200 shadow-sm max-w-lg mx-auto my-8"
         >
           <div class="w-12 h-12 rounded-xl bg-purple-50 text-[#833dff] flex items-center justify-center mx-auto mb-3">
@@ -130,8 +130,8 @@
           </div>
           <h3 class="font-bold text-base text-gray-900">No calibration reports found</h3>
           <p class="text-xs text-gray-500 mt-1">Try adjusting your filters or point the server to a valid reports folder.</p>
-          <button 
-            @click="resetFilters" 
+          <button
+            @click="resetFilters"
             class="mt-4 px-4 py-2 rounded-xl text-xs font-semibold bm-btn-secondary"
           >
             Reset All Filters
@@ -139,14 +139,14 @@
         </div>
 
         <!-- Table View (Default, Issue #3) -->
-        <report-table 
+        <report-table
           v-else-if="viewMode === 'table'"
           :reports="reports"
           @select="openReport"
         />
 
         <!-- Full-size Horizontal Cards View (Inspire style, Issue #3) -->
-        <report-cards 
+        <report-cards
           v-else
           :reports="reports"
           @select="openReport"
