@@ -15,7 +15,11 @@
   };
 
   scripts.build-frontend.exec = ''
-    cd frontend && pnpm build && cp -r dist/* ../src/qibocal_report/static/ && cp -r ../docs/* ../src/qibocal_report/static/docs/
+    cd frontend && pnpm build && cp -r dist/* ../src/qibocal_report/static/
+  '';
+
+  scripts.develop.exec = ''
+    qibocal report develop sample_data
   '';
 
   scripts.build-wheel.exec = ''

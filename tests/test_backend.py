@@ -156,3 +156,11 @@ def test_docs_endpoint():
 
     r = client.get("/api/docs-content/nonexistent")
     assert r.status_code == 404
+
+
+def test_dev_mode_redirect(monkeypatch):
+    monkeypatch.setenv("QIBOCAL_FRONTEND_URL", "http://localhost:5173")
+    client = TestClient(app, follow_redirects=False)
+    r = client.get("/")
+    assert r.status_code in (307, 302)
+    assert r.headers["location"] == "http://localhost:5173"

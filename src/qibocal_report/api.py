@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import sysconfig
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -93,7 +94,7 @@ def health_check() -> HealthResponse:
     )
 
 
-# --- Server Management Endpoints (Issue #4, #11) ---
+# --- Server Management Endpoints ---
 @app.get("/api/servers", response_model=list[ServerModel], tags=["Servers"])
 def list_servers() -> list[ServerModel]:
     """List all registered servers."""
@@ -136,7 +137,7 @@ def save_servers_endpoint() -> dict[str, Any]:
     return {"saved": True, "count": len(servers), "path": str(config.get_config_file())}
 
 
-# --- Reports & Search Endpoints (Issue #10, #3) ---
+# --- Reports & Search Endpoints ---
 @app.get("/api/reports", response_model=list[ReportSummary], tags=["Reports"])
 def get_reports(
     q: str | None = None,
@@ -337,10 +338,12 @@ def get_single_report(report_id: str) -> ReportDetail:
 )
 def get_documentation(doc_name: str) -> str:
     """Serve plain markdown documentation content (usage, developer, api)."""
-    # Look in package static/docs or repo docs
+    # 1. Shipped package location (when wheel is installed)
+    # 2. Development fallbacks (repo root docs/ directory)
     candidate_paths = [
-        Path(__file__).parent / "static" / "docs" / f"{doc_name}.md",
-        Path(__file__).parent.parent.parent / "docs" / f"{doc_name}.md",
+        Path(sysconfig.get_path("purelib")) / f"{doc_name}.md",
+        Path(sysconfig.get_path("data")) / f"{doc_name}.md",
+        Path(__file__).resolve().parents[2] / "docs" / f"{doc_name}.md",
         Path.cwd() / "docs" / f"{doc_name}.md",
     ]
     for p in candidate_paths:
@@ -352,14 +355,29 @@ def get_documentation(doc_name: str) -> str:
 # --- Static Files and SPA Frontend Mount ---
 STATIC_DIR = Path(__file__).parent / "static"
 
-if STATIC_DIR.is_dir() and (STATIC_DIR / "index.html").is_file():
+if (STATIC_DIR / "assets").is_dir():
     app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
-    @app.api_route(
-        "/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False
-    )
-    async def serve_spa(full_path: str):
+
+@app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+async def serve_spa(full_path: str):
+    dev_frontend_url = os.environ.get("QIBOCAL_FRONTEND_URL")
+    if dev_frontend_url:
+        from fastapi.responses import RedirectResponse
+
+        target = f"{dev_frontend_url}/{full_path}".rstrip("/")
+        return RedirectResponse(url=target if full_path else dev_frontend_url)
+
+    if STATIC_DIR.is_dir() and (STATIC_DIR / "index.html").is_file():
         file_path = STATIC_DIR / full_path
         if file_path.is_file():
             return FileResponse(file_path)
         return FileResponse(STATIC_DIR / "index.html")
+
+    raise HTTPException(
+        status_code=404,
+        detail=(
+            "SPA frontend not found. Please build the frontend "
+            "or run in developer mode with 'qibocal report develop'."
+        ),
+    )

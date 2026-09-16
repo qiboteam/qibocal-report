@@ -30,3 +30,7 @@ dev = [
 
 [project.scripts]
 qibocal = "qibocal_report.cli:main"
+
+[tool.uv.build-backend]
+source-include = ["docs/**"]
+data = { purelib = "docs" }
