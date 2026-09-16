@@ -31,10 +31,10 @@ Point to any directory containing Qibocal calibration folders:
 
 ```bash
 # Serve the included sample calibration datasets
-qibocal-report serve ./sample_data --port 8000
+qibocal report serve ./sample_data --port 8000
 
 # Or serve your current lab directory
-qibocal-report serve
+qibocal report serve
 ```
 
 Open your browser at `http://127.0.0.1:8000`.
@@ -44,7 +44,7 @@ Open your browser at `http://127.0.0.1:8000`.
 To monitor and connect to multiple remote Qibocal report servers across your network:
 
 ```bash
-qibocal-report dashboard --port 8000
+qibocal report dashboard --port 8000
 ```
 
 ---
@@ -120,7 +120,7 @@ devenv shell -- serve
 
 In one terminal:
 ```bash
-devenv shell -- qibocal-report serve ./sample_data --reload
+devenv shell -- qibocal report serve ./sample_data --reload
 ```
 In another terminal:
 ```bash

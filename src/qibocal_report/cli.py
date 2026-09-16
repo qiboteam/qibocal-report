@@ -1,4 +1,4 @@
-"""Command Line Interface for qibocal-report (Issue #9, #10, #11)."""
+"""Command Line Interface for qibocal (Issue #9, #10, #11)."""
 
 import os
 import sys
@@ -10,14 +10,20 @@ from qibocal_report import config
 from qibocal_report.api import app, set_report_root
 
 
-@click.group()
-@click.version_option(version="0.1.0", prog_name="qibocal-report")
+@click.group(name="qibocal")
+@click.version_option(version="0.1.0", prog_name="qibocal")
 def main():
-    """qibocal-report: Modern web app and server for Qibocal calibration reports."""
+    """Qibocal: Quantum calibration and characterization framework."""
     pass
 
 
-@main.command()
+@main.group(name="report")
+def report():
+    """Manage and serve Qibocal calibration reports (Issue #9, #10, #11)."""
+    pass
+
+
+@report.command(name="serve")
 @click.argument("directory", default=".", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 @click.option("--host", default="127.0.0.1", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
@@ -49,7 +55,7 @@ def serve(directory: str, host: str, port: int, reload: bool):
     uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
 
 
-@main.command()
+@report.command(name="dashboard")
 @click.option("--host", default="127.0.0.1", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
 @click.option("--reload", is_flag=True, default=False, help="Enable auto-reload.")

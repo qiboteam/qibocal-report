@@ -9,7 +9,7 @@ The project is structured into two main components:
 1. **Python Backend (`src/qibocal_report/`)**:
    - Built on **FastAPI** for high throughput, asynchronous I/O, and native OpenAPI generation.
    - Built with **Pydantic v2** models for strict schema validation.
-   - Self-contained packaging via `hatchling` and `uv`.
+   - Self-contained packaging via native `uv_build` and `uv`.
    - Embeds the compiled SPA into `src/qibocal_report/static/` so that `pip install` yields a zero-dependency web application.
 
 2. **Frontend Application (`frontend/`)**:

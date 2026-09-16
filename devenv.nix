@@ -28,11 +28,11 @@
   '';
 
   scripts.serve.exec = ''
-    qibocal-report serve sample_data
+    qibocal report serve sample_data
   '';
 
   scripts.dashboard.exec = ''
-    qibocal-report dashboard
+    qibocal report dashboard
   '';
 
   scripts.test-backend.exec = ''

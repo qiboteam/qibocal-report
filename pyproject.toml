@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
 
 [project]
 name = "qibocal-report"
@@ -28,10 +28,4 @@ dev = [
 ]
 
 [project.scripts]
-qibocal-report = "qibocal_report.cli:main"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/qibocal_report"]
-include = [
-    "src/qibocal_report/static/**/*",
-]
+qibocal = "qibocal_report.cli:main"

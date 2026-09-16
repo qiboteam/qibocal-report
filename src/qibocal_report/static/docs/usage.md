@@ -18,14 +18,14 @@ uv pip install qibocal-report
 
 ### 1. Serving Reports from a Directory
 
-Point `qibocal-report` to any directory containing Qibocal calibration outputs (e.g. current directory or a designated calibration archive):
+Point `qibocal` to any directory containing Qibocal calibration outputs (e.g. current directory or a designated calibration archive):
 
 ```bash
 # Serve current directory on port 8000
-qibocal-report serve
+qibocal report serve
 
 # Serve a specific folder on custom port
-qibocal-report serve ./sample_data --port 8080 --host 0.0.0.0
+qibocal report serve ./sample_data --port 8080 --host 0.0.0.0
 ```
 
 This command starts the FastAPI backend and serves the bundled web frontend. Open your browser at `http://127.0.0.1:8000` to interact with your reports.
@@ -35,7 +35,7 @@ This command starts the FastAPI backend and serves the bundled web frontend. Ope
 If you have one or multiple remote servers running across your lab network or cloud clusters, launch the dashboard alone:
 
 ```bash
-qibocal-report dashboard --port 8000
+qibocal report dashboard --port 8000
 ```
 
 You can then add, name, and monitor all your remote servers from the centralized interface.
