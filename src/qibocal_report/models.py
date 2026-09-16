@@ -71,7 +71,7 @@ class ReportSummary(BaseModel):
 
 
 class ReportDetail(ReportSummary):
-    history: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    history: Optional[Any] = Field(default_factory=dict)
     platform_snapshot: Optional[Dict[str, Any]] = Field(default_factory=dict)
     protocols_summary: List[ProtocolSummary] = Field(default_factory=list)
 

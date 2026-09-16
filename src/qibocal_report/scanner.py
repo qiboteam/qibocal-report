@@ -47,6 +47,10 @@ def _discover_protocols(report_dir: Path, meta_data: Dict[str, Any]) -> List[str
         return meta_data["protocols"]
     if "actions" in meta_data and isinstance(meta_data["actions"], list):
         return meta_data["actions"]
+    if "stats" in meta_data and isinstance(meta_data["stats"], dict):
+        protos = list(dict.fromkeys(k.rsplit("-", 1)[0] for k in meta_data["stats"].keys()))
+        if protos:
+            return protos
 
     # From data/ directory
     data_dir = report_dir / "data"
@@ -80,11 +84,15 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
     report_id = report_dir.relative_to(root_dir).as_posix()
     title = meta.get("title") or report_dir.name.replace("_", " ").replace("-", " ").title()
     date_str = _format_date(meta.get("date"))
-    time_str = meta.get("time") or meta.get("start_time") or ""
-    author = meta.get("author") or meta.get("user") or "Alice"
+    time_str = meta.get("time") or meta.get("start-time") or meta.get("start_time") or ""
+    author = meta.get("author") or meta.get("user") or "Unknown"
     platform = meta.get("platform") or "Generic QPU"
-    targets = meta.get("targets") or meta.get("qubits") or [0]
+    targets = meta.get("targets") or meta.get("qubits") or []
+    if not isinstance(targets, list):
+        targets = [targets] if targets is not None else []
     labels = meta.get("labels") or meta.get("tags") or []
+    if not isinstance(labels, list):
+        labels = [labels] if labels is not None else []
     exec_time = meta.get("total_execution_time") or meta.get("duration") or "34.2s"
     cached = has_cached_report(report_dir)
     protocols = _discover_protocols(report_dir, meta)

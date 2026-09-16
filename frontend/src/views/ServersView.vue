@@ -1,82 +1,83 @@
 <template>
-  <div class="min-h-screen bg-[#f7f7f7] py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-4xl mx-auto">
-      <!-- Title & Branding -->
-      <div class="text-center mb-10">
-        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white shadow-md text-[#833dff] mb-4">
-          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="9" stroke-width="2" />
-            <path stroke-width="2" d="M12 3a9 9 0 019 9m-9 9a9 9 0 01-9-9" />
-            <circle cx="12" cy="12" r="3" fill="#833dff" />
+  <div class="min-h-screen bg-[#f7f7f7] py-10 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-3xl mx-auto">
+      <!-- Top Utility Nav: Back to Dashboard & Save Config -->
+      <div class="flex items-center justify-between pb-6 mb-6 border-b border-gray-200/60">
+        <router-link 
+          to="/dashboard"
+          class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 transition"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-        </div>
-        <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 tracking-tight">
-          Qibocal Report Servers
+          Dashboard
+        </router-link>
+
+        <button 
+          @click="handleSaveConfig"
+          class="border-0 text-xs font-medium px-3 py-1 rounded-full bg-white hover:bg-gray-50 text-gray-700 shadow-xs hover:shadow-sm transition flex items-center gap-1.5 active:scale-[0.98]"
+        >
+          <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+          </svg>
+          Save Configuration
+        </button>
+      </div>
+
+      <!-- Clean Editorial Header -->
+      <div class="text-center mb-8">
+        <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">
+          Report Servers
         </h1>
-        <p class="mt-2 text-sm text-gray-600 max-w-lg mx-auto">
-          Manage your registered Qibocal servers or connect to a new instance.
+        <p class="mt-1 text-xs sm:text-sm text-gray-500">
+          Connect to an instance or manage your registered Qibocal report endpoints.
         </p>
       </div>
 
-      <!-- Central Text Box: Paste & Enter should be sufficient (Issue #4) -->
-      <div class="bm-card p-3 sm:p-4 mb-8 max-w-2xl mx-auto shadow-sm border border-purple-100/60">
-        <form @submit.prevent="handleQuickAdd" class="flex items-center gap-2">
-          <div class="relative flex-1">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-            </div>
-            <input 
-              v-model="newServerUrl"
-              type="text"
-              placeholder="Paste server URL and press Enter (e.g. http://127.0.0.1:8000)..."
-              class="w-full pl-10 pr-4 py-3 bg-transparent text-sm text-gray-900 placeholder-gray-400 focus:outline-none"
-              required
-            />
-          </div>
+      <!-- Seamless Paste Box without borders -->
+      <div class="max-w-xl mx-auto mb-8">
+        <form 
+          @submit.prevent="handleQuickAdd" 
+          class="border-0 relative flex items-center bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-1.5 pl-4"
+        >
+          <svg class="w-4 h-4 text-gray-400 shrink-0 mr-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+          <input 
+            v-model="newServerUrl"
+            type="text"
+            placeholder="Paste server URL and press Enter (e.g. http://127.0.0.1:8000)..."
+            class="border-0 outline-none w-full bg-transparent text-xs sm:text-sm text-gray-900 placeholder-gray-400 focus:outline-none py-1.5"
+            required
+          />
           <button 
             type="submit"
             :disabled="!newServerUrl.trim()"
-            class="bm-btn-primary px-5 py-3 text-sm shadow flex items-center gap-2 shrink-0 disabled:opacity-50"
+            class="border-0 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] disabled:opacity-35 transition shrink-0 shadow-2xs"
           >
             Connect
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
           </button>
         </form>
-      </div>
-
-      <!-- Server Cards Section Header -->
-      <div class="flex items-center justify-between mb-4 px-1">
-        <h2 class="text-sm font-bold uppercase tracking-wider text-gray-700">
-          Registered Servers ({{ servers.length }})
-        </h2>
-
-        <!-- Save button to modify config file (Issue #11) -->
-        <button 
-          @click="handleSaveConfig"
-          class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-white hover:bg-purple-50 text-[#833dff] border border-purple-200 transition shadow-2xs flex items-center gap-1.5"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-          </svg>
-          Save to Config File
-        </button>
       </div>
 
       <!-- Notification banner if saved -->
       <div 
         v-if="toastMessage" 
-        class="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-center justify-between animate-fade-in"
+        class="mb-4 p-2.5 bg-purple-50/90 rounded-xl text-xs text-purple-900 flex items-center justify-between shadow-2xs"
       >
         <span>✓ {{ toastMessage }}</span>
-        <button @click="toastMessage = ''" class="text-purple-600 hover:text-purple-900 font-bold">&times;</button>
+        <button @click="toastMessage = ''" class="border-0 text-purple-600 hover:text-purple-900 text-sm font-bold leading-none bg-transparent">&times;</button>
       </div>
 
-      <!-- Grid of Registered Server Cards (Issue #4) -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Section Label -->
+      <div class="flex items-center justify-between mb-3 px-0.5">
+        <h2 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+          Registered Instances ({{ servers.length }})
+        </h2>
+      </div>
+
+      <!-- Grid of Lightweight Server Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
         <server-card 
           v-for="server in servers"
           :key="server.id"
@@ -88,7 +89,7 @@
         />
       </div>
 
-      <!-- Edit Modal (Issue #4) -->
+      <!-- Refined Edit Modal -->
       <server-modal 
         v-if="modalOpen"
         :server="editingServer"
@@ -120,7 +121,7 @@ async function handleQuickAdd() {
   const created = await addServer(newServerUrl.value.trim())
   newServerUrl.value = ''
   if (created) {
-    toastMessage.value = `Server '${created.name}' registered successfully!`
+    toastMessage.value = `Server '${created.name}' registered.`
     setActiveServer(created)
   }
 }
