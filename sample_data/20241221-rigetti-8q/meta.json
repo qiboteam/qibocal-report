@@ -1,0 +1,21 @@
+{
+  "title": "Rigetti Aspen-M3 Coherence Benchmark",
+  "date": "2024-12-21",
+  "time": "18:15:20",
+  "author": "Bob",
+  "platform": "aspen-m3-8q",
+  "targets": [
+    0,
+    1
+  ],
+  "labels": [
+    "coherence",
+    "ramsey",
+    "t1"
+  ],
+  "total_execution_time": "1m 12s",
+  "protocols": [
+    "ramsey",
+    "t1"
+  ]
+}

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qibocal-report"
+version = "0.1.0"
+description = "Modern web app and server for Qibocal calibration reports"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Alessandro Candido" }
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "click>=8.1.0",
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.scripts]
+qibocal-report = "qibocal_report.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qibocal_report"]
+include = [
+    "src/qibocal_report/static/**/*",
+]

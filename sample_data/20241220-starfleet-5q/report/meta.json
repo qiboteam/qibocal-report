@@ -1,0 +1,6 @@
+{
+  "protocols": [
+    "resonator_spectroscopy",
+    "rabi_amplitude"
+  ]
+}

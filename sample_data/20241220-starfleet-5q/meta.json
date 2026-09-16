@@ -1,0 +1,23 @@
+{
+  "title": "Starfleet 5Q Calibration Routine",
+  "date": "2024-12-20",
+  "time": "14:32:00",
+  "author": "Alice",
+  "platform": "starfleet-5q",
+  "targets": [
+    0,
+    1,
+    2
+  ],
+  "labels": [
+    "daily",
+    "spectroscopy",
+    "rabi"
+  ],
+  "total_execution_time": "45.2s",
+  "protocols": [
+    "resonator_spectroscopy",
+    "qubit_spectroscopy",
+    "rabi_amplitude"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "qubits": {
+    "0": {
+      "readout_frequency": 6425000000.0,
+      "qubit_frequency": 4821000000.0,
+      "pi_pulse_amplitude": 0.174
+    },
+    "1": {
+      "readout_frequency": 6581000000.0,
+      "qubit_frequency": 4954000000.0,
+      "pi_pulse_amplitude": 0.182
+    },
+    "2": {
+      "readout_frequency": 6714000000.0,
+      "qubit_frequency": 5102000000.0,
+      "pi_pulse_amplitude": 0.169
+    }
+  },
+  "instruments": [
+    "qblox_cluster_1",
+    "rhode_schwarz_sgs100a"
+  ]
+}

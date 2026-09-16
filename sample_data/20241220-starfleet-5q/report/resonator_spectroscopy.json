@@ -1,0 +1,105 @@
+{
+  "id": "resonator_spectroscopy",
+  "name": "Resonator Spectroscopy",
+  "category": "spectroscopy",
+  "execution_time": "12.1s",
+  "status": "success",
+  "html": "<div class=\"overflow-x-auto my-3\"><table class=\"w-full text-sm text-left border-collapse\"><thead><tr class=\"bg-purple-50 text-purple-900 border-b border-purple-100\"><th class=\"p-2 font-semibold\">Qubit</th><th class=\"p-2 font-semibold\">Resonator Freq (GHz)</th><th class=\"p-2 font-semibold\">Bare Freq (GHz)</th><th class=\"p-2 font-semibold\">Readout Att (dB)</th></tr></thead><tbody><tr class=\"border-b border-gray-100\"><td class=\"p-2 font-mono\">Q0</td><td class=\"p-2 font-mono text-purple-700 font-semibold\">6.4252 \u00b1 0.0001</td><td class=\"p-2 font-mono\">6.4285</td><td class=\"p-2 font-mono\">24</td></tr><tr class=\"border-b border-gray-100\"><td class=\"p-2 font-mono\">Q1</td><td class=\"p-2 font-mono text-purple-700 font-semibold\">6.5812 \u00b1 0.0001</td><td class=\"p-2 font-mono\">6.5840</td><td class=\"p-2 font-mono\">22</td></tr></tbody></table></div>",
+  "figures": [
+    {
+      "id": "fig-res-spec-q0",
+      "title": "Qubit 0 - Resonator Spectroscopy",
+      "data": [
+        {
+          "x": [
+            6.4,
+            6.405,
+            6.41,
+            6.415,
+            6.42,
+            6.425,
+            6.43,
+            6.435,
+            6.44,
+            6.445,
+            6.45
+          ],
+          "y": [
+            0.082,
+            0.081,
+            0.076,
+            0.062,
+            0.038,
+            0.012,
+            0.039,
+            0.065,
+            0.078,
+            0.081,
+            0.082
+          ],
+          "mode": "markers",
+          "type": "scatter",
+          "name": "Acquired",
+          "marker": {
+            "color": "#4a4a4a",
+            "size": 6
+          }
+        },
+        {
+          "x": [
+            6.4,
+            6.405,
+            6.41,
+            6.415,
+            6.42,
+            6.425,
+            6.43,
+            6.435,
+            6.44,
+            6.445,
+            6.45
+          ],
+          "y": [
+            0.082,
+            0.08,
+            0.075,
+            0.06,
+            0.037,
+            0.011,
+            0.037,
+            0.063,
+            0.077,
+            0.081,
+            0.082
+          ],
+          "mode": "lines",
+          "type": "scatter",
+          "name": "Lorentzian Fit",
+          "line": {
+            "color": "#833dff",
+            "width": 2.5
+          }
+        }
+      ],
+      "layout": {
+        "title": "Q0 Resonator Spectroscopy (MSR vs Frequency)",
+        "xaxis": {
+          "title": "Frequency (GHz)",
+          "gridcolor": "#f0f0f0"
+        },
+        "yaxis": {
+          "title": "MSR (V)",
+          "gridcolor": "#f0f0f0"
+        },
+        "paper_bgcolor": "transparent",
+        "plot_bgcolor": "transparent",
+        "margin": {
+          "t": 40,
+          "b": 40,
+          "l": 50,
+          "r": 20
+        }
+      }
+    }
+  ]
+}

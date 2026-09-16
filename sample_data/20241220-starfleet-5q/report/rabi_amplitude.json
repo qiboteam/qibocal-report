@@ -1,0 +1,105 @@
+{
+  "id": "rabi_amplitude",
+  "name": "Rabi Amplitude",
+  "category": "single_qubit",
+  "execution_time": "15.4s",
+  "status": "success",
+  "html": "<div class=\"overflow-x-auto my-3\"><table class=\"w-full text-sm text-left border-collapse\"><thead><tr class=\"bg-purple-50 text-purple-900 border-b border-purple-100\"><th class=\"p-2 font-semibold\">Qubit</th><th class=\"p-2 font-semibold\">Pi-pulse Amplitude (a.u.)</th><th class=\"p-2 font-semibold\">Pi/2-pulse Amplitude (a.u.)</th></tr></thead><tbody><tr class=\"border-b border-gray-100\"><td class=\"p-2 font-mono\">Q0</td><td class=\"p-2 font-mono text-purple-700 font-semibold\">0.1748 \u00b1 0.0003</td><td class=\"p-2 font-mono\">0.0874 \u00b1 0.0002</td></tr></tbody></table></div>",
+  "figures": [
+    {
+      "id": "fig-rabi-q0",
+      "title": "Qubit 0 - Rabi Amplitude Oscillations",
+      "data": [
+        {
+          "x": [
+            0.0,
+            0.05,
+            0.1,
+            0.15,
+            0.2,
+            0.25,
+            0.3,
+            0.35,
+            0.4,
+            0.45,
+            0.5
+          ],
+          "y": [
+            0.01,
+            0.18,
+            0.65,
+            0.98,
+            0.82,
+            0.35,
+            0.04,
+            0.15,
+            0.61,
+            0.96,
+            0.81
+          ],
+          "mode": "markers",
+          "type": "scatter",
+          "name": "Measured",
+          "marker": {
+            "color": "#4a4a4a",
+            "size": 6
+          }
+        },
+        {
+          "x": [
+            0.0,
+            0.05,
+            0.1,
+            0.15,
+            0.2,
+            0.25,
+            0.3,
+            0.35,
+            0.4,
+            0.45,
+            0.5
+          ],
+          "y": [
+            0.0,
+            0.19,
+            0.64,
+            0.99,
+            0.81,
+            0.34,
+            0.02,
+            0.17,
+            0.63,
+            0.97,
+            0.8
+          ],
+          "mode": "lines",
+          "type": "scatter",
+          "name": "Cosine Fit",
+          "line": {
+            "color": "#833dff",
+            "width": 2.5
+          }
+        }
+      ],
+      "layout": {
+        "title": "Q0 Rabi Oscillations",
+        "xaxis": {
+          "title": "Pulse Amplitude (a.u.)",
+          "gridcolor": "#f0f0f0"
+        },
+        "yaxis": {
+          "title": "State Population / MSR",
+          "gridcolor": "#f0f0f0"
+        },
+        "paper_bgcolor": "transparent",
+        "plot_bgcolor": "transparent",
+        "margin": {
+          "t": 40,
+          "b": 40,
+          "l": 50,
+          "r": 20
+        }
+      }
+    }
+  ]
+}

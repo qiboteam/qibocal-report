@@ -1,0 +1,20 @@
+{
+  "title": "IQM Spark Single-Qubit Randomized Benchmarking",
+  "date": "2024-12-23",
+  "time": "09:40:11",
+  "author": "Charlie",
+  "platform": "iqm-spark",
+  "targets": [
+    0,
+    2
+  ],
+  "labels": [
+    "benchmarking",
+    "fidelity",
+    "rb"
+  ],
+  "total_execution_time": "2m 04s",
+  "protocols": [
+    "randomized_benchmarking"
+  ]
+}
