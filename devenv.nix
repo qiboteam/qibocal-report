@@ -1,12 +1,7 @@
 { pkgs, ... }:
 
 {
-  packages = [
-    pkgs.git
-    pkgs.uv
-    pkgs.nodejs_22
-    pkgs.pnpm
-  ];
+  packages = with pkgs; [ prek ];
 
   languages.python = {
     enable = true;
