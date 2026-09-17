@@ -51,12 +51,15 @@
         <span
           v-for="tag in (report.tags || report.labels || []).slice(0, 3)"
           :key="tag"
-          class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono truncate"
+          @click.stop="$emit('filter-tag', tag)"
+          class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono truncate cursor-pointer transition select-none"
+          :title="`Filter by tag: ${tag}`"
         >
           <span class="truncate">{{ tag }}</span>
           <button
+            type="button"
             @click.stop="$emit('remove-tag', { report, tag })"
-            class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0"
+            class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
             title="Remove tag"
           >
             &times;
@@ -107,5 +110,5 @@ defineProps({
   isSelected: { type: Boolean, default: false }
 })
 
-defineEmits(['select', 'toggle-select', 'remove-tag', 'edit-author'])
+defineEmits(['select', 'toggle-select', 'remove-tag', 'edit-author', 'filter-tag'])
 </script>

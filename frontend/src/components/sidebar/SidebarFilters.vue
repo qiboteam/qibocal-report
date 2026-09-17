@@ -12,7 +12,7 @@
         <button
           v-if="selectedCount > 0"
           @click="$emit('clear-selection')"
-          class="text-[11px] text-gray-400 hover:text-gray-700 underline cursor-pointer shrink-0"
+          class="text-[11px] text-gray-400 hover:text-gray-700 underline cursor-pointer shrink-0 bg-transparent hover:bg-transparent border-0 shadow-none p-0"
         >
           Deselect
         </button>
@@ -114,7 +114,7 @@
       <span class="text-xs font-bold uppercase tracking-wider text-gray-800">Filters</span>
       <button
         @click="$emit('reset-filters')"
-        class="text-[11px] text-[#833dff] hover:underline font-semibold cursor-pointer shrink-0"
+        class="text-[11px] text-[#833dff] hover:underline font-semibold cursor-pointer shrink-0 bg-transparent hover:bg-transparent border-0 shadow-none p-0"
       >
         Clear All
       </button>
@@ -134,7 +134,7 @@
       <select
         :value="selectedAuthor"
         @change="$emit('update-filter', { key: 'author', value: $event.target.value })"
-        class="w-full text-xs p-2 rounded-lg bg-gray-50 border border-gray-200 focus:outline-none focus:ring-1 focus:ring-[#833dff] max-w-full truncate"
+        class="w-full text-xs p-2 rounded-lg bg-gray-50 border-0 focus:outline-none focus:ring-1 focus:ring-[#833dff] max-w-full truncate"
       >
         <option value="">All Authors</option>
         <option v-for="a in filterStats?.authors" :key="a" :value="a">{{ a }}</option>
@@ -176,7 +176,7 @@
       <input
         v-model="labelSearch"
         placeholder="Filter tags..."
-        class="w-full text-xs px-2.5 py-1 mb-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none box-border"
+        class="w-full text-xs px-2.5 py-1 mb-2 bg-gray-50 border-0 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#833dff] box-border"
       />
       <div class="space-y-1 max-h-32 overflow-y-auto overflow-x-hidden w-full">
         <label
@@ -272,7 +272,7 @@
     <button
       v-if="selectedCount > 0"
       @click="$emit('clear-selection')"
-      class="w-9 h-9 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-800 border border-gray-200 flex items-center justify-center transition cursor-pointer shadow-2xs"
+      class="w-9 h-9 flex items-center justify-center transition text-gray-400 hover:text-gray-700 cursor-pointer bg-transparent hover:bg-transparent border-0 shadow-none"
       title="Deselect all reports"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -285,7 +285,7 @@
     <!-- Clear Filters Button -->
     <button
       @click="$emit('reset-filters')"
-      class="w-9 h-9 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#833dff] border border-purple-200/60 flex items-center justify-center transition cursor-pointer shadow-2xs"
+      class="w-9 h-9 flex items-center justify-center transition text-[#833dff] hover:text-purple-800 cursor-pointer bg-transparent hover:bg-transparent border-0 shadow-none"
       title="Reset all search filters"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

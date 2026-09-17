@@ -32,9 +32,25 @@
       title="Current Report"
     >
       <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
       <span v-if="!isCollapsed" class="truncate">Current Report</span>
+    </router-link>
+
+    <!-- Statistics -->
+    <router-link
+      to="/statistics"
+      class="rounded-xl text-xs font-semibold transition flex items-center"
+      :class="[
+        $route.path === '/statistics' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-700 hover:bg-gray-100',
+        isCollapsed ? 'w-9 h-9 justify-center' : 'gap-3 px-3 py-2'
+      ]"
+      title="Statistics"
+    >
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+      <span v-if="!isCollapsed">Statistics</span>
     </router-link>
 
     <!-- Docs Button -->
@@ -59,6 +75,6 @@
 defineProps({
   isCollapsed: { type: Boolean, default: false },
   currentReportId: { type: String, default: null },
-  height: { type: Number, default: 145 }
+  height: { type: Number, default: 175 }
 })
 </script>

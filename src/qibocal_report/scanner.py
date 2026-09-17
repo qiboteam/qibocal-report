@@ -12,12 +12,15 @@ from qibocal_report.generator import (
     load_cached_protocols,
 )
 from qibocal_report.models import (
+    AuthorFrequency,
     DateHistogramBin,
     FilterStats,
+    PlatformFrequency,
     ProtocolFrequency,
     ProtocolSummary,
     ReportDetail,
     ReportSummary,
+    TagFrequency,
 )
 
 IGNORED_DIRS = {
@@ -325,6 +328,7 @@ def filter_reports(
     reports: list[ReportSummary],
     query: str | None = None,
     authors: list[str] | None = None,
+    platforms: list[str] | None = None,
     labels: list[str] | None = None,
     protocols: list[str] | None = None,
     start_date: str | None = None,
@@ -350,6 +354,9 @@ def filter_reports(
 
     if authors:
         filtered = [r for r in filtered if r.author in authors]
+
+    if platforms:
+        filtered = [r for r in filtered if r.platform in platforms]
 
     if labels:
         filtered = [
@@ -394,6 +401,24 @@ def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
         for name, count in proto_counter.most_common()
     ]
 
+    platform_counter = Counter(r.platform for r in reports if r.platform)
+    platform_freqs = [
+        PlatformFrequency(name=name, count=count)
+        for name, count in platform_counter.most_common()
+    ]
+
+    author_counter = Counter(r.author for r in reports if r.author)
+    author_freqs = [
+        AuthorFrequency(name=name, count=count)
+        for name, count in author_counter.most_common()
+    ]
+
+    tag_counter = Counter(lab for r in reports for lab in (r.tags or r.labels))
+    tag_freqs = [
+        TagFrequency(name=name, count=count)
+        for name, count in tag_counter.most_common()
+    ]
+
     date_counter = Counter(r.date for r in reports if r.date)
     date_histogram = [
         DateHistogramBin(date=d, count=date_counter[d]) for d in sorted(date_counter)
@@ -405,6 +430,10 @@ def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
         labels=labels,
         protocols=proto_freqs,
         date_histogram=date_histogram,
+        platforms=platform_freqs,
+        author_frequencies=author_freqs,
+        tag_frequencies=tag_freqs,
+        total_reports=len(reports),
     )
 
 

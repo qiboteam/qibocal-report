@@ -96,6 +96,21 @@ class ProtocolFrequency(BaseModel):
     count: int
 
 
+class PlatformFrequency(BaseModel):
+    name: str
+    count: int
+
+
+class AuthorFrequency(BaseModel):
+    name: str
+    count: int
+
+
+class TagFrequency(BaseModel):
+    name: str
+    count: int
+
+
 class DateHistogramBin(BaseModel):
     date: str
     count: int
@@ -107,6 +122,10 @@ class FilterStats(BaseModel):
     labels: list[str] = Field(default_factory=list)
     protocols: list[ProtocolFrequency]
     date_histogram: list[DateHistogramBin]
+    platforms: list[PlatformFrequency] = Field(default_factory=list)
+    author_frequencies: list[AuthorFrequency] = Field(default_factory=list)
+    tag_frequencies: list[TagFrequency] = Field(default_factory=list)
+    total_reports: int = 0
 
 
 class HealthResponse(BaseModel):

@@ -84,7 +84,14 @@
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800"
           >
             Author: {{ filters.author }}
-            <button @click="filters.author = ''; fetchReports()" class="hover:text-black cursor-pointer">&times;</button>
+            <button type="button" @click="filters.author = ''; fetchReports()" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
+          </span>
+          <span
+            v-if="filters.platform"
+            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
+          >
+            Platform: {{ filters.platform }}
+            <button type="button" @click="filters.platform = ''; fetchReports()" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
           <span
             v-for="p in filters.protocols"
@@ -92,7 +99,7 @@
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             {{ p }}
-            <button @click="onToggleProtocol(p)" class="hover:text-black cursor-pointer">&times;</button>
+            <button type="button" @click="onToggleProtocol(p)" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
           <span
             v-for="l in filters.labels"
@@ -100,14 +107,14 @@
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             Tag: {{ l }}
-            <button @click="onToggleLabel(l)" class="hover:text-black cursor-pointer">&times;</button>
+            <button type="button" @click="onToggleLabel(l)" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
           <span
             v-if="filters.date"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             Date: {{ filters.date }}
-            <button @click="filters.date = ''; fetchReports()" class="hover:text-black cursor-pointer">&times;</button>
+            <button type="button" @click="filters.date = ''; fetchReports()" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
         </div>
       </div>
@@ -178,7 +185,7 @@
             </svg>
             <span class="font-medium">{{ bulkSuccessMessage }}</span>
           </div>
-          <button @click="bulkSuccessMessage = ''" class="hover:text-emerald-950 font-bold cursor-pointer">&times;</button>
+          <button type="button" @click="bulkSuccessMessage = ''" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-emerald-950 font-bold cursor-pointer leading-none text-base">&times;</button>
         </div>
 
         <!-- Loading State -->
@@ -224,6 +231,7 @@
           @toggle-select-all="() => toggleSelectAll(reports.map(r => r.id))"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
           @edit-author="r => openAuthorModal(r)"
+          @filter-tag="onToggleLabel"
         />
 
         <!-- Horizontal Cards View -->
@@ -235,6 +243,7 @@
           @toggle-select="toggleSelect"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
           @edit-author="r => openAuthorModal(r)"
+          @filter-tag="onToggleLabel"
         />
 
         <!-- Pagination Controls -->
@@ -298,7 +307,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { state, addToHistory, apiFetch, ensureServersLoaded } from '../store.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
 import { usePagination } from '../composables/usePagination.js'
@@ -313,6 +322,7 @@ import AuthorModal from '../components/modals/AuthorModal.vue'
 import DeleteConfirmModal from '../components/modals/DeleteConfirmModal.vue'
 
 const router = useRouter()
+const route = useRoute()
 const viewMode = ref('table')
 const reports = ref([])
 const filterStats = ref(null)
@@ -523,6 +533,7 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
     if (filters.q.trim()) params.set('q', filters.q.trim())
     if (filters.sort_by) params.set('sort_by', filters.sort_by)
     if (filters.author) params.set('author', filters.author)
+    if (filters.platform) params.set('platform', filters.platform)
     if (filters.date) {
       params.set('start_date', filters.date)
       params.set('end_date', filters.date)
@@ -572,11 +583,71 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
 }
 
 // Watchers and lifecycle
+function syncFiltersFromRoute(query) {
+  let changed = false
+  if (query.label) {
+    const lbl = String(query.label)
+    if (!filters.labels.includes(lbl)) {
+      filters.labels = [lbl]
+      changed = true
+    }
+  }
+  if (query.platform) {
+    const plat = String(query.platform)
+    if (filters.platform !== plat) {
+      filters.platform = plat
+      changed = true
+    }
+  }
+  if (query.protocol) {
+    const proto = String(query.protocol)
+    if (!filters.protocols.includes(proto)) {
+      filters.protocols = [proto]
+      changed = true
+    }
+  }
+  if (query.author) {
+    const aut = String(query.author)
+    if (filters.author !== aut) {
+      filters.author = aut
+      changed = true
+    }
+  }
+  if (query.date) {
+    const d = String(query.date)
+    if (filters.date !== d) {
+      filters.date = d
+      changed = true
+    }
+  }
+  if (query.q) {
+    const q = String(query.q)
+    if (filters.q !== q) {
+      filters.q = q
+      changed = true
+    }
+  }
+  return changed
+}
+
 onMounted(async () => {
+  syncFiltersFromRoute(route.query)
   loading.value = true
   await ensureServersLoaded()
   await refreshData()
 })
+
+watch(
+  () => route.query,
+  (newQuery) => {
+    if (syncFiltersFromRoute(newQuery)) {
+      currentPage.value = 1
+      clearCache()
+      fetchReports(1, false)
+    }
+  },
+  { deep: true }
+)
 
 watch(
   () => [state.activeServer?.id, state.activeServer?.url],

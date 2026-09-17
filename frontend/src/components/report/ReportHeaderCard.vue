@@ -14,12 +14,15 @@
         <span
           v-for="t in (report.tags || report.labels || [])"
           :key="t"
-          class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+          @click.stop="onTagClick(t)"
+          class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono cursor-pointer transition select-none"
+          :title="`Filter by tag: ${t}`"
         >
           <span>{{ t }}</span>
           <button
+            type="button"
             @click.stop="$emit('remove-tag', t)"
-            class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0"
+            class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
             title="Remove tag"
           >
             &times;
@@ -101,12 +104,15 @@
         <span
           v-for="l in (report.tags || report.labels || [])"
           :key="l"
-          class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+          @click.stop="onTagClick(l)"
+          class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono cursor-pointer transition select-none"
+          :title="`Filter by tag: ${l}`"
         >
           <span>{{ l }}</span>
           <button
+            type="button"
             @click.stop="$emit('remove-tag', l)"
-            class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0"
+            class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
             title="Remove tag"
           >
             &times;
@@ -122,6 +128,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 const props = defineProps({
   report: { type: Object, required: true },
@@ -129,6 +136,13 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['remove-tag', 'save-author'])
+const router = useRouter()
+
+function onTagClick(tag) {
+  if (tag) {
+    router.push({ path: '/dashboard', query: { label: tag } })
+  }
+}
 
 const isEditingAuthor = ref(false)
 const editAuthorText = ref('')

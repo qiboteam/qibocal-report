@@ -7,6 +7,7 @@ export function useReportFilters() {
   const filters = reactive({
     q: '',
     author: '',
+    platform: '',
     date: '',
     protocols: [],
     labels: [],
@@ -16,6 +17,7 @@ export function useReportFilters() {
   const hasActiveFilters = computed(() => {
     return Boolean(
       filters.author ||
+      filters.platform ||
       filters.date ||
       filters.protocols.length > 0 ||
       filters.labels.length > 0
@@ -42,12 +44,14 @@ export function useReportFilters() {
 
   function updateFilter({ key, value }) {
     if (key === 'author') filters.author = value
+    if (key === 'platform') filters.platform = value
     if (key === 'date') filters.date = value
   }
 
   function resetFilters() {
     filters.q = ''
     filters.author = ''
+    filters.platform = ''
     filters.date = ''
     filters.protocols = []
     filters.labels = []
@@ -57,7 +61,7 @@ export function useReportFilters() {
     const serverKey = activeServer?.id || activeServer?.url || 'local'
     const protos = [...filters.protocols].sort().join(',')
     const labels = [...filters.labels].sort().join(',')
-    return `${serverKey}|${filters.q.trim().toLowerCase()}|${filters.author}|${filters.date}|${protos}|${labels}|${filters.sort_by}|${pageSize}`
+    return `${serverKey}|${filters.q.trim().toLowerCase()}|${filters.author}|${filters.platform}|${filters.date}|${protos}|${labels}|${filters.sort_by}|${pageSize}`
   }
 
   return {

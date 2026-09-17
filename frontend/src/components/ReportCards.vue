@@ -60,12 +60,15 @@
             <span
               v-for="l in (report.tags || report.labels || [])"
               :key="l"
-              class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+              @click.stop="$emit('filter-tag', l)"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono cursor-pointer transition select-none"
+              :title="`Filter by tag: ${l}`"
             >
               <span>{{ l }}</span>
               <button
+                type="button"
                 @click.stop="$emit('remove-tag', { report, tag: l })"
-                class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer"
+                class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer ml-0.5"
                 title="Remove tag"
               >
                 &times;
@@ -96,6 +99,5 @@ defineProps({
   selected: { type: Array, default: () => [] }
 })
 
-defineEmits(['select', 'toggle-select', 'remove-tag', 'edit-author'])
-
+defineEmits(['select', 'toggle-select', 'remove-tag', 'edit-author', 'filter-tag'])
 </script>

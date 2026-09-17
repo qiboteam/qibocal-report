@@ -19,7 +19,7 @@
         <select
           :value="pageSize"
           @change="$emit('update:pageSize', Number($event.target.value))"
-          class="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#833dff] cursor-pointer"
+          class="px-2 py-1 bg-gray-50 border-0 rounded-lg text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#833dff] cursor-pointer"
         >
           <option :value="10">10 / page</option>
           <option :value="25">25 / page</option>

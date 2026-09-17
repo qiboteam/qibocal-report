@@ -70,6 +70,15 @@ def test_scanner_and_filters():
     assert counts == sorted(counts, reverse=True)
     assert "broken" in stats.tags
     assert "broken" in stats.labels
+    assert len(stats.platforms) > 0
+    assert len(stats.author_frequencies) > 0
+    assert stats.total_reports == len(reports)
+
+    # Filter by platform
+    top_platform = stats.platforms[0].name
+    plat_reports = filter_reports(reports, platforms=[top_platform])
+    assert len(plat_reports) == stats.platforms[0].count
+    assert all(r.platform == top_platform for r in plat_reports)
 
     # Filter by tag / label
     broken_reports = filter_reports(reports, labels=["broken"])
@@ -180,6 +189,15 @@ def test_api_endpoints():
     stats = r.json()
     assert "protocols" in stats
     assert "date_histogram" in stats
+    assert "platforms" in stats
+    assert "author_frequencies" in stats
+    assert stats["total_reports"] > 0
+
+    # Filter by platform via API
+    plat_name = stats["platforms"][0]["name"]
+    r_plat = client.get(f"/api/reports?platform={plat_name}")
+    assert r_plat.status_code == 200
+    assert len(r_plat.json()) == stats["platforms"][0]["count"]
 
     # Single report detail
     first_id = reports[0]["id"]
