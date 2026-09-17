@@ -110,17 +110,62 @@
 
       <!-- Main Results Area -->
       <div class="p-6">
-        <!-- Results Count -->
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">
-            Calibration Reports ({{ reports.length }})
-          </h2>
-          <span class="text-xs text-gray-400">Showing all matches</span>
+        <!-- Results Count & Active Server Indicator -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div class="flex items-center gap-3">
+            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">
+              Calibration Reports ({{ reports.length }})
+            </h2>
+            <!-- Active Server Indicator Badge -->
+            <div
+              class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs bg-white border border-gray-200 shadow-2xs"
+              :title="activeServer?.url || 'Local Instance'"
+            >
+              <span
+                class="w-2 h-2 rounded-full"
+                :class="connectionError ? 'bg-red-500' : loading ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'"
+              ></span>
+              <span class="text-gray-400 text-[11px]">Server:</span>
+              <span class="font-semibold text-gray-700 max-w-[120px] sm:max-w-[200px] truncate">
+                {{ activeServer?.name || 'Local Instance' }}
+              </span>
+              <span class="text-[10px] font-mono text-gray-400 max-w-[150px] sm:max-w-[220px] truncate hidden sm:inline">
+                ({{ activeServer?.url || 'local' }})
+              </span>
+            </div>
+          </div>
+          <span v-if="loading" class="text-xs text-purple-600 animate-pulse">Loading reports...</span>
+          <span v-else class="text-xs text-gray-400">Showing all matches</span>
+        </div>
+
+        <!-- Connection Error Banner -->
+        <div
+          v-if="connectionError"
+          class="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        >
+          <div>
+            <div class="font-bold text-xs">Connection Error</div>
+            <div class="text-xs mt-0.5 text-red-600">{{ connectionError }}</div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              @click="refreshData"
+              class="px-3 py-1 bg-white border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-50 transition"
+            >
+              Retry
+            </button>
+            <router-link
+              to="/servers"
+              class="px-3 py-1 bg-red-600 text-white rounded-lg text-xs font-semibold hover:bg-red-700 transition"
+            >
+              Manage Servers
+            </router-link>
+          </div>
         </div>
 
         <!-- Empty State -->
         <div
-          v-if="reports.length === 0"
+          v-if="reports.length === 0 && !loading && !connectionError"
           class="bg-white rounded-2xl p-12 text-center border border-gray-200 shadow-sm max-w-lg mx-auto my-8"
         >
           <div class="w-12 h-12 rounded-xl bg-purple-50 text-[#833dff] flex items-center justify-center mx-auto mb-3">
@@ -157,9 +202,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { state, addToHistory } from '../store.js'
+import { state, addToHistory, apiFetch, ensureServersLoaded } from '../store.js'
 import Sidebar from '../components/Sidebar.vue'
 import ReportTable from '../components/ReportTable.vue'
 import ReportCards from '../components/ReportCards.vue'
@@ -168,6 +213,10 @@ const router = useRouter()
 const viewMode = ref('table') // default table
 const reports = ref([])
 const filterStats = ref(null)
+const loading = ref(false)
+const connectionError = ref(null)
+
+const activeServer = computed(() => state.activeServer)
 
 const filters = reactive({
   q: '',
@@ -183,22 +232,40 @@ const hasActiveFilters = computed(() => {
 })
 
 onMounted(async () => {
-  await fetchStats()
-  await fetchReports()
+  await ensureServersLoaded()
+  await refreshData()
 })
+
+watch(
+  () => [state.activeServer?.id, state.activeServer?.url],
+  async ([newId, newUrl], [oldId, oldUrl]) => {
+    if (newId !== oldId || newUrl !== oldUrl) {
+      await refreshData()
+    }
+  }
+)
+
+async function refreshData() {
+  await Promise.all([fetchStats(), fetchReports()])
+}
 
 async function fetchStats() {
   try {
-    const res = await fetch('/api/reports/stats')
+    const res = await apiFetch('/api/reports/stats')
     if (res.ok) {
       filterStats.value = await res.json()
+    } else {
+      filterStats.value = null
     }
   } catch (err) {
     console.error('Failed to fetch stats', err)
+    filterStats.value = null
   }
 }
 
 async function fetchReports() {
+  loading.value = true
+  connectionError.value = null
   try {
     const params = new URLSearchParams()
     if (filters.q) params.set('q', filters.q)
@@ -211,12 +278,20 @@ async function fetchReports() {
     filters.protocols.forEach(p => params.append('protocol', p))
     filters.labels.forEach(l => params.append('label', l))
 
-    const res = await fetch(`/api/reports?${params.toString()}`)
+    const queryString = params.toString() ? `?${params.toString()}` : ''
+    const res = await apiFetch(`/api/reports${queryString}`)
     if (res.ok) {
       reports.value = await res.json()
+    } else {
+      connectionError.value = `Server responded with status ${res.status}`
+      reports.value = []
     }
   } catch (err) {
     console.error('Failed to fetch reports', err)
+    connectionError.value = `Could not connect to ${activeServer.value?.name || 'server'} (${activeServer.value?.url || ''}): ${err.message || 'Network error'}`
+    reports.value = []
+  } finally {
+    loading.value = false
   }
 }
 

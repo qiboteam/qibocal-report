@@ -14,37 +14,110 @@ export const state = reactive({
   error: null
 })
 
-export async function fetchServers() {
-  try {
-    const res = await fetch('/api/servers')
-    if (res.ok) {
-      const data = await res.json()
-      state.servers = data
-      if (!state.activeServer && data.length > 0) {
-        // default to active server from localStorage or first
-        const savedActiveId = localStorage.getItem('qibocal_active_server_id')
-        const found = data.find(s => s.id === savedActiveId)
-        state.activeServer = found || data[0]
-      }
-    }
-  } catch (err) {
-    console.error('Failed to fetch servers', err)
+export function normalizeUrl(url) {
+  if (!url) return ''
+  let clean = url.trim().replace(/\/+$/, '')
+  if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+    clean = `http://${clean}`
   }
+  return clean
+}
+
+export function getActiveServerUrl() {
+  if (state.activeServer?.url) {
+    return normalizeUrl(state.activeServer.url)
+  }
+  return ''
+}
+
+export function getApiUrl(path) {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  const base = getActiveServerUrl()
+  if (base) {
+    return `${base}${cleanPath}`
+  }
+  return cleanPath
+}
+
+export function getActiveWsUrl(path) {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  const serverUrl = getActiveServerUrl()
+  if (serverUrl) {
+    const wsBase = serverUrl.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://')
+    return `${wsBase}${cleanPath}`
+  }
+  const isHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:'
+  const wsProto = isHttps ? 'wss:' : 'ws:'
+  const host = (typeof window !== 'undefined' && window.location?.host) || '127.0.0.1:8000'
+  return `${wsProto}//${host}${cleanPath}`
+}
+
+export async function apiFetch(path, options = {}) {
+  const url = getApiUrl(path)
+  return fetch(url, options)
+}
+
+let serversPromise = null
+
+export function fetchServers() {
+  if (!serversPromise) {
+    serversPromise = (async () => {
+      try {
+        const res = await fetch('/api/servers')
+        if (res.ok) {
+          const data = await res.json()
+          state.servers = data
+          const savedActiveId = localStorage.getItem('qibocal_active_server_id')
+          const found = data.find(s => s.id === savedActiveId)
+          if (found) {
+            state.activeServer = found
+          } else if (!state.activeServer && data.length > 0) {
+            state.activeServer = data[0]
+          } else if (state.activeServer) {
+            const current = data.find(s => s.id === state.activeServer.id)
+            if (current) state.activeServer = current
+          }
+          if (state.activeServer?.id) {
+            localStorage.setItem('qibocal_active_server_id', state.activeServer.id)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch servers', err)
+      } finally {
+        serversPromise = null
+      }
+    })()
+  }
+  return serversPromise
+}
+
+export async function ensureServersLoaded() {
+  if (state.activeServer && state.servers.length > 0) {
+    return state.activeServer
+  }
+  await fetchServers()
+  return state.activeServer
 }
 
 export function setActiveServer(server) {
-  state.activeServer = server
-  if (server?.id) {
+  if (!server) {
+    state.activeServer = null
+    localStorage.removeItem('qibocal_active_server_id')
+    return
+  }
+  state.activeServer = { ...server, url: normalizeUrl(server.url) }
+  if (server.id) {
     localStorage.setItem('qibocal_active_server_id', server.id)
   }
 }
 
 export async function addServer(url, name = null, description = null, avatar = null) {
   try {
+    const normalizedUrl = normalizeUrl(url)
     const res = await fetch('/api/servers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, name, description, avatar })
+      body: JSON.stringify({ url: normalizedUrl, name, description, avatar })
     })
     if (res.ok) {
       const created = await res.json()
@@ -59,16 +132,20 @@ export async function addServer(url, name = null, description = null, avatar = n
 
 export async function updateServer(id, updates) {
   try {
+    const dataToSend = { ...updates }
+    if (dataToSend.url) {
+      dataToSend.url = normalizeUrl(dataToSend.url)
+    }
     const res = await fetch(`/api/servers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
+      body: JSON.stringify(dataToSend)
     })
     if (res.ok) {
       const updated = await res.json()
       await fetchServers()
       if (state.activeServer?.id === id) {
-        state.activeServer = updated
+        setActiveServer(updated)
       }
       return updated
     }
@@ -84,7 +161,7 @@ export async function deleteServer(id) {
     if (res.ok) {
       await fetchServers()
       if (state.activeServer?.id === id) {
-        state.activeServer = state.servers[0] || null
+        setActiveServer(state.servers[0] || null)
       }
       return true
     }

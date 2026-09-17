@@ -35,9 +35,17 @@ def test_config_servers(tmp_path):
     updated = config.update_server(new_srv["id"], {"description": "Updated desc"})
     assert updated["description"] == "Updated desc"
 
+    # URL normalization
+    norm_srv = config.add_server("192.168.1.100:8000/", name="raw-ip")
+    assert norm_srv["url"] == "http://192.168.1.100:8000"
+
+    updated_norm = config.update_server(norm_srv["id"], {"url": "10.0.0.1:8080/"})
+    assert updated_norm["url"] == "http://10.0.0.1:8080"
+
     # Delete
     deleted = config.delete_server(new_srv["id"])
     assert deleted is True
+    config.delete_server(norm_srv["id"])
 
 
 def test_scanner_and_filters():

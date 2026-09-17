@@ -112,6 +112,8 @@ def add_server(
     """Register a new server."""
     servers = load_servers()
     clean_url = url.strip().rstrip("/")
+    if not clean_url.startswith(("http://", "https://")):
+        clean_url = f"http://{clean_url}"
 
     # Check if URL already exists
     for s in servers:
@@ -140,7 +142,10 @@ def update_server(server_id: str, updates: dict[str, Any]) -> dict[str, Any] | N
             for k in ["name", "url", "description", "avatar", "is_default"]:
                 if k in updates and updates[k] is not None:
                     if k == "url":
-                        s[k] = updates[k].strip().rstrip("/")
+                        clean_url = str(updates[k]).strip().rstrip("/")
+                        if not clean_url.startswith(("http://", "https://")):
+                            clean_url = f"http://{clean_url}"
+                        s[k] = clean_url
                     else:
                         s[k] = updates[k]
             save_servers(servers)

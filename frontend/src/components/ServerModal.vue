@@ -25,7 +25,7 @@
           </label>
           <input
             v-model="form.url"
-            type="url"
+            type="text"
             required
             placeholder="http://127.0.0.1:8000"
             class="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-lg text-xs font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#833dff]/15 focus:border-[#833dff] transition"
@@ -101,6 +101,7 @@
 <script setup>
 import { reactive, computed } from 'vue'
 import { AVATAR_KEYS, renderAvatar } from './Avatars.js'
+import { normalizeUrl } from '../store.js'
 
 const props = defineProps({
   server: { type: Object, default: null }
@@ -119,6 +120,6 @@ const form = reactive({
 })
 
 function submitForm() {
-  emit('save', { ...form })
+  emit('save', { ...form, url: normalizeUrl(form.url) })
 }
 </script>

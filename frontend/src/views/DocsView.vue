@@ -14,7 +14,7 @@
         </router-link>
 
         <a
-          href="/api/docs/swagger"
+          :href="swaggerUrl"
           target="_blank"
           class="inline-flex items-center gap-1 text-xs font-semibold text-[#833dff] hover:underline"
         >
@@ -63,6 +63,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { marked } from 'marked'
+import { apiFetch, getActiveServerUrl } from '../store.js'
 
 const tabs = [
   { id: 'usage', title: 'User Guide' },
@@ -73,6 +74,11 @@ const tabs = [
 const activeTab = ref('usage')
 const rawMarkdown = ref('')
 const loading = ref(true)
+
+const swaggerUrl = computed(() => {
+  const base = getActiveServerUrl()
+  return base ? `${base}/api/docs/swagger` : '/api/docs/swagger'
+})
 
 const renderedContent = computed(() => {
   return marked(rawMarkdown.value)
@@ -85,17 +91,27 @@ onMounted(() => {
 async function loadDoc(name) {
   loading.value = true
   try {
-    const res = await fetch(`/api/docs-content/${name}`)
+    const res = await apiFetch(`/api/docs-content/${name}`)
     if (res.ok) {
       rawMarkdown.value = await res.text()
-    } else {
-      rawMarkdown.value = `# Not Found\nCould not load documentation for ${name}.`
+      loading.value = false
+      return
     }
   } catch (err) {
-    rawMarkdown.value = `# Error\nFailed to fetch documentation.`
-  } finally {
-    loading.value = false
+    console.warn('Failed to load docs from active server, trying local host...', err)
   }
+
+  try {
+    const localRes = await fetch(`/api/docs-content/${name}`)
+    if (localRes.ok) {
+      rawMarkdown.value = await localRes.text()
+      loading.value = false
+      return
+    }
+  } catch {}
+
+  rawMarkdown.value = `# Not Found\nCould not load documentation for ${name}.`
+  loading.value = false
 }
 </script>
 

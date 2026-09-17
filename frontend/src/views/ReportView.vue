@@ -13,12 +13,18 @@
         <p class="mt-1 text-[11px] text-gray-400 font-mono">Server is preparing plots in the background...</p>
       </div>
 
-      <div v-else-if="error" class="bg-red-50 text-red-700 p-6 rounded-2xl border border-red-200">
+      <div v-else-if="error" class="bg-red-50 text-red-700 p-6 rounded-2xl border border-red-200 max-w-2xl mx-auto my-8">
         <h3 class="font-bold text-base">Unable to load report</h3>
         <p class="text-xs mt-1">{{ error }}</p>
-        <router-link to="/dashboard" class="inline-block mt-3 px-3 py-1.5 bg-red-100 rounded-lg text-xs font-semibold">
-          Back to Dashboard
-        </router-link>
+        <p class="text-xs text-gray-500 mt-2 font-mono">Server: {{ activeServer?.name || 'Local Instance' }} ({{ activeServer?.url || 'local' }})</p>
+        <div class="flex items-center gap-2 mt-4">
+          <router-link to="/dashboard" class="inline-block px-3 py-1.5 bg-red-100 text-red-800 rounded-lg text-xs font-semibold">
+            Back to Dashboard
+          </router-link>
+          <button @click="loadReportData" class="px-3 py-1.5 bg-white border border-red-200 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-50 transition">
+            Retry
+          </button>
+        </div>
       </div>
 
       <div v-else-if="report" class="max-w-5xl mx-auto space-y-6">
@@ -224,9 +230,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { state, addToHistory } from '../store.js'
+import { state, addToHistory, apiFetch, getActiveWsUrl, ensureServersLoaded } from '../store.js'
 import Sidebar from '../components/Sidebar.vue'
 import PlotlyViewer from '../components/PlotlyViewer.vue'
 
@@ -243,14 +249,28 @@ const statusBanner = ref('')
 let activeWs = null
 
 const reportId = computed(() => route.params.id)
+const activeServer = computed(() => state.activeServer)
 
 const hasPlatformData = computed(() => {
   return report.value?.platform_snapshot && Object.keys(report.value.platform_snapshot).length > 0
 })
 
 onMounted(async () => {
+  await ensureServersLoaded()
   await loadReportData()
 })
+
+watch(
+  () => [state.activeServer?.id, state.activeServer?.url],
+  async ([newId, newUrl], [oldId, oldUrl]) => {
+    if (newId !== oldId || newUrl !== oldUrl) {
+      if (activeWs) {
+        try { activeWs.close() } catch {}
+      }
+      await loadReportData()
+    }
+  }
+)
 
 onUnmounted(() => {
   if (activeWs) {
@@ -277,11 +297,8 @@ async function loadReportData() {
 
 function connectWebSocket() {
   return new Promise((resolve, reject) => {
-    const isHttps = window.location.protocol === 'https:'
-    const wsProto = isHttps ? 'wss:' : 'ws:'
-    const host = window.location.host || '127.0.0.1:8000'
     const encodedId = encodeURIComponent(reportId.value)
-    const wsUrl = `${wsProto}//${host}/ws/reports/${encodedId}`
+    const wsUrl = getActiveWsUrl(`/ws/reports/${encodedId}`)
 
     let ws = null
     try {
@@ -356,7 +373,7 @@ async function loadViaHttp() {
   try {
     loadingStatus.value = 'Fetching report metadata...'
     const encodedId = encodeURIComponent(reportId.value)
-    const res = await fetch(`/api/reports/${encodedId}`)
+    const res = await apiFetch(`/api/reports/${encodedId}`)
     if (!res.ok) throw new Error(`Report not found (${res.status})`)
     const data = await res.json()
     report.value = data
@@ -364,7 +381,7 @@ async function loadViaHttp() {
     addToHistory(data)
 
     loadingStatus.value = 'Retrieving report protocols...'
-    const protoRes = await fetch(`/api/reports/${encodedId}/protocols`)
+    const protoRes = await apiFetch(`/api/reports/${encodedId}/protocols`)
     if (protoRes.ok) {
       protocols.value = await protoRes.json()
     } else {
@@ -382,7 +399,7 @@ async function handleRegenerate() {
   statusBanner.value = ''
   try {
     const encodedId = encodeURIComponent(reportId.value)
-    const res = await fetch(`/api/reports/${encodedId}/regenerate`, { method: 'POST' })
+    const res = await apiFetch(`/api/reports/${encodedId}/regenerate`, { method: 'POST' })
     if (res.ok) {
       protocols.value = await res.json()
       statusBanner.value = 'Report plots regenerated successfully!'

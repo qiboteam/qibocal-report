@@ -34,8 +34,11 @@
               class="px-3 py-2 hover:bg-purple-50 cursor-pointer flex items-center justify-between gap-2"
               :class="s.id === activeServer?.id ? 'bg-purple-50/60 font-bold text-[#833dff]' : 'text-gray-700'"
             >
-              <span class="truncate">{{ s.name }}</span>
-              <span v-if="s.id === activeServer?.id" class="w-1.5 h-1.5 rounded-full bg-[#833dff]"></span>
+              <div class="truncate">
+                <div class="truncate">{{ s.name }}</div>
+                <div class="text-[10px] font-mono text-gray-400 truncate">{{ s.url }}</div>
+              </div>
+              <span v-if="s.id === activeServer?.id" class="w-1.5 h-1.5 rounded-full bg-[#833dff] shrink-0"></span>
             </div>
             <div class="border-t border-gray-100 mt-1 pt-1">
               <router-link
@@ -263,7 +266,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { state, setActiveServer } from '../store.js'
 import { renderAvatar } from './Avatars.js'
 import DateHistogram from './DateHistogram.vue'
@@ -279,6 +282,7 @@ const props = defineProps({
 defineEmits(['update-filter', 'reset-filters', 'toggle-protocol', 'toggle-label'])
 
 const route = useRoute()
+const router = useRouter()
 const isCollapsed = ref(false)
 const serverDropdownOpen = ref(false)
 const historyOpen = ref(true)
@@ -301,6 +305,9 @@ const filteredLabels = computed(() => {
 function switchServer(s) {
   setActiveServer(s)
   serverDropdownOpen.value = false
+  if (route.path !== '/dashboard') {
+    router.push('/dashboard')
+  }
 }
 
 function scrollToProtocol(id) {

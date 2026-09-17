@@ -15,7 +15,7 @@
   };
 
   scripts.build-frontend.exec = ''
-    cd frontend && pnpm build && cp -r dist/* ../src/qibocal_report/static/
+    cd frontend && pnpm build && rm -rf ../src/qibocal_report/static/* && cp -r dist/* ../src/qibocal_report/static/
   '';
 
   scripts.dev.exec = ''

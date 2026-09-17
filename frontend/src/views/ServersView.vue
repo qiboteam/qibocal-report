@@ -138,11 +138,17 @@ function openEditModal(server) {
 
 async function saveModalServer(updatedData) {
   if (updatedData.id) {
-    await updateServer(updatedData.id, updatedData)
+    const updated = await updateServer(updatedData.id, updatedData)
+    if (updated && state.activeServer?.id === updated.id) {
+      setActiveServer(updated)
+    }
     toastMessage.value = `Server updated.`
   } else {
-    await addServer(updatedData.url, updatedData.name, updatedData.description, updatedData.avatar)
-    toastMessage.value = `Server registered.`
+    const created = await addServer(updatedData.url, updatedData.name, updatedData.description, updatedData.avatar)
+    if (created) {
+      setActiveServer(created)
+      toastMessage.value = `Server registered.`
+    }
   }
   modalOpen.value = false
 }

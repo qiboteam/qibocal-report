@@ -93,8 +93,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { renderAvatar } from './Avatars.js'
+import { normalizeUrl } from '../store.js'
 
 const props = defineProps({
   server: { type: Object, required: true },
@@ -116,20 +117,30 @@ onMounted(() => {
   checkHealth()
 })
 
+watch(() => props.server?.url, () => {
+  checkHealth()
+})
+
 onUnmounted(() => {
   window.removeEventListener('click', closeMenu)
 })
 
 async function checkHealth() {
   try {
-    const res = await fetch('/api/health')
+    const normalized = normalizeUrl(props.server?.url)
+    const targetUrl = normalized ? `${normalized}/api/health` : '/api/health'
+    const res = await fetch(targetUrl, { signal: AbortSignal.timeout(5000) })
     if (res.ok) {
       const data = await res.json()
       isOnline.value = true
       reportCount.value = data.reports_count
+    } else {
+      isOnline.value = false
+      reportCount.value = null
     }
   } catch {
     isOnline.value = false
+    reportCount.value = null
   }
 }
 
