@@ -115,3 +115,7 @@ class BulkActionResponse(BaseModel):
     action: str
     affected: int
     message: str
+
+
+class SingleLabelRequest(BaseModel):
+    label: str = ""

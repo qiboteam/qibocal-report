@@ -43,6 +43,7 @@ from qibocal_report.models import (
     ServerCreate,
     ServerModel,
     ServerUpdate,
+    SingleLabelRequest,
 )
 from qibocal_report.scanner import (
     compute_filter_stats,
@@ -177,8 +178,16 @@ def get_filter_statistics() -> FilterStats:
 
 def _find_report_dirs(root_dir: Path, report_ids: list[str]) -> list[Path]:
     """Find directories corresponding to the given report IDs safely."""
+    import urllib.parse
+
     resolved_root = root_dir.resolve()
-    id_set = set(report_ids)
+    id_set: set[str] = set()
+    for rid in report_ids:
+        id_set.add(rid)
+        unquoted = urllib.parse.unquote(rid)
+        if unquoted != rid:
+            id_set.add(unquoted)
+
     matched: dict[str, Path] = {}
 
     for rid in id_set:
@@ -196,7 +205,7 @@ def _find_report_dirs(root_dir: Path, report_ids: list[str]) -> list[Path]:
     remaining = id_set - set(matched.keys())
     if remaining:
         for r in scan_reports(root_dir):
-            if r.id in remaining:
+            if r.id in remaining or Path(r.path).name in remaining:
                 cand = Path(r.path).resolve()
                 try:
                     if (
@@ -223,6 +232,13 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
     )
     matched_dirs = _find_report_dirs(REPORT_ROOT_DIR, req.report_ids)
 
+    if not matched_dirs and req.report_ids:
+        log_error(f"No matching report directories found for IDs: {req.report_ids}")
+        raise HTTPException(
+            status_code=404,
+            detail="None of the specified report folders could be found on the server.",
+        )
+
     if req.action == "delete":
         deleted = []
         for rep_dir in matched_dirs:
@@ -245,33 +261,56 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
         new_tag = req.label.strip()
         labeled = []
         for rep_dir in matched_dirs:
-            meta_path = rep_dir / "meta.json"
-            meta_data: dict[str, Any] = {}
-            if meta_path.is_file():
+            meta_paths = [rep_dir / "meta.json"]
+            if (rep_dir / "report" / "meta.json").is_file():
+                meta_paths.append(rep_dir / "report" / "meta.json")
+
+            updated_any = False
+            for meta_path in meta_paths:
+                meta_data: dict[str, Any] = {}
+                if meta_path.is_file():
+                    try:
+                        meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+                    except (json.JSONDecodeError, OSError):
+                        meta_data = {}
+
+                raw_tag = meta_data.get("tag")
+                if raw_tag is None:
+                    tags_list = [new_tag]
+                elif isinstance(raw_tag, list):
+                    tags_list = [str(t) for t in raw_tag if t is not None]
+                    if new_tag not in tags_list:
+                        tags_list.append(new_tag)
+                elif isinstance(raw_tag, str):
+                    tags_list = [raw_tag] if raw_tag == new_tag else [raw_tag, new_tag]
+                else:
+                    tags_list = [new_tag]
+
+                meta_data["tag"] = tags_list
+                if (
+                    "tags" in meta_data
+                    and isinstance(meta_data["tags"], list)
+                    and new_tag not in meta_data["tags"]
+                ):
+                    meta_data["tags"].append(new_tag)
+                if (
+                    "labels" in meta_data
+                    and isinstance(meta_data["labels"], list)
+                    and new_tag not in meta_data["labels"]
+                ):
+                    meta_data["labels"].append(new_tag)
+
                 try:
-                    meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
-                    meta_data = {}
+                    meta_path.write_text(
+                        json.dumps(meta_data, indent=2), encoding="utf-8"
+                    )
+                    updated_any = True
+                except OSError as err:
+                    log_error(f"Failed to update meta.json at {meta_path}: {err}")
 
-            raw_tag = meta_data.get("tag")
-            if raw_tag is None:
-                tags_list = [new_tag]
-            elif isinstance(raw_tag, list):
-                tags_list = [str(t) for t in raw_tag if t is not None]
-                if new_tag not in tags_list:
-                    tags_list.append(new_tag)
-            elif isinstance(raw_tag, str):
-                tags_list = [raw_tag] if raw_tag == new_tag else [raw_tag, new_tag]
-            else:
-                tags_list = [new_tag]
-
-            meta_data["tag"] = tags_list
-            try:
-                meta_path.write_text(json.dumps(meta_data, indent=2), encoding="utf-8")
+            if updated_any:
                 labeled.append(rep_dir.name)
                 log_info(f"Added label '{new_tag}' to report {rep_dir}")
-            except OSError as err:
-                log_error(f"Failed to update meta.json in {rep_dir}: {err}")
 
         return BulkActionResponse(
             success=True,
@@ -281,6 +320,40 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
         )
 
     raise HTTPException(status_code=400, detail=f"Unsupported action: '{req.action}'")
+
+
+@app.delete(
+    "/api/reports/{report_id:path}",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+)
+def delete_single_report(report_id: str) -> BulkActionResponse:
+    """Delete a single report directory by ID or path."""
+    return bulk_report_action(
+        BulkActionRequest(action="delete", report_ids=[report_id])
+    )
+
+
+@app.post(
+    "/api/reports/{report_id:path}/label",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+)
+@app.post(
+    "/api/reports/{report_id:path}/tag",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+)
+def label_single_report(
+    report_id: str,
+    body: SingleLabelRequest | None = None,
+    label: str | None = None,
+) -> BulkActionResponse:
+    """Add a label or tag to a single report."""
+    tag_name = (body and body.label) or label or ""
+    return bulk_report_action(
+        BulkActionRequest(action="label", report_ids=[report_id], label=tag_name)
+    )
 
 
 @app.websocket("/ws/reports/{report_id:path}")

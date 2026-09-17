@@ -279,3 +279,30 @@ def test_bulk_actions():
         json={"action": "label", "report_ids": [], "label": "   "},
     )
     assert res_empty_label.status_code == 400
+
+
+def test_single_report_actions():
+    client = TestClient(app)
+    r = client.get("/api/reports")
+    reports = r.json()
+    assert len(reports) >= 2
+    rep_id = reports[0]["id"]
+
+    # Test single label
+    res_label = client.post(
+        f"/api/reports/{rep_id}/label", json={"label": "single-tagged"}
+    )
+    assert res_label.status_code == 200
+    assert res_label.json()["success"] is True
+
+    r_verify = client.get(f"/api/reports/{rep_id}")
+    assert r_verify.status_code == 200
+    assert "single-tagged" in r_verify.json()["tags"]
+
+    # Test single delete
+    res_del = client.delete(f"/api/reports/{rep_id}")
+    assert res_del.status_code == 200
+    assert res_del.json()["success"] is True
+
+    r_after = client.get(f"/api/reports/{rep_id}")
+    assert r_after.status_code == 404

@@ -355,18 +355,7 @@ def get_report_detail(root_dir: Path, report_id: str) -> ReportDetail | None:
         ]
 
     return ReportDetail(
-        id=summary.id,
-        path=summary.path,
-        title=summary.title,
-        date=summary.date,
-        time=summary.time,
-        author=summary.author,
-        platform=summary.platform,
-        targets=summary.targets,
-        protocols=summary.protocols,
-        labels=summary.labels,
-        total_execution_time=summary.total_execution_time,
-        has_cached_report=has_cached_report(target_dir),
+        **summary.model_dump(),
         history=history_data,
         platform_snapshot=platform_data,
         protocols_summary=proto_summaries,
