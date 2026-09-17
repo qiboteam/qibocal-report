@@ -2,13 +2,13 @@
   <div class="overflow-x-auto bg-white rounded-xl shadow-sm border border-gray-100">
     <table
       class="w-full text-left border-collapse text-sm table-fixed"
-      :style="{ minWidth: totalTableWidth + 'px' }"
+      :style="{ minWidth: `${totalTableWidth}px` }"
     >
       <colgroup>
         <col
           v-for="col in columns"
           :key="col.key"
-          :style="{ width: col.width + 'px' }"
+          :style="{ width: `${col.width}px` }"
         />
       </colgroup>
       <thead>
@@ -16,7 +16,7 @@
           <th
             v-for="(col, index) in columns"
             :key="col.key"
-            :style="{ width: col.width + 'px', minWidth: col.minWidth + 'px' }"
+            :style="{ width: `${col.width}px`, minWidth: `${col.minWidth}px` }"
             class="relative py-3 px-4 select-none font-semibold text-xs text-gray-500 uppercase tracking-wider"
             :class="col.key === 'select' ? 'w-12 text-center' : ''"
           >
@@ -54,115 +54,25 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
-        <tr
+        <report-table-row
           v-for="report in reports"
           :key="report.id"
-          @click="$emit('select', report)"
-          class="hover:bg-purple-50/30 cursor-pointer transition"
-          :class="selected.includes(report.id) ? 'bg-purple-50/40' : ''"
-        >
-          <!-- Checkbox Column -->
-          <td class="py-3.5 px-4 w-12 text-center overflow-hidden" @click.stop>
-            <input
-              type="checkbox"
-              :checked="selected.includes(report.id)"
-              @change="$emit('toggle-select', report.id)"
-              class="rounded text-[#833dff] focus:ring-[#833dff] h-4 w-4 border-gray-300 cursor-pointer"
-            />
-          </td>
-
-          <!-- Platform Column -->
-          <td class="py-3.5 px-4 overflow-hidden">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 truncate max-w-full">
-              {{ report.platform }}
-            </span>
-          </td>
-
-          <!-- Qubits Column -->
-          <td class="py-3.5 px-4 font-mono text-xs text-gray-600 overflow-hidden">
-            <div class="truncate">Q{{ report.targets.join(', Q') }}</div>
-          </td>
-
-          <!-- Protocols Column -->
-          <td class="py-3.5 px-4 overflow-hidden">
-            <div class="flex flex-wrap gap-1 max-w-full">
-              <span
-                v-for="proto in report.protocols.slice(0, 3)"
-                :key="proto"
-                class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 truncate"
-              >
-                {{ proto.replace('_', ' ') }}
-              </span>
-              <span
-                v-if="report.protocols.length > 3"
-                class="text-[11px] text-gray-400 font-medium px-1 shrink-0"
-              >
-                +{{ report.protocols.length - 3 }}
-              </span>
-            </div>
-          </td>
-
-          <!-- Tags Column -->
-          <td class="py-3.5 px-4 overflow-hidden">
-            <div class="flex flex-wrap gap-1 max-w-full">
-              <span
-                v-for="tag in (report.tags || report.labels || []).slice(0, 3)"
-                :key="tag"
-                class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono truncate"
-              >
-                <span class="truncate">{{ tag }}</span>
-                <button
-                  @click.stop="$emit('remove-tag', { report, tag })"
-                  class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0"
-                  title="Remove tag"
-                >
-                  &times;
-                </button>
-              </span>
-              <span
-                v-if="(report.tags || report.labels || []).length > 3"
-                class="text-[11px] text-gray-400 font-medium px-1 shrink-0"
-              >
-                +{{ (report.tags || report.labels || []).length - 3 }}
-              </span>
-              <span
-                v-if="!(report.tags || report.labels || []).length"
-                class="text-gray-300 text-xs"
-              >
-                —
-              </span>
-            </div>
-          </td>
-
-          <!-- Author Column -->
-          <td class="py-3.5 px-4 text-gray-600 text-xs overflow-hidden">
-            <div class="group/author flex items-center gap-1.5 truncate">
-              <span class="truncate">{{ report.author }}</span>
-              <button
-                @click.stop="$emit('edit-author', report)"
-                class="opacity-0 group-hover/author:opacity-100 text-gray-400 hover:text-[#833dff] transition cursor-pointer shrink-0"
-                title="Edit author"
-              >
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-              </button>
-            </div>
-          </td>
-
-          <!-- Date Column -->
-          <td class="py-3.5 px-4 text-gray-500 text-xs whitespace-nowrap overflow-hidden">
-            <div>{{ report.date }}</div>
-            <div class="text-[10px] text-gray-400 font-mono">{{ report.time }}</div>
-          </td>
-        </tr>
+          :report="report"
+          :is-selected="selected.includes(report.id)"
+          @select="$emit('select', $event)"
+          @toggle-select="$emit('toggle-select', $event)"
+          @remove-tag="$emit('remove-tag', $event)"
+          @edit-author="$emit('edit-author', $event)"
+        />
       </tbody>
     </table>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { computed } from 'vue'
+import { useTableColumns } from '../composables/useTableColumns.js'
+import ReportTableRow from './ReportTableRow.vue'
 
 const props = defineProps({
   reports: { type: Array, required: true },
@@ -171,6 +81,13 @@ const props = defineProps({
 
 defineEmits(['select', 'toggle-select', 'toggle-select-all', 'remove-tag', 'edit-author'])
 
+const {
+  columns,
+  totalTableWidth,
+  resizingIndex,
+  startResize,
+  resetColumnWidth
+} = useTableColumns()
 
 const isAllSelected = computed(() => {
   return props.reports.length > 0 && props.reports.every(r => props.selected.includes(r.id))
@@ -179,104 +96,5 @@ const isAllSelected = computed(() => {
 const isIndeterminate = computed(() => {
   if (isAllSelected.value) return false
   return props.reports.some(r => props.selected.includes(r.id))
-})
-
-// Columns configuration
-const defaultColumns = [
-  { key: 'select', label: '', width: 48, minWidth: 48, resizable: false },
-  { key: 'platform', label: 'Platform', width: 130, minWidth: 70, resizable: true },
-  { key: 'qubits', label: 'Qubits', width: 100, minWidth: 60, resizable: true },
-  { key: 'protocols', label: 'Protocols', width: 260, minWidth: 120, resizable: true },
-  { key: 'tags', label: 'Tags', width: 190, minWidth: 90, resizable: true },
-  { key: 'author', label: 'Author', width: 120, minWidth: 70, resizable: true },
-  { key: 'date', label: 'Date', width: 130, minWidth: 80, resizable: true }
-]
-
-const STORAGE_KEY = 'qibocal_report_table_columns_v1'
-
-function loadSavedWidths() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      return defaultColumns.map(col => {
-        if (parsed[col.key] && typeof parsed[col.key] === 'number') {
-          return { ...col, width: Math.max(col.minWidth, parsed[col.key]) }
-        }
-        return { ...col }
-      })
-    }
-  } catch {
-    // Ignore localStorage errors
-  }
-  return defaultColumns.map(col => ({ ...col }))
-}
-
-const columns = ref(loadSavedWidths())
-
-const totalTableWidth = computed(() => {
-  return columns.value.reduce((acc, c) => acc + c.width, 0)
-})
-
-function saveWidths() {
-  try {
-    const map = {}
-    columns.value.forEach(col => {
-      map[col.key] = col.width
-    })
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(map))
-  } catch {
-    // Ignore localStorage errors
-  }
-}
-
-function resetColumnWidth(index) {
-  if (defaultColumns[index]) {
-    columns.value[index].width = defaultColumns[index].width
-    saveWidths()
-  }
-}
-
-// Resizing logic
-const resizingIndex = ref(-1)
-let startX = 0
-let startWidth = 0
-
-function startResize(index, e) {
-  resizingIndex.value = index
-  startX = e.clientX
-  startWidth = columns.value[index].width
-
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-
-  window.addEventListener('mousemove', handleMouseMove)
-  window.addEventListener('mouseup', handleMouseUp)
-}
-
-function handleMouseMove(e) {
-  if (resizingIndex.value < 0) return
-  const col = columns.value[resizingIndex.value]
-  const delta = e.clientX - startX
-  col.width = Math.max(col.minWidth, startWidth + delta)
-}
-
-function handleMouseUp() {
-  if (resizingIndex.value >= 0) {
-    saveWidths()
-    resizingIndex.value = -1
-  }
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-
-  window.removeEventListener('mousemove', handleMouseMove)
-  window.removeEventListener('mouseup', handleMouseUp)
-}
-
-onUnmounted(() => {
-  window.removeEventListener('mousemove', handleMouseMove)
-  window.removeEventListener('mouseup', handleMouseUp)
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
 })
 </script>

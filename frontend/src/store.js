@@ -1,8 +1,18 @@
 import { reactive } from 'vue'
+import {
+  normalizeUrl as utilsNormalizeUrl,
+  getActiveServerUrl as utilsGetActiveServerUrl,
+  getApiUrl as utilsGetApiUrl,
+  getActiveWsUrl as utilsGetActiveWsUrl
+} from './utils/url.js'
 
+// --- Initial Local Storage State ---
 const savedHistory = localStorage.getItem('qibocal_report_history')
 const initialHistory = savedHistory ? JSON.parse(savedHistory) : []
 
+/**
+ * Global reactive application store.
+ */
 export const state = reactive({
   servers: [],
   activeServer: null,
@@ -14,42 +24,21 @@ export const state = reactive({
   error: null
 })
 
+// --- URL & Protocol Helpers ---
 export function normalizeUrl(url) {
-  if (!url) return ''
-  let clean = url.trim().replace(/\/+$/, '')
-  if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
-    clean = `http://${clean}`
-  }
-  return clean
+  return utilsNormalizeUrl(url)
 }
 
 export function getActiveServerUrl() {
-  if (state.activeServer?.url) {
-    return normalizeUrl(state.activeServer.url)
-  }
-  return ''
+  return utilsGetActiveServerUrl(state.activeServer)
 }
 
 export function getApiUrl(path) {
-  const cleanPath = path.startsWith('/') ? path : `/${path}`
-  const base = getActiveServerUrl()
-  if (base) {
-    return `${base}${cleanPath}`
-  }
-  return cleanPath
+  return utilsGetApiUrl(path, state.activeServer)
 }
 
 export function getActiveWsUrl(path) {
-  const cleanPath = path.startsWith('/') ? path : `/${path}`
-  const serverUrl = getActiveServerUrl()
-  if (serverUrl) {
-    const wsBase = serverUrl.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://')
-    return `${wsBase}${cleanPath}`
-  }
-  const isHttps = typeof window !== 'undefined' && window.location?.protocol === 'https:'
-  const wsProto = isHttps ? 'wss:' : 'ws:'
-  const host = (typeof window !== 'undefined' && window.location?.host) || '127.0.0.1:8000'
-  return `${wsProto}//${host}${cleanPath}`
+  return utilsGetActiveWsUrl(path, state.activeServer)
 }
 
 export async function apiFetch(path, options = {}) {
@@ -57,6 +46,7 @@ export async function apiFetch(path, options = {}) {
   return fetch(url, options)
 }
 
+// --- Server Management ---
 let serversPromise = null
 
 export function fetchServers() {
@@ -195,9 +185,9 @@ export async function persistServersConfig() {
   return null
 }
 
+// --- Report History Management ---
 export function addToHistory(report) {
   if (!report || !report.id) return
-  // filter out existing entry with same id
   state.history = [
     {
       id: report.id,
@@ -216,6 +206,7 @@ export function clearHistory() {
   localStorage.removeItem('qibocal_report_history')
 }
 
+// --- Author Resolution ---
 export function resolveAuthor(author, server = state.activeServer) {
   if (!author || author === 'Unknown') return author || 'Unknown'
   const identities = server?.author_identities
