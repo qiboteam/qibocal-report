@@ -1,7 +1,7 @@
 <template>
   <div
     @click="$emit('select', server)"
-    class="bm-card border-0 p-4.5 cursor-pointer relative group flex flex-col justify-between transition-all duration-150"
+    class="bm-card border-0 p-4.5 cursor-pointer relative group flex flex-col justify-between transition-all duration-50"
     :class="isActive ? 'shadow-md bg-purple-50/25' : 'hover:shadow-md'"
   >
     <div>

@@ -1,8 +1,9 @@
 <template>
   <aside
-    class="no-print h-screen bg-white border-r border-gray-200/80 flex flex-col transition-all duration-300 z-30 shrink-0"
+    class="no-print h-screen bg-white border-r border-gray-200/80 flex flex-col transition-all duration-100 z-30 shrink-0"
     :class="isCollapsed ? 'w-16' : 'w-72'"
   >
+
     <!-- Top Header: Server Switcher & Collapse Toggle -->
     <div class="p-3 border-b border-gray-100 flex items-center justify-between gap-2">
       <div v-if="!isCollapsed" class="flex-1 min-w-0">
@@ -146,6 +147,71 @@
     <div v-if="!isCollapsed" class="h-1/2 overflow-y-auto p-3.5 flex flex-col">
       <!-- Context A: Search Filters -->
       <div v-if="isSearchMode">
+        <!-- Bulk Selection / Actions (Permanently visible above filters) -->
+        <div class="mb-3.5 pb-3 border-b border-gray-100">
+          <div class="flex items-center justify-between mb-2">
+            <span
+              class="text-xs font-medium"
+              :class="selectedCount > 0 ? 'text-purple-900 font-semibold' : 'text-gray-400'"
+            >
+              {{ selectedCount }} {{ selectedCount === 1 ? 'report' : 'reports' }} selected
+            </span>
+            <button
+              v-if="selectedCount > 0"
+              @click="$emit('clear-selection')"
+              class="text-[11px] text-gray-400 hover:text-gray-700 underline cursor-pointer"
+            >
+              Deselect
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-1.5">
+            <!-- Label Action Button -->
+            <button
+              @click="selectedCount > 0 && $emit('open-label')"
+              :disabled="selectedCount === 0"
+              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+              :class="selectedCount > 0
+                ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-800 shadow-2xs cursor-pointer'
+                : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
+              title="Add a label to selected reports"
+            >
+              <svg
+                class="w-3.5 h-3.5 shrink-0"
+                :class="selectedCount > 0 ? 'text-purple-600' : 'text-gray-400'"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span>Label</span>
+            </button>
+
+            <!-- Delete Action Button -->
+            <button
+              @click="selectedCount > 0 && $emit('open-delete')"
+              :disabled="selectedCount === 0"
+              class="px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition"
+              :class="selectedCount > 0
+                ? 'bg-red-600 hover:bg-red-700 text-white shadow-2xs cursor-pointer'
+                : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
+              title="Permanently remove selected report folders"
+            >
+              <svg
+                class="w-3.5 h-3.5 shrink-0"
+                :class="selectedCount > 0 ? 'text-white' : 'text-gray-400'"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+
         <div class="flex items-center justify-between mb-3">
           <span class="text-xs font-bold uppercase tracking-wider text-gray-800">Filters</span>
           <button
@@ -155,6 +221,7 @@
             Clear All
           </button>
         </div>
+
 
         <!-- Date Range & Histogram (Issue #3) -->
         <div class="mb-4">
@@ -276,10 +343,20 @@ const props = defineProps({
   selectedAuthor: { type: String, default: '' },
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
-  reportProtocols: { type: Array, default: () => [] }
+  reportProtocols: { type: Array, default: () => [] },
+  selectedCount: { type: Number, default: 0 }
 })
 
-defineEmits(['update-filter', 'reset-filters', 'toggle-protocol', 'toggle-label'])
+defineEmits([
+  'update-filter',
+  'reset-filters',
+  'toggle-protocol',
+  'toggle-label',
+  'open-label',
+  'open-delete',
+  'clear-selection'
+])
+
 
 const route = useRoute()
 const router = useRouter()
