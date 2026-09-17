@@ -21,24 +21,30 @@ uv pip install qibocal-report
 Point `qibocal` to any directory containing Qibocal calibration outputs (e.g. current directory or a designated calibration archive):
 
 ```bash
-# Serve current directory on port 8000
-qibocal report serve
+# Start the FastAPI backend server
+qibocal report server ./sample_data --port 8000
 
-# Serve a specific folder on custom port
-qibocal report serve ./sample_data --port 8080 --host 0.0.0.0
+# Or serve both backend and bundled frontend together
+qibocal report serve ./sample_data --port 8000
 ```
 
-This command starts the FastAPI backend and serves the bundled web frontend. Open your browser at `http://127.0.0.1:8000` to interact with your reports.
+### 2. Standalone Client Mode
 
-### 2. Standalone Dashboard Mode
-
-If you have one or multiple remote servers running across your lab network or cloud clusters, launch the dashboard alone:
+If you have one or multiple remote servers running across your lab network or cloud clusters, launch the client alone:
 
 ```bash
-qibocal report dashboard --port 8000
+qibocal report client --port 8000
 ```
 
 You can then add, name, and monitor all your remote servers from the centralized interface.
+
+### 3. Developer Mode (Live HMR)
+
+To run the backend with the frontend Vite development server for live Hot Module Replacement:
+
+```bash
+qibocal report dev ./sample_data
+```
 
 ---
 

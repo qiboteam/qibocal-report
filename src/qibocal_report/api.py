@@ -378,6 +378,6 @@ async def serve_spa(full_path: str):
         status_code=404,
         detail=(
             "SPA frontend not found. Please build the frontend "
-            "or run in developer mode with 'qibocal report develop'."
+            "or run in developer mode with 'qibocal report dev'."
         ),
     )

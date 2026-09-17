@@ -18,8 +18,8 @@
     cd frontend && pnpm build && cp -r dist/* ../src/qibocal_report/static/
   '';
 
-  scripts.develop.exec = ''
-    qibocal report develop sample_data
+  scripts.dev.exec = ''
+    qibocal report dev sample_data
   '';
 
   scripts.build-wheel.exec = ''
@@ -30,8 +30,12 @@
     qibocal report serve sample_data
   '';
 
-  scripts.dashboard.exec = ''
-    qibocal report dashboard
+  scripts.server.exec = ''
+    qibocal report server sample_data
+  '';
+
+  scripts.client.exec = ''
+    qibocal report client
   '';
 
   scripts.test-backend.exec = ''

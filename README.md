@@ -29,21 +29,21 @@ uv pip install .
 Point to any directory containing Qibocal calibration folders:
 
 ```bash
-# Serve the included sample calibration datasets
-qibocal report serve ./sample_data --port 8000
+# Start the FastAPI backend server
+qibocal report server ./sample_data --port 8000
 
-# Or serve your current lab directory
-qibocal report serve
+# Or serve both backend and web application
+qibocal report serve ./sample_data --port 8000
 ```
 
 Open your browser at `http://127.0.0.1:8000`.
 
-### 3. Standalone Dashboard Mode
+### 3. Standalone Client Mode
 
 To monitor and connect to multiple remote Qibocal report servers across your network:
 
 ```bash
-qibocal report dashboard --port 8000
+qibocal report client --port 8000
 ```
 
 ## 🛠️ Development & Environment (devenv, uv, pnpm)
@@ -76,23 +76,10 @@ devenv shell -- build-frontend
 # Build standalone Python wheel
 devenv shell -- uv build
 
-# Serve sample data in development mode
-devenv shell -- serve
-```
-
-### Running Frontend with Hot Module Replacement (HMR)
-
-In one terminal:
-
-```bash
-devenv shell -- qibocal report serve ./sample_data --reload
-```
-
-In another terminal:
-
-```bash
-cd frontend
-pnpm dev
+# Start developer mode with live Vite HMR
+devenv shell -- dev
+# or directly:
+qibocal report dev ./sample_data
 ```
 
 Open `http://localhost:5173` with instant Vite HMR proxying `/api` requests to port 8000.

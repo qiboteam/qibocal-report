@@ -69,7 +69,47 @@ def serve(directory: str, host: str, port: int, reload: bool):
     uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
 
 
-@report.command(name="develop")
+@report.command(name="server")
+@click.argument(
+    "directory",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option("--host", default="localhost", help="Host address to bind to.")
+@click.option("--port", default=8000, type=int, help="Port to listen on.")
+@click.option(
+    "--reload", is_flag=True, default=False, help="Enable auto-reload for development."
+)
+def server(directory: str, host: str, port: int, reload: bool):
+    """Start the FastAPI backend server."""
+    dir_path = Path(directory).resolve()
+    set_report_root(dir_path)
+    os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
+
+    url = f"http://{host}:{port}"
+    config.add_server(
+        url=url,
+        name=f"local-{dir_path.name}",
+        description=f"Serving reports from {dir_path}",
+        avatar="quantum-ring",
+    )
+
+    console = Console()
+    console.print(
+        Panel.fit(
+            f"[bold cyan]📁 Reports Directory :[/bold cyan] {dir_path}\n"
+            f"[bold cyan]⚙️  FastAPI Server   :[/bold cyan] {url}\n"
+            f"[bold cyan]📖 REST API Docs     :[/bold cyan] {url}/api/docs/swagger\n\n"
+            "[dim]Press Ctrl+C to stop the server.[/dim]",
+            title="[bold magenta]⚛️  Qibocal Report Server[/bold magenta]",
+            border_style="magenta",
+        )
+    )
+
+    uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
+
+
+@report.command(name="dev")
 @click.argument(
     "directory",
     default=".",
@@ -85,7 +125,7 @@ def serve(directory: str, host: str, port: int, reload: bool):
     default=True,
     help="Enable auto-reload for backend server.",
 )
-def develop(directory: str, host: str, port: int, frontend_port: int, reload: bool):
+def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool):
     """Serve Qibocal reports in developer mode with live Vite HMR."""
     dir_path = Path(directory).resolve()
     set_report_root(dir_path)
@@ -166,30 +206,61 @@ def develop(directory: str, host: str, port: int, frontend_port: int, reload: bo
                 vite_proc.kill()
 
 
-@report.command(name="dashboard")
+@report.command(name="develop", hidden=True)
+@click.argument(
+    "directory",
+    default=".",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True),
+)
+@click.option("--host", default="localhost", help="Host address to bind to.")
+@click.option("--port", default=8000, type=int, help="Backend port to listen on.")
+@click.option(
+    "--frontend-port", default=5173, type=int, help="Frontend Vite dev server port."
+)
+@click.option(
+    "--reload/--no-reload",
+    default=True,
+    help="Enable auto-reload for backend server.",
+)
+@click.pass_context
+def develop_alias(
+    ctx, directory: str, host: str, port: int, frontend_port: int, reload: bool
+):
+    """Backward-compatible alias for 'dev'."""
+    ctx.forward(dev)
+
+
+@report.command(name="client")
 @click.option("--host", default="127.0.0.1", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
 @click.option("--reload", is_flag=True, default=False, help="Enable auto-reload.")
-def dashboard(host: str, port: int, reload: bool):
-    """Start the dashboard.
+def client(host: str, port: int, reload: bool):
+    """Start the client.
 
     To browse and manage multiple Qibocal report servers.
     """
     url = f"http://{host}:{port}"
-    from rich.console import Console
-    from rich.panel import Panel
-
     console = Console()
     console.print(
         Panel.fit(
-            f"[bold cyan]🌐 Dashboard URL :[/bold cyan] {url}/#/servers\n\n"
-            "[dim]Press Ctrl+C to stop the server.[/dim]",
-            title="[bold magenta]⚛️  Qibocal Report Dashboard[/bold magenta]",
+            f"[bold cyan]🌐 Client URL :[/bold cyan] {url}/#/servers\n\n"
+            "[dim]Press Ctrl+C to stop the client.[/dim]",
+            title="[bold magenta]⚛️  Qibocal Report Client[/bold magenta]",
             border_style="magenta",
         )
     )
 
     uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
+
+
+@report.command(name="dashboard", hidden=True)
+@click.option("--host", default="127.0.0.1", help="Host address to bind to.")
+@click.option("--port", default=8000, type=int, help="Port to listen on.")
+@click.option("--reload", is_flag=True, default=False, help="Enable auto-reload.")
+@click.pass_context
+def dashboard_alias(ctx, host: str, port: int, reload: bool):
+    """Backward-compatible alias for 'client'."""
+    ctx.forward(client)
 
 
 if __name__ == "__main__":
