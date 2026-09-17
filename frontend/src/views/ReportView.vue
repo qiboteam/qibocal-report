@@ -1,7 +1,12 @@
 <template>
   <div class="flex h-screen overflow-hidden bg-[#f7f7f7]">
     <!-- Left Sidebar with Protocols Summary in lower half -->
-    <sidebar :report-protocols="protocols" />
+    <sidebar
+      :report-protocols="protocols"
+      :regenerating="regenerating"
+      @regenerate="handleRegenerate"
+      @print-pdf="handlePrintPDF"
+    />
 
     <!-- Main Report Visualization Panel -->
     <main class="flex-1 overflow-y-auto p-4 sm:p-8 report-print-container">

@@ -1,11 +1,14 @@
 <template>
-  <div class="p-3 border-b border-gray-100 flex items-center justify-between gap-2 shrink-0">
+  <div
+    class="border-b border-gray-100 shrink-0"
+    :class="isCollapsed ? 'p-2 flex flex-col items-center gap-1.5' : 'p-3 flex items-center justify-between gap-2'"
+  >
+    <!-- Expanded Server Switcher -->
     <div v-if="!isCollapsed" class="flex-1 min-w-0">
-      <!-- Quick Switch between registered servers -->
       <div class="relative">
         <button
           @click="dropdownOpen = !dropdownOpen"
-          class="w-full flex items-center justify-between p-2 rounded-xl bg-gray-50 hover:bg-purple-50 text-left transition border border-gray-100"
+          class="w-full flex items-center justify-between p-2 rounded-xl bg-gray-50 hover:bg-purple-50 text-left transition border border-gray-100 cursor-pointer"
         >
           <div class="flex items-center gap-2 truncate">
             <div class="w-6 h-6 rounded-md bg-white p-0.5 shrink-0 shadow-xs" v-html="renderAvatar(activeServer?.avatar || 'quantum-ring')"></div>
@@ -16,7 +19,7 @@
           </svg>
         </button>
 
-        <!-- Dropdown -->
+        <!-- Dropdown in expanded mode -->
         <div
           v-if="dropdownOpen"
           class="absolute top-full left-0 mt-1 w-full bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 text-xs"
@@ -48,10 +51,52 @@
       </div>
     </div>
 
+    <!-- Collapsed Server Icon Button -->
+    <div v-else class="relative">
+      <button
+        @click="dropdownOpen = !dropdownOpen"
+        class="w-9 h-9 rounded-xl bg-gray-50 hover:bg-purple-50 border border-gray-200/80 flex items-center justify-center transition cursor-pointer shadow-2xs"
+        :title="`Server: ${activeServer?.name || 'Local Instance'} (${activeServer?.url || 'local'})`"
+      >
+        <div class="w-6 h-6 rounded-md bg-white p-0.5 shadow-xs" v-html="renderAvatar(activeServer?.avatar || 'quantum-ring')"></div>
+      </button>
+
+      <!-- Dropdown in collapsed mode (floating right) -->
+      <div
+        v-if="dropdownOpen"
+        class="absolute left-full top-0 ml-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 text-xs"
+      >
+        <div class="px-3 py-1 font-semibold text-gray-400 uppercase text-[10px]">Registered Servers</div>
+        <div
+          v-for="s in servers"
+          :key="s.id"
+          @click="onSelect(s)"
+          class="px-3 py-2 hover:bg-purple-50 cursor-pointer flex items-center justify-between gap-2"
+          :class="s.id === activeServer?.id ? 'bg-purple-50/60 font-bold text-[#833dff]' : 'text-gray-700'"
+        >
+          <div class="truncate">
+            <div class="truncate font-semibold">{{ s.name }}</div>
+            <div class="text-[10px] font-mono text-gray-400 truncate">{{ s.url }}</div>
+          </div>
+          <span v-if="s.id === activeServer?.id" class="w-1.5 h-1.5 rounded-full bg-[#833dff] shrink-0"></span>
+        </div>
+        <div class="border-t border-gray-100 mt-1 pt-1">
+          <router-link
+            to="/servers"
+            @click="dropdownOpen = false"
+            class="px-3 py-1.5 text-[#833dff] hover:bg-purple-50 flex items-center gap-1.5 font-medium block"
+          >
+            + Manage Servers...
+          </router-link>
+        </div>
+      </div>
+    </div>
+
     <!-- Collapse / Expand Button -->
     <button
       @click="$emit('toggle-collapse')"
-      class="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition shrink-0"
+      class="rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition shrink-0 cursor-pointer"
+      :class="isCollapsed ? 'w-9 h-9 flex items-center justify-center' : 'p-2'"
       :title="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

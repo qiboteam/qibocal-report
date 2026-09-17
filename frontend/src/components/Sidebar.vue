@@ -23,7 +23,7 @@
       :height="topSectionHeight"
     />
 
-    <!-- Draggable Horizontal Splitter between Upper and Lower Sections -->
+    <!-- Draggable Horizontal Splitter between Upper and Lower Sections (Expanded only) -->
     <div
       v-if="!isCollapsed"
       @mousedown="startVerticalResize"
@@ -33,14 +33,19 @@
     >
       <div class="w-8 h-1 rounded-full bg-gray-300 group-hover:bg-[#833dff] transition-colors"></div>
     </div>
+    <div v-else class="w-8 border-b border-gray-200/80 my-1 mx-auto shrink-0"></div>
 
     <!-- Lower Half: Search Filters / Protocols Summary + Recent History -->
-    <div v-if="!isCollapsed" class="flex-1 min-h-0 flex flex-col overflow-hidden w-full">
+    <div
+      class="flex-1 min-h-0 flex flex-col overflow-hidden w-full"
+      :class="isCollapsed ? 'items-center' : ''"
+    >
       <!-- Section A/B: Search Filters or Protocols Summary -->
       <div
         v-if="isSearchMode || isReportMode"
-        class="overflow-y-auto overflow-x-hidden p-3.5 shrink-0 w-full min-w-0 box-border"
-        :style="historyOpen ? { height: `${middleSectionHeight}px` } : { flex: '1 1 0%' }"
+        class="overflow-y-auto overflow-x-hidden shrink-0 w-full box-border"
+        :class="isCollapsed ? 'p-2 flex flex-col items-center flex-1 min-h-0' : 'p-3.5 min-w-0'"
+        :style="!isCollapsed && historyOpen ? { height: `${middleSectionHeight}px` } : (!isCollapsed ? { flex: '1 1 0%' } : {})"
       >
         <!-- Search Filters Context -->
         <sidebar-filters
@@ -50,6 +55,7 @@
           :selected-protocols="selectedProtocols"
           :selected-labels="selectedLabels"
           :selected-count="selectedCount"
+          :is-collapsed="isCollapsed"
           @update-filter="$emit('update-filter', $event)"
           @reset-filters="$emit('reset-filters')"
           @toggle-protocol="$emit('toggle-protocol', $event)"
@@ -65,12 +71,16 @@
         <sidebar-protocols
           v-else-if="isReportMode"
           :protocols="reportProtocols"
+          :is-collapsed="isCollapsed"
+          :regenerating="regenerating"
+          @regenerate="$emit('regenerate')"
+          @print-pdf="$emit('print-pdf')"
         />
       </div>
 
-      <!-- Draggable Horizontal Splitter between Middle Section and Recent History -->
+      <!-- Draggable Splitter between Middle Section and Recent History (Expanded only) -->
       <div
-        v-if="(isSearchMode || isReportMode) && historyOpen"
+        v-if="!isCollapsed && (isSearchMode || isReportMode) && historyOpen"
         @mousedown="startMiddleResize"
         @dblclick="resetMiddleResize"
         class="h-2 w-full bg-gray-50 hover:bg-purple-100 active:bg-purple-200 cursor-row-resize flex items-center justify-center transition-colors border-y border-gray-200/60 select-none group shrink-0"
@@ -78,17 +88,19 @@
       >
         <div class="w-8 h-1 rounded-full bg-gray-300 group-hover:bg-[#833dff] transition-colors"></div>
       </div>
+      <div v-else-if="isCollapsed && (isSearchMode || isReportMode)" class="w-8 border-b border-gray-200/80 my-1 mx-auto shrink-0"></div>
 
       <!-- Section C: Recent History -->
       <sidebar-history
         :history="history"
         :is-open="historyOpen"
         :show-top-border="isSearchMode || isReportMode"
+        :is-collapsed="isCollapsed"
         @toggle-open="historyOpen = !historyOpen"
       />
     </div>
 
-    <!-- Right Border Resize Handle (horizontal sidebar width) -->
+    <!-- Right Border Resize Handle (horizontal sidebar width, expanded only) -->
     <div
       v-if="!isCollapsed"
       @mousedown="startHorizontalResize"
@@ -116,7 +128,8 @@ defineProps({
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
   reportProtocols: { type: Array, default: () => [] },
-  selectedCount: { type: Number, default: 0 }
+  selectedCount: { type: Number, default: 0 },
+  regenerating: { type: Boolean, default: false }
 })
 
 defineEmits([
@@ -128,7 +141,9 @@ defineEmits([
   'open-unlabel',
   'open-author',
   'open-delete',
-  'clear-selection'
+  'clear-selection',
+  'regenerate',
+  'print-pdf'
 ])
 
 const route = useRoute()

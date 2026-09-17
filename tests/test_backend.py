@@ -440,7 +440,7 @@ def test_pagination_and_cache_invalidation():
     assert p1_ids.isdisjoint(p2_ids)
 
     # 2. Test backend caching and invalidation
-    from qibocal_report.scanner import invalidate_report_cache
+    from qibocal_report.scanner import _REPORT_CACHE, invalidate_report_cache
 
     # First scan caches the results
     scan1 = scan_reports(test_reports)
@@ -454,11 +454,11 @@ def test_pagination_and_cache_invalidation():
     assert len(scan3) == len(scan1)
 
     # Invalidation on file modification
-    first_report_dir = test_reports / scan1[0].id
+    first_report_dir = Path(scan1[0].path)
     meta_file = first_report_dir / "meta.json"
     if meta_file.is_file():
         # Update modification time to future
-        new_mtime = meta_file.stat().st_mtime + 5.0
+        new_mtime = max(meta_file.stat().st_mtime, _REPORT_CACHE["last_mtime"]) + 10.0
         import os
 
         os.utime(meta_file, (new_mtime, new_mtime))

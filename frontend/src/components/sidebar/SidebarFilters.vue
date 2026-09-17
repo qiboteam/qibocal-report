@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full min-w-0">
+  <div v-if="!isCollapsed" class="w-full min-w-0">
     <!-- Bulk Selection / Actions (Permanently visible above filters) -->
     <div class="mb-3.5 pb-3 border-b border-gray-100">
       <div class="flex items-center justify-between mb-2">
@@ -196,6 +196,103 @@
       </div>
     </div>
   </div>
+
+  <!-- Collapsed Mode Bulk Actions and Filter Reset Buttons -->
+  <div v-else class="flex flex-col items-center gap-2 w-full">
+    <!-- Selected Count Indicator -->
+    <div
+      v-if="selectedCount > 0"
+      class="text-[10px] font-bold text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded-full font-mono text-center"
+      :title="`${selectedCount} report(s) selected`"
+    >
+      {{ selectedCount }}
+    </div>
+
+    <!-- Label Button -->
+    <button
+      @click="selectedCount > 0 && $emit('open-label')"
+      :disabled="selectedCount === 0"
+      class="w-9 h-9 rounded-xl flex items-center justify-center transition shadow-2xs"
+      :class="selectedCount > 0
+        ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-[#833dff] cursor-pointer'
+        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
+      title="Add label to selected reports"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+      </svg>
+    </button>
+
+    <!-- Unlabel Button -->
+    <button
+      @click="selectedCount > 0 && $emit('open-unlabel')"
+      :disabled="selectedCount === 0"
+      class="w-9 h-9 rounded-xl flex items-center justify-center transition shadow-2xs"
+      :class="selectedCount > 0
+        ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-[#833dff] cursor-pointer'
+        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
+      title="Remove label from selected reports"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+
+    <!-- Author Button -->
+    <button
+      @click="selectedCount > 0 && $emit('open-author')"
+      :disabled="selectedCount === 0"
+      class="w-9 h-9 rounded-xl flex items-center justify-center transition shadow-2xs"
+      :class="selectedCount > 0
+        ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-[#833dff] cursor-pointer'
+        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
+      title="Set author for selected reports"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      </svg>
+    </button>
+
+    <!-- Delete Button -->
+    <button
+      @click="selectedCount > 0 && $emit('open-delete')"
+      :disabled="selectedCount === 0"
+      class="w-9 h-9 rounded-xl flex items-center justify-center transition shadow-2xs"
+      :class="selectedCount > 0
+        ? 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'
+        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
+      title="Delete selected reports"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+    </button>
+
+    <!-- Deselect Button (if reports are selected) -->
+    <button
+      v-if="selectedCount > 0"
+      @click="$emit('clear-selection')"
+      class="w-9 h-9 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-gray-800 border border-gray-200 flex items-center justify-center transition cursor-pointer shadow-2xs"
+      title="Deselect all reports"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+
+    <div class="w-6 border-b border-gray-200/80 my-1"></div>
+
+    <!-- Clear Filters Button -->
+    <button
+      @click="$emit('reset-filters')"
+      class="w-9 h-9 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#833dff] border border-purple-200/60 flex items-center justify-center transition cursor-pointer shadow-2xs"
+      title="Reset all search filters"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+      </svg>
+    </button>
+  </div>
 </template>
 
 <script setup>
@@ -207,7 +304,8 @@ const props = defineProps({
   selectedAuthor: { type: String, default: '' },
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
-  selectedCount: { type: Number, default: 0 }
+  selectedCount: { type: Number, default: 0 },
+  isCollapsed: { type: Boolean, default: false }
 })
 
 defineEmits([
