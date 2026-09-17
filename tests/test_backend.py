@@ -226,3 +226,56 @@ def test_dev_mode_redirect(monkeypatch):
     r = client.get("/")
     assert r.status_code in (307, 302)
     assert r.headers["location"] == "http://localhost:5173"
+
+
+def test_bulk_actions():
+    client = TestClient(app)
+
+    # 1. Test bulk label
+    r = client.get("/api/reports")
+    reports = r.json()
+    assert len(reports) >= 2
+    ids_to_label = [reports[0]["id"], reports[1]["id"]]
+
+    res = client.post(
+        "/api/reports/bulk-action",
+        json={"action": "label", "report_ids": ids_to_label, "label": "bulk-tested"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["success"] is True
+    assert data["affected"] == 2
+
+    # Verify both have the tag now
+    r_tagged = client.get("/api/reports?tag=bulk-tested")
+    assert r_tagged.status_code == 200
+    assert len(r_tagged.json()) == 2
+
+    # 2. Test bulk delete
+    id_to_delete = reports[0]["id"]
+    res_del = client.post(
+        "/api/reports/bulk-action",
+        json={"action": "delete", "report_ids": [id_to_delete]},
+    )
+    assert res_del.status_code == 200
+    del_data = res_del.json()
+    assert del_data["success"] is True
+    assert del_data["affected"] == 1
+
+    # Verify it is no longer listed
+    r_after = client.get("/api/reports")
+    remaining_ids = [rep["id"] for rep in r_after.json()]
+    assert id_to_delete not in remaining_ids
+
+    # 3. Test invalid action & empty label
+    res_bad = client.post(
+        "/api/reports/bulk-action",
+        json={"action": "invalid_action", "report_ids": []},
+    )
+    assert res_bad.status_code == 400
+
+    res_empty_label = client.post(
+        "/api/reports/bulk-action",
+        json={"action": "label", "report_ids": [], "label": "   "},
+    )
+    assert res_empty_label.status_code == 400

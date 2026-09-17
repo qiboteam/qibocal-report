@@ -163,6 +163,87 @@
           </div>
         </div>
 
+        <!-- Bulk Success Message Banner -->
+        <div
+          v-if="bulkSuccessMessage"
+          class="mb-4 bg-emerald-50 text-emerald-800 border border-emerald-200 px-4 py-2.5 rounded-xl text-xs flex items-center justify-between gap-2 shadow-2xs animate-fade-in"
+        >
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span class="font-medium">{{ bulkSuccessMessage }}</span>
+          </div>
+          <button @click="bulkSuccessMessage = ''" class="hover:text-emerald-950 font-bold cursor-pointer">&times;</button>
+        </div>
+
+        <!-- Bulk Actions Toolbar -->
+        <div
+          v-if="selectedReports.length > 0 && !loading"
+          class="mb-4 bg-white border border-purple-200 rounded-xl p-3 shadow-xs flex flex-wrap items-center justify-between gap-3 animate-fade-in"
+        >
+          <div class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+              <span class="w-2 h-2 rounded-full bg-[#833dff]"></span>
+              {{ selectedReports.length }} report{{ selectedReports.length > 1 ? 's' : '' }} selected
+            </span>
+            <button
+              @click="clearSelection"
+              class="text-xs text-gray-500 hover:text-gray-800 underline transition cursor-pointer"
+            >
+              Deselect all
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- Dropdown Menu for Bulk Actions -->
+            <div class="relative" ref="bulkMenuRef">
+              <button
+                @click.stop="bulkMenuOpen = !bulkMenuOpen"
+                class="px-3.5 py-1.5 bg-[#833dff] hover:bg-[#6f29e6] text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <span>Actions</span>
+                <svg class="w-3.5 h-3.5 transition-transform" :class="bulkMenuOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              <div
+                v-if="bulkMenuOpen"
+                class="absolute right-0 mt-1.5 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-30 animate-fade-in"
+              >
+                <button
+                  @click="openLabelModal"
+                  class="w-full text-left px-4 py-2 text-xs font-medium text-gray-700 hover:bg-purple-50 hover:text-[#833dff] flex items-center gap-2.5 transition cursor-pointer"
+                >
+                  <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  <div>
+                    <div class="font-semibold">Label</div>
+                    <div class="text-[10px] text-gray-400">Add tag to selected</div>
+                  </div>
+                </button>
+
+                <div class="border-t border-gray-100 my-1"></div>
+
+                <button
+                  @click="openDeleteModal"
+                  class="w-full text-left px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition cursor-pointer"
+                >
+                  <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <div>
+                    <div class="font-semibold">Delete</div>
+                    <div class="text-[10px] text-red-400">Remove report folder(s)</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Loading State: immediately replaces reports when switching servers or querying -->
         <div
           v-if="loading"
@@ -200,22 +281,149 @@
         <report-table
           v-else-if="viewMode === 'table'"
           :reports="reports"
+          :selected="selectedReports"
           @select="openReport"
+          @toggle-select="toggleSelect"
+          @toggle-select-all="toggleSelectAll"
         />
 
         <!-- Full-size Horizontal Cards View (Inspire style, Issue #3) -->
         <report-cards
           v-else
           :reports="reports"
+          :selected="selectedReports"
           @select="openReport"
+          @toggle-select="toggleSelect"
         />
       </div>
     </main>
+
+    <!-- Label Modal -->
+    <div
+      v-if="showLabelModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+      @click.self="showLabelModal = false"
+    >
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
+        <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div class="flex items-center gap-2 text-gray-900 font-bold text-base">
+            <svg class="w-5 h-5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            Add Label to Reports
+          </div>
+          <button @click="showLabelModal = false" class="text-gray-400 hover:text-gray-600 text-lg cursor-pointer">&times;</button>
+        </div>
+
+        <div class="mt-4">
+          <p class="text-xs text-gray-500 mb-3">
+            Applying this label will add it to the metadata of the
+            <strong class="text-gray-800">{{ selectedReports.length }}</strong> selected report(s).
+          </p>
+
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Label / Tag Name</label>
+          <input
+            v-model="newLabelText"
+            type="text"
+            placeholder="e.g. validated, benchmark, fast..."
+            class="w-full text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] focus:bg-white transition"
+            @keyup.enter="applyBulkLabel"
+          />
+
+          <!-- Existing suggestions -->
+          <div v-if="filterStats?.tags?.length" class="mt-3">
+            <span class="text-[11px] text-gray-400 font-medium">Existing tags:</span>
+            <div class="flex flex-wrap gap-1 mt-1.5 max-h-20 overflow-y-auto">
+              <button
+                v-for="t in filterStats.tags"
+                :key="t"
+                type="button"
+                @click="newLabelText = t"
+                class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 font-mono transition cursor-pointer"
+              >
+                {{ t }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="bulkError" class="mt-3 p-2 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+            {{ bulkError }}
+          </div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-end gap-2">
+          <button
+            @click="showLabelModal = false"
+            class="px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            @click="applyBulkLabel"
+            :disabled="!newLabelText.trim() || bulkActionInProgress"
+            class="bm-btn-primary px-4 py-1.5 text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <span v-if="bulkActionInProgress" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            Apply Label
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div
+      v-if="showDeleteModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+      @click.self="showDeleteModal = false"
+    >
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
+        <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div class="flex items-center gap-2 text-red-600 font-bold text-base">
+            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Confirm Deletion
+          </div>
+          <button @click="showDeleteModal = false" class="text-gray-400 hover:text-gray-600 text-lg cursor-pointer">&times;</button>
+        </div>
+
+        <div class="mt-4">
+          <p class="text-xs text-gray-700 leading-relaxed">
+            Are you sure you want to permanently delete
+            <strong class="text-red-600">{{ selectedReports.length }}</strong> report folder{{ selectedReports.length > 1 ? 's' : '' }} from the server?
+          </p>
+          <p class="text-[11px] text-gray-400 mt-1">
+            This will remove the report directory and all underlying data files. This action cannot be undone.
+          </p>
+
+          <div v-if="bulkError" class="mt-3 p-2 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+            {{ bulkError }}
+          </div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-end gap-2">
+          <button
+            @click="showDeleteModal = false"
+            class="px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            @click="applyBulkDelete"
+            :disabled="bulkActionInProgress"
+            class="px-4 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <span v-if="bulkActionInProgress" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            Delete {{ selectedReports.length }} Report{{ selectedReports.length > 1 ? 's' : '' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { state, addToHistory, apiFetch, ensureServersLoaded } from '../store.js'
 import Sidebar from '../components/Sidebar.vue'
@@ -228,6 +436,17 @@ const reports = ref([])
 const filterStats = ref(null)
 const loading = ref(true)
 const connectionError = ref(null)
+
+// Bulk Selection & Actions State
+const selectedReports = ref([])
+const bulkMenuOpen = ref(false)
+const bulkMenuRef = ref(null)
+const showLabelModal = ref(false)
+const showDeleteModal = ref(false)
+const newLabelText = ref('')
+const bulkActionInProgress = ref(false)
+const bulkError = ref(null)
+const bulkSuccessMessage = ref('')
 
 const activeServer = computed(() => state.activeServer)
 
@@ -244,11 +463,23 @@ const hasActiveFilters = computed(() => {
   return filters.author || filters.date || filters.protocols.length > 0 || filters.labels.length > 0
 })
 
+function handleClickOutside(e) {
+  if (bulkMenuRef.value && !bulkMenuRef.value.contains(e.target)) {
+    bulkMenuOpen.value = false
+  }
+}
+
 onMounted(async () => {
+  document.addEventListener('click', handleClickOutside)
   loading.value = true
   await ensureServersLoaded()
   await refreshData()
 })
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+
 
 watch(
   () => [state.activeServer?.id, state.activeServer?.url],
@@ -256,6 +487,7 @@ watch(
     if (newId !== oldId || newUrl !== oldUrl) {
       // Immediately clear previous server data and set loading
       reports.value = []
+      selectedReports.value = []
       filterStats.value = null
       loading.value = true
       connectionError.value = null
@@ -344,6 +576,7 @@ function resetFilters() {
   filters.date = ''
   filters.protocols = []
   filters.labels = []
+  selectedReports.value = []
   fetchReports()
 }
 
@@ -351,5 +584,105 @@ function openReport(report) {
   state.currentReportId = report.id
   addToHistory(report)
   router.push(`/reports/${report.id}`)
+}
+
+// Bulk Selection Methods
+function toggleSelect(id) {
+  const idx = selectedReports.value.indexOf(id)
+  if (idx >= 0) {
+    selectedReports.value.splice(idx, 1)
+  } else {
+    selectedReports.value.push(id)
+  }
+}
+
+function toggleSelectAll() {
+  const currentIds = reports.value.map(r => r.id)
+  const allSelected = currentIds.length > 0 && currentIds.every(id => selectedReports.value.includes(id))
+  if (allSelected) {
+    selectedReports.value = selectedReports.value.filter(id => !currentIds.includes(id))
+  } else {
+    selectedReports.value = Array.from(new Set([...selectedReports.value, ...currentIds]))
+  }
+}
+
+function clearSelection() {
+  selectedReports.value = []
+}
+
+// Bulk Actions Methods
+function openLabelModal() {
+  newLabelText.value = ''
+  bulkError.value = null
+  bulkMenuOpen.value = false
+  showLabelModal.value = true
+}
+
+function openDeleteModal() {
+  bulkError.value = null
+  bulkMenuOpen.value = false
+  showDeleteModal.value = true
+}
+
+async function applyBulkLabel() {
+  if (!newLabelText.value.trim() || selectedReports.value.length === 0) return
+  bulkActionInProgress.value = true
+  bulkError.value = null
+  try {
+    const res = await apiFetch('/api/reports/bulk-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'label',
+        report_ids: selectedReports.value,
+        label: newLabelText.value.trim()
+      })
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'Failed to apply label')
+    }
+    const data = await res.json()
+    showLabelModal.value = false
+    newLabelText.value = ''
+    selectedReports.value = []
+    bulkSuccessMessage.value = data.message || 'Label applied successfully'
+    setTimeout(() => { bulkSuccessMessage.value = '' }, 4000)
+    await Promise.all([fetchStats(), fetchReports()])
+  } catch (err) {
+    bulkError.value = err.message
+  } finally {
+    bulkActionInProgress.value = false
+  }
+}
+
+async function applyBulkDelete() {
+  if (selectedReports.value.length === 0) return
+  bulkActionInProgress.value = true
+  bulkError.value = null
+  try {
+    const res = await apiFetch('/api/reports/bulk-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'delete',
+        report_ids: selectedReports.value
+      })
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'Failed to delete reports')
+    }
+    const data = await res.json()
+    showDeleteModal.value = false
+    selectedReports.value = []
+    bulkSuccessMessage.value = data.message || 'Reports deleted successfully'
+    setTimeout(() => { bulkSuccessMessage.value = '' }, 4000)
+    await Promise.all([fetchStats(), fetchReports()])
+  } catch (err) {
+    bulkError.value = err.message
+  } finally {
+    bulkActionInProgress.value = false
+  }
 }
 </script>

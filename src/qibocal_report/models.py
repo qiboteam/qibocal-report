@@ -102,3 +102,16 @@ class HealthResponse(BaseModel):
     server_name: str
     reports_count: int
     root_dir: str
+
+
+class BulkActionRequest(BaseModel):
+    action: str  # "label" or "delete"
+    report_ids: list[str]
+    label: str | None = None
+
+
+class BulkActionResponse(BaseModel):
+    success: bool
+    action: str
+    affected: int
+    message: str

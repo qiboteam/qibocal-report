@@ -5,10 +5,19 @@
       :key="report.id"
       @click="$emit('select', report)"
       class="bm-card p-5 border border-gray-100 cursor-pointer hover:border-purple-200 transition group"
+      :class="selected.includes(report.id) ? 'border-purple-300 ring-1 ring-purple-300 bg-purple-50/20' : ''"
     >
-      <!-- Top header line: platform, qubits, date, duration -->
+      <!-- Top header line: checkbox, platform, qubits, date, duration -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100">
         <div class="flex items-center gap-2.5 flex-wrap">
+          <div @click.stop class="flex items-center pr-0.5">
+            <input
+              type="checkbox"
+              :checked="selected.includes(report.id)"
+              @change="$emit('toggle-select', report.id)"
+              class="rounded text-[#833dff] focus:ring-[#833dff] h-4 w-4 border-gray-300 cursor-pointer"
+            />
+          </div>
           <span class="px-2.5 py-1 rounded-lg text-sm font-bold bg-purple-100 text-purple-800 group-hover:bg-[#833dff] group-hover:text-white transition">
             {{ report.platform }}
           </span>
@@ -45,16 +54,6 @@
             </span>
           </div>
         </div>
-
-        <button
-          @click.stop="$emit('select', report)"
-          class="bm-btn-primary px-3.5 py-1 text-xs shadow-sm flex items-center gap-1"
-        >
-          Inspect Report
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
       </div>
 
       <!-- Bottom: Protocol chips spanning wide (Inspire style) -->
@@ -74,8 +73,9 @@
 
 <script setup>
 defineProps({
-  reports: { type: Array, required: true }
+  reports: { type: Array, required: true },
+  selected: { type: Array, default: () => [] }
 })
 
-defineEmits(['select'])
+defineEmits(['select', 'toggle-select'])
 </script>

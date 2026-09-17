@@ -1,7 +1,9 @@
 """FastAPI Backend Server for Qibocal Report (Issue #10, Issue #5)."""
 
 import asyncio
+import json
 import os
+import shutil
 import sysconfig
 from pathlib import Path
 from typing import Annotated, Any
@@ -31,6 +33,8 @@ from qibocal_report.logger import (
     log_warning,
 )
 from qibocal_report.models import (
+    BulkActionRequest,
+    BulkActionResponse,
     FilterStats,
     HealthResponse,
     ProtocolDetail,
@@ -169,6 +173,114 @@ def get_filter_statistics() -> FilterStats:
     """Return filter statistics: protocol frequencies, authors, date histogram."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
     return compute_filter_stats(all_reports)
+
+
+def _find_report_dirs(root_dir: Path, report_ids: list[str]) -> list[Path]:
+    """Find directories corresponding to the given report IDs safely."""
+    resolved_root = root_dir.resolve()
+    id_set = set(report_ids)
+    matched: dict[str, Path] = {}
+
+    for rid in id_set:
+        candidate = (root_dir / rid).resolve()
+        try:
+            if (
+                candidate.is_relative_to(resolved_root)
+                and candidate != resolved_root
+                and candidate.is_dir()
+            ):
+                matched[rid] = candidate
+        except (ValueError, OSError):
+            pass
+
+    remaining = id_set - set(matched.keys())
+    if remaining:
+        for r in scan_reports(root_dir):
+            if r.id in remaining:
+                cand = Path(r.path).resolve()
+                try:
+                    if (
+                        cand.is_relative_to(resolved_root)
+                        and cand != resolved_root
+                        and cand.is_dir()
+                    ):
+                        matched[r.id] = cand
+                except (ValueError, OSError):
+                    pass
+
+    return list(matched.values())
+
+
+@app.post(
+    "/api/reports/bulk-action",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+)
+def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
+    """Execute a bulk action (such as 'label' or 'delete') on multiple reports."""
+    log_info(
+        f"Bulk action requested: '{req.action}' on {len(req.report_ids)} report(s)"
+    )
+    matched_dirs = _find_report_dirs(REPORT_ROOT_DIR, req.report_ids)
+
+    if req.action == "delete":
+        deleted = []
+        for rep_dir in matched_dirs:
+            try:
+                shutil.rmtree(rep_dir)
+                deleted.append(rep_dir.name)
+                log_info(f"Deleted report folder: {rep_dir}")
+            except OSError as err:
+                log_error(f"Failed to delete {rep_dir}: {err}")
+        return BulkActionResponse(
+            success=True,
+            action="delete",
+            affected=len(deleted),
+            message=f"Successfully deleted {len(deleted)} report folder(s)",
+        )
+
+    if req.action == "label":
+        if not req.label or not req.label.strip():
+            raise HTTPException(status_code=400, detail="Label cannot be empty")
+        new_tag = req.label.strip()
+        labeled = []
+        for rep_dir in matched_dirs:
+            meta_path = rep_dir / "meta.json"
+            meta_data: dict[str, Any] = {}
+            if meta_path.is_file():
+                try:
+                    meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    meta_data = {}
+
+            raw_tag = meta_data.get("tag")
+            if raw_tag is None:
+                tags_list = [new_tag]
+            elif isinstance(raw_tag, list):
+                tags_list = [str(t) for t in raw_tag if t is not None]
+                if new_tag not in tags_list:
+                    tags_list.append(new_tag)
+            elif isinstance(raw_tag, str):
+                tags_list = [raw_tag] if raw_tag == new_tag else [raw_tag, new_tag]
+            else:
+                tags_list = [new_tag]
+
+            meta_data["tag"] = tags_list
+            try:
+                meta_path.write_text(json.dumps(meta_data, indent=2), encoding="utf-8")
+                labeled.append(rep_dir.name)
+                log_info(f"Added label '{new_tag}' to report {rep_dir}")
+            except OSError as err:
+                log_error(f"Failed to update meta.json in {rep_dir}: {err}")
+
+        return BulkActionResponse(
+            success=True,
+            action="label",
+            affected=len(labeled),
+            message=f"Added label '{new_tag}' to {len(labeled)} report(s)",
+        )
+
+    raise HTTPException(status_code=400, detail=f"Unsupported action: '{req.action}'")
 
 
 @app.websocket("/ws/reports/{report_id:path}")
