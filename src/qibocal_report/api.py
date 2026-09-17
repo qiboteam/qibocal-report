@@ -144,17 +144,19 @@ def get_reports(
     author: Annotated[list[str] | None, Query()] = None,
     protocol: Annotated[list[str] | None, Query()] = None,
     label: Annotated[list[str] | None, Query()] = None,
+    tag: Annotated[list[str] | None, Query()] = None,
     start_date: str | None = None,
     end_date: str | None = None,
     sort_by: str = "date_desc",
 ) -> list[ReportSummary]:
     """List and filter Qibocal reports."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
+    combined_tags = list(set((label or []) + (tag or []))) or None
     return filter_reports(
         all_reports,
         query=q,
         authors=author,
-        labels=label,
+        labels=combined_tags,
         protocols=protocol,
         start_date=start_date,
         end_date=end_date,

@@ -137,9 +137,19 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
     targets = meta.get("targets") or meta.get("qubits") or []
     if not isinstance(targets, list):
         targets = [targets] if targets is not None else []
-    labels = meta.get("labels") or meta.get("tags") or []
-    if not isinstance(labels, list):
-        labels = [labels] if labels is not None else []
+    raw_tags = (
+        meta.get("tag")
+        or meta.get("tags")
+        or meta.get("labels")
+        or meta.get("label")
+        or []
+    )
+    if isinstance(raw_tags, str):
+        tags = [raw_tags]
+    elif isinstance(raw_tags, list):
+        tags = [str(t) for t in raw_tags if t is not None]
+    else:
+        tags = []
     exec_time = meta.get("total_execution_time") or meta.get("duration") or "34.2s"
     cached = has_cached_report(report_dir)
     protocols = _discover_protocols(report_dir, meta)
@@ -154,7 +164,8 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
         platform=platform,
         targets=targets,
         protocols=protocols,
-        labels=labels,
+        tags=tags,
+        labels=tags,
         total_execution_time=exec_time,
         has_cached_report=cached,
     )
@@ -203,11 +214,11 @@ def filter_reports(
         filtered = [
             r
             for r in filtered
-            if q_lower in r.title.lower()
+            if q_lower in (r.title or "").lower()
             or q_lower in r.id.lower()
             or q_lower in (r.author or "").lower()
             or q_lower in (r.platform or "").lower()
-            or any(q_lower in lab.lower() for lab in r.labels)
+            or any(q_lower in tag.lower() for tag in (r.tags or r.labels))
             or any(q_lower in p.lower() for p in r.protocols)
         ]
 
@@ -215,7 +226,9 @@ def filter_reports(
         filtered = [r for r in filtered if r.author in authors]
 
     if labels:
-        filtered = [r for r in filtered if any(lab in r.labels for lab in labels)]
+        filtered = [
+            r for r in filtered if any(lab in (r.tags or r.labels) for lab in labels)
+        ]
 
     if protocols:
         filtered = [r for r in filtered if any(p in r.protocols for p in protocols)]
@@ -229,8 +242,10 @@ def filter_reports(
     # Sorting
     if sort_by == "date_asc":
         filtered.sort(key=lambda r: (r.date, r.time or ""))
-    elif sort_by == "title":
-        filtered.sort(key=lambda r: r.title.lower())
+    elif sort_by == "platform":
+        filtered.sort(key=lambda r: (r.platform or "").lower())
+    elif sort_by in ("id", "title"):
+        filtered.sort(key=lambda r: r.id.lower())
     else:  # date_desc default
         filtered.sort(key=lambda r: (r.date, r.time or ""), reverse=True)
 
@@ -240,7 +255,7 @@ def filter_reports(
 def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
     """Compute aggregate filter statistics (Issue #3)."""
     authors = sorted({r.author for r in reports if r.author})
-    labels = sorted({lab for r in reports for lab in r.labels})
+    labels = sorted({lab for r in reports for lab in (r.tags or r.labels)})
 
     proto_counter = Counter()
     for r in reports:
@@ -260,6 +275,7 @@ def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
 
     return FilterStats(
         authors=authors,
+        tags=labels,
         labels=labels,
         protocols=proto_freqs,
         date_histogram=date_histogram,

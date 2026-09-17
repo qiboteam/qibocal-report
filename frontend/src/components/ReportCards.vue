@@ -6,14 +6,14 @@
       @click="$emit('select', report)"
       class="bm-card p-5 border border-gray-100 cursor-pointer hover:border-purple-200 transition group"
     >
-      <!-- Top header line: Title, platform, date, duration -->
+      <!-- Top header line: platform, qubits, date, duration -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100">
-        <div class="flex items-center gap-2.5">
-          <h3 class="text-base font-bold text-gray-900 group-hover:text-[#833dff] transition">
-            {{ report.title }}
-          </h3>
-          <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <span class="px-2.5 py-1 rounded-lg text-sm font-bold bg-purple-100 text-purple-800 group-hover:bg-[#833dff] group-hover:text-white transition">
             {{ report.platform }}
+          </span>
+          <span class="font-mono text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
+            Q{{ report.targets.join(', Q') }}
           </span>
           <span
             v-if="report.has_cached_report"
@@ -32,13 +32,16 @@
 
       <!-- Middle details row -->
       <div class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600">
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-4 flex-wrap">
           <div><strong class="text-gray-900">Author:</strong> {{ report.author }}</div>
-          <div><strong class="text-gray-900">Qubits:</strong> Q{{ report.targets.join(', Q') }}</div>
-          <div v-if="report.labels.length > 0" class="flex items-center gap-1">
+          <div v-if="(report.tags || report.labels || []).length > 0" class="flex items-center gap-1.5 flex-wrap">
             <strong class="text-gray-900">Tags:</strong>
-            <span v-for="l in report.labels" :key="l" class="text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-              #{{ l }}
+            <span
+              v-for="l in (report.tags || report.labels || [])"
+              :key="l"
+              class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+            >
+              {{ l }}
             </span>
           </div>
         </div>

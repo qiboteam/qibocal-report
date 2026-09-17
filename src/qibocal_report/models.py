@@ -60,13 +60,14 @@ class ProtocolDetail(BaseModel):
 class ReportSummary(BaseModel):
     id: str
     path: str
-    title: str
+    title: str = ""
     date: str
     time: str | None = ""
     author: str | None = "Unknown"
     platform: str | None = "Unknown"
     targets: list[Any] = Field(default_factory=list)
     protocols: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     labels: list[str] = Field(default_factory=list)
     total_execution_time: str | None = None
     has_cached_report: bool = False
@@ -90,7 +91,8 @@ class DateHistogramBin(BaseModel):
 
 class FilterStats(BaseModel):
     authors: list[str]
-    labels: list[str]
+    tags: list[str] = Field(default_factory=list)
+    labels: list[str] = Field(default_factory=list)
     protocols: list[ProtocolFrequency]
     date_histogram: list[DateHistogramBin]
 

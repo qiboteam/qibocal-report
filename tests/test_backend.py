@@ -68,6 +68,18 @@ def test_scanner_and_filters():
     # verify protocols are sorted descending by frequency
     counts = [p.count for p in stats.protocols]
     assert counts == sorted(counts, reverse=True)
+    assert "broken" in stats.tags
+    assert "broken" in stats.labels
+
+    # Filter by tag / label
+    broken_reports = filter_reports(reports, labels=["broken"])
+    assert len(broken_reports) == 1
+    assert "broken" in broken_reports[0].tags
+
+    # Sort by platform
+    sorted_by_platform = filter_reports(reports, sort_by="platform")
+    platforms = [r.platform.lower() for r in sorted_by_platform if r.platform]
+    assert platforms == sorted(platforms)
 
 
 def test_generator_modes():
@@ -155,6 +167,12 @@ def test_api_endpoints():
     assert r.status_code == 200
     reports = r.json()
     assert len(reports) >= 3
+
+    # Filter by tag
+    r_tag = client.get("/api/reports?tag=broken")
+    assert r_tag.status_code == 200
+    assert len(r_tag.json()) == 1
+    assert "broken" in r_tag.json()[0]["tags"]
 
     # Stats
     r = client.get("/api/reports/stats")

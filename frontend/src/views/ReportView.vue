@@ -87,16 +87,21 @@
         <div class="bm-card p-6 border border-gray-100">
           <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-100">
             <div>
-              <!-- Serif font for H1 per Issue #2 -->
-              <h1 class="text-2xl sm:text-3xl text-gray-900">
-                {{ report.title }}
+              <h1 class="text-xl sm:text-2xl font-bold font-mono text-gray-900">
+                {{ report.id }}
               </h1>
-              <p class="text-xs font-mono text-gray-400 mt-1">ID: {{ report.id }}</p>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <span class="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
                 {{ report.platform }}
+              </span>
+              <span
+                v-for="t in (report.tags || report.labels || [])"
+                :key="t"
+                class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+              >
+                {{ t }}
               </span>
               <span
                 v-if="report.has_cached_report"
@@ -128,11 +133,15 @@
           </div>
 
           <!-- Tags & Git Commit -->
-          <div v-if="report.labels?.length || report.history?.git_commit" class="mt-4 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+          <div v-if="(report.tags || report.labels)?.length || report.history?.git_commit" class="mt-4 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
             <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-gray-400">Labels:</span>
-              <span v-for="l in report.labels" :key="l" class="bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                #{{ l }}
+              <span class="text-gray-500 font-semibold">Tags:</span>
+              <span
+                v-for="l in (report.tags || report.labels || [])"
+                :key="l"
+                class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+              >
+                {{ l }}
               </span>
             </div>
             <div v-if="report.history?.git_commit" class="font-mono text-[11px] text-gray-400">

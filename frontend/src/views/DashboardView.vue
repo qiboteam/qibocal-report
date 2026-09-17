@@ -28,7 +28,7 @@
               v-model="filters.q"
               @input="fetchReports"
               type="text"
-              placeholder="Search reports by title, platform, author, tag..."
+              placeholder="Search reports by platform, tags, protocols, author..."
               class="w-full pl-9 pr-4 py-2 bg-white rounded-xl text-xs sm:text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#833dff] focus:border-transparent shadow-xs"
             />
           </div>
@@ -43,7 +43,7 @@
             >
               <option value="date_desc">Newest first</option>
               <option value="date_asc">Oldest first</option>
-              <option value="title">Title A-Z</option>
+              <option value="platform">Platform A-Z</option>
             </select>
 
             <!-- Visualization Mode Switcher: Table (default) vs Cards (Issue #3) -->
@@ -93,9 +93,9 @@
           <span
             v-for="l in filters.labels"
             :key="l"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-200 text-gray-800"
+            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
-            #{{ l }}
+            Tag: {{ l }}
             <button @click="toggleLabel(l)" class="hover:text-black">&times;</button>
           </span>
           <span

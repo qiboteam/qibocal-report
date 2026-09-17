@@ -119,9 +119,9 @@
               :to="`/reports/${h.id}`"
               class="block px-3 py-1.5 rounded-lg text-xs hover:bg-gray-100 transition truncate"
               :class="$route.params.id === h.id ? 'text-[#833dff] font-semibold bg-purple-50' : 'text-gray-600'"
-              :title="h.title"
+              :title="h.id"
             >
-              <div class="truncate">{{ h.title }}</div>
+              <div class="truncate font-mono font-medium">{{ h.id }}</div>
               <div class="text-[10px] text-gray-400 font-mono">{{ h.date }}</div>
             </router-link>
           </div>
@@ -206,12 +206,12 @@
           </div>
         </div>
 
-        <!-- Labels / Tags Checklist with Search (Issue #3) -->
+        <!-- Tags Checklist with Search (Issue #3) -->
         <div>
-          <label class="block text-xs font-semibold text-gray-700 mb-1">Labels</label>
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Tags</label>
           <input
             v-model="labelSearch"
-            placeholder="Filter labels..."
+            placeholder="Filter tags..."
             class="w-full text-xs px-2.5 py-1 mb-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none"
           />
           <div class="space-y-1 max-h-24 overflow-y-auto">
@@ -227,7 +227,7 @@
                 @change="$emit('toggle-label', lab)"
                 class="rounded text-[#833dff] focus:ring-[#833dff] h-3.5 w-3.5"
               />
-              <span class="text-xs">#{{ lab }}</span>
+              <span class="text-xs font-mono">{{ lab }}</span>
             </label>
           </div>
         </div>

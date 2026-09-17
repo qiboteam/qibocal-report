@@ -189,9 +189,9 @@ export function addToHistory(report) {
   state.history = [
     {
       id: report.id,
-      title: report.title,
       platform: report.platform,
       date: report.date,
+      tags: report.tags || report.labels || [],
       opened_at: new Date().toISOString()
     },
     ...state.history.filter(h => h.id !== report.id)
