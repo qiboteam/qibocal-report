@@ -22,7 +22,7 @@ def main():
 
 @main.group(name="report")
 def report():
-    """Manage and serve Qibocal calibration reports (Issue #9, #10, #11)."""
+    """Manage and serve Qibocal calibration reports."""
 
 
 @report.command(name="server")
@@ -209,7 +209,3 @@ def client(host: str, port: int, reload: bool):
 def dashboard_alias(ctx, host: str, port: int, reload: bool):
     """Backward-compatible alias for 'client'."""
     ctx.forward(client)
-
-
-if __name__ == "__main__":
-    main()

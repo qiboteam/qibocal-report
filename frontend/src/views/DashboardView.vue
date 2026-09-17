@@ -114,7 +114,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div class="flex items-center gap-3">
             <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">
-              Calibration Reports ({{ reports.length }})
+              Calibration Reports <span v-if="!loading">({{ reports.length }})</span><span v-else class="text-gray-400 font-normal text-xs font-mono">(loading...)</span>
             </h2>
             <!-- Active Server Indicator Badge -->
             <div
@@ -134,7 +134,7 @@
               </span>
             </div>
           </div>
-          <span v-if="loading" class="text-xs text-purple-600 animate-pulse">Loading reports...</span>
+          <span v-if="loading" class="text-xs text-purple-600 font-medium animate-pulse">Loading reports...</span>
           <span v-else class="text-xs text-gray-400">Showing all matches</span>
         </div>
 
@@ -163,9 +163,22 @@
           </div>
         </div>
 
+        <!-- Loading State: immediately replaces reports when switching servers or querying -->
+        <div
+          v-if="loading"
+          class="bg-white rounded-2xl p-12 text-center border border-gray-200 shadow-sm max-w-lg mx-auto my-8 flex flex-col items-center justify-center animate-fade-in"
+        >
+          <div class="w-8 h-8 border-3 border-[#833dff] border-t-transparent rounded-full animate-spin mb-3"></div>
+          <h3 class="font-semibold text-sm text-gray-900">Loading calibration reports...</h3>
+          <p class="text-xs text-gray-500 mt-1">
+            Querying <span class="font-medium text-gray-700">{{ activeServer?.name || 'server' }}</span>
+            <span v-if="activeServer?.url" class="font-mono text-[11px] text-gray-400"> ({{ activeServer.url }})</span>
+          </p>
+        </div>
+
         <!-- Empty State -->
         <div
-          v-if="reports.length === 0 && !loading && !connectionError"
+          v-else-if="reports.length === 0 && !connectionError"
           class="bg-white rounded-2xl p-12 text-center border border-gray-200 shadow-sm max-w-lg mx-auto my-8"
         >
           <div class="w-12 h-12 rounded-xl bg-purple-50 text-[#833dff] flex items-center justify-center mx-auto mb-3">
@@ -213,7 +226,7 @@ const router = useRouter()
 const viewMode = ref('table') // default table
 const reports = ref([])
 const filterStats = ref(null)
-const loading = ref(false)
+const loading = ref(true)
 const connectionError = ref(null)
 
 const activeServer = computed(() => state.activeServer)
@@ -232,6 +245,7 @@ const hasActiveFilters = computed(() => {
 })
 
 onMounted(async () => {
+  loading.value = true
   await ensureServersLoaded()
   await refreshData()
 })
@@ -240,12 +254,21 @@ watch(
   () => [state.activeServer?.id, state.activeServer?.url],
   async ([newId, newUrl], [oldId, oldUrl]) => {
     if (newId !== oldId || newUrl !== oldUrl) {
+      // Immediately clear previous server data and set loading
+      reports.value = []
+      filterStats.value = null
+      loading.value = true
+      connectionError.value = null
       await refreshData()
     }
   }
 )
 
 async function refreshData() {
+  loading.value = true
+  connectionError.value = null
+  reports.value = []
+  filterStats.value = null
   await Promise.all([fetchStats(), fetchReports()])
 }
 
