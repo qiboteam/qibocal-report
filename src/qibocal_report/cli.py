@@ -25,50 +25,6 @@ def report():
     """Manage and serve Qibocal calibration reports (Issue #9, #10, #11)."""
 
 
-@report.command(name="serve")
-@click.argument(
-    "directory",
-    default=".",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True),
-)
-@click.option("--host", default="localhost", help="Host address to bind to.")
-@click.option("--port", default=8000, type=int, help="Port to listen on.")
-@click.option(
-    "--reload", is_flag=True, default=False, help="Enable auto-reload for development."
-)
-def serve(directory: str, host: str, port: int, reload: bool):
-    """Serve Qibocal reports from DIRECTORY.
-
-    Spawns both backend server and frontend web application (Issue #9, #10, #11).
-    """
-    dir_path = Path(directory).resolve()
-    set_report_root(dir_path)
-    os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
-
-    url = f"http://{host}:{port}"
-    # Register this server in configuration
-    config.add_server(
-        url=url,
-        name=f"local-{dir_path.name}",
-        description=f"Serving reports from {dir_path}",
-        avatar="quantum-ring",
-    )
-
-    console = Console()
-    console.print(
-        Panel.fit(
-            f"[bold cyan]📁 Reports Directory :[/bold cyan] {dir_path}\n"
-            f"[bold cyan]🌐 Web Application   :[/bold cyan] {url}\n"
-            f"[bold cyan]📖 REST API Docs     :[/bold cyan] {url}/api/docs/swagger\n\n"
-            "[dim]Press Ctrl+C to stop the server.[/dim]",
-            title="[bold magenta]⚛️  Qibocal Report Server[/bold magenta]",
-            border_style="magenta",
-        )
-    )
-
-    uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
-
-
 @report.command(name="server")
 @click.argument(
     "directory",
@@ -77,10 +33,7 @@ def serve(directory: str, host: str, port: int, reload: bool):
 )
 @click.option("--host", default="localhost", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
-@click.option(
-    "--reload", is_flag=True, default=False, help="Enable auto-reload for development."
-)
-def server(directory: str, host: str, port: int, reload: bool):
+def server(directory: str, host: str, port: int):
     """Start the FastAPI backend server."""
     dir_path = Path(directory).resolve()
     set_report_root(dir_path)
@@ -106,7 +59,7 @@ def server(directory: str, host: str, port: int, reload: bool):
         )
     )
 
-    uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
+    uvicorn.run("qibocal_report.api:app", host=host, port=port)
 
 
 @report.command(name="dev")
@@ -120,12 +73,7 @@ def server(directory: str, host: str, port: int, reload: bool):
 @click.option(
     "--frontend-port", default=5173, type=int, help="Frontend Vite dev server port."
 )
-@click.option(
-    "--reload/--no-reload",
-    default=True,
-    help="Enable auto-reload for backend server.",
-)
-def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool):
+def dev(directory: str, host: str, port: int, frontend_port: int):
     """Serve Qibocal reports in developer mode with live Vite HMR."""
     dir_path = Path(directory).resolve()
     set_report_root(dir_path)
@@ -195,7 +143,7 @@ def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool):
     vite_proc = subprocess.Popen(vite_cmd, cwd=frontend_dir, env=env)
 
     try:
-        uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
+        uvicorn.run("qibocal_report.api:app", host=host, port=port)
     finally:
         if vite_proc.poll() is None:
             console.print("\n[dim]Stopping Vite development server...[/dim]")

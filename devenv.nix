@@ -26,9 +26,6 @@
     uv build
   '';
 
-  scripts.serve.exec = ''
-    qibocal report serve sample_data
-  '';
 
   scripts.server.exec = ''
     qibocal report server sample_data

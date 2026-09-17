@@ -16,7 +16,6 @@ def test_report_help():
     runner = CliRunner()
     result = runner.invoke(main, ["report", "--help"])
     assert result.exit_code == 0
-    assert "serve" in result.output
     assert "server" in result.output
     assert "client" in result.output
     assert "dev" in result.output
