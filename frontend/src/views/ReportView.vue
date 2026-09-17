@@ -99,9 +99,16 @@
               <span
                 v-for="t in (report.tags || report.labels || [])"
                 :key="t"
-                class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+                class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
               >
-                {{ t }}
+                <span>{{ t }}</span>
+                <button
+                  @click.stop="handleRemoveTag(t)"
+                  class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0"
+                  title="Remove tag"
+                >
+                  &times;
+                </button>
               </span>
               <span
                 v-if="report.has_cached_report"
@@ -116,7 +123,44 @@
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 text-xs">
             <div>
               <span class="text-gray-400 block mb-0.5">Author</span>
-              <strong class="text-gray-800">{{ report.author }}</strong>
+              <div class="flex items-center gap-1.5">
+                <template v-if="!isEditingAuthor">
+                  <strong class="text-gray-800">{{ report.author }}</strong>
+                  <button
+                    @click="startEditAuthor"
+                    class="text-gray-400 hover:text-[#833dff] transition cursor-pointer"
+                    title="Edit author"
+                  >
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
+                </template>
+                <template v-else>
+                  <input
+                    v-model="editAuthorText"
+                    type="text"
+                    class="px-1.5 py-0.5 text-xs border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-[#833dff] w-28 font-medium"
+                    @keyup.enter="saveAuthor"
+                    @keyup.esc="isEditingAuthor = false"
+                  />
+                  <button
+                    @click="saveAuthor"
+                    :disabled="savingAuthor"
+                    class="text-emerald-600 hover:text-emerald-700 font-bold text-xs cursor-pointer"
+                    title="Save"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    @click="isEditingAuthor = false"
+                    class="text-gray-400 hover:text-gray-600 font-bold text-xs cursor-pointer"
+                    title="Cancel"
+                  >
+                    ✕
+                  </button>
+                </template>
+              </div>
             </div>
             <div>
               <span class="text-gray-400 block mb-0.5">Execution Date</span>
@@ -139,9 +183,16 @@
               <span
                 v-for="l in (report.tags || report.labels || [])"
                 :key="l"
-                class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+                class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
               >
-                {{ l }}
+                <span>{{ l }}</span>
+                <button
+                  @click.stop="handleRemoveTag(l)"
+                  class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0"
+                  title="Remove tag"
+                >
+                  &times;
+                </button>
               </span>
             </div>
             <div v-if="report.history?.git_commit" class="font-mono text-[11px] text-gray-400">
@@ -254,6 +305,10 @@ const report = ref(null)
 const protocols = ref([])
 const platformAccordionOpen = ref(false)
 const statusBanner = ref('')
+
+const isEditingAuthor = ref(false)
+const editAuthorText = ref('')
+const savingAuthor = ref(false)
 
 let activeWs = null
 
@@ -427,5 +482,62 @@ async function handleRegenerate() {
 
 function handlePrintPDF() {
   window.print()
+}
+
+function startEditAuthor() {
+  editAuthorText.value = report.value?.author === 'Unknown' ? '' : (report.value?.author || '')
+  isEditingAuthor.value = true
+}
+
+async function saveAuthor() {
+  if (!report.value) return
+  savingAuthor.value = true
+  try {
+    const encodedId = encodeURIComponent(report.value.id)
+    const res = await apiFetch(`/api/reports/${encodedId}/author`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ author: editAuthorText.value.trim() })
+    })
+    if (res.ok) {
+      report.value.author = editAuthorText.value.trim() || 'Unknown'
+      isEditingAuthor.value = false
+      statusBanner.value = 'Author updated successfully!'
+      setTimeout(() => { statusBanner.value = '' }, 3500)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'Failed to update author')
+    }
+  } catch (err) {
+    alert('Failed to update author: ' + err.message)
+  } finally {
+    savingAuthor.value = false
+  }
+}
+
+async function handleRemoveTag(tag) {
+  if (!report.value || !tag) return
+  try {
+    const encodedId = encodeURIComponent(report.value.id)
+    const encodedTag = encodeURIComponent(tag)
+    const res = await apiFetch(`/api/reports/${encodedId}/label/${encodedTag}`, {
+      method: 'DELETE'
+    })
+    if (res.ok) {
+      if (Array.isArray(report.value.tags)) {
+        report.value.tags = report.value.tags.filter(t => t !== tag)
+      }
+      if (Array.isArray(report.value.labels)) {
+        report.value.labels = report.value.labels.filter(t => t !== tag)
+      }
+      statusBanner.value = `Removed tag '${tag}'`
+      setTimeout(() => { statusBanner.value = '' }, 3500)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'Failed to remove tag')
+    }
+  } catch (err) {
+    alert('Failed to remove tag: ' + err.message)
+  }
 }
 </script>

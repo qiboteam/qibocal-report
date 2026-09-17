@@ -144,7 +144,7 @@ async function saveModalServer(updatedData) {
     }
     toastMessage.value = `Server updated.`
   } else {
-    const created = await addServer(updatedData.url, updatedData.name, updatedData.description, updatedData.avatar)
+    const created = await addServer(updatedData)
     if (created) {
       setActiveServer(created)
       toastMessage.value = `Server registered.`

@@ -120,7 +120,11 @@ def _format_date(raw_date: str | None) -> str:
     return clean
 
 
-def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
+def parse_report_directory(
+    report_dir: Path,
+    root_dir: Path,
+    author_identities: dict[str, list[str]] | None = None,
+) -> ReportSummary:
     """Parse a report directory into a ReportSummary."""
     meta = _parse_meta_json(report_dir / "meta.json")
 
@@ -132,7 +136,13 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
     time_str = (
         meta.get("time") or meta.get("start-time") or meta.get("start_time") or ""
     )
-    author = meta.get("author") or meta.get("user") or "Unknown"
+    raw_author = meta.get("author") or meta.get("user") or "Unknown"
+    if author_identities:
+        from qibocal_report.config import resolve_author_identity
+
+        author = resolve_author_identity(raw_author, author_identities)
+    else:
+        author = raw_author
     platform = meta.get("platform") or "Generic QPU"
     targets = meta.get("targets") or meta.get("qubits") or []
     if not isinstance(targets, list):
@@ -154,6 +164,16 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
     cached = has_cached_report(report_dir)
     protocols = _discover_protocols(report_dir, meta)
 
+    # Pre-compile search index from platform, author, tags, protocols, targets, date, id
+    tag_tokens = " ".join(tags)
+    proto_tokens = " ".join(protocols)
+    target_tokens = " ".join(f"q{t} {t}" for t in targets)
+    search_tokens = (
+        f"{platform} {author} {raw_author} {tag_tokens} "
+        f"{proto_tokens} {target_tokens} {date_str} {time_str} {report_id} {title}"
+    )
+    search_index = search_tokens.lower()
+
     return ReportSummary(
         id=report_id,
         path=str(report_dir),
@@ -168,30 +188,135 @@ def parse_report_directory(report_dir: Path, root_dir: Path) -> ReportSummary:
         labels=tags,
         total_execution_time=exec_time,
         has_cached_report=cached,
+        search_index=search_index,
     )
 
 
-def scan_reports(root_dir: Path) -> list[ReportSummary]:
-    """Scan the root directory for all Qibocal report directories efficiently."""
-    reports: list[ReportSummary] = []
+# In-memory index cache to avoid re-scanning unchanged directories
+_REPORT_CACHE: dict[str, Any] = {
+    "root_path": None,
+    "author_identities_key": None,
+    "last_mtime": 0.0,
+    "reports": None,
+}
+
+
+def invalidate_report_cache() -> None:
+    """Invalidate the in-memory indexed reports cache."""
+    _REPORT_CACHE["last_mtime"] = 0.0
+    _REPORT_CACHE["reports"] = None
+
+
+def get_directory_mtime(root_dir: Path) -> float:
+    """Compute the maximum mtime across root_dir and its report directories."""
     if not root_dir.exists() or not root_dir.is_dir():
-        return reports
+        return 0.0
+
+    try:
+        latest = root_dir.stat().st_mtime
+    except OSError:
+        return 0.0
+
+    try:
+        for dirpath, dirnames, _ in os.walk(root_dir):
+            dirnames[:] = [
+                d for d in dirnames if d not in IGNORED_DIRS and not d.startswith(".")
+            ]
+            dp = Path(dirpath)
+            try:
+                s = dp.stat()
+                latest = max(latest, s.st_mtime)
+            except OSError:
+                pass
+
+            if dp != root_dir and is_report_directory(dp):
+                for meta_name in ("meta.json", "history.json"):
+                    meta_p = dp / meta_name
+                    if meta_p.is_file():
+                        try:
+                            m_mtime = meta_p.stat().st_mtime
+                            latest = max(latest, m_mtime)
+                        except OSError:
+                            pass
+                report_meta = dp / "report" / "meta.json"
+                if report_meta.is_file():
+                    try:
+                        rm_mtime = report_meta.stat().st_mtime
+                        latest = max(latest, rm_mtime)
+                    except OSError:
+                        pass
+                dirnames.clear()
+    except OSError:
+        pass
+
+    return latest
+
+
+def scan_reports(
+    root_dir: Path,
+    author_identities: dict[str, list[str]] | None = None,
+) -> list[ReportSummary]:
+    """Scan root_dir for reports, caching indexing and invalidating on change."""
+    resolved_root = root_dir.resolve()
+    if not resolved_root.exists() or not resolved_root.is_dir():
+        return []
+
+    if author_identities is None:
+        try:
+            from qibocal_report.config import load_servers
+
+            for s in load_servers():
+                if s.get("is_default") and s.get("author_identities"):
+                    author_identities = s["author_identities"]
+                    break
+        except (OSError, KeyError, TypeError, ValueError):
+            author_identities = None
+
+    auth_key = (
+        json.dumps(author_identities, sort_keys=True) if author_identities else ""
+    )
+    current_mtime = get_directory_mtime(resolved_root)
+
+    # Check if cache is still valid
+    if (
+        _REPORT_CACHE["root_path"] == str(resolved_root)
+        and _REPORT_CACHE["author_identities_key"] == auth_key
+        and _REPORT_CACHE["reports"] is not None
+        and current_mtime <= _REPORT_CACHE["last_mtime"]
+    ):
+        return _REPORT_CACHE["reports"]
+
+    reports: list[ReportSummary] = []
 
     # Check root_dir itself
-    if is_report_directory(root_dir):
-        return [parse_report_directory(root_dir, root_dir.parent)]
-
-    # Fast directory walk skipping ignored subtrees
-    for dirpath, dirnames, _ in os.walk(root_dir):
-        # Exclude ignored directories in-place to avoid expensive traversal
-        dirnames[:] = [
-            d for d in dirnames if d not in IGNORED_DIRS and not d.startswith(".")
+    if is_report_directory(resolved_root):
+        reports = [
+            parse_report_directory(
+                resolved_root, resolved_root.parent, author_identities=author_identities
+            )
         ]
-        p = Path(dirpath)
-        if p != root_dir and is_report_directory(p):
-            reports.append(parse_report_directory(p, root_dir))
-            # Don't recurse into subdirectories of a discovered report
-            dirnames.clear()
+    else:
+        # Fast directory walk skipping ignored subtrees
+        for dirpath, dirnames, _ in os.walk(resolved_root):
+            dirnames[:] = [
+                d for d in dirnames if d not in IGNORED_DIRS and not d.startswith(".")
+            ]
+            p = Path(dirpath)
+
+            if p != resolved_root and is_report_directory(p):
+                reports.append(
+                    parse_report_directory(
+                        p, resolved_root, author_identities=author_identities
+                    )
+                )
+                # Don't recurse into subdirectories of a discovered report
+                dirnames.clear()
+
+    # Update cache
+    _REPORT_CACHE["root_path"] = str(resolved_root)
+    _REPORT_CACHE["author_identities_key"] = auth_key
+    _REPORT_CACHE["last_mtime"] = current_mtime
+    _REPORT_CACHE["reports"] = reports
 
     return reports
 
@@ -214,7 +339,8 @@ def filter_reports(
         filtered = [
             r
             for r in filtered
-            if q_lower in (r.title or "").lower()
+            if (r.search_index and q_lower in r.search_index)
+            or q_lower in (r.title or "").lower()
             or q_lower in r.id.lower()
             or q_lower in (r.author or "").lower()
             or q_lower in (r.platform or "").lower()
@@ -282,12 +408,16 @@ def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
     )
 
 
-def get_report_detail(root_dir: Path, report_id: str) -> ReportDetail | None:
+def get_report_detail(
+    root_dir: Path,
+    report_id: str,
+    author_identities: dict[str, list[str]] | None = None,
+) -> ReportDetail | None:
     """Retrieve full details for a specific report."""
     target_dir = root_dir / report_id
     if not target_dir.is_dir():
         # Search by name match
-        for r in scan_reports(root_dir):
+        for r in scan_reports(root_dir, author_identities=author_identities):
             if r.id == report_id:
                 target_dir = Path(r.path)
                 break
@@ -295,7 +425,20 @@ def get_report_detail(root_dir: Path, report_id: str) -> ReportDetail | None:
     if not target_dir.is_dir() or not is_report_directory(target_dir):
         return None
 
-    summary = parse_report_directory(target_dir, root_dir)
+    if author_identities is None:
+        try:
+            from qibocal_report.config import load_servers
+
+            for s in load_servers():
+                if s.get("is_default") and s.get("author_identities"):
+                    author_identities = s["author_identities"]
+                    break
+        except (OSError, KeyError, TypeError, ValueError):
+            author_identities = None
+
+    summary = parse_report_directory(
+        target_dir, root_dir, author_identities=author_identities
+    )
 
     # Read history.json
     history_data = {}

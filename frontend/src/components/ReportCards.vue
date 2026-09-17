@@ -42,15 +42,34 @@
       <!-- Middle details row -->
       <div class="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600">
         <div class="flex items-center gap-4 flex-wrap">
-          <div><strong class="text-gray-900">Author:</strong> {{ report.author }}</div>
+          <div class="group/author flex items-center gap-1.5">
+            <strong class="text-gray-900">Author:</strong>
+            <span>{{ report.author }}</span>
+            <button
+              @click.stop="$emit('edit-author', report)"
+              class="opacity-0 group-hover/author:opacity-100 text-gray-400 hover:text-[#833dff] transition cursor-pointer"
+              title="Edit author"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            </button>
+          </div>
           <div v-if="(report.tags || report.labels || []).length > 0" class="flex items-center gap-1.5 flex-wrap">
             <strong class="text-gray-900">Tags:</strong>
             <span
               v-for="l in (report.tags || report.labels || [])"
               :key="l"
-              class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono"
             >
-              {{ l }}
+              <span>{{ l }}</span>
+              <button
+                @click.stop="$emit('remove-tag', { report, tag: l })"
+                class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer"
+                title="Remove tag"
+              >
+                &times;
+              </button>
             </span>
           </div>
         </div>
@@ -77,5 +96,6 @@ defineProps({
   selected: { type: Array, default: () => [] }
 })
 
-defineEmits(['select', 'toggle-select'])
+defineEmits(['select', 'toggle-select', 'remove-tag', 'edit-author'])
+
 </script>

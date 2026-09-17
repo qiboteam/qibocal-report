@@ -108,9 +108,16 @@
               <span
                 v-for="tag in (report.tags || report.labels || []).slice(0, 3)"
                 :key="tag"
-                class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono truncate"
+                class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 font-mono truncate"
               >
-                {{ tag }}
+                <span class="truncate">{{ tag }}</span>
+                <button
+                  @click.stop="$emit('remove-tag', { report, tag })"
+                  class="hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0"
+                  title="Remove tag"
+                >
+                  &times;
+                </button>
               </span>
               <span
                 v-if="(report.tags || report.labels || []).length > 3"
@@ -129,7 +136,18 @@
 
           <!-- Author Column -->
           <td class="py-3.5 px-4 text-gray-600 text-xs overflow-hidden">
-            <div class="truncate">{{ report.author }}</div>
+            <div class="group/author flex items-center gap-1.5 truncate">
+              <span class="truncate">{{ report.author }}</span>
+              <button
+                @click.stop="$emit('edit-author', report)"
+                class="opacity-0 group-hover/author:opacity-100 text-gray-400 hover:text-[#833dff] transition cursor-pointer shrink-0"
+                title="Edit author"
+              >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+            </div>
           </td>
 
           <!-- Date Column -->
@@ -151,7 +169,8 @@ const props = defineProps({
   selected: { type: Array, default: () => [] }
 })
 
-defineEmits(['select', 'toggle-select', 'toggle-select-all'])
+defineEmits(['select', 'toggle-select', 'toggle-select-all', 'remove-tag', 'edit-author'])
+
 
 const isAllSelected = computed(() => {
   return props.reports.length > 0 && props.reports.every(r => props.selected.includes(r.id))

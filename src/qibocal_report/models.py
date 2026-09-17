@@ -13,6 +13,7 @@ class ServerModel(BaseModel):
     avatar: str | None = "quantum-ring"
     is_default: bool = False
     created_at: str | None = None
+    author_identities: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class ServerCreate(BaseModel):
@@ -20,6 +21,7 @@ class ServerCreate(BaseModel):
     name: str | None = None
     description: str | None = None
     avatar: str | None = None
+    author_identities: dict[str, list[str]] | None = None
 
 
 class ServerUpdate(BaseModel):
@@ -28,6 +30,7 @@ class ServerUpdate(BaseModel):
     description: str | None = None
     avatar: str | None = None
     is_default: bool | None = None
+    author_identities: dict[str, list[str]] | None = None
 
 
 class ProtocolFigure(BaseModel):
@@ -71,12 +74,21 @@ class ReportSummary(BaseModel):
     labels: list[str] = Field(default_factory=list)
     total_execution_time: str | None = None
     has_cached_report: bool = False
+    search_index: str = ""
 
 
 class ReportDetail(ReportSummary):
     history: Any | None = Field(default_factory=dict)
     platform_snapshot: dict[str, Any] | None = Field(default_factory=dict)
     protocols_summary: list[ProtocolSummary] = Field(default_factory=list)
+
+
+class PaginatedReportsResponse(BaseModel):
+    items: list[ReportSummary]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class ProtocolFrequency(BaseModel):
@@ -105,9 +117,10 @@ class HealthResponse(BaseModel):
 
 
 class BulkActionRequest(BaseModel):
-    action: str  # "label" or "delete"
+    action: str  # "label", "unlabel", "delete", "author"
     report_ids: list[str]
     label: str | None = None
+    author: str | None = None
 
 
 class BulkActionResponse(BaseModel):
@@ -119,3 +132,7 @@ class BulkActionResponse(BaseModel):
 
 class SingleLabelRequest(BaseModel):
     label: str = ""
+
+
+class UpdateAuthorRequest(BaseModel):
+    author: str

@@ -12,6 +12,8 @@
       @toggle-label="toggleLabel"
       @reset-filters="resetFilters"
       @open-label="openLabelModal"
+      @open-unlabel="openUnlabelModal"
+      @open-author="openAuthorModal"
       @open-delete="openDeleteModal"
       @clear-selection="clearSelection"
     />
@@ -31,10 +33,9 @@
             </div>
             <input
               v-model="filters.q"
-              @input="fetchReports"
               type="text"
               placeholder="Search reports by platform, tags, protocols, author..."
-              class="w-full pl-9 pr-4 py-2 bg-white rounded-xl text-xs sm:text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#833dff] focus:border-transparent shadow-xs"
+              class="w-full pl-9 pr-4 py-2 bg-white rounded-xl text-xs sm:text-sm border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff] shadow-xs"
             />
           </div>
 
@@ -43,8 +44,7 @@
             <!-- Sort dropdown -->
             <select
               v-model="filters.sort_by"
-              @change="fetchReports"
-              class="text-xs py-2 px-3 bg-white border border-gray-200 rounded-xl focus:outline-none text-gray-700 shadow-xs"
+              class="text-xs py-2 px-3 bg-white border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] text-gray-700 shadow-xs"
             >
               <option value="date_desc">Newest first</option>
               <option value="date_asc">Oldest first</option>
@@ -119,7 +119,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
           <div class="flex items-center gap-3">
             <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">
-              Calibration Reports <span v-if="!loading">({{ reports.length }})</span><span v-else class="text-gray-400 font-normal text-xs font-mono">(loading...)</span>
+              Calibration Reports <span v-if="!loading">({{ totalReports }})</span><span v-else class="text-gray-400 font-normal text-xs font-mono">(loading...)</span>
             </h2>
             <!-- Active Server Indicator Badge -->
             <div
@@ -140,7 +140,8 @@
             </div>
           </div>
           <span v-if="loading" class="text-xs text-purple-600 font-medium animate-pulse">Loading reports...</span>
-          <span v-else class="text-xs text-gray-400">Showing all matches</span>
+          <span v-else-if="totalReports > 0" class="text-xs text-gray-400">Page {{ currentPage }} of {{ totalPages }}</span>
+          <span v-else class="text-xs text-gray-400">0 matches</span>
         </div>
 
         <!-- Connection Error Banner -->
@@ -198,7 +199,7 @@
 
         <!-- Empty State -->
         <div
-          v-else-if="reports.length === 0 && !connectionError"
+          v-else-if="displayedReports.length === 0 && !connectionError"
           class="bg-white rounded-2xl p-12 text-center border border-gray-200 shadow-sm max-w-lg mx-auto my-8"
         >
           <div class="w-12 h-12 rounded-xl bg-purple-50 text-[#833dff] flex items-center justify-center mx-auto mb-3">
@@ -219,21 +220,107 @@
         <!-- Table View (Default, Issue #3) -->
         <report-table
           v-else-if="viewMode === 'table'"
-          :reports="reports"
+          :reports="displayedReports"
           :selected="selectedReports"
           @select="openReport"
           @toggle-select="toggleSelect"
           @toggle-select-all="toggleSelectAll"
+          @remove-tag="handleRemoveTag"
+          @edit-author="handleEditAuthor"
         />
 
         <!-- Full-size Horizontal Cards View (Inspire style, Issue #3) -->
         <report-cards
           v-else
-          :reports="reports"
+          :reports="displayedReports"
           :selected="selectedReports"
           @select="openReport"
           @toggle-select="toggleSelect"
+          @remove-tag="handleRemoveTag"
+          @edit-author="handleEditAuthor"
         />
+
+        <!-- Pagination Controls -->
+        <div
+          v-if="!loading && totalReports > 0"
+          class="mt-5 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white px-4 py-3 rounded-2xl border border-gray-200 shadow-2xs text-xs select-none"
+        >
+          <!-- Left: Range display & Page size selector -->
+          <div class="flex items-center gap-3 text-gray-500 flex-wrap">
+            <span>
+              Showing
+              <strong class="font-semibold text-gray-800">{{ paginationRange.start }}</strong>
+              to
+              <strong class="font-semibold text-gray-800">{{ paginationRange.end }}</strong>
+              of
+              <strong class="font-semibold text-gray-800">{{ totalReports }}</strong>
+              reports
+            </span>
+            <span class="text-gray-300">|</span>
+            <div class="flex items-center gap-1.5">
+              <span class="text-gray-400">Show:</span>
+              <select
+                v-model="pageSize"
+                @change="onPageSizeChange"
+                class="px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#833dff] cursor-pointer"
+              >
+                <option :value="10">10 / page</option>
+                <option :value="25">25 / page</option>
+                <option :value="50">50 / page</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Right: Page Navigation Buttons -->
+          <div class="flex items-center gap-1">
+            <!-- Previous Button -->
+            <button
+              @click="goToPage(currentPage - 1)"
+              :disabled="currentPage <= 1"
+              class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-medium transition flex items-center gap-1"
+              :class="currentPage > 1
+                ? 'bg-white text-gray-700 hover:bg-purple-50 hover:text-[#833dff] hover:border-purple-200 cursor-pointer'
+                : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'"
+              title="Previous page"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span>Prev</span>
+            </button>
+
+            <!-- Numeric Page Buttons with Ellipses -->
+            <template v-for="(p, idx) in visiblePages" :key="idx">
+              <span v-if="p === '...'" class="px-2 py-1 text-gray-400">...</span>
+              <button
+                v-else
+                @click="goToPage(p)"
+                class="min-w-[30px] h-[30px] rounded-lg text-xs font-semibold transition cursor-pointer flex items-center justify-center"
+                :class="p === currentPage
+                  ? 'bg-[#833dff] text-white shadow-2xs'
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-purple-50 hover:text-[#833dff] hover:border-purple-200'"
+              >
+                {{ p }}
+              </button>
+            </template>
+
+            <!-- Next Button -->
+            <button
+              @click="goToPage(currentPage + 1)"
+              :disabled="currentPage >= totalPages"
+              class="px-2.5 py-1.5 rounded-lg border border-gray-200 font-medium transition flex items-center gap-1"
+              :class="currentPage < totalPages
+                ? 'bg-white text-gray-700 hover:bg-purple-50 hover:text-[#833dff] hover:border-purple-200 cursor-pointer'
+                : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'"
+              title="Next page"
+            >
+              <span>Next</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -309,6 +396,157 @@
       </div>
     </div>
 
+    <!-- Unlabel Modal -->
+    <div
+      v-if="showUnlabelModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+      @click.self="showUnlabelModal = false"
+    >
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
+        <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div class="flex items-center gap-2 text-gray-900 font-bold text-base">
+            <svg class="w-5 h-5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Remove Label from Reports
+          </div>
+          <button @click="showUnlabelModal = false" class="text-gray-400 hover:text-gray-600 text-lg cursor-pointer">&times;</button>
+        </div>
+
+        <div class="mt-4">
+          <p class="text-xs text-gray-500 mb-3">
+            Select or enter a label to remove from the
+            <strong class="text-gray-800">{{ selectedReports.length }}</strong> selected report(s).
+          </p>
+
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Label / Tag to Remove</label>
+          <input
+            v-model="newUnlabelText"
+            type="text"
+            placeholder="Select a tag below or type name..."
+            class="w-full text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] focus:bg-white transition"
+            @keyup.enter="applyBulkUnlabel"
+          />
+
+          <!-- Available tags on selected reports -->
+          <div v-if="tagsOnSelectedReports.length" class="mt-3">
+            <span class="text-[11px] text-gray-400 font-medium">Tags on selected reports:</span>
+            <div class="flex flex-wrap gap-1 mt-1.5 max-h-24 overflow-y-auto">
+              <button
+                v-for="t in tagsOnSelectedReports"
+                :key="t"
+                type="button"
+                @click="newUnlabelText = t"
+                class="px-2 py-0.5 rounded text-[11px] font-medium font-mono transition cursor-pointer"
+                :class="newUnlabelText === t ? 'bg-[#833dff] text-white' : 'bg-purple-50 hover:bg-purple-100 text-purple-700'"
+              >
+                {{ t }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="bulkError" class="mt-3 p-2 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+            {{ bulkError }}
+          </div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-end gap-2">
+          <button
+            @click="showUnlabelModal = false"
+            class="px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            @click="applyBulkUnlabel"
+            :disabled="!newUnlabelText.trim() || bulkActionInProgress"
+            class="bm-btn-primary px-4 py-1.5 text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <span v-if="bulkActionInProgress" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            Remove Label
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Author Modal -->
+    <div
+      v-if="showAuthorModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+      @click.self="showAuthorModal = false"
+    >
+      <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
+        <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+          <div class="flex items-center gap-2 text-gray-900 font-bold text-base">
+            <svg class="w-5 h-5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            {{ targetReportIdForAuthor ? 'Edit Report Author' : 'Set Author for Reports' }}
+          </div>
+          <button @click="showAuthorModal = false" class="text-gray-400 hover:text-gray-600 text-lg cursor-pointer">&times;</button>
+        </div>
+
+        <div class="mt-4">
+          <p class="text-xs text-gray-500 mb-3">
+            <template v-if="targetReportIdForAuthor">
+              Modify the author name for this calibration report.
+            </template>
+            <template v-else>
+              Set the author for the
+              <strong class="text-gray-800">{{ selectedReports.length }}</strong> selected report(s).
+            </template>
+          </p>
+
+          <label class="block text-xs font-semibold text-gray-700 mb-1">Author Name</label>
+          <input
+            v-model="newAuthorText"
+            type="text"
+            placeholder="e.g. Alice, Bob, lab_team..."
+            class="w-full text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] focus:bg-white transition"
+            @keyup.enter="applyAuthor"
+          />
+
+          <!-- Author suggestions -->
+          <div v-if="authorSuggestions.length" class="mt-3">
+            <span class="text-[11px] text-gray-400 font-medium">Suggested authors:</span>
+            <div class="flex flex-wrap gap-1 mt-1.5 max-h-24 overflow-y-auto">
+              <button
+                v-for="a in authorSuggestions"
+                :key="a"
+                type="button"
+                @click="newAuthorText = a"
+                class="px-2 py-0.5 rounded text-[11px] font-medium transition cursor-pointer"
+                :class="newAuthorText === a ? 'bg-[#833dff] text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'"
+              >
+                {{ a }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="bulkError" class="mt-3 p-2 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+            {{ bulkError }}
+          </div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-end gap-2">
+          <button
+            @click="showAuthorModal = false"
+            class="px-3.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            @click="applyAuthor"
+            :disabled="bulkActionInProgress"
+            class="bm-btn-primary px-4 py-1.5 text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <span v-if="bulkActionInProgress" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            Save Author
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Delete Confirmation Modal -->
     <div
       v-if="showDeleteModal"
@@ -376,11 +614,25 @@ const filterStats = ref(null)
 const loading = ref(true)
 const connectionError = ref(null)
 
+// Pagination & Pre-fetch Cache State
+const currentPage = ref(1)
+const pageSize = ref(10)
+const totalReports = ref(0)
+const totalPages = ref(1)
+const pageCache = new Map()
+
 // Bulk Selection & Actions State
 const selectedReports = ref([])
 const showLabelModal = ref(false)
+const showUnlabelModal = ref(false)
+const showAuthorModal = ref(false)
 const showDeleteModal = ref(false)
+
 const newLabelText = ref('')
+const newUnlabelText = ref('')
+const newAuthorText = ref('')
+const targetReportIdForAuthor = ref(null)
+
 const bulkActionInProgress = ref(false)
 const bulkError = ref(null)
 const bulkSuccessMessage = ref('')
@@ -400,21 +652,137 @@ const hasActiveFilters = computed(() => {
   return filters.author || filters.date || filters.protocols.length > 0 || filters.labels.length > 0
 })
 
+// Displayed reports for current page
+const displayedReports = computed(() => reports.value || [])
+
+function getFilterQueryKey() {
+  const serverKey = state.activeServer?.id || state.activeServer?.url || 'local'
+  const protos = [...filters.protocols].sort().join(',')
+  const labels = [...filters.labels].sort().join(',')
+  return `${serverKey}|${filters.q.trim().toLowerCase()}|${filters.author}|${filters.date}|${protos}|${labels}|${filters.sort_by}|${pageSize.value}`
+}
+
+function getCacheKey(p) {
+  return `${getFilterQueryKey()}|p_${p}`
+}
+
+const paginationRange = computed(() => {
+  if (totalReports.value === 0) return { start: 0, end: 0 }
+  const start = (currentPage.value - 1) * pageSize.value + 1
+  const end = Math.min(start + (reports.value?.length || 0) - 1, totalReports.value)
+  return { start, end }
+})
+
+const visiblePages = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1)
+  }
+
+  const pages = []
+  if (current <= 4) {
+    for (let i = 1; i <= 5; i++) pages.push(i)
+    pages.push('...')
+    pages.push(total)
+  } else if (current >= total - 3) {
+    pages.push(1)
+    pages.push('...')
+    for (let i = total - 4; i <= total; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    pages.push('...')
+    pages.push(current - 1)
+    pages.push(current)
+    pages.push(current + 1)
+    pages.push('...')
+    pages.push(total)
+  }
+  return pages
+})
+
+function getAccessiblePages(current, total) {
+  if (total <= 1) return []
+  const accessible = new Set()
+  if (current > 1) accessible.add(current - 1)
+  if (current < total) accessible.add(current + 1)
+  accessible.add(1)
+  accessible.add(total)
+  for (let p = Math.max(1, current - 2); p <= Math.min(total, current + 2); p++) {
+    if (p >= 1 && p <= total) accessible.add(p)
+  }
+  accessible.delete(current)
+  return Array.from(accessible).filter(p => p >= 1 && p <= total)
+}
+
+function prefetchAccessiblePages() {
+  const current = currentPage.value
+  const total = totalPages.value
+  const targetPages = getAccessiblePages(current, total)
+
+  for (const p of targetPages) {
+    const key = getCacheKey(p)
+    if (!pageCache.has(key)) {
+      fetchReports(p, true /* isPrefetch */)
+    }
+  }
+}
+
+function goToPage(p) {
+  if (p < 1 || p > totalPages.value || p === currentPage.value) return
+  fetchReports(p, false)
+}
+
+function onPageSizeChange() {
+  currentPage.value = 1
+  pageCache.clear()
+  fetchReports(1, false)
+}
+
+const tagsOnSelectedReports = computed(() => {
+  const tags = new Set()
+  const sel = selectedReports.value
+  for (const r of reports.value) {
+    if (sel.includes(r.id)) {
+      for (const t of (r.tags || r.labels || [])) {
+        if (t) tags.add(t)
+      }
+    }
+  }
+  return Array.from(tags)
+})
+
+const authorSuggestions = computed(() => {
+  const authors = new Set()
+  if (activeServer.value?.author_identities) {
+    for (const canonical of Object.keys(activeServer.value.author_identities)) {
+      authors.add(canonical)
+    }
+  }
+  if (filterStats.value?.authors && Array.isArray(filterStats.value.authors)) {
+    for (const a of filterStats.value.authors) {
+      if (a && a !== 'Unknown') authors.add(a)
+    }
+  }
+  return Array.from(authors)
+})
+
 onMounted(async () => {
   loading.value = true
   await ensureServersLoaded()
   await refreshData()
 })
 
-
 watch(
   () => [state.activeServer?.id, state.activeServer?.url],
   async ([newId, newUrl], [oldId, oldUrl]) => {
     if (newId !== oldId || newUrl !== oldUrl) {
-      // Immediately clear previous server data and set loading
       reports.value = []
+      totalReports.value = 0
+      currentPage.value = 1
       selectedReports.value = []
       filterStats.value = null
+      pageCache.clear()
       loading.value = true
       connectionError.value = null
       await refreshData()
@@ -422,12 +790,37 @@ watch(
   }
 )
 
+let searchDebounceTimeout = null
+watch(
+  () => filters.q,
+  () => {
+    if (searchDebounceTimeout) clearTimeout(searchDebounceTimeout)
+    searchDebounceTimeout = setTimeout(() => {
+      currentPage.value = 1
+      pageCache.clear()
+      fetchReports(1, false)
+    }, 200)
+  }
+)
+
+watch(
+  () => filters.sort_by,
+  () => {
+    currentPage.value = 1
+    pageCache.clear()
+    fetchReports(1, false)
+  }
+)
+
 async function refreshData() {
   loading.value = true
   connectionError.value = null
   reports.value = []
+  totalReports.value = 0
+  currentPage.value = 1
   filterStats.value = null
-  await Promise.all([fetchStats(), fetchReports()])
+  pageCache.clear()
+  await Promise.all([fetchStats(), fetchReports(1, false)])
 }
 
 async function fetchStats() {
@@ -444,56 +837,108 @@ async function fetchStats() {
   }
 }
 
-async function fetchReports() {
-  loading.value = true
-  connectionError.value = null
+async function fetchReports(page = currentPage.value, isPrefetch = false) {
+  const cacheKey = getCacheKey(page)
+
+  if (pageCache.has(cacheKey)) {
+    if (!isPrefetch) {
+      const cached = pageCache.get(cacheKey)
+      reports.value = cached.items
+      totalReports.value = cached.total
+      totalPages.value = cached.total_pages
+      currentPage.value = cached.page
+      loading.value = false
+      connectionError.value = null
+      prefetchAccessiblePages()
+    }
+    return
+  }
+
+  if (!isPrefetch) {
+    loading.value = true
+    connectionError.value = null
+  }
+
   try {
     const params = new URLSearchParams()
-    if (filters.q) params.set('q', filters.q)
+    params.set('page', String(page))
+    params.set('page_size', String(pageSize.value))
+    if (filters.q.trim()) params.set('q', filters.q.trim())
+    if (filters.sort_by) params.set('sort_by', filters.sort_by)
     if (filters.author) params.set('author', filters.author)
     if (filters.date) {
       params.set('start_date', filters.date)
       params.set('end_date', filters.date)
     }
-    if (filters.sort_by) params.set('sort_by', filters.sort_by)
     filters.protocols.forEach(p => params.append('protocol', p))
     filters.labels.forEach(l => params.append('label', l))
 
-    const queryString = params.toString() ? `?${params.toString()}` : ''
-    const res = await apiFetch(`/api/reports${queryString}`)
+    const res = await apiFetch(`/api/reports?${params.toString()}`)
     if (res.ok) {
-      reports.value = await res.json()
-    } else {
+      const data = await res.json()
+      const items = Array.isArray(data) ? data : (data.items || [])
+      const total = Array.isArray(data) ? data.length : (data.total ?? items.length)
+      const total_pages = Array.isArray(data) ? 1 : (data.total_pages ?? 1)
+      const page_num = Array.isArray(data) ? 1 : (data.page ?? page)
+
+      const payload = {
+        items,
+        total,
+        total_pages,
+        page: page_num,
+        page_size: pageSize.value
+      }
+
+      pageCache.set(cacheKey, payload)
+
+      if (!isPrefetch) {
+        reports.value = items
+        totalReports.value = total
+        totalPages.value = total_pages
+        currentPage.value = page_num
+        loading.value = false
+        // Pre-fetch pages accessible from the page navigation
+        prefetchAccessiblePages()
+      }
+    } else if (!isPrefetch) {
       connectionError.value = `Server responded with status ${res.status}`
       reports.value = []
+      loading.value = false
     }
   } catch (err) {
-    console.error('Failed to fetch reports', err)
-    connectionError.value = `Could not connect to ${activeServer.value?.name || 'server'} (${activeServer.value?.url || ''}): ${err.message || 'Network error'}`
-    reports.value = []
-  } finally {
-    loading.value = false
+    if (!isPrefetch) {
+      console.error('Failed to fetch reports', err)
+      connectionError.value = `Could not connect to ${activeServer.value?.name || 'server'} (${activeServer.value?.url || ''}): ${err.message || 'Network error'}`
+      reports.value = []
+      loading.value = false
+    }
   }
 }
 
 function onUpdateFilter({ key, value }) {
   if (key === 'author') filters.author = value
   if (key === 'date') filters.date = value
-  fetchReports()
+  currentPage.value = 1
+  pageCache.clear()
+  fetchReports(1, false)
 }
 
 function toggleProtocol(name) {
   const idx = filters.protocols.indexOf(name)
   if (idx >= 0) filters.protocols.splice(idx, 1)
   else filters.protocols.push(name)
-  fetchReports()
+  currentPage.value = 1
+  pageCache.clear()
+  fetchReports(1, false)
 }
 
 function toggleLabel(name) {
   const idx = filters.labels.indexOf(name)
   if (idx >= 0) filters.labels.splice(idx, 1)
   else filters.labels.push(name)
-  fetchReports()
+  currentPage.value = 1
+  pageCache.clear()
+  fetchReports(1, false)
 }
 
 function resetFilters() {
@@ -503,7 +948,9 @@ function resetFilters() {
   filters.protocols = []
   filters.labels = []
   selectedReports.value = []
-  fetchReports()
+  currentPage.value = 1
+  pageCache.clear()
+  fetchReports(1, false)
 }
 
 function openReport(report) {
@@ -523,7 +970,7 @@ function toggleSelect(id) {
 }
 
 function toggleSelectAll() {
-  const currentIds = reports.value.map(r => r.id)
+  const currentIds = displayedReports.value.map(r => r.id)
   const allSelected = currentIds.length > 0 && currentIds.every(id => selectedReports.value.includes(id))
   if (allSelected) {
     selectedReports.value = selectedReports.value.filter(id => !currentIds.includes(id))
@@ -536,11 +983,24 @@ function clearSelection() {
   selectedReports.value = []
 }
 
-// Bulk Actions Methods
+// Bulk & Item Actions
 function openLabelModal() {
   newLabelText.value = ''
   bulkError.value = null
   showLabelModal.value = true
+}
+
+function openUnlabelModal() {
+  newUnlabelText.value = ''
+  bulkError.value = null
+  showUnlabelModal.value = true
+}
+
+function openAuthorModal() {
+  targetReportIdForAuthor.value = null
+  newAuthorText.value = ''
+  bulkError.value = null
+  showAuthorModal.value = true
 }
 
 function openDeleteModal() {
@@ -548,6 +1008,36 @@ function openDeleteModal() {
   showDeleteModal.value = true
 }
 
+async function handleRemoveTag({ report, tag }) {
+  if (!report?.id || !tag) return
+  try {
+    const encodedId = encodeURIComponent(report.id)
+    const encodedTag = encodeURIComponent(tag)
+    const res = await apiFetch(`/api/reports/${encodedId}/label/${encodedTag}`, {
+      method: 'DELETE'
+    })
+    if (res.ok) {
+      if (Array.isArray(report.tags)) {
+        report.tags = report.tags.filter(t => t !== tag)
+      }
+      if (Array.isArray(report.labels)) {
+        report.labels = report.labels.filter(t => t !== tag)
+      }
+      bulkSuccessMessage.value = `Removed tag '${tag}' from report`
+      setTimeout(() => { bulkSuccessMessage.value = '' }, 3000)
+      fetchStats()
+    }
+  } catch (err) {
+    console.error('Failed to remove tag', err)
+  }
+}
+
+function handleEditAuthor(report) {
+  targetReportIdForAuthor.value = report.id
+  newAuthorText.value = report.author === 'Unknown' ? '' : report.author
+  bulkError.value = null
+  showAuthorModal.value = true
+}
 
 async function applyBulkLabel() {
   if (!newLabelText.value.trim() || selectedReports.value.length === 0) return
@@ -572,8 +1062,77 @@ async function applyBulkLabel() {
     newLabelText.value = ''
     selectedReports.value = []
     bulkSuccessMessage.value = data.message || 'Label applied successfully'
+    pageCache.clear()
+    await Promise.all([fetchStats(), fetchReports(currentPage.value, false)])
+  } catch (err) {
+    bulkError.value = err.message
+  } finally {
+    bulkActionInProgress.value = false
+  }
+}
+
+async function applyBulkUnlabel() {
+  if (!newUnlabelText.value.trim() || selectedReports.value.length === 0) return
+  bulkActionInProgress.value = true
+  bulkError.value = null
+  try {
+    const res = await apiFetch('/api/reports/bulk-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'unlabel',
+        report_ids: selectedReports.value,
+        label: newUnlabelText.value.trim()
+      })
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'Failed to remove label')
+    }
+    const data = await res.json()
+    showUnlabelModal.value = false
+    newUnlabelText.value = ''
+    selectedReports.value = []
+    bulkSuccessMessage.value = data.message || 'Label removed successfully'
     setTimeout(() => { bulkSuccessMessage.value = '' }, 4000)
-    await Promise.all([fetchStats(), fetchReports()])
+    pageCache.clear()
+    await Promise.all([fetchStats(), fetchReports(currentPage.value, false)])
+  } catch (err) {
+    bulkError.value = err.message
+  } finally {
+    bulkActionInProgress.value = false
+  }
+}
+
+async function applyAuthor() {
+  const authorVal = newAuthorText.value.trim()
+  const reportIds = targetReportIdForAuthor.value ? [targetReportIdForAuthor.value] : selectedReports.value
+  if (reportIds.length === 0) return
+  bulkActionInProgress.value = true
+  bulkError.value = null
+  try {
+    const res = await apiFetch('/api/reports/bulk-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'author',
+        report_ids: reportIds,
+        author: authorVal
+      })
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || 'Failed to update author')
+    }
+    const data = await res.json()
+    showAuthorModal.value = false
+    targetReportIdForAuthor.value = null
+    newAuthorText.value = ''
+    selectedReports.value = []
+    bulkSuccessMessage.value = data.message || 'Author updated successfully'
+    setTimeout(() => { bulkSuccessMessage.value = '' }, 4000)
+    pageCache.clear()
+    await Promise.all([fetchStats(), fetchReports(currentPage.value, false)])
   } catch (err) {
     bulkError.value = err.message
   } finally {
@@ -603,7 +1162,8 @@ async function applyBulkDelete() {
     selectedReports.value = []
     bulkSuccessMessage.value = data.message || 'Reports deleted successfully'
     setTimeout(() => { bulkSuccessMessage.value = '' }, 4000)
-    await Promise.all([fetchStats(), fetchReports()])
+    pageCache.clear()
+    await Promise.all([fetchStats(), fetchReports(currentPage.value, false)])
   } catch (err) {
     bulkError.value = err.message
   } finally {

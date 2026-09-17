@@ -77,6 +77,58 @@
           </div>
         </div>
 
+        <!-- Author Identities (Alias Mapping) -->
+        <div class="pt-2 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+              Author Identities
+            </label>
+            <button
+              type="button"
+              @click="addIdentityRow"
+              class="text-[11px] text-[#833dff] hover:text-[#722ce6] font-medium flex items-center gap-1 cursor-pointer"
+            >
+              + Add Mapping
+            </button>
+          </div>
+          <p class="text-[11px] text-gray-400 mb-2">
+            Map multiple author identifiers or usernames to a single canonical identity.
+          </p>
+
+          <div v-if="identityRows.length === 0" class="text-[11px] text-gray-400 italic bg-gray-50/60 p-2.5 rounded-lg border border-dashed border-gray-200 text-center">
+            No author identity mappings configured
+          </div>
+
+          <div v-else class="space-y-2 max-h-32 overflow-y-auto pr-1">
+            <div
+              v-for="(row, idx) in identityRows"
+              :key="idx"
+              class="flex items-center gap-1.5 p-1.5 bg-gray-50/80 rounded-lg border border-gray-200 text-xs"
+            >
+              <input
+                v-model="row.canonical"
+                type="text"
+                placeholder="Canonical name (e.g. Alice)"
+                class="flex-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+              />
+              <input
+                v-model="row.aliases"
+                type="text"
+                placeholder="Aliases (e.g. alice, a.smith)"
+                class="flex-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+              />
+              <button
+                type="button"
+                @click="removeIdentityRow(idx)"
+                class="text-gray-400 hover:text-red-500 p-1 text-sm leading-none cursor-pointer"
+                title="Remove mapping"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Actions -->
         <div class="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
           <button
@@ -99,7 +151,7 @@
 </template>
 
 <script setup>
-import { reactive, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { AVATAR_KEYS, renderAvatar } from './Avatars.js'
 import { normalizeUrl } from '../store.js'
 
@@ -119,7 +171,39 @@ const form = reactive({
   avatar: props.server?.avatar || 'quantum-ring'
 })
 
+const identityRows = ref(
+  props.server?.author_identities
+    ? Object.entries(props.server.author_identities).map(([canonical, aliases]) => ({
+        canonical,
+        aliases: Array.isArray(aliases) ? aliases.join(', ') : String(aliases || '')
+      }))
+    : []
+)
+
+function addIdentityRow() {
+  identityRows.value.push({ canonical: '', aliases: '' })
+}
+
+function removeIdentityRow(idx) {
+  identityRows.value.splice(idx, 1)
+}
+
 function submitForm() {
-  emit('save', { ...form, url: normalizeUrl(form.url) })
+  const author_identities = {}
+  for (const row of identityRows.value) {
+    const c = (row.canonical || '').trim()
+    if (c) {
+      const aliasList = (row.aliases || '')
+        .split(',')
+        .map(a => a.trim())
+        .filter(Boolean)
+      author_identities[c] = aliasList
+    }
+  }
+  emit('save', {
+    ...form,
+    url: normalizeUrl(form.url),
+    author_identities
+  })
 }
 </script>

@@ -1,7 +1,7 @@
-- remove the borders around the search bar and the sort dropdown
-- move the search in the frontend, instead of making one request for each character
-  typed
-  - we may compile and ship indices from the backend to make this operation simpler
-- make it possible to also remove labels from reports from the UI
-- make it possible to also modify the author
-- add server configurations to assign a single identity to multiple author identifiers
+- the search filters section content is a bit larger than the sidebar size, and it
+  triggers the horizontal scrollbar. fit it to the size
+- paginate reports, both on frontend and backend
+  - on the frontend, it should only receive the content for the current page, and only
+    after start pre-fetching the pages that are accessible from the page navigation
+  - on the backend, it should cache the indexing, and only invalidate if there is a more
+    recent modification

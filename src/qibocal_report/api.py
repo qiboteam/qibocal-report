@@ -12,6 +12,7 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Query,
+    Response,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -37,6 +38,7 @@ from qibocal_report.models import (
     BulkActionResponse,
     FilterStats,
     HealthResponse,
+    PaginatedReportsResponse,
     ProtocolDetail,
     ReportDetail,
     ReportSummary,
@@ -44,11 +46,13 @@ from qibocal_report.models import (
     ServerModel,
     ServerUpdate,
     SingleLabelRequest,
+    UpdateAuthorRequest,
 )
 from qibocal_report.scanner import (
     compute_filter_stats,
     filter_reports,
     get_report_detail,
+    invalidate_report_cache,
     scan_reports,
 )
 
@@ -79,6 +83,7 @@ def set_report_root(path: Path) -> None:
     """Set the root directory to scan for reports."""
     global REPORT_ROOT_DIR
     REPORT_ROOT_DIR = path.resolve()
+    invalidate_report_cache()
 
 
 def get_report_root() -> Path:
@@ -111,8 +116,13 @@ def list_servers() -> list[ServerModel]:
 def create_server(data: ServerCreate) -> ServerModel:
     """Register a new server URL. Name and avatar auto-generated if omitted."""
     new_server = config.add_server(
-        url=data.url, name=data.name, description=data.description, avatar=data.avatar
+        url=data.url,
+        name=data.name,
+        description=data.description,
+        avatar=data.avatar,
+        author_identities=data.author_identities,
     )
+
     return ServerModel(**new_server)
 
 
@@ -143,8 +153,13 @@ def save_servers_endpoint() -> dict[str, Any]:
 
 
 # --- Reports & Search Endpoints ---
-@app.get("/api/reports", response_model=list[ReportSummary], tags=["Reports"])
+@app.get(
+    "/api/reports",
+    response_model=PaginatedReportsResponse | list[ReportSummary],
+    tags=["Reports"],
+)
 def get_reports(
+    response: Response,
     q: str | None = None,
     author: Annotated[list[str] | None, Query()] = None,
     protocol: Annotated[list[str] | None, Query()] = None,
@@ -153,11 +168,16 @@ def get_reports(
     start_date: str | None = None,
     end_date: str | None = None,
     sort_by: str = "date_desc",
-) -> list[ReportSummary]:
-    """List and filter Qibocal reports."""
+    page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
+    page_size: int | None = Query(None, ge=1, le=500, description="Items per page"),
+    per_page: int | None = Query(
+        None, ge=1, le=500, description="Items per page (alias)"
+    ),
+) -> PaginatedReportsResponse | list[ReportSummary]:
+    """List and filter Qibocal reports, optionally paginated."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
     combined_tags = list(set((label or []) + (tag or []))) or None
-    return filter_reports(
+    filtered = filter_reports(
         all_reports,
         query=q,
         authors=author,
@@ -167,6 +187,35 @@ def get_reports(
         end_date=end_date,
         sort_by=sort_by,
     )
+
+    total = len(filtered)
+    response.headers["X-Total-Count"] = str(total)
+
+    if page is not None or page_size is not None or per_page is not None:
+        page_num = page or 1
+        effective_page_size = page_size or per_page or 20
+        total_pages = (
+            max(1, (total + effective_page_size - 1) // effective_page_size)
+            if total > 0
+            else 1
+        )
+        start_idx = (page_num - 1) * effective_page_size
+        end_idx = start_idx + effective_page_size
+        items = filtered[start_idx:end_idx]
+
+        response.headers["X-Page"] = str(page_num)
+        response.headers["X-Page-Size"] = str(effective_page_size)
+        response.headers["X-Total-Pages"] = str(total_pages)
+
+        return PaginatedReportsResponse(
+            items=items,
+            total=total,
+            page=page_num,
+            page_size=effective_page_size,
+            total_pages=total_pages,
+        )
+
+    return filtered
 
 
 @app.get("/api/reports/stats", response_model=FilterStats, tags=["Reports"])
@@ -248,6 +297,7 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
                 log_info(f"Deleted report folder: {rep_dir}")
             except OSError as err:
                 log_error(f"Failed to delete {rep_dir}: {err}")
+        invalidate_report_cache()
         return BulkActionResponse(
             success=True,
             action="delete",
@@ -312,6 +362,7 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
                 labeled.append(rep_dir.name)
                 log_info(f"Added label '{new_tag}' to report {rep_dir}")
 
+        invalidate_report_cache()
         return BulkActionResponse(
             success=True,
             action="label",
@@ -319,28 +370,147 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
             message=f"Added label '{new_tag}' to {len(labeled)} report(s)",
         )
 
+    if req.action in ("unlabel", "remove_label", "delete_label"):
+        if not req.label or not req.label.strip():
+            raise HTTPException(status_code=400, detail="Label cannot be empty")
+        target_tag = req.label.strip()
+        unlabeled = []
+        for rep_dir in matched_dirs:
+            meta_paths = [rep_dir / "meta.json"]
+            if (rep_dir / "report" / "meta.json").is_file():
+                meta_paths.append(rep_dir / "report" / "meta.json")
+
+            updated_any = False
+            for meta_path in meta_paths:
+                if not meta_path.is_file():
+                    continue
+                try:
+                    meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+                changed = False
+                for key in ("tag", "tags", "labels"):
+                    if key in meta_data and isinstance(meta_data[key], list):
+                        if target_tag in meta_data[key]:
+                            meta_data[key] = [
+                                t for t in meta_data[key] if t != target_tag
+                            ]
+                            changed = True
+                    elif (
+                        key in meta_data
+                        and isinstance(meta_data[key], str)
+                        and meta_data[key] == target_tag
+                    ):
+                        meta_data[key] = []
+                        changed = True
+
+                if changed:
+                    try:
+                        meta_path.write_text(
+                            json.dumps(meta_data, indent=2), encoding="utf-8"
+                        )
+                        updated_any = True
+                    except OSError as err:
+                        log_error(f"Failed to update meta.json at {meta_path}: {err}")
+
+            if updated_any:
+                unlabeled.append(rep_dir.name)
+                log_info(f"Removed label '{target_tag}' from report {rep_dir}")
+
+        invalidate_report_cache()
+        return BulkActionResponse(
+            success=True,
+            action="unlabel",
+            affected=len(unlabeled),
+            message=f"Removed label '{target_tag}' from {len(unlabeled)} report(s)",
+        )
+
+    if req.action in ("author", "set_author"):
+        new_author = (req.author if req.author is not None else req.label or "").strip()
+        updated_authors = []
+        for rep_dir in matched_dirs:
+            meta_paths = [rep_dir / "meta.json"]
+            if (rep_dir / "report" / "meta.json").is_file():
+                meta_paths.append(rep_dir / "report" / "meta.json")
+
+            updated_any = False
+            for meta_path in meta_paths:
+                if not meta_path.is_file():
+                    continue
+                try:
+                    meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+                except (json.JSONDecodeError, OSError):
+                    continue
+
+                meta_data["author"] = new_author or None
+                try:
+                    meta_path.write_text(
+                        json.dumps(meta_data, indent=2), encoding="utf-8"
+                    )
+                    updated_any = True
+                except OSError as err:
+                    log_error(f"Failed to update meta.json at {meta_path}: {err}")
+
+            if updated_any:
+                updated_authors.append(rep_dir.name)
+                log_info(f"Updated author to '{new_author}' in report {rep_dir}")
+
+        count = len(updated_authors)
+        invalidate_report_cache()
+        return BulkActionResponse(
+            success=True,
+            action="author",
+            affected=count,
+            message=f"Updated author to '{new_author}' on {count} report(s)",
+        )
+
     raise HTTPException(status_code=400, detail=f"Unsupported action: '{req.action}'")
 
 
 @app.delete(
-    "/api/reports/{report_id:path}",
+    "/api/reports/{report_id}/label/{label_name:path}",
     response_model=BulkActionResponse,
     tags=["Reports"],
 )
-def delete_single_report(report_id: str) -> BulkActionResponse:
-    """Delete a single report directory by ID or path."""
+@app.delete(
+    "/api/reports/{report_id}/tag/{label_name:path}",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+)
+def remove_single_report_label(report_id: str, label_name: str) -> BulkActionResponse:
+    """Remove a label or tag from a single report."""
     return bulk_report_action(
-        BulkActionRequest(action="delete", report_ids=[report_id])
+        BulkActionRequest(action="unlabel", report_ids=[report_id], label=label_name)
+    )
+
+
+@app.put(
+    "/api/reports/{report_id}/author",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+)
+@app.patch(
+    "/api/reports/{report_id}/author",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+)
+def update_single_report_author(
+    report_id: str, body: UpdateAuthorRequest
+) -> BulkActionResponse:
+    """Update the author of a single report."""
+    return bulk_report_action(
+        BulkActionRequest(action="author", report_ids=[report_id], author=body.author)
     )
 
 
 @app.post(
-    "/api/reports/{report_id:path}/label",
+    "/api/reports/{report_id}/label",
     response_model=BulkActionResponse,
     tags=["Reports"],
 )
 @app.post(
-    "/api/reports/{report_id:path}/tag",
+    "/api/reports/{report_id}/tag",
     response_model=BulkActionResponse,
     tags=["Reports"],
 )
@@ -353,6 +523,18 @@ def label_single_report(
     tag_name = (body and body.label) or label or ""
     return bulk_report_action(
         BulkActionRequest(action="label", report_ids=[report_id], label=tag_name)
+    )
+
+
+@app.delete(
+    "/api/reports/{report_id:path}",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+)
+def delete_single_report(report_id: str) -> BulkActionResponse:
+    """Delete a single report directory by ID or path."""
+    return bulk_report_action(
+        BulkActionRequest(action="delete", report_ids=[report_id])
     )
 
 

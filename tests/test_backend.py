@@ -306,3 +306,161 @@ def test_single_report_actions():
 
     r_after = client.get(f"/api/reports/{rep_id}")
     assert r_after.status_code == 404
+
+
+def test_remove_label_and_author_actions():
+    client = TestClient(app)
+    r = client.get("/api/reports")
+    reports = r.json()
+    assert len(reports) >= 2
+    target_rep = reports[0]
+    target_id = target_rep["id"]
+
+    # 1. Add a tag first
+    res_add = client.post(
+        f"/api/reports/{target_id}/label", json={"label": "to-remove"}
+    )
+    assert res_add.status_code == 200
+
+    r_verify = client.get(f"/api/reports/{target_id}")
+    assert "to-remove" in r_verify.json()["tags"]
+
+    # 2. Delete the tag via single label delete endpoint
+    res_del_tag = client.delete(f"/api/reports/{target_id}/label/to-remove")
+    assert res_del_tag.status_code == 200
+    assert res_del_tag.json()["success"] is True
+
+    r_verify2 = client.get(f"/api/reports/{target_id}")
+    assert "to-remove" not in r_verify2.json()["tags"]
+
+    # 3. Test bulk unlabel
+    # Add label to 2 reports
+    id1, id2 = reports[0]["id"], reports[1]["id"]
+    client.post(
+        "/api/reports/bulk-action",
+        json={"action": "label", "report_ids": [id1, id2], "label": "bulk-temp"},
+    )
+    # Remove via bulk unlabel
+    res_bulk_unlabel = client.post(
+        "/api/reports/bulk-action",
+        json={"action": "unlabel", "report_ids": [id1, id2], "label": "bulk-temp"},
+    )
+    assert res_bulk_unlabel.status_code == 200
+    assert res_bulk_unlabel.json()["success"] is True
+    assert res_bulk_unlabel.json()["affected"] == 2
+
+    # 4. Test single author update
+    res_author = client.put(
+        f"/api/reports/{target_id}/author", json={"author": "Alice Specialist"}
+    )
+    assert res_author.status_code == 200
+    assert res_author.json()["success"] is True
+
+    r_verify_author = client.get(f"/api/reports/{target_id}")
+    assert r_verify_author.json()["author"] == "Alice Specialist"
+
+    # 5. Test bulk author update
+    res_bulk_author = client.post(
+        "/api/reports/bulk-action",
+        json={"action": "author", "report_ids": [id1, id2], "author": "Quantum Team"},
+    )
+    assert res_bulk_author.status_code == 200
+    assert res_bulk_author.json()["affected"] == 2
+
+    r1 = client.get(f"/api/reports/{id1}").json()
+    r2 = client.get(f"/api/reports/{id2}").json()
+    assert r1["author"] == "Quantum Team"
+    assert r2["author"] == "Quantum Team"
+
+
+def test_author_identities_and_search_index():
+    from qibocal_report.config import resolve_author_identity
+
+    # 1. Test resolve_author_identity helper
+    identities = {
+        "Alice": ["alice", "a.smith", "alicesmith"],
+        "Bob": ["bob", "b.jones"],
+    }
+    assert resolve_author_identity("a.smith", identities) == "Alice"
+    assert resolve_author_identity("Alice", identities) == "Alice"
+    assert resolve_author_identity("BOB", identities) == "Bob"
+    assert resolve_author_identity("UnknownPerson", identities) == "UnknownPerson"
+    assert resolve_author_identity("Unknown", identities) == "Unknown"
+    assert resolve_author_identity(None, identities) == "Unknown"
+
+    # 2. Test server config with author_identities
+    srv = config.add_server(
+        "http://127.0.0.1:8001",
+        name="alias-server",
+        author_identities={"Dr. Quantum": ["alecandido", "qibo_user"]},
+    )
+    assert "author_identities" in srv
+    assert srv["author_identities"]["Dr. Quantum"] == ["alecandido", "qibo_user"]
+
+    # 3. Test scanner applies author_identities and produces search_index
+    test_reports = get_report_root()
+    reports = scan_reports(test_reports, author_identities=srv["author_identities"])
+    assert len(reports) > 0
+    first = reports[0]
+    assert hasattr(first, "search_index")
+    assert isinstance(first.search_index, str)
+    assert len(first.search_index) > 0
+    # verify search_index is lowercase and contains keywords
+    assert first.platform.lower() in first.search_index
+    assert first.id.lower() in first.search_index
+
+
+def test_pagination_and_cache_invalidation():
+    client = TestClient(app)
+    test_reports = get_report_root()
+
+    # 1. Test pagination query parameters
+    r_p1 = client.get("/api/reports?page=1&page_size=2")
+    assert r_p1.status_code == 200
+    data_p1 = r_p1.json()
+    assert "items" in data_p1
+    assert "total" in data_p1
+    assert data_p1["page"] == 1
+    assert data_p1["page_size"] == 2
+    assert len(data_p1["items"]) == 2
+    assert data_p1["total"] >= 3
+    assert data_p1["total_pages"] >= 2
+    assert r_p1.headers.get("X-Total-Count") == str(data_p1["total"])
+    assert r_p1.headers.get("X-Page") == "1"
+
+    # Page 2
+    r_p2 = client.get("/api/reports?page=2&page_size=2")
+    assert r_p2.status_code == 200
+    data_p2 = r_p2.json()
+    assert data_p2["page"] == 2
+    assert len(data_p2["items"]) >= 1
+    # Check that items on page 1 and page 2 are distinct
+    p1_ids = {item["id"] for item in data_p1["items"]}
+    p2_ids = {item["id"] for item in data_p2["items"]}
+    assert p1_ids.isdisjoint(p2_ids)
+
+    # 2. Test backend caching and invalidation
+    from qibocal_report.scanner import invalidate_report_cache
+
+    # First scan caches the results
+    scan1 = scan_reports(test_reports)
+    # Second scan returns the exact cached object
+    scan2 = scan_reports(test_reports)
+    assert scan1 is scan2
+
+    # Invalidate cache manually
+    invalidate_report_cache()
+    scan3 = scan_reports(test_reports)
+    assert len(scan3) == len(scan1)
+
+    # Invalidation on file modification
+    first_report_dir = test_reports / scan1[0].id
+    meta_file = first_report_dir / "meta.json"
+    if meta_file.is_file():
+        # Update modification time to future
+        new_mtime = meta_file.stat().st_mtime + 5.0
+        import os
+
+        os.utime(meta_file, (new_mtime, new_mtime))
+        scan_modified = scan_reports(test_reports)
+        assert scan_modified is not scan3

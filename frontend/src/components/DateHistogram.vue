@@ -1,20 +1,20 @@
 <template>
-  <div v-if="histogram && histogram.length > 0" class="mt-2">
-    <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5 font-medium">
-      <span>Timeline Distribution</span>
-      <span class="text-[10px] text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded font-mono">
+  <div v-if="histogram && histogram.length > 0" class="mt-2 w-full max-w-full overflow-hidden box-border">
+    <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5 font-medium gap-1">
+      <span class="truncate">Timeline</span>
+      <span class="text-[10px] text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded font-mono shrink-0">
         {{ totalCount }} runs
       </span>
     </div>
 
     <!-- Mini Histogram Bars -->
-    <div class="h-12 flex items-end gap-1 bg-gray-50 p-1.5 rounded-lg border border-gray-100">
+    <div class="h-12 flex items-end gap-0.5 sm:gap-1 bg-gray-50 p-1.5 rounded-lg border border-gray-100 overflow-hidden w-full">
       <div
         v-for="bin in histogram"
         :key="bin.date"
         @click="$emit('select-date', bin.date)"
         :title="`${bin.date}: ${bin.count} reports`"
-        class="flex-1 bg-[#c8a8ff] hover:bg-[#833dff] rounded-t transition-all cursor-pointer relative group"
+        class="flex-1 min-w-[2px] bg-[#c8a8ff] hover:bg-[#833dff] rounded-t transition-all cursor-pointer relative group"
         :style="{ height: `${Math.max(15, (bin.count / maxCount) * 100)}%` }"
       >
         <!-- Floating Tooltip -->
@@ -24,9 +24,9 @@
       </div>
     </div>
 
-    <div class="flex justify-between text-[10px] text-gray-400 mt-1 font-mono">
-      <span>{{ histogram[0]?.date }}</span>
-      <span>{{ histogram[histogram.length - 1]?.date }}</span>
+    <div class="flex justify-between text-[10px] text-gray-400 mt-1 font-mono gap-1 overflow-hidden">
+      <span class="truncate min-w-0">{{ histogram[0]?.date }}</span>
+      <span class="truncate min-w-0 text-right">{{ histogram[histogram.length - 1]?.date }}</span>
     </div>
   </div>
 </template>

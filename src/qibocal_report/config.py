@@ -108,6 +108,7 @@ def add_server(
     name: str | None = None,
     description: str | None = None,
     avatar: str | None = None,
+    author_identities: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """Register a new server."""
     servers = load_servers()
@@ -128,6 +129,7 @@ def add_server(
         "avatar": avatar or "quantum-ring",
         "is_default": len(servers) == 0,
         "created_at": "now",
+        "author_identities": author_identities or {},
     }
     servers.append(new_server)
     save_servers(servers)
@@ -139,7 +141,14 @@ def update_server(server_id: str, updates: dict[str, Any]) -> dict[str, Any] | N
     servers = load_servers()
     for s in servers:
         if s["id"] == server_id:
-            for k in ["name", "url", "description", "avatar", "is_default"]:
+            for k in [
+                "name",
+                "url",
+                "description",
+                "avatar",
+                "is_default",
+                "author_identities",
+            ]:
                 if k in updates and updates[k] is not None:
                     if k == "url":
                         clean_url = str(updates[k]).strip().rstrip("/")
@@ -151,6 +160,25 @@ def update_server(server_id: str, updates: dict[str, Any]) -> dict[str, Any] | N
             save_servers(servers)
             return s
     return None
+
+
+def resolve_author_identity(
+    raw_author: str | None,
+    author_identities: dict[str, list[str]] | None = None,
+) -> str:
+    """Resolve an author alias to its canonical identity."""
+    if not raw_author:
+        return "Unknown"
+    if not author_identities:
+        return raw_author
+    clean = raw_author.strip()
+    clean_lower = clean.lower()
+    for canonical, aliases in author_identities.items():
+        if clean_lower == canonical.strip().lower():
+            return canonical
+        if any(clean_lower == a.strip().lower() for a in aliases if a):
+            return canonical
+    return clean
 
 
 def delete_server(server_id: str) -> bool:

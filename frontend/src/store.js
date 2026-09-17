@@ -111,13 +111,25 @@ export function setActiveServer(server) {
   }
 }
 
-export async function addServer(url, name = null, description = null, avatar = null) {
+export async function addServer(urlOrObj, name = null, description = null, avatar = null, author_identities = null) {
   try {
-    const normalizedUrl = normalizeUrl(url)
+    let payload = {}
+    if (typeof urlOrObj === 'object' && urlOrObj !== null) {
+      payload = { ...urlOrObj }
+      payload.url = normalizeUrl(payload.url)
+    } else {
+      payload = {
+        url: normalizeUrl(urlOrObj),
+        name,
+        description,
+        avatar,
+        author_identities
+      }
+    }
     const res = await fetch('/api/servers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: normalizedUrl, name, description, avatar })
+      body: JSON.stringify(payload)
     })
     if (res.ok) {
       const created = await res.json()
@@ -202,4 +214,21 @@ export function addToHistory(report) {
 export function clearHistory() {
   state.history = []
   localStorage.removeItem('qibocal_report_history')
+}
+
+export function resolveAuthor(author, server = state.activeServer) {
+  if (!author || author === 'Unknown') return author || 'Unknown'
+  const identities = server?.author_identities
+  if (!identities || typeof identities !== 'object') return author
+  const clean = author.trim().toLowerCase()
+  for (const [canonical, aliases] of Object.entries(identities)) {
+    if (canonical.trim().toLowerCase() === clean) return canonical
+    if (
+      Array.isArray(aliases) &&
+      aliases.some(a => a && a.trim().toLowerCase() === clean)
+    ) {
+      return canonical
+    }
+  }
+  return author
 }
