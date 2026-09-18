@@ -17,9 +17,9 @@
             target="_blank"
             rel="noopener noreferrer"
             class="text-gray-400 hover:text-[#833dff] transition-colors p-1 rounded hover:bg-purple-50 inline-flex items-center"
-            title="Open Qibocal documentation"
+            :title="isSpecificDoc ? `Open Qibocal documentation for ${proto.name}` : 'Open Qibocal protocols documentation'"
           >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
           </a>
@@ -41,13 +41,16 @@
           :href="docUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="no-print px-2 py-1 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer text-xs font-medium shrink-0"
-          title="Open Qibocal documentation for this protocol"
+          class="no-print px-2.5 py-1 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer text-xs font-medium shrink-0"
+          :title="isSpecificDoc ? `Open Qibocal documentation for ${proto.name}` : 'Open Qibocal protocols documentation'"
         >
           <svg class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
           </svg>
           <span class="text-[11px] font-semibold">Docs</span>
+          <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
         </a>
 
         <!-- Protocol Data Download Button -->
@@ -102,7 +105,7 @@
 <script setup>
 import { computed } from 'vue'
 import { getApiUrl, state } from '../../store.js'
-import { getProtocolDocUrl } from '../../utils/protocolDocs.js'
+import { getProtocolDocUrl, hasSpecificDoc } from '../../utils/protocolDocs.js'
 import PlotlyViewer from '../PlotlyViewer.vue'
 
 const props = defineProps({
@@ -113,6 +116,10 @@ const props = defineProps({
 
 const docUrl = computed(() => {
   return getProtocolDocUrl(props.proto?.id, props.proto?.name, state.activeServer)
+})
+
+const isSpecificDoc = computed(() => {
+  return hasSpecificDoc(props.proto?.id, props.proto?.name, state.activeServer)
 })
 
 const downloadDataUrl = computed(() => {
