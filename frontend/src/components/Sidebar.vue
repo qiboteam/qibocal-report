@@ -51,6 +51,8 @@
         <sidebar-filters
           v-if="isSearchMode"
           :filter-stats="filterStats"
+          :full-stats="fullStats"
+          :is-filtered="isFiltered"
           :selected-author="selectedAuthor"
           :selected-protocols="selectedProtocols"
           :selected-labels="selectedLabels"
@@ -124,6 +126,8 @@ import SidebarHistory from './sidebar/SidebarHistory.vue'
 
 defineProps({
   filterStats: { type: Object, default: () => ({}) },
+  fullStats: { type: Object, default: () => ({}) },
+  isFiltered: { type: Boolean, default: false },
   selectedAuthor: { type: String, default: '' },
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },

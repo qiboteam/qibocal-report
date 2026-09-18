@@ -199,6 +199,14 @@ def test_api_endpoints():
     assert r_plat.status_code == 200
     assert len(r_plat.json()) == stats["platforms"][0]["count"]
 
+    # Filtered stats
+    r_filtered_stats = client.get(f"/api/reports/stats?platform={plat_name}")
+    assert r_filtered_stats.status_code == 200
+    f_stats = r_filtered_stats.json()
+    assert f_stats["total_reports"] == stats["platforms"][0]["count"]
+    assert len(f_stats["platforms"]) == 1
+    assert f_stats["platforms"][0]["name"] == plat_name
+
     # Single report detail
     first_id = reports[0]["id"]
     r = client.get(f"/api/reports/{first_id}")

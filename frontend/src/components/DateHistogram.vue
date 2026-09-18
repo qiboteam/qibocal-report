@@ -1,32 +1,70 @@
 <template>
-  <div v-if="histogram && histogram.length > 0" class="mt-2 w-full max-w-full overflow-hidden box-border">
-    <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5 font-medium gap-1">
+  <div v-if="combinedBins && combinedBins.length > 0" class="mt-2 w-full max-w-full overflow-hidden box-border">
+    <div v-if="showTitle" class="flex items-center justify-between text-xs text-gray-500 mb-1.5 font-medium gap-1">
       <span class="truncate">Timeline</span>
-      <span class="text-[10px] text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded font-mono shrink-0">
-        {{ totalCount }} runs
+      <span
+        v-if="isFiltered"
+        class="text-[10px] text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded font-mono shrink-0"
+        :title="`${totalFilteredCount} filtered out of ${totalFullCount} total runs`"
+      >
+        {{ totalFilteredCount }} / {{ totalFullCount }} runs
+      </span>
+      <span
+        v-else
+        class="text-[10px] text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded font-mono shrink-0"
+      >
+        {{ totalFullCount }} runs
       </span>
     </div>
 
-    <!-- Mini Histogram Bars -->
-    <div class="h-12 flex items-end gap-0.5 sm:gap-1 bg-gray-50 p-1.5 rounded-lg border border-gray-100 overflow-hidden w-full">
+    <!-- Histogram Bars Container -->
+    <div
+      :class="[heightClass, 'flex items-end gap-0.5 sm:gap-1 bg-gray-50 p-1.5 rounded-lg border border-gray-100 overflow-hidden w-full relative']"
+    >
       <div
-        v-for="bin in histogram"
+        v-for="bin in combinedBins"
         :key="bin.date"
         @click="$emit('select-date', bin.date)"
-        :title="`${bin.date}: ${bin.count} reports`"
-        class="flex-1 min-w-[2px] bg-[#c8a8ff] hover:bg-[#833dff] rounded-t transition-all cursor-pointer relative group"
-        :style="{ height: `${Math.max(15, (bin.count / maxCount) * 100)}%` }"
+        class="flex-1 min-w-[2px] h-full flex flex-col justify-end relative group cursor-pointer"
+        :title="isFiltered ? `${bin.date}: ${bin.filteredCount} / ${bin.fullCount} reports` : `${bin.date}: ${bin.fullCount} reports`"
       >
+        <!-- Background bar: Full set (greyed out when filtered) -->
+        <div
+          v-if="isFiltered && bin.fullCount > 0"
+          class="w-full bg-gray-200 group-hover:bg-gray-300 rounded-t transition-all absolute bottom-0"
+          :style="{ height: `${Math.max(6, (bin.fullCount / maxCount) * 100)}%` }"
+        ></div>
+
+        <!-- Foreground bar: Filtered set (accent color) -->
+        <div
+          v-if="bin.filteredCount > 0"
+          class="w-full rounded-t transition-all absolute bottom-0 z-10"
+          :class="isFiltered ? 'bg-[#833dff] group-hover:bg-[#6c28d9]' : 'bg-[#c8a8ff] group-hover:bg-[#833dff]'"
+          :style="{ height: `${Math.max(isFiltered ? 4 : 12, (bin.filteredCount / maxCount) * 100)}%` }"
+        ></div>
+
         <!-- Floating Tooltip -->
-        <div class="opacity-0 group-hover:opacity-100 transition absolute bottom-full left-1/2 -translate-x-1/2 mb-1 pointer-events-none z-30 whitespace-nowrap bg-black text-white text-[10px] px-1.5 py-0.5 rounded shadow">
-          {{ bin.date }}: {{ bin.count }}
+        <div
+          class="opacity-0 group-hover:opacity-100 transition absolute bottom-full left-1/2 -translate-x-1/2 mb-1 pointer-events-none z-30 whitespace-nowrap bg-black text-white text-[10px] px-1.5 py-0.5 rounded shadow pointer-events-none"
+        >
+          <div class="font-bold">{{ bin.date }}</div>
+          <div v-if="isFiltered">
+            {{ bin.filteredCount }} of {{ bin.fullCount }} reports
+          </div>
+          <div v-else>
+            {{ bin.fullCount }} {{ bin.fullCount === 1 ? 'report' : 'reports' }}
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="flex justify-between text-[10px] text-gray-400 mt-1 font-mono gap-1 overflow-hidden">
-      <span class="truncate min-w-0">{{ histogram[0]?.date }}</span>
-      <span class="truncate min-w-0 text-right">{{ histogram[histogram.length - 1]?.date }}</span>
+    <!-- Date Range Footer -->
+    <div
+      v-if="combinedBins.length > 0"
+      class="flex justify-between text-[10px] text-gray-400 mt-1 font-mono gap-1 overflow-hidden"
+    >
+      <span class="truncate min-w-0">{{ combinedBins[0]?.date }}</span>
+      <span class="truncate min-w-0 text-right">{{ combinedBins[combinedBins.length - 1]?.date }}</span>
     </div>
   </div>
 </template>
@@ -35,18 +73,50 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  histogram: { type: Array, default: () => [] }
+  histogram: { type: Array, default: () => [] },
+  fullHistogram: { type: Array, default: () => [] },
+  isFiltered: { type: Boolean, default: false },
+  heightClass: { type: String, default: 'h-12' },
+  showTitle: { type: Boolean, default: true }
 })
 
 defineEmits(['select-date'])
 
-const maxCount = computed(() => {
-  if (!props.histogram || props.histogram.length === 0) return 1
-  return Math.max(...props.histogram.map(b => b.count), 1)
+const combinedBins = computed(() => {
+  const full = props.fullHistogram && props.fullHistogram.length > 0 ? props.fullHistogram : []
+  const filtered = props.histogram && props.histogram.length > 0 ? props.histogram : []
+
+  const fullMap = new Map(full.map(b => [b.date, b.count]))
+  const filteredMap = new Map(filtered.map(b => [b.date, b.count]))
+
+  const dateSet = new Set([...fullMap.keys(), ...filteredMap.keys()])
+  const sortedDates = Array.from(dateSet).sort()
+
+  const hasFull = full.length > 0
+  const isFiltered = props.isFiltered
+
+  return sortedDates.map(date => {
+    const fullCount = hasFull ? (fullMap.get(date) || 0) : (filteredMap.get(date) || 0)
+    const filteredCount = isFiltered ? (filteredMap.get(date) || 0) : fullCount
+
+    return {
+      date,
+      fullCount,
+      filteredCount
+    }
+  })
 })
 
-const totalCount = computed(() => {
-  if (!props.histogram) return 0
-  return props.histogram.reduce((sum, b) => sum + b.count, 0)
+const maxCount = computed(() => {
+  if (combinedBins.value.length === 0) return 1
+  return Math.max(...combinedBins.value.map(b => Math.max(b.fullCount, b.filteredCount)), 1)
+})
+
+const totalFilteredCount = computed(() => {
+  return combinedBins.value.reduce((sum, b) => sum + b.filteredCount, 0)
+})
+
+const totalFullCount = computed(() => {
+  return combinedBins.value.reduce((sum, b) => sum + b.fullCount, 0)
 })
 </script>

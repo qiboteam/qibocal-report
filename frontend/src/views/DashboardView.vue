@@ -2,7 +2,9 @@
   <div class="flex h-screen overflow-hidden bg-[#f7f7f7]">
     <!-- Left Sidebar -->
     <sidebar
-      :filter-stats="filterStats"
+      :filter-stats="filteredStats || filterStats"
+      :full-stats="filterStats"
+      :is-filtered="hasActiveFilters"
       :selected-author="filters.author"
       :selected-protocols="filters.protocols"
       :selected-labels="filters.labels"
@@ -38,8 +40,22 @@
             />
           </div>
 
-          <!-- Controls: View Mode & Sort -->
+          <!-- Controls: View Mode, Sort, & Summary Recap -->
           <div class="flex items-center gap-2">
+            <!-- Summary / Recap Toggle Button (InspireHEP style) -->
+            <button
+              @click="showRecap = !showRecap"
+              class="px-2.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs border cursor-pointer"
+              :class="showRecap ? 'bg-[#ebe0ff] text-[#833dff] border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:text-gray-900'"
+              :title="showRecap ? 'Hide statistics summary' : 'Show statistics summary'"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span>Summary</span>
+              <span v-if="hasActiveFilters" class="w-1.5 h-1.5 rounded-full bg-[#833dff]"></span>
+            </button>
+
             <!-- Sort dropdown -->
             <select
               v-model="filters.sort_by"
@@ -84,14 +100,14 @@
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800"
           >
             Author: {{ filters.author }}
-            <button type="button" @click="filters.author = ''; fetchReports()" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
+            <button type="button" @click="clearFilter('author')" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
           <span
             v-if="filters.platform"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             Platform: {{ filters.platform }}
-            <button type="button" @click="filters.platform = ''; fetchReports()" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
+            <button type="button" @click="clearFilter('platform')" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
           <span
             v-for="p in filters.protocols"
@@ -99,7 +115,7 @@
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             {{ p }}
-            <button type="button" @click="onToggleProtocol(p)" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
+            <button type="button" @click="clearFilter('protocol', p)" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
           <span
             v-for="l in filters.labels"
@@ -107,14 +123,14 @@
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             Tag: {{ l }}
-            <button type="button" @click="onToggleLabel(l)" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
+            <button type="button" @click="clearFilter('label', l)" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
           <span
             v-if="filters.date"
             class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
           >
             Date: {{ filters.date }}
-            <button type="button" @click="filters.date = ''; fetchReports()" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
+            <button type="button" @click="clearFilter('date')" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
           </span>
         </div>
       </div>
@@ -187,6 +203,21 @@
           </div>
           <button type="button" @click="bulkSuccessMessage = ''" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-emerald-950 font-bold cursor-pointer leading-none text-base">&times;</button>
         </div>
+
+        <!-- InspireHEP-style Statistics Recap for Filtered Reports -->
+        <filtered-recap
+          v-if="showRecap && !loading && !connectionError && reports.length > 0"
+          :filter-stats="filteredStats || filterStats"
+          :full-stats="filterStats"
+          :is-filtered="hasActiveFilters"
+          @toggle-protocol="onToggleProtocol"
+          @filter-platform="p => onUpdateFilter({ key: 'platform', value: p })"
+          @filter-author="a => onUpdateFilter({ key: 'author', value: a })"
+          @filter-tag="onToggleLabel"
+          @select-date="d => onUpdateFilter({ key: 'date', value: d })"
+          @reset-filters="onResetFilters"
+          @close="showRecap = false"
+        />
 
         <!-- Loading State -->
         <div
@@ -315,6 +346,7 @@ import { useBulkActions } from '../composables/useBulkActions.js'
 import Sidebar from '../components/Sidebar.vue'
 import ReportTable from '../components/ReportTable.vue'
 import ReportCards from '../components/ReportCards.vue'
+import FilteredRecap from '../components/FilteredRecap.vue'
 import PaginationBar from '../components/PaginationBar.vue'
 import LabelModal from '../components/modals/LabelModal.vue'
 import UnlabelModal from '../components/modals/UnlabelModal.vue'
@@ -326,6 +358,8 @@ const route = useRoute()
 const viewMode = ref('table')
 const reports = ref([])
 const filterStats = ref(null)
+const filteredStats = ref(null)
+const showRecap = ref(true)
 const loading = ref(true)
 const connectionError = ref(null)
 
@@ -438,11 +472,24 @@ function onPageSizeChange(newSize) {
   fetchReports(1, false)
 }
 
+function clearFilter(key, value = null) {
+  if (key === 'author') filters.author = ''
+  else if (key === 'platform') filters.platform = ''
+  else if (key === 'date') filters.date = ''
+  else if (key === 'protocol') toggleProtocol(value)
+  else if (key === 'label') toggleLabel(value)
+  currentPage.value = 1
+  clearCache()
+  fetchReports(1, false)
+  fetchFilteredStats()
+}
+
 function onUpdateFilter(payload) {
   updateFilter(payload)
   currentPage.value = 1
   clearCache()
   fetchReports(1, false)
+  fetchFilteredStats()
 }
 
 function onToggleProtocol(p) {
@@ -450,6 +497,7 @@ function onToggleProtocol(p) {
   currentPage.value = 1
   clearCache()
   fetchReports(1, false)
+  fetchFilteredStats()
 }
 
 function onToggleLabel(l) {
@@ -457,6 +505,7 @@ function onToggleLabel(l) {
   currentPage.value = 1
   clearCache()
   fetchReports(1, false)
+  fetchFilteredStats()
 }
 
 function onResetFilters() {
@@ -465,6 +514,7 @@ function onResetFilters() {
   currentPage.value = 1
   clearCache()
   fetchReports(1, false)
+  fetchFilteredStats()
 }
 
 function openReport(report) {
@@ -476,6 +526,7 @@ function openReport(report) {
 async function onBulkActionSuccess() {
   clearCache()
   await Promise.all([fetchStats(), fetchReports(currentPage.value, false)])
+  await fetchFilteredStats()
 }
 
 async function refreshData() {
@@ -485,8 +536,10 @@ async function refreshData() {
   totalReports.value = 0
   currentPage.value = 1
   filterStats.value = null
+  filteredStats.value = null
   clearCache()
   await Promise.all([fetchStats(), fetchReports(1, false)])
+  await fetchFilteredStats()
 }
 
 async function fetchStats() {
@@ -500,6 +553,36 @@ async function fetchStats() {
   } catch (err) {
     console.error('Failed to fetch stats', err)
     filterStats.value = null
+  }
+}
+
+async function fetchFilteredStats() {
+  if (!hasActiveFilters.value) {
+    filteredStats.value = filterStats.value
+    return
+  }
+  try {
+    const params = new URLSearchParams()
+    if (filters.q.trim()) params.set('q', filters.q.trim())
+    if (filters.sort_by) params.set('sort_by', filters.sort_by)
+    if (filters.author) params.set('author', filters.author)
+    if (filters.platform) params.set('platform', filters.platform)
+    if (filters.date) {
+      params.set('start_date', filters.date)
+      params.set('end_date', filters.date)
+    }
+    filters.protocols.forEach(p => params.append('protocol', p))
+    filters.labels.forEach(l => params.append('label', l))
+
+    const res = await apiFetch(`/api/reports/stats?${params.toString()}`)
+    if (res.ok) {
+      filteredStats.value = await res.json()
+    } else {
+      filteredStats.value = null
+    }
+  } catch (err) {
+    console.error('Failed to fetch filtered stats', err)
+    filteredStats.value = null
   }
 }
 
@@ -644,6 +727,7 @@ watch(
       currentPage.value = 1
       clearCache()
       fetchReports(1, false)
+      fetchFilteredStats()
     }
   },
   { deep: true }
@@ -658,6 +742,7 @@ watch(
       currentPage.value = 1
       clearSelection()
       filterStats.value = null
+      filteredStats.value = null
       clearCache()
       loading.value = true
       connectionError.value = null
@@ -675,6 +760,7 @@ watch(
       currentPage.value = 1
       clearCache()
       fetchReports(1, false)
+      fetchFilteredStats()
     }, 200)
   }
 )
@@ -685,6 +771,7 @@ watch(
     currentPage.value = 1
     clearCache()
     fetchReports(1, false)
+    fetchFilteredStats()
   }
 )
 </script>

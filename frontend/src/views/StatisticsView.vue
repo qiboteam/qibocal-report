@@ -6,31 +6,31 @@
     <!-- Main Content Panel -->
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
       <!-- Top Bar: Header, Active Server info, Refresh -->
-      <div class="sticky top-0 bg-[#f7f7f7]/90 backdrop-blur-md px-6 py-4 border-b border-gray-200/70 z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-xl font-bold text-gray-900 tracking-tight">Statistics & Insights</h1>
-            <span class="text-xs bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded-full">
+      <div class="sticky top-0 bg-[#f7f7f7]/90 backdrop-blur-md px-4 sm:px-6 py-4 border-b border-gray-200/70 z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h1 class="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">Statistics & Insights</h1>
+            <span class="text-xs bg-purple-100 text-purple-800 font-semibold px-2 py-0.5 rounded-full shrink-0">
               Overview
             </span>
           </div>
-          <p class="text-xs text-gray-500 mt-0.5">
+          <p class="text-xs text-gray-500 mt-0.5 truncate max-w-full">
             Aggregated calibration metrics across platforms, protocols, authors, and tags. Click any metric to filter reports in the table view.
           </p>
         </div>
 
-        <div class="flex items-center gap-3 shrink-0">
+        <div class="flex items-center gap-2.5 shrink-0">
           <!-- Active Server Indicator -->
           <div
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs bg-white border border-gray-200 shadow-2xs"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs bg-white border border-gray-200 shadow-2xs max-w-[200px]"
             :title="activeServer?.url || 'Local Instance'"
           >
             <span
-              class="w-2 h-2 rounded-full"
+              class="w-2 h-2 rounded-full shrink-0"
               :class="connectionError ? 'bg-red-500' : loading ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'"
             ></span>
-            <span class="text-gray-400 text-[11px]">Server:</span>
-            <span class="font-semibold text-gray-700 max-w-[140px] truncate">
+            <span class="text-gray-400 text-[11px] shrink-0">Server:</span>
+            <span class="font-semibold text-gray-700 truncate">
               {{ activeServer?.name || 'Local Instance' }}
             </span>
           </div>
@@ -39,7 +39,7 @@
           <button
             @click="loadStats"
             :disabled="loading"
-            class="px-3 py-1.5 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            class="px-2.5 py-1.5 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh statistics"
           >
             <svg
@@ -57,15 +57,15 @@
       </div>
 
       <!-- Content Area -->
-      <div class="p-6 max-w-7xl w-full mx-auto space-y-6">
+      <div class="p-4 sm:p-6 w-full max-w-full box-border min-w-0 space-y-5 pb-12">
         <!-- Error Banner -->
         <div
           v-if="connectionError"
-          class="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          class="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0"
         >
-          <div>
+          <div class="min-w-0">
             <div class="font-bold text-xs uppercase tracking-wider mb-0.5">Connection Error</div>
-            <div class="text-xs">{{ connectionError }}</div>
+            <div class="text-xs truncate">{{ connectionError }}</div>
           </div>
           <button
             @click="loadStats"
@@ -88,269 +88,212 @@
 
         <template v-else>
           <!-- Top KPI Overview Cards -->
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+          <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 min-w-0 w-full">
             <!-- Total Reports -->
-            <div class="bm-card p-4 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-gray-500 mb-2">
-                <span class="text-xs font-semibold uppercase tracking-wider">Reports</span>
-                <span class="p-1.5 rounded-lg bg-purple-50 text-[#833dff]">
+            <div class="bm-card p-3.5 sm:p-4 flex flex-col justify-between min-w-0">
+              <div class="flex items-center justify-between text-gray-500 mb-2 min-w-0">
+                <span class="text-xs font-semibold uppercase tracking-wider truncate">Reports</span>
+                <span class="p-1.5 rounded-lg bg-purple-50 text-[#833dff] shrink-0">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </span>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-2xl font-extrabold text-gray-900 font-mono">{{ totalReportsCount }}</div>
                 <router-link
                   to="/dashboard"
-                  class="text-[11px] text-[#833dff] hover:underline font-medium inline-flex items-center gap-0.5 mt-1"
+                  class="text-[11px] text-[#833dff] hover:underline font-medium inline-flex items-center gap-0.5 mt-1 truncate max-w-full"
                 >
-                  View all in table &rarr;
+                  View in table &rarr;
                 </router-link>
               </div>
             </div>
 
             <!-- Platforms Count -->
-            <div class="bm-card p-4 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-gray-500 mb-2">
-                <span class="text-xs font-semibold uppercase tracking-wider">Platforms</span>
-                <span class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+            <div class="bm-card p-3.5 sm:p-4 flex flex-col justify-between min-w-0">
+              <div class="flex items-center justify-between text-gray-500 mb-2 min-w-0">
+                <span class="text-xs font-semibold uppercase tracking-wider truncate">Platforms</span>
+                <span class="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                   </svg>
                 </span>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-2xl font-extrabold text-gray-900 font-mono">{{ platformsList.length }}</div>
-                <span class="text-[11px] text-gray-400">Unique QPUs / rigs</span>
+                <span class="text-[11px] text-gray-400 truncate block">Unique QPUs</span>
               </div>
             </div>
 
             <!-- Protocols Count -->
-            <div class="bm-card p-4 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-gray-500 mb-2">
-                <span class="text-xs font-semibold uppercase tracking-wider">Protocols</span>
-                <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+            <div class="bm-card p-3.5 sm:p-4 flex flex-col justify-between min-w-0">
+              <div class="flex items-center justify-between text-gray-500 mb-2 min-w-0">
+                <span class="text-xs font-semibold uppercase tracking-wider truncate">Protocols</span>
+                <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                   </svg>
                 </span>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-2xl font-extrabold text-gray-900 font-mono">{{ protocolsList.length }}</div>
-                <span class="text-[11px] text-gray-400">Distinct routines</span>
+                <span class="text-[11px] text-gray-400 truncate block">Distinct routines</span>
               </div>
             </div>
 
             <!-- Authors Count -->
-            <div class="bm-card p-4 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-gray-500 mb-2">
-                <span class="text-xs font-semibold uppercase tracking-wider">Authors</span>
-                <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+            <div class="bm-card p-3.5 sm:p-4 flex flex-col justify-between min-w-0">
+              <div class="flex items-center justify-between text-gray-500 mb-2 min-w-0">
+                <span class="text-xs font-semibold uppercase tracking-wider truncate">Authors</span>
+                <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600 shrink-0">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                   </svg>
                 </span>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-2xl font-extrabold text-gray-900 font-mono">{{ authorsList.length }}</div>
-                <span class="text-[11px] text-gray-400">Contributors</span>
+                <span class="text-[11px] text-gray-400 truncate block">Contributors</span>
               </div>
             </div>
 
             <!-- Tags Count -->
-            <div class="bm-card p-4 flex flex-col justify-between">
-              <div class="flex items-center justify-between text-gray-500 mb-2">
-                <span class="text-xs font-semibold uppercase tracking-wider">Tags</span>
-                <span class="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+            <div class="bm-card p-3.5 sm:p-4 flex flex-col justify-between min-w-0 col-span-2 sm:col-span-1">
+              <div class="flex items-center justify-between text-gray-500 mb-2 min-w-0">
+                <span class="text-xs font-semibold uppercase tracking-wider truncate">Tags</span>
+                <span class="p-1.5 rounded-lg bg-amber-50 text-amber-600 shrink-0">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                   </svg>
                 </span>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-2xl font-extrabold text-gray-900 font-mono">{{ tagsList.length }}</div>
-                <span class="text-[11px] text-gray-400">Applied labels</span>
+                <span class="text-[11px] text-gray-400 truncate block">Applied labels</span>
               </div>
             </div>
           </div>
 
-          <!-- Two Column Layout: Platforms and Authors -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Platform Breakdown Card -->
-            <div class="bm-card p-5 flex flex-col">
-              <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
-                <div class="flex items-center gap-2">
-                  <div class="w-2.5 h-2.5 rounded-full bg-[#833dff]"></div>
-                  <h2 class="text-sm font-bold text-gray-900 uppercase tracking-wider">Reports by Platform</h2>
+          <!-- Main Two-Column Layout: Left (Platforms, Authors, Tags, Activity) & Right (Reports per Protocol) -->
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 min-w-0 w-full items-start">
+            <!-- Left Column: Compact Metrics (Platforms, Authors, Tags, Activity) -->
+            <div class="space-y-5 min-w-0 flex flex-col">
+              <!-- Platform Breakdown Card -->
+              <div class="bm-card p-4 sm:p-5 flex flex-col min-w-0">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-3 min-w-0">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-2.5 h-2.5 rounded-full bg-[#833dff] shrink-0"></div>
+                    <h2 class="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider truncate">Reports by Platform</h2>
+                  </div>
+                  <span class="text-xs text-gray-400 font-mono shrink-0">{{ platformsList.length }} platforms</span>
                 </div>
-                <span class="text-xs text-gray-400 font-mono">{{ platformsList.length }} platforms</span>
-              </div>
 
-              <div v-if="platformsList.length === 0" class="py-8 text-center text-xs text-gray-400 italic">
-                No platform data found
-              </div>
+                <div v-if="platformsList.length === 0" class="py-6 text-center text-xs text-gray-400 italic">
+                  No platform data found
+                </div>
 
-              <div v-else class="space-y-3 flex-1 overflow-y-auto max-h-[380px] pr-1">
-                <div
-                  v-for="plat in platformsList"
-                  :key="plat.name"
-                  @click="filterBy('platform', plat.name)"
-                  class="group p-2.5 rounded-xl hover:bg-purple-50/60 transition cursor-pointer border border-transparent hover:border-purple-100"
-                  :title="`Filter table by platform: ${plat.name}`"
-                >
-                  <div class="flex items-center justify-between mb-1.5">
-                    <div class="flex items-center gap-2 min-w-0">
-                      <span class="font-mono text-xs font-semibold text-gray-800 group-hover:text-[#833dff] transition truncate">
+                <div v-else class="space-y-2.5 min-w-0">
+                  <div
+                    v-for="plat in platformsList"
+                    :key="plat.name"
+                    @click="filterBy('platform', plat.name)"
+                    class="group p-2.5 rounded-xl hover:bg-purple-50/60 transition cursor-pointer border border-transparent hover:border-purple-100 min-w-0"
+                    :title="`Filter table by platform: ${plat.name}`"
+                  >
+                    <div class="flex items-center justify-between mb-1.5 min-w-0 gap-2">
+                      <span class="font-mono text-xs font-semibold text-gray-800 group-hover:text-[#833dff] transition truncate min-w-0 flex-1">
                         {{ plat.name || 'Unknown' }}
                       </span>
-                    </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                      <span class="text-xs font-bold font-mono text-gray-900">{{ plat.count }}</span>
-                      <span class="text-[11px] text-gray-400 font-mono">({{ getPercentage(plat.count, totalReportsCount) }}%)</span>
-                      <span class="text-xs text-[#833dff] opacity-0 group-hover:opacity-100 transition ml-1 font-semibold">
-                        &rarr;
-                      </span>
-                    </div>
-                  </div>
-                  <!-- Progress Bar -->
-                  <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <div
-                      class="bg-gradient-to-r from-[#833dff] to-purple-400 h-2 rounded-full transition-all duration-300"
-                      :style="{ width: `${getPercentage(plat.count, totalReportsCount)}%` }"
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Author Breakdown Card -->
-            <div class="bm-card p-5 flex flex-col">
-              <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
-                <div class="flex items-center gap-2">
-                  <div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-                  <h2 class="text-sm font-bold text-gray-900 uppercase tracking-wider">Reports by Author</h2>
-                </div>
-                <span class="text-xs text-gray-400 font-mono">{{ authorsList.length }} authors</span>
-              </div>
-
-              <div v-if="authorsList.length === 0" class="py-8 text-center text-xs text-gray-400 italic">
-                No author data found
-              </div>
-
-              <div v-else class="space-y-3 flex-1 overflow-y-auto max-h-[380px] pr-1">
-                <div
-                  v-for="aut in authorsList"
-                  :key="aut.name"
-                  @click="filterBy('author', aut.name)"
-                  class="group p-2.5 rounded-xl hover:bg-blue-50/60 transition cursor-pointer border border-transparent hover:border-blue-100"
-                  :title="`Filter table by author: ${aut.name}`"
-                >
-                  <div class="flex items-center justify-between mb-1.5">
-                    <div class="flex items-center gap-2.5 min-w-0">
-                      <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center justify-center shrink-0 uppercase font-mono">
-                        {{ aut.name[0] || '?' }}
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        <span class="text-xs font-bold font-mono text-gray-900">{{ plat.count }}</span>
+                        <span class="text-[11px] text-gray-400 font-mono">({{ getPercentage(plat.count, totalReportsCount) }}%)</span>
+                        <span class="text-xs text-[#833dff] opacity-0 group-hover:opacity-100 transition font-semibold">
+                          &rarr;
+                        </span>
                       </div>
-                      <span class="text-xs font-semibold text-gray-800 group-hover:text-blue-700 transition truncate">
-                        {{ aut.name || 'Unknown' }}
-                      </span>
                     </div>
-                    <div class="flex items-center gap-2 shrink-0">
-                      <span class="text-xs font-bold font-mono text-gray-900">{{ aut.count }}</span>
-                      <span class="text-[11px] text-gray-400 font-mono">({{ getPercentage(aut.count, totalReportsCount) }}%)</span>
-                      <span class="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition ml-1 font-semibold">
-                        &rarr;
-                      </span>
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        class="bg-gradient-to-r from-[#833dff] to-purple-400 h-1.5 rounded-full transition-all duration-300"
+                        :style="{ width: `${getPercentage(plat.count, totalReportsCount)}%` }"
+                      ></div>
                     </div>
                   </div>
-                  <!-- Progress Bar -->
-                  <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                    <div
-                      class="bg-gradient-to-r from-blue-500 to-indigo-400 h-2 rounded-full transition-all duration-300"
-                      :style="{ width: `${getPercentage(aut.count, totalReportsCount)}%` }"
-                    ></div>
+                </div>
+              </div>
+
+              <!-- Author Breakdown Card -->
+              <div class="bm-card p-4 sm:p-5 flex flex-col min-w-0">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-3 min-w-0">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0"></div>
+                    <h2 class="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider truncate">Reports by Author</h2>
                   </div>
+                  <span class="text-xs text-gray-400 font-mono shrink-0">{{ authorsList.length }} authors</span>
                 </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Two Column Layout: Protocol Frequencies & Tags/Timeline -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Protocol Frequencies Card with Search -->
-            <div class="bm-card p-5 flex flex-col">
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-gray-100 gap-2 mb-3">
-                <div class="flex items-center gap-2">
-                  <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-                  <h2 class="text-sm font-bold text-gray-900 uppercase tracking-wider">Reports per Protocol</h2>
+                <div v-if="authorsList.length === 0" class="py-6 text-center text-xs text-gray-400 italic">
+                  No author data found
                 </div>
-                <!-- Protocol Search Filter -->
-                <div class="relative max-w-xs w-full">
-                  <input
-                    v-model="protocolSearch"
-                    type="text"
-                    placeholder="Filter protocols..."
-                    class="w-full text-xs px-2.5 py-1 bg-gray-50 border-0 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#833dff]"
-                  />
-                </div>
-              </div>
 
-              <div v-if="filteredProtocols.length === 0" class="py-8 text-center text-xs text-gray-400 italic">
-                {{ protocolSearch ? 'No matching protocols' : 'No protocol data found' }}
-              </div>
-
-              <div v-else class="space-y-2 flex-1 overflow-y-auto max-h-[400px] pr-1">
-                <div
-                  v-for="proto in filteredProtocols"
-                  :key="proto.name"
-                  @click="filterBy('protocol', proto.name)"
-                  class="group p-2 rounded-xl hover:bg-emerald-50/60 transition cursor-pointer border border-transparent hover:border-emerald-100"
-                  :title="`Filter table by protocol: ${proto.name}`"
-                >
-                  <div class="flex items-center justify-between mb-1">
-                    <span class="font-mono text-xs font-semibold text-gray-800 group-hover:text-emerald-700 transition truncate mr-2">
-                      {{ proto.name }}
-                    </span>
-                    <div class="flex items-center gap-2 shrink-0">
-                      <span class="text-xs font-bold font-mono text-gray-900">{{ proto.count }}</span>
-                      <span class="text-[10px] text-gray-400 font-mono">({{ getPercentage(proto.count, maxProtocolCount) }}% of max)</span>
-                      <span class="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition ml-1 font-semibold">
-                        &rarr;
-                      </span>
+                <div v-else class="space-y-2.5 min-w-0">
+                  <div
+                    v-for="aut in authorsList"
+                    :key="aut.name"
+                    @click="filterBy('author', aut.name)"
+                    class="group p-2.5 rounded-xl hover:bg-blue-50/60 transition cursor-pointer border border-transparent hover:border-blue-100 min-w-0"
+                    :title="`Filter table by author: ${aut.name}`"
+                  >
+                    <div class="flex items-center justify-between mb-1.5 min-w-0 gap-2">
+                      <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <div class="w-5 h-5 rounded-full bg-blue-100 text-blue-700 font-bold text-[10px] flex items-center justify-center shrink-0 uppercase font-mono">
+                          {{ (aut.name && aut.name[0]) || '?' }}
+                        </div>
+                        <span class="text-xs font-semibold text-gray-800 group-hover:text-blue-700 transition truncate min-w-0">
+                          {{ aut.name || 'Unknown' }}
+                        </span>
+                      </div>
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        <span class="text-xs font-bold font-mono text-gray-900">{{ aut.count }}</span>
+                        <span class="text-[11px] text-gray-400 font-mono">({{ getPercentage(aut.count, totalReportsCount) }}%)</span>
+                        <span class="text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition font-semibold">
+                          &rarr;
+                        </span>
+                      </div>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        class="bg-gradient-to-r from-blue-500 to-indigo-400 h-1.5 rounded-full transition-all duration-300"
+                        :style="{ width: `${getPercentage(aut.count, totalReportsCount)}%` }"
+                      ></div>
                     </div>
                   </div>
-                  <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      class="bg-gradient-to-r from-emerald-500 to-teal-400 h-1.5 rounded-full transition-all duration-300"
-                      :style="{ width: `${getPercentage(proto.count, maxProtocolCount)}%` }"
-                    ></div>
-                  </div>
                 </div>
               </div>
-            </div>
 
-            <!-- Tags & Activity Timeline Column -->
-            <div class="space-y-6 flex flex-col">
               <!-- Tags & Labels Cloud Card -->
-              <div class="bm-card p-5">
-                <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
-                  <div class="flex items-center gap-2">
-                    <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
-                    <h2 class="text-sm font-bold text-gray-900 uppercase tracking-wider">Tags & Labels</h2>
+              <div class="bm-card p-4 sm:p-5 min-w-0">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-3 min-w-0">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></div>
+                    <h2 class="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider truncate">Tags & Labels</h2>
                   </div>
-                  <span class="text-xs text-gray-400 font-mono">{{ tagsList.length }} tags</span>
+                  <span class="text-xs text-gray-400 font-mono shrink-0">{{ tagsList.length }} tags</span>
                 </div>
 
                 <div v-if="tagsList.length === 0" class="py-6 text-center text-xs text-gray-400 italic">
                   No tags or labels found
                 </div>
 
-                <div v-else class="flex flex-wrap gap-2">
+                <div v-else class="flex flex-wrap gap-2 min-w-0">
                   <button
                     v-for="t in tagsList"
                     :key="t.name"
                     @click="filterBy('label', t.name)"
-                    class="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-[#833dff] text-purple-700 hover:text-white transition font-mono text-xs cursor-pointer select-none border-0 shadow-none"
+                    class="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-[#833dff] text-purple-700 hover:text-white transition font-mono text-xs cursor-pointer select-none border-0 shadow-none shrink-0"
                     :title="`Filter table by tag: ${t.name}`"
                   >
                     <span class="font-semibold">{{ t.name }}</span>
@@ -362,26 +305,26 @@
               </div>
 
               <!-- Date Activity Histogram Card -->
-              <div class="bm-card p-5 flex-1 flex flex-col">
-                <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-3">
-                  <div class="flex items-center gap-2">
-                    <div class="w-2.5 h-2.5 rounded-full bg-violet-500"></div>
-                    <h2 class="text-sm font-bold text-gray-900 uppercase tracking-wider">Activity Over Time</h2>
+              <div class="bm-card p-4 sm:p-5 flex flex-col min-w-0">
+                <div class="flex items-center justify-between pb-3 border-b border-gray-100 mb-3 min-w-0">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-2.5 h-2.5 rounded-full bg-violet-500 shrink-0"></div>
+                    <h2 class="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider truncate">Activity Over Time</h2>
                   </div>
-                  <span class="text-xs text-gray-400 font-mono">{{ dateBins.length }} days</span>
+                  <span class="text-xs text-gray-400 font-mono shrink-0">{{ dateBins.length }} days</span>
                 </div>
 
                 <div v-if="dateBins.length === 0" class="py-6 text-center text-xs text-gray-400 italic">
                   No date history available
                 </div>
 
-                <div v-else class="flex-1 flex flex-col justify-end">
-                  <div class="flex items-end gap-1.5 h-32 w-full pt-4 overflow-x-auto pb-1">
+                <div v-else class="flex flex-col justify-end min-w-0 w-full">
+                  <div class="flex items-end gap-1.5 h-28 w-full max-w-full min-w-0 pt-4 overflow-x-auto pb-1 box-border">
                     <div
                       v-for="bin in dateBins"
                       :key="bin.date"
                       @click="filterBy('date', bin.date)"
-                      class="flex-1 min-w-[20px] max-w-[48px] flex flex-col items-center gap-1 group cursor-pointer"
+                      class="flex-1 min-w-[24px] max-w-[48px] flex flex-col items-center gap-1 group cursor-pointer shrink-0"
                       :title="`${bin.date}: ${bin.count} report(s) - Click to filter`"
                     >
                       <span class="text-[9px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition">
@@ -400,6 +343,60 @@
                   </div>
                   <div class="text-[10px] text-gray-400 text-center mt-2 italic">
                     Click any day to filter table reports for that date
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: Reports per Protocol (Long list) -->
+            <div class="min-w-0 flex flex-col">
+              <!-- Protocol Frequencies Card with Search -->
+              <div class="bm-card p-4 sm:p-5 flex flex-col min-w-0">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-gray-100 gap-2 mb-3 min-w-0">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></div>
+                    <h2 class="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider truncate">Reports per Protocol</h2>
+                  </div>
+                  <!-- Protocol Search Filter -->
+                  <div class="relative max-w-xs w-full min-w-0">
+                    <input
+                      v-model="protocolSearch"
+                      type="text"
+                      placeholder="Filter protocols..."
+                      class="w-full text-xs px-2.5 py-1 bg-gray-50 border-0 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+                    />
+                  </div>
+                </div>
+
+                <div v-if="filteredProtocols.length === 0" class="py-8 text-center text-xs text-gray-400 italic">
+                  {{ protocolSearch ? 'No matching protocols' : 'No protocol data found' }}
+                </div>
+
+                <div v-else class="space-y-2 min-w-0">
+                  <div
+                    v-for="proto in filteredProtocols"
+                    :key="proto.name"
+                    @click="filterBy('protocol', proto.name)"
+                    class="group p-2.5 rounded-xl hover:bg-emerald-50/60 transition cursor-pointer border border-transparent hover:border-emerald-100 min-w-0"
+                    :title="`Filter table by protocol: ${proto.name}`"
+                  >
+                    <div class="flex items-center justify-between mb-1 min-w-0 gap-2">
+                      <span class="font-mono text-xs font-semibold text-gray-800 group-hover:text-emerald-700 transition truncate min-w-0 flex-1">
+                        {{ proto.name }}
+                      </span>
+                      <div class="flex items-center gap-1.5 shrink-0">
+                        <span class="text-xs font-bold font-mono text-gray-900">{{ proto.count }}</span>
+                        <span class="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition font-semibold">
+                          &rarr;
+                        </span>
+                      </div>
+                    </div>
+                    <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        class="bg-gradient-to-r from-emerald-500 to-teal-400 h-1.5 rounded-full transition-all duration-300"
+                        :style="{ width: `${getPercentage(proto.count, maxProtocolCount)}%` }"
+                      ></div>
+                    </div>
                   </div>
                 </div>
               </div>

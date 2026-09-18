@@ -221,10 +221,32 @@ def get_reports(
 
 
 @app.get("/api/reports/stats", response_model=FilterStats, tags=["Reports"])
-def get_filter_statistics() -> FilterStats:
+def get_filter_statistics(
+    q: str | None = None,
+    author: Annotated[list[str] | None, Query()] = None,
+    platform: Annotated[list[str] | None, Query()] = None,
+    protocol: Annotated[list[str] | None, Query()] = None,
+    label: Annotated[list[str] | None, Query()] = None,
+    tag: Annotated[list[str] | None, Query()] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    sort_by: str = "date_desc",
+) -> FilterStats:
     """Return filter statistics: protocol frequencies, authors, date histogram."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
-    return compute_filter_stats(all_reports)
+    combined_tags = list(set((label or []) + (tag or []))) or None
+    filtered = filter_reports(
+        all_reports,
+        query=q,
+        authors=author,
+        platforms=platform,
+        labels=combined_tags,
+        protocols=protocol,
+        start_date=start_date,
+        end_date=end_date,
+        sort_by=sort_by,
+    )
+    return compute_filter_stats(filtered)
 
 
 def _find_report_dirs(root_dir: Path, report_ids: list[str]) -> list[Path]:

@@ -124,6 +124,8 @@
     <div class="mb-4 w-full min-w-0 overflow-hidden">
       <date-histogram
         :histogram="filterStats?.date_histogram"
+        :full-histogram="fullStats?.date_histogram"
+        :is-filtered="isFiltered"
         @select-date="d => $emit('update-filter', { key: 'date', value: d })"
       />
     </div>
@@ -137,7 +139,7 @@
         class="w-full text-xs p-2 rounded-lg bg-gray-50 border-0 focus:outline-none focus:ring-1 focus:ring-[#833dff] max-w-full truncate"
       >
         <option value="">All Authors</option>
-        <option v-for="a in filterStats?.authors" :key="a" :value="a">{{ a }}</option>
+        <option v-for="a in displayedAuthors" :key="a" :value="a">{{ a }}</option>
       </select>
     </div>
 
@@ -149,7 +151,7 @@
       </div>
       <div class="space-y-1.5 max-h-36 overflow-y-auto overflow-x-hidden pr-1 w-full">
         <label
-          v-for="p in filterStats?.protocols"
+          v-for="p in displayedProtocols"
           :key="p.name"
           class="flex items-center justify-between text-xs text-gray-700 hover:bg-gray-50 p-1 rounded cursor-pointer gap-1.5 min-w-0"
         >
@@ -163,7 +165,17 @@
             />
             <span class="truncate font-mono text-[11px]">{{ p.name }}</span>
           </div>
-          <span class="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded-full shrink-0">
+          <span
+            v-if="isFiltered"
+            class="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded-full shrink-0"
+            :title="`${p.count} matching filter out of ${p.fullCount} total`"
+          >
+            {{ p.count }}/{{ p.fullCount }}
+          </span>
+          <span
+            v-else
+            class="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded-full shrink-0"
+          >
             {{ p.count }}
           </span>
         </label>
@@ -301,6 +313,8 @@ import DateHistogram from '../DateHistogram.vue'
 
 const props = defineProps({
   filterStats: { type: Object, default: () => ({}) },
+  fullStats: { type: Object, default: () => ({}) },
+  isFiltered: { type: Boolean, default: false },
   selectedAuthor: { type: String, default: '' },
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
@@ -322,9 +336,30 @@ defineEmits([
 
 const labelSearch = ref('')
 
+const displayedAuthors = computed(() => {
+  return props.fullStats?.authors?.length ? props.fullStats.authors : (props.filterStats?.authors || [])
+})
+
+const displayedLabels = computed(() => {
+  return props.fullStats?.labels?.length ? props.fullStats.labels : (props.filterStats?.labels || [])
+})
+
 const filteredLabels = computed(() => {
-  const all = props.filterStats?.labels || []
+  const all = displayedLabels.value
   if (!labelSearch.value) return all
   return all.filter(l => l.toLowerCase().includes(labelSearch.value.toLowerCase()))
+})
+
+const displayedProtocols = computed(() => {
+  const baseProtocols = props.fullStats?.protocols?.length ? props.fullStats.protocols : (props.filterStats?.protocols || [])
+  if (!props.isFiltered) {
+    return baseProtocols
+  }
+  const filteredMap = new Map((props.filterStats?.protocols || []).map(p => [p.name, p.count]))
+  return baseProtocols.map(p => ({
+    name: p.name,
+    count: filteredMap.get(p.name) || 0,
+    fullCount: p.count
+  }))
 })
 </script>
