@@ -35,8 +35,11 @@ function loadSavedSearchState() {
           author: parsed.filters?.author || '',
           platform: parsed.filters?.platform || '',
           date: parsed.filters?.date || '',
+          startDate: parsed.filters?.startDate || parsed.filters?.date || '',
+          endDate: parsed.filters?.endDate || parsed.filters?.date || '',
           protocols: Array.isArray(parsed.filters?.protocols) ? parsed.filters.protocols : [],
           labels: Array.isArray(parsed.filters?.labels) ? parsed.filters.labels : [],
+          qubits: Array.isArray(parsed.filters?.qubits) ? parsed.filters.qubits : [],
           sort_by: parsed.filters?.sort_by || 'date_desc'
         },
         currentPage: typeof parsed.currentPage === 'number' ? parsed.currentPage : 1,
@@ -53,8 +56,11 @@ function loadSavedSearchState() {
       author: '',
       platform: '',
       date: '',
+      startDate: '',
+      endDate: '',
       protocols: [],
       labels: [],
+      qubits: [],
       sort_by: 'date_desc'
     },
     currentPage: 1,
@@ -94,8 +100,11 @@ export function resetSearchState() {
   state.searchState.filters.author = ''
   state.searchState.filters.platform = ''
   state.searchState.filters.date = ''
+  state.searchState.filters.startDate = ''
+  state.searchState.filters.endDate = ''
   state.searchState.filters.protocols = []
   state.searchState.filters.labels = []
+  state.searchState.filters.qubits = []
   state.searchState.filters.sort_by = 'date_desc'
   state.searchState.currentPage = 1
   persistSearchState()
@@ -108,8 +117,11 @@ export function hasActiveSearchFilters(filters = state.searchState?.filters) {
     filters.author ||
     filters.platform ||
     filters.date ||
+    filters.startDate ||
+    filters.endDate ||
     (filters.protocols && filters.protocols.length > 0) ||
-    (filters.labels && filters.labels.length > 0)
+    (filters.labels && filters.labels.length > 0) ||
+    (filters.qubits && filters.qubits.length > 0)
   )
 }
 

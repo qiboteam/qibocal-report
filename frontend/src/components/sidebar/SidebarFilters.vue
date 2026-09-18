@@ -17,7 +17,12 @@
         :histogram="filterStats?.date_histogram"
         :full-histogram="fullStats?.date_histogram"
         :is-filtered="isFiltered"
+        :start-date="selectedStartDate"
+        :end-date="selectedEndDate"
+        :selected-date="selectedDate"
+        @select-range="range => $emit('update-filter', { key: 'dateRange', ...range })"
         @select-date="d => $emit('update-filter', { key: 'date', value: d })"
+        @clear-range="$emit('update-filter', { key: 'dateRange', startDate: '', endDate: '' })"
       />
     </div>
 
@@ -162,6 +167,9 @@ const props = defineProps({
   selectedAuthor: { type: String, default: '' },
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
+  selectedStartDate: { type: String, default: '' },
+  selectedEndDate: { type: String, default: '' },
+  selectedDate: { type: String, default: '' },
   isCollapsed: { type: Boolean, default: false }
 })
 

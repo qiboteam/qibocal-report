@@ -8,6 +8,9 @@
       :selected-author="filters.author"
       :selected-protocols="filters.protocols"
       :selected-labels="filters.labels"
+      :selected-start-date="filters.startDate"
+      :selected-end-date="filters.endDate"
+      :selected-date="filters.date"
       @update-filter="onUpdateFilter"
       @toggle-protocol="onToggleProtocol"
       @toggle-label="onToggleLabel"
@@ -156,8 +159,8 @@
           :selected-reports="selectedReportsData"
           :filters="filters"
           @toggle-protocol="onToggleProtocol"
-          @filter-platform="p => onUpdateFilter({ key: 'platform', value: p })"
-          @filter-author="a => onUpdateFilter({ key: 'author', value: a })"
+          @filter-platform="onTogglePlatform"
+          @filter-author="onToggleAuthor"
           @clear-filter="(key, val) => clearFilter(key, val)"
           @edit-authors-mapping="showAuthorMappingModal = true"
         />
@@ -201,12 +204,15 @@
           :reports="reports"
           :selected="selectedReports"
           @select="openReport"
-          @open-protocol="onOpenProtocol"
           @toggle-select="toggleSelect"
           @toggle-select-all="() => toggleSelectAll(reports.map(r => r.id))"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
           @edit-author="r => openAuthorModal(r)"
+          @filter-platform="onTogglePlatform"
+          @filter-qubit="onToggleQubit"
+          @filter-protocol="onToggleProtocol"
           @filter-tag="onToggleLabel"
+          @filter-author="onToggleAuthor"
         />
 
         <!-- Horizontal Cards View -->
@@ -215,11 +221,14 @@
           :reports="reports"
           :selected="selectedReports"
           @select="openReport"
-          @open-protocol="onOpenProtocol"
           @toggle-select="toggleSelect"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
           @edit-author="r => openAuthorModal(r)"
+          @filter-platform="onTogglePlatform"
+          @filter-qubit="onToggleQubit"
+          @filter-protocol="onToggleProtocol"
           @filter-tag="onToggleLabel"
+          @filter-author="onToggleAuthor"
         />
 
         <!-- Pagination Controls -->
@@ -341,6 +350,9 @@ const {
   hasActiveFilters,
   toggleProtocol,
   toggleLabel,
+  togglePlatform,
+  toggleAuthor,
+  toggleQubit,
   updateFilter,
   resetFilters,
   getFilterQueryKey
@@ -480,9 +492,15 @@ function clearFilter(key, value = null) {
   applyFilterChange(() => {
     if (key === 'author') filters.author = ''
     else if (key === 'platform') filters.platform = ''
-    else if (key === 'date') filters.date = ''
+    else if (key === 'date' || key === 'dateRange') {
+      filters.date = ''
+      filters.startDate = ''
+      filters.endDate = ''
+    }
     else if (key === 'protocol') toggleProtocol(value)
     else if (key === 'label') toggleLabel(value)
+    else if (key === 'qubit') toggleQubit(value)
+    else if (key === 'q') filters.q = ''
   })
 }
 
@@ -496,6 +514,18 @@ function onToggleProtocol(p) {
 
 function onToggleLabel(l) {
   applyFilterChange(() => toggleLabel(l))
+}
+
+function onTogglePlatform(plat) {
+  applyFilterChange(() => togglePlatform(plat))
+}
+
+function onToggleAuthor(author) {
+  applyFilterChange(() => toggleAuthor(author))
+}
+
+function onToggleQubit(qubit) {
+  applyFilterChange(() => toggleQubit(qubit))
 }
 
 function onResetFilters() {
@@ -564,12 +594,13 @@ async function fetchFilteredStats() {
     if (filters.sort_by) params.set('sort_by', filters.sort_by)
     if (filters.author) params.set('author', filters.author)
     if (filters.platform) params.set('platform', filters.platform)
-    if (filters.date) {
-      params.set('start_date', filters.date)
-      params.set('end_date', filters.date)
-    }
+    const start = filters.startDate || filters.date
+    const end = filters.endDate || filters.date
+    if (start) params.set('start_date', start)
+    if (end) params.set('end_date', end)
     filters.protocols.forEach(p => params.append('protocol', p))
     filters.labels.forEach(l => params.append('label', l))
+    filters.qubits?.forEach(q => params.append('qubit', q))
 
     // 1. Try backend /api/reports/stats endpoint
     let statsData = null
@@ -591,7 +622,8 @@ async function fetchFilteredStats() {
       (fullTotal === 0 || totalReports.value === 0 || statsData.total_reports === totalReports.value || statsData.total_reports < fullTotal) &&
       (!filters.platform || statsData.platforms.every(p => p.name === filters.platform)) &&
       (!filters.author || statsData.authors.every(a => a === filters.author)) &&
-      (!filters.date || statsData.date_histogram.every(d => d.date === filters.date))
+      (!start || statsData.date_histogram.every(d => d.date >= start)) &&
+      (!end || statsData.date_histogram.every(d => d.date <= end))
     )
 
     if (isHonored) {
@@ -646,12 +678,13 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
     if (filters.sort_by) params.set('sort_by', filters.sort_by)
     if (filters.author) params.set('author', filters.author)
     if (filters.platform) params.set('platform', filters.platform)
-    if (filters.date) {
-      params.set('start_date', filters.date)
-      params.set('end_date', filters.date)
-    }
+    const start = filters.startDate || filters.date
+    const end = filters.endDate || filters.date
+    if (start) params.set('start_date', start)
+    if (end) params.set('end_date', end)
     filters.protocols.forEach(p => params.append('protocol', p))
     filters.labels.forEach(l => params.append('label', l))
+    filters.qubits?.forEach(q => params.append('qubit', q))
 
     const res = await apiFetch(`/api/reports?${params.toString()}`)
     if (res.ok) {
@@ -725,10 +758,22 @@ function syncFiltersFromRoute(query) {
       changed = true
     }
   }
+  const sDate = query.start_date || query.startDate
+  const eDate = query.end_date || query.endDate
+  if (sDate && filters.startDate !== String(sDate)) {
+    filters.startDate = String(sDate)
+    changed = true
+  }
+  if (eDate && filters.endDate !== String(eDate)) {
+    filters.endDate = String(eDate)
+    changed = true
+  }
   if (query.date) {
     const d = String(query.date)
     if (filters.date !== d) {
       filters.date = d
+      filters.startDate = d
+      filters.endDate = d
       changed = true
     }
   }
@@ -755,14 +800,22 @@ onMounted(async () => {
 
   // 2. Check pending filter from another view (e.g. Statistics page)
   if (state.pendingFilter) {
-    const { key, value } = state.pendingFilter
+    const { key, value, startDate, endDate } = state.pendingFilter
     state.pendingFilter = null
     resetFilters()
     if (key === 'author') filters.author = value
     else if (key === 'platform') filters.platform = value
     else if (key === 'protocol') filters.protocols = [value]
     else if (key === 'label' || key === 'tag') filters.labels = [value]
-    else if (key === 'date') filters.date = value
+    else if (key === 'date') {
+      filters.date = value
+      filters.startDate = value
+      filters.endDate = value
+    } else if (key === 'dateRange') {
+      filters.startDate = startDate || value?.startDate || ''
+      filters.endDate = endDate || value?.endDate || ''
+      filters.date = (filters.startDate && filters.endDate && filters.startDate === filters.endDate) ? filters.startDate : ''
+    }
     currentPage.value = 1
   } else {
     // 3. Sync from route query if parameters are specified

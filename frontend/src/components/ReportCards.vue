@@ -18,12 +18,24 @@
               class="rounded text-[#833dff] focus:ring-[#833dff] h-4 w-4 border-gray-300 cursor-pointer"
             />
           </div>
-          <span class="px-2.5 py-1 rounded-lg text-sm font-bold bg-purple-100 text-purple-800 group-hover:bg-[#833dff] group-hover:text-white transition">
+          <span
+            @click.stop="$emit('filter-platform', report.platform)"
+            class="px-2.5 py-1 rounded-lg text-sm font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 hover:text-purple-900 cursor-pointer transition select-none"
+            :title="`Filter by platform: ${report.platform}`"
+          >
             {{ report.platform }}
           </span>
-          <span class="font-mono text-xs font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">
-            Q{{ report.targets.join(', Q') }}
-          </span>
+          <div v-if="report.targets && report.targets.length > 0" class="flex items-center gap-1">
+            <span
+              v-for="t in report.targets"
+              :key="String(t)"
+              @click.stop="$emit('filter-qubit', String(t))"
+              class="font-mono text-xs font-medium text-gray-700 bg-gray-100 hover:bg-purple-100 hover:text-purple-900 px-2 py-0.5 rounded cursor-pointer transition select-none"
+              :title="`Filter by qubit: Q${t}`"
+            >
+              Q{{ t }}
+            </span>
+          </div>
           <span
             v-if="report.has_cached_report"
             class="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded"
@@ -44,7 +56,13 @@
         <div class="flex items-center gap-4 flex-wrap">
           <div class="group/author flex items-center gap-1.5">
             <strong class="text-gray-900">Author:</strong>
-            <span>{{ resolveAuthor(report.author, state.activeServer) || report.author }}</span>
+            <span
+              @click.stop="$emit('filter-author', report.author)"
+              class="px-1.5 py-0.5 rounded hover:bg-purple-100 text-gray-700 hover:text-purple-900 cursor-pointer transition select-none"
+              :title="`Filter by author: ${resolveAuthor(report.author, state.activeServer) || report.author}`"
+            >
+              {{ resolveAuthor(report.author, state.activeServer) || report.author }}
+            </span>
             <button
               @click.stop="$emit('edit-author', report)"
               class="opacity-0 group-hover/author:opacity-100 text-gray-400 hover:text-[#833dff] transition cursor-pointer"
@@ -84,9 +102,9 @@
         <span
           v-for="proto in report.protocols"
           :key="proto"
-          @click.stop="$emit('open-protocol', { report, protocol: proto })"
-          class="px-2 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-800 hover:text-[#833dff] rounded-md text-xs font-mono transition cursor-pointer"
-          :title="`Open ${proto} protocol in report`"
+          @click.stop="$emit('filter-protocol', proto)"
+          class="px-2 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-800 hover:text-purple-900 rounded-md text-xs font-mono transition cursor-pointer select-none"
+          :title="`Filter by protocol: ${proto}`"
         >
           {{ proto }}
         </span>
@@ -103,5 +121,15 @@ defineProps({
   selected: { type: Array, default: () => [] }
 })
 
-defineEmits(['select', 'open-protocol', 'toggle-select', 'remove-tag', 'edit-author', 'filter-tag'])
+defineEmits([
+  'select',
+  'toggle-select',
+  'remove-tag',
+  'edit-author',
+  'filter-tag',
+  'filter-platform',
+  'filter-qubit',
+  'filter-protocol',
+  'filter-author'
+])
 </script>

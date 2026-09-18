@@ -87,8 +87,18 @@ export function useStatisticsData() {
   }
 
   function filterBy(key, value) {
-    if (!value) return
-    state.pendingFilter = { key, value }
+    if (!value && key !== 'clearRange') return
+    if (key === 'dateRange' && typeof value === 'object') {
+      state.pendingFilter = {
+        key: 'dateRange',
+        startDate: value.startDate,
+        endDate: value.endDate
+      }
+    } else if (key === 'clearRange') {
+      state.pendingFilter = { key: 'clearRange' }
+    } else {
+      state.pendingFilter = { key, value }
+    }
     router.push('/dashboard')
   }
 

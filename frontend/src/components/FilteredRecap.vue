@@ -249,10 +249,23 @@
         >&times;</button>
       </span>
       <span
-        v-if="filters.date"
+        v-for="q in (filters.qubits || [])"
+        :key="q"
         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
       >
-        Date: {{ filters.date }}
+        Qubit: Q{{ q }}
+        <button
+          type="button"
+          @click="$emit('clear-filter', 'qubit', q)"
+          class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none ml-0.5"
+          title="Clear qubit filter"
+        >&times;</button>
+      </span>
+      <span
+        v-if="dateFilterLabel"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
+      >
+        {{ dateFilterLabel }}
         <button
           type="button"
           @click="$emit('clear-filter', 'date')"
@@ -305,9 +318,24 @@ const hasAnyFilter = computed(() => {
     f.platform ||
     (f.protocols && f.protocols.length > 0) ||
     (f.labels && f.labels.length > 0) ||
+    (f.qubits && f.qubits.length > 0) ||
     f.date ||
+    f.startDate ||
+    f.endDate ||
     (f.q && f.q.trim())
   )
+})
+
+const dateFilterLabel = computed(() => {
+  const f = props.filters || {}
+  const start = f.startDate || f.date
+  const end = f.endDate || f.date
+  if (start && end) {
+    return start === end ? `Date: ${start}` : `Date: ${start} → ${end}`
+  }
+  if (start) return `Date: from ${start}`
+  if (end) return `Date: up to ${end}`
+  return ''
 })
 
 const scopeMode = ref('filtered')

@@ -385,6 +385,8 @@ def get_reports(
     protocol: Annotated[list[str] | None, Query()] = None,
     label: Annotated[list[str] | None, Query()] = None,
     tag: Annotated[list[str] | None, Query()] = None,
+    qubit: Annotated[list[str] | None, Query()] = None,
+    target: Annotated[list[str] | None, Query()] = None,
     start_date: str | None = None,
     end_date: str | None = None,
     sort_by: str = "date_desc",
@@ -397,6 +399,7 @@ def get_reports(
     """List and filter Qibocal reports, optionally paginated."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
     combined_tags = list(set((label or []) + (tag or []))) or None
+    combined_qubits = list(set((qubit or []) + (target or []))) or None
     filtered = filter_reports(
         all_reports,
         query=q,
@@ -404,6 +407,7 @@ def get_reports(
         platforms=platform,
         labels=combined_tags,
         protocols=protocol,
+        qubits=combined_qubits,
         start_date=start_date,
         end_date=end_date,
         sort_by=sort_by,
@@ -447,6 +451,8 @@ def get_filter_statistics(
     protocol: Annotated[list[str] | None, Query()] = None,
     label: Annotated[list[str] | None, Query()] = None,
     tag: Annotated[list[str] | None, Query()] = None,
+    qubit: Annotated[list[str] | None, Query()] = None,
+    target: Annotated[list[str] | None, Query()] = None,
     start_date: str | None = None,
     end_date: str | None = None,
     sort_by: str = "date_desc",
@@ -454,6 +460,7 @@ def get_filter_statistics(
     """Return filter statistics: protocol frequencies, authors, date histogram."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
     combined_tags = list(set((label or []) + (tag or []))) or None
+    combined_qubits = list(set((qubit or []) + (target or []))) or None
     filtered = filter_reports(
         all_reports,
         query=q,
@@ -461,6 +468,7 @@ def get_filter_statistics(
         platforms=platform,
         labels=combined_tags,
         protocols=protocol,
+        qubits=combined_qubits,
         start_date=start_date,
         end_date=end_date,
         sort_by=sort_by,

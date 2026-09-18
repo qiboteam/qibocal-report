@@ -16,14 +16,41 @@
 
     <!-- Platform Column -->
     <td class="py-3.5 px-4 overflow-hidden">
-      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 truncate max-w-full">
+      <span
+        @click.stop="$emit('filter-platform', report.platform)"
+        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 hover:bg-purple-200 text-purple-800 hover:text-purple-900 cursor-pointer transition select-none truncate max-w-full"
+        :title="`Filter by platform: ${report.platform}`"
+      >
         {{ report.platform }}
       </span>
     </td>
 
     <!-- Qubits Column -->
     <td class="py-3.5 px-4 font-mono text-xs text-gray-600 overflow-hidden">
-      <div class="truncate">Q{{ report.targets.join(', Q') }}</div>
+      <div class="flex flex-wrap gap-1 max-w-full items-center">
+        <span
+          v-for="t in (report.targets || []).slice(0, 3)"
+          :key="String(t)"
+          @click.stop="$emit('filter-qubit', String(t))"
+          class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-900 cursor-pointer transition select-none shrink-0"
+          :title="`Filter by qubit: Q${t}`"
+        >
+          Q{{ t }}
+        </span>
+        <span
+          v-if="(report.targets || []).length > 3"
+          class="text-[11px] text-gray-400 font-medium px-0.5 shrink-0"
+          :title="(report.targets || []).slice(3).map(x => 'Q' + x).join(', ')"
+        >
+          +{{ report.targets.length - 3 }}
+        </span>
+        <span
+          v-if="!(report.targets && report.targets.length)"
+          class="text-gray-300 text-xs"
+        >
+          —
+        </span>
+      </div>
     </td>
 
     <!-- Protocols Column -->
@@ -32,15 +59,16 @@
         <span
           v-for="proto in report.protocols.slice(0, 3)"
           :key="proto"
-          @click.stop="$emit('open-protocol', { report, protocol: proto })"
-          class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-[#833dff] truncate cursor-pointer transition"
-          :title="`Open ${proto.replace('_', ' ')} protocol in report`"
+          @click.stop="$emit('filter-protocol', proto)"
+          class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 truncate cursor-pointer transition select-none"
+          :title="`Filter by protocol: ${proto.replace('_', ' ')}`"
         >
           {{ proto.replace('_', ' ') }}
         </span>
         <span
           v-if="report.protocols.length > 3"
           class="text-[11px] text-gray-400 font-medium px-1 shrink-0"
+          :title="report.protocols.slice(3).map(p => p.replace('_', ' ')).join(', ')"
         >
           +{{ report.protocols.length - 3 }}
         </span>
@@ -85,7 +113,13 @@
     <!-- Author Column -->
     <td class="py-3.5 px-4 text-gray-600 text-xs overflow-hidden">
       <div class="group/author flex items-center gap-1.5 truncate">
-        <span class="truncate">{{ resolveAuthor(report.author, state.activeServer) || report.author }}</span>
+        <span
+          @click.stop="$emit('filter-author', report.author)"
+          class="truncate px-1.5 py-0.5 -ml-1.5 rounded hover:bg-purple-100 text-gray-700 hover:text-purple-900 cursor-pointer transition select-none"
+          :title="`Filter by author: ${resolveAuthor(report.author, state.activeServer) || report.author}`"
+        >
+          {{ resolveAuthor(report.author, state.activeServer) || report.author }}
+        </span>
         <button
           @click.stop="$emit('edit-author', report)"
           class="opacity-0 group-hover/author:opacity-100 text-gray-400 hover:text-[#833dff] transition cursor-pointer shrink-0"
@@ -114,5 +148,15 @@ defineProps({
   isSelected: { type: Boolean, default: false }
 })
 
-defineEmits(['select', 'open-protocol', 'toggle-select', 'remove-tag', 'edit-author', 'filter-tag'])
+defineEmits([
+  'select',
+  'toggle-select',
+  'remove-tag',
+  'edit-author',
+  'filter-tag',
+  'filter-platform',
+  'filter-qubit',
+  'filter-protocol',
+  'filter-author'
+])
 </script>

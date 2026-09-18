@@ -231,26 +231,16 @@
                   No date history available
                 </div>
 
-                <div v-else class="flex flex-col justify-end min-w-0 w-full">
-                  <div class="h-28 sm:h-32 w-full max-w-full min-w-0 bg-gray-50 p-2 rounded-lg border border-gray-100 overflow-hidden flex items-end gap-1 sm:gap-1.5 relative box-border">
-                    <div
-                      v-for="bin in dateBins"
-                      :key="bin.date"
-                      @click="filterBy('date', bin.date)"
-                      class="flex-1 min-w-[2px] h-full relative group cursor-pointer"
-                      :title="`${bin.date}: ${bin.count} report${bin.count === 1 ? '' : 's'}`"
-                    >
-                      <div
-                        class="w-full bg-[#833dff] group-hover:bg-[#6c2bd9] rounded-t transition-all duration-200 absolute bottom-0"
-                        :style="{ height: `${Math.max(8, getPercentage(bin.count, maxDateCount))}%` }"
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div v-if="dateBins.length > 0" class="flex justify-between text-[10px] text-gray-400 mt-1.5 font-mono px-0.5 overflow-hidden">
-                    <span class="truncate min-w-0">{{ dateBins[0]?.date }}</span>
-                    <span v-if="dateBins.length > 1" class="truncate min-w-0 text-right">{{ dateBins[dateBins.length - 1]?.date }}</span>
-                  </div>
+                <div v-else class="min-w-0 w-full">
+                  <date-histogram
+                    :histogram="dateBins"
+                    height-class="h-28 sm:h-32"
+                    :show-title="false"
+                    bar-color-class="bg-[#833dff] group-hover:bg-[#6c2bd9]"
+                    @select-range="range => filterBy('dateRange', range)"
+                    @select-date="d => filterBy('date', d)"
+                    @clear-range="filterBy('clearRange', '')"
+                  />
                 </div>
               </div>
             </div>
@@ -327,6 +317,7 @@ import { onMounted, watch } from 'vue'
 import { state, ensureServersLoaded } from '../store.js'
 import Sidebar from '../components/Sidebar.vue'
 import StatBreakdownCard from '../components/statistics/StatBreakdownCard.vue'
+import DateHistogram from '../components/DateHistogram.vue'
 import { useStatisticsData } from '../composables/useStatisticsData.js'
 
 const {
@@ -343,7 +334,6 @@ const {
   authorsList,
   tagsList,
   dateBins,
-  maxDateCount,
   getPercentage,
   filterBy,
   loadStats

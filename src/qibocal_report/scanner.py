@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -152,6 +153,15 @@ def parse_report_directory(
     targets = meta.get("targets") or meta.get("qubits") or []
     if not isinstance(targets, list):
         targets = [targets] if targets is not None else []
+    if not targets:
+        match = re.search(r"_\[(.*?)\]_", report_dir.name)
+        if match:
+            raw_targets = match.group(1).split(",")
+            targets = [
+                int(t.strip()) if t.strip().isdigit() else t.strip().strip("'\"")
+                for t in raw_targets
+                if t.strip()
+            ]
     raw_tags = (
         meta.get("tag")
         or meta.get("tags")
@@ -358,6 +368,7 @@ def filter_reports(
     platforms: list[str] | None = None,
     labels: list[str] | None = None,
     protocols: list[str] | None = None,
+    qubits: list[str] | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
     sort_by: str = "date_desc",
@@ -417,6 +428,33 @@ def filter_reports(
 
     if protocols:
         filtered = [r for r in filtered if any(p in r.protocols for p in protocols)]
+
+    if qubits:
+        def _norm_q(val: Any) -> set[str]:
+            s = str(val).strip().lower()
+            res = {s}
+            if s.startswith("q") and len(s) > 1 and s[1:].isdigit():
+                res.add(s[1:])
+            elif s.isdigit():
+                res.add(f"q{s}")
+            return res
+
+        wanted_q: set[str] = set()
+        for q in qubits:
+            wanted_q.update(_norm_q(q))
+
+        def _report_has_qubit(report_targets: list[Any]) -> bool:
+            for t in report_targets:
+                if isinstance(t, (list, tuple)):
+                    for sub in t:
+                        if _norm_q(sub) & wanted_q:
+                            return True
+                else:
+                    if _norm_q(t) & wanted_q:
+                        return True
+            return False
+
+        filtered = [r for r in filtered if _report_has_qubit(r.targets)]
 
     if start_date:
         filtered = [r for r in filtered if r.date >= start_date]

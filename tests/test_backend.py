@@ -106,6 +106,13 @@ def test_scanner_and_filters():
     assert len(broken_reports) == 1
     assert "broken" in broken_reports[0].tags
 
+    # Filter by qubit
+    q3_reports = filter_reports(reports, qubits=["3"])
+    assert len(q3_reports) >= 1
+    assert any(3 in r.targets or "3" in [str(t) for t in r.targets] for r in q3_reports)
+    q3_cap_reports = filter_reports(reports, qubits=["Q3"])
+    assert len(q3_cap_reports) == len(q3_reports)
+
     # Sort by platform
     sorted_by_platform = filter_reports(reports, sort_by="platform")
     platforms = [r.platform.lower() for r in sorted_by_platform if r.platform]
@@ -204,6 +211,12 @@ def test_api_endpoints():
     assert len(r_tag.json()) == 1
     assert "broken" in r_tag.json()[0]["tags"]
 
+    # Filter by qubit via API
+    r_qubit = client.get("/api/reports?qubit=3")
+    assert r_qubit.status_code == 200
+    assert len(r_qubit.json()) >= 1
+    assert all(3 in r["targets"] or "3" in [str(t) for t in r["targets"]] for r in r_qubit.json())
+
     # Stats
     r = client.get("/api/reports/stats")
     assert r.status_code == 200
@@ -227,6 +240,18 @@ def test_api_endpoints():
     assert f_stats["total_reports"] == stats["platforms"][0]["count"]
     assert len(f_stats["platforms"]) == 1
     assert f_stats["platforms"][0]["name"] == plat_name
+
+    # Filter by date range via API
+    dates = [b["date"] for b in stats["date_histogram"]]
+    if dates:
+        start_d, end_d = dates[0], dates[-1]
+        r_range = client.get(f"/api/reports?start_date={start_d}&end_date={end_d}")
+        assert r_range.status_code == 200
+        assert len(r_range.json()) == stats["total_reports"]
+
+        r_range_stats = client.get(f"/api/reports/stats?start_date={start_d}&end_date={end_d}")
+        assert r_range_stats.status_code == 200
+        assert r_range_stats.json()["total_reports"] == stats["total_reports"]
 
     # Single report detail
     first_id = reports[0]["id"]

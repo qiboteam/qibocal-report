@@ -1,5 +1,8 @@
 <template>
-  <div class="my-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative">
+  <div
+    ref="plotWrapper"
+    class="my-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative transition-all duration-300"
+  >
     <div v-if="figure.title" class="text-sm font-semibold text-gray-800 mb-2 font-mono pr-48">
       {{ figure.title }}
     </div>
@@ -11,13 +14,17 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick, toRaw } from 'vue'
 import Plotly from 'plotly.js-dist-min'
+import { copyToClipboard } from '../utils/clipboard.js'
 
 const props = defineProps({
   figure: { type: Object, required: true }
 })
 
+const plotWrapper = ref(null)
 const plotContainer = ref(null)
 let isRendered = false
+let lastCopiedTime = 0
+let copyFeedbackTimer = null
 
 function getCleanDataAndLayout() {
   const fig = toRaw(props.figure)
@@ -41,6 +48,122 @@ function getCleanDataAndLayout() {
   return { rawData, rawLayout }
 }
 
+function getPlotHoverText(container) {
+  if (!container) return null
+  const hoverLayer = container.querySelector('.hoverlayer')
+  if (!hoverLayer) return null
+
+  const hoverTexts = hoverLayer.querySelectorAll('.hovertext, .axistext')
+  if (!hoverTexts || hoverTexts.length === 0) return null
+
+  const lines = []
+  hoverTexts.forEach(ht => {
+    const textNodes = ht.querySelectorAll('text')
+    textNodes.forEach(t => {
+      const tspans = t.querySelectorAll('tspan')
+      if (tspans && tspans.length > 0) {
+        tspans.forEach(sp => {
+          const s = sp.textContent?.replace(/\u00a0/g, ' ').trim()
+          if (s) lines.push(s)
+        })
+      } else {
+        const s = t.textContent?.replace(/\u00a0/g, ' ').trim()
+        if (s) lines.push(s)
+      }
+    })
+  })
+
+  const uniqueLines = lines.filter(Boolean)
+  if (uniqueLines.length === 0) return null
+
+  if (uniqueLines.length > 1) {
+    return uniqueLines.join(', ')
+  }
+  return uniqueLines[0]
+}
+
+function flashPlotFeedback() {
+  // Flash SVG hover balloon border in purple (solid line)
+  const hoverPaths = plotContainer.value?.querySelectorAll('.hoverlayer .hovertext path')
+  if (hoverPaths && hoverPaths.length > 0) {
+    hoverPaths.forEach(p => {
+      const origStroke = p.style.stroke
+      const origStrokeWidth = p.style.strokeWidth
+      p.style.transition = 'stroke 0.1s ease, stroke-width 0.1s ease'
+      p.style.stroke = '#833dff'
+      p.style.strokeWidth = '2px'
+      setTimeout(() => {
+        p.style.stroke = origStroke
+        p.style.strokeWidth = origStrokeWidth
+      }, 300)
+    })
+  }
+
+  // Flash plot card container with milder transparent shadow (no solid line)
+  if (plotWrapper.value) {
+    plotWrapper.value.classList.remove('copy-flash-plot')
+    void plotWrapper.value.offsetWidth
+    plotWrapper.value.classList.add('copy-flash-plot')
+    if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer)
+    copyFeedbackTimer = setTimeout(() => {
+      plotWrapper.value?.classList.remove('copy-flash-plot')
+      copyFeedbackTimer = null
+    }, 350)
+  }
+}
+
+function handleCopyCoordinates(coordsText) {
+  if (!coordsText) return
+  copyToClipboard(coordsText)
+  lastCopiedTime = Date.now()
+  flashPlotFeedback()
+}
+
+function handlePlotlyClick(data) {
+  const balloonText = getPlotHoverText(plotContainer.value)
+  let coordsText = balloonText
+
+  if (!coordsText && data?.points && data.points.length > 0) {
+    const pt = data.points[0]
+    if (pt.hovertext) {
+      coordsText = String(pt.hovertext).replace(/\u00a0/g, ' ').trim()
+    } else if (pt.text) {
+      coordsText = String(pt.text).replace(/\u00a0/g, ' ').trim()
+    } else if (pt.z !== undefined && pt.z !== null) {
+      coordsText = `x: ${pt.x}, y: ${pt.y}, z: ${pt.z}`
+    } else if (pt.x !== undefined && pt.y !== undefined) {
+      coordsText = `(${pt.x}, ${pt.y})`
+    }
+  }
+
+  if (coordsText) {
+    handleCopyCoordinates(coordsText)
+  }
+}
+
+function handleNativeClick(event) {
+  if (Date.now() - lastCopiedTime < 350) return
+  if (event.target.closest('.modebar-container')) return
+
+  const balloonText = getPlotHoverText(plotContainer.value)
+  if (balloonText) {
+    handleCopyCoordinates(balloonText)
+  }
+}
+
+function attachPlotListeners() {
+  const el = plotContainer.value
+  if (!el) return
+
+  if (typeof el.removeAllListeners === 'function') {
+    el.removeAllListeners('plotly_click')
+  }
+  el.on('plotly_click', handlePlotlyClick)
+
+  el.removeEventListener('click', handleNativeClick)
+  el.addEventListener('click', handleNativeClick)
+}
+
 async function renderPlot() {
   await nextTick()
   if (!plotContainer.value || !props.figure) return
@@ -58,6 +181,7 @@ async function renderPlot() {
     // Plotly.react is high-performance and reuses the graph div safely
     await Plotly.react(plotContainer.value, rawData, rawLayout, config)
     isRendered = true
+    attachPlotListeners()
   } catch (err) {
     console.error('Error rendering Plotly figure:', err)
   }
@@ -92,7 +216,12 @@ onUnmounted(() => {
   window.removeEventListener('beforeprint', handleResize)
   window.removeEventListener('afterprint', handleResize)
   if (resizeTimer) cancelAnimationFrame(resizeTimer)
+  if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer)
   if (plotContainer.value) {
+    if (typeof plotContainer.value.removeAllListeners === 'function') {
+      plotContainer.value.removeAllListeners('plotly_click')
+    }
+    plotContainer.value.removeEventListener('click', handleNativeClick)
     Plotly.purge(plotContainer.value)
   }
 })
@@ -194,5 +323,30 @@ onUnmounted(() => {
 
 :deep([data-title]:hover:before) {
   border-bottom-color: #111827 !important;
+}
+
+/* Plot Click-to-Copy Feedback - Mild transparent shadow only (no solid border) */
+.copy-flash-plot {
+  animation: plot-shadow-flash 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes plot-shadow-flash {
+  0% {
+    box-shadow: 0 0 0 4px rgba(131, 61, 255, 0.22), 0 4px 12px rgba(131, 61, 255, 0.12) !important;
+  }
+  50% {
+    box-shadow: 0 0 0 2px rgba(131, 61, 255, 0.12), 0 2px 6px rgba(131, 61, 255, 0.06) !important;
+  }
+  100% {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+  }
+}
+
+:deep(.hoverlayer) {
+  cursor: pointer !important;
+}
+
+:deep(.hoverlayer text) {
+  user-select: none !important;
 }
 </style>

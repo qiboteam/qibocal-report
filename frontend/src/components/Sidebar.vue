@@ -56,6 +56,9 @@
           :selected-author="selectedAuthor"
           :selected-protocols="selectedProtocols"
           :selected-labels="selectedLabels"
+          :selected-start-date="selectedStartDate"
+          :selected-end-date="selectedEndDate"
+          :selected-date="selectedDate"
           :is-collapsed="isCollapsed"
           @update-filter="$emit('update-filter', $event)"
           @reset-filters="$emit('reset-filters')"
@@ -126,6 +129,9 @@ defineProps({
   selectedAuthor: { type: String, default: '' },
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
+  selectedStartDate: { type: String, default: '' },
+  selectedEndDate: { type: String, default: '' },
+  selectedDate: { type: String, default: '' },
   reportProtocols: { type: Array, default: () => [] },
   reportId: { type: String, default: null },
   regenerating: { type: Boolean, default: false }

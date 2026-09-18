@@ -86,6 +86,7 @@
       v-if="proto.html"
       class="protocol-html-container my-4 overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-2xs"
       v-html="proto.html"
+      @click="handleTableClick"
     ></div>
 
     <!-- Injected Plotly Figures -->
@@ -106,6 +107,7 @@
 import { computed } from 'vue'
 import { getApiUrl, state } from '../../store.js'
 import { getProtocolDocUrl, hasSpecificDoc } from '../../utils/protocolDocs.js'
+import { copyToClipboard } from '../../utils/clipboard.js'
 import PlotlyViewer from '../PlotlyViewer.vue'
 
 const props = defineProps({
@@ -128,12 +130,40 @@ const downloadDataUrl = computed(() => {
   const encProtoId = encodeURIComponent(props.proto.id)
   return getApiUrl(`/api/reports/${encRepId}/download/data/${encProtoId}`)
 })
+
+function handleTableClick(event) {
+  const target = event.target
+  if (!target) return
+  if (target.tagName === 'A' || target.tagName === 'BUTTON' || target.closest('a, button')) {
+    return
+  }
+
+  const cell = target.closest('td, tbody th')
+  if (!cell || cell.closest('thead')) return
+
+  const text = (cell.innerText || cell.textContent || '').replace(/\u00a0/g, ' ').trim()
+  if (!text) return
+
+  copyToClipboard(text)
+
+  cell.classList.remove('copy-flash')
+  void cell.offsetWidth
+  cell.classList.add('copy-flash')
+
+  if (cell._copyFlashTimer) {
+    clearTimeout(cell._copyFlashTimer)
+  }
+  cell._copyFlashTimer = setTimeout(() => {
+    cell.classList.remove('copy-flash')
+    cell._copyFlashTimer = null
+  }, 350)
+}
 </script>
 
 <style scoped>
 :deep(.protocol-html-container table) {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
   border-spacing: 0;
   border: none;
   font-size: 0.75rem;
@@ -206,6 +236,67 @@ const downloadDataUrl = computed(() => {
 
 :deep(.protocol-html-container sub) {
   bottom: -0.25em;
+}
+
+:deep(.protocol-html-container tbody th) {
+  padding: 0.625rem 1rem;
+  font-size: 0.75rem;
+  color: #111827;
+  font-weight: 600;
+  border-bottom: 1px solid #f3f4f6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+:deep(.protocol-html-container table tbody td),
+:deep(.protocol-html-container table tbody th),
+:deep(.protocol-html-container table tr:not(thead tr) td) {
+  transition: box-shadow 0.15s ease, background-color 0.15s ease;
+  user-select: text;
+}
+
+:deep(.protocol-html-container table tbody td:hover),
+:deep(.protocol-html-container table tbody th:hover),
+:deep(.protocol-html-container table tr:not(thead tr) td:hover) {
+  position: relative;
+  z-index: 5;
+  cursor: pointer;
+  box-shadow: 0 3px 10px -1px rgba(0, 0, 0, 0.12), 0 1px 4px -1px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  background-color: #ffffff;
+}
+
+:deep(.protocol-html-container .copy-flash) {
+  animation: cell-border-flash 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  position: relative !important;
+  z-index: 20 !important;
+  outline: 2px solid #833dff !important;
+  outline-offset: -2px !important;
+}
+
+@keyframes cell-border-flash {
+  0% {
+    outline: 2px solid #833dff !important;
+    outline-offset: -2px !important;
+    box-shadow: 0 0 0 3px rgba(131, 61, 255, 0.45), inset 0 0 0 2px #833dff !important;
+    border-color: #833dff !important;
+    background-color: #f3e8ff !important;
+  }
+  40% {
+    outline: 2px solid #833dff !important;
+    outline-offset: -2px !important;
+    box-shadow: 0 0 0 2px rgba(131, 61, 255, 0.25), inset 0 0 0 2px #833dff !important;
+    border-color: #833dff !important;
+    background-color: #f7f1fe !important;
+  }
+  100% {
+    outline: 2px solid transparent !important;
+    outline-offset: -2px !important;
+    box-shadow: none !important;
+    border-color: #f3f4f6 !important;
+    background-color: transparent !important;
+  }
 }
 
 :deep(.protocol-html-container table + table) {
