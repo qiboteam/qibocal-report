@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { apiFetch } from '../store.js'
+import { apiFetch, removeFromHistory } from '../store.js'
 
 /**
  * Composable for managing report selection and bulk actions (labeling, author change, deletion).
@@ -197,6 +197,7 @@ export function useBulkActions() {
         throw new Error(err.detail || 'Failed to delete reports')
       }
       const data = await res.json()
+      removeFromHistory(selectedReports.value)
       showDeleteModal.value = false
       selectedReports.value = []
       showSuccess(data.message || 'Reports deleted successfully')

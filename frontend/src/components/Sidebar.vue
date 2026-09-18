@@ -117,7 +117,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { state, setActiveServer } from '../store.js'
+import { state, activeServerHistory, setActiveServer } from '../store.js'
 import { useResizable } from '../composables/useResize.js'
 import SidebarServerHeader from './sidebar/SidebarServerHeader.vue'
 import SidebarNavLinks from './sidebar/SidebarNavLinks.vue'
@@ -204,7 +204,7 @@ const {
 
 const servers = computed(() => state.servers)
 const activeServer = computed(() => state.activeServer)
-const history = computed(() => state.history)
+const history = computed(() => activeServerHistory.value)
 const currentReportId = computed(() => state.currentReportId)
 
 const isSearchMode = computed(() => route.path === '/dashboard')

@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { reactive, computed } from 'vue'
 import {
   normalizeUrl as utilsNormalizeUrl,
   getActiveServerUrl as utilsGetActiveServerUrl,
@@ -7,8 +7,18 @@ import {
 } from './utils/url.js'
 
 // --- Initial Local Storage State ---
-const savedHistory = localStorage.getItem('qibocal_report_history')
-const initialHistory = savedHistory ? JSON.parse(savedHistory) : []
+let initialHistory = []
+try {
+  const savedHistory = localStorage.getItem('qibocal_report_history')
+  if (savedHistory) {
+    const parsed = JSON.parse(savedHistory)
+    if (Array.isArray(parsed)) {
+      initialHistory = parsed
+    }
+  }
+} catch (e) {
+  console.warn('Failed to parse saved history from localStorage', e)
+}
 
 /**
  * Global reactive application store.
@@ -185,25 +195,108 @@ export async function persistServersConfig() {
   return null
 }
 
-// --- Report History Management ---
-export function addToHistory(report) {
-  if (!report || !report.id) return
-  state.history = [
-    {
-      id: report.id,
-      platform: report.platform,
-      date: report.date,
-      tags: report.tags || report.labels || [],
-      opened_at: new Date().toISOString()
-    },
-    ...state.history.filter(h => h.id !== report.id)
-  ].slice(0, 15) // Keep last 15 reports
-  localStorage.setItem('qibocal_report_history', JSON.stringify(state.history))
+// --- Report History Management (Scoped to Active Server) ---
+function canonicalUrl(url) {
+  if (!url) return ''
+  return normalizeUrl(url)
+    .replace(/^https?:\/\/localhost\b/i, 'http://127.0.0.1')
+    .replace(/^https?:\/\/127\.0\.0\.1\b/i, 'http://127.0.0.1')
 }
 
-export function clearHistory() {
-  state.history = []
-  localStorage.removeItem('qibocal_report_history')
+export function isReportOnServer(historyItem, server = state.activeServer) {
+  if (!historyItem) return false
+  if (!server) return true
+
+  const serverUrl = server.url ? normalizeUrl(server.url) : ''
+  const serverId = server.id || null
+  const itemUrl = historyItem.server_url ? normalizeUrl(historyItem.server_url) : ''
+  const itemId = historyItem.server_id || null
+
+  // 1. Explicit server ID match
+  if (serverId && itemId && serverId === itemId) return true
+
+  // 2. Explicit server URL match (canonicalized for localhost / 127.0.0.1 equivalence)
+  if (serverUrl && itemUrl) {
+    if (canonicalUrl(serverUrl) === canonicalUrl(itemUrl)) return true
+  }
+
+  // 3. Fallback for legacy history entries without server association
+  if (!itemId && !itemUrl) {
+    if (server.is_default || serverId === 'srv-local' || canonicalUrl(serverUrl).includes('127.0.0.1:8000')) {
+      return true
+    }
+    if (state.servers.length <= 1) {
+      return true
+    }
+  }
+
+  return false
+}
+
+export const activeServerHistory = computed(() => {
+  return state.history
+    .filter(h => isReportOnServer(h, state.activeServer))
+    .slice(0, 15)
+})
+
+export function addToHistory(report, server = state.activeServer) {
+  if (!report || !report.id) return
+  const srv = server || state.activeServer || (state.servers.length > 0 ? state.servers[0] : null)
+  const activeUrl = srv?.url ? normalizeUrl(srv.url) : ''
+  const activeId = srv?.id || null
+
+  const newEntry = {
+    id: report.id,
+    platform: report.platform,
+    date: report.date,
+    tags: report.tags || report.labels || [],
+    opened_at: new Date().toISOString(),
+    server_id: activeId,
+    server_url: activeUrl
+  }
+
+  // Filter out duplicate of this report on the same server
+  state.history = [
+    newEntry,
+    ...state.history.filter(h => {
+      if (h.id !== report.id) return true
+      return !isReportOnServer(h, srv)
+    })
+  ].slice(0, 100)
+
+  try {
+    localStorage.setItem('qibocal_report_history', JSON.stringify(state.history))
+  } catch (e) {
+    console.error('Failed to save history to localStorage', e)
+  }
+}
+
+export function removeFromHistory(reportIds, server = state.activeServer) {
+  const ids = Array.isArray(reportIds) ? reportIds : [reportIds]
+  if (ids.length === 0) return
+  state.history = state.history.filter(h => {
+    if (!ids.includes(h.id)) return true
+    if (server && !isReportOnServer(h, server)) return true
+    return false
+  })
+  try {
+    localStorage.setItem('qibocal_report_history', JSON.stringify(state.history))
+  } catch (e) {
+    console.error('Failed to update history in localStorage', e)
+  }
+}
+
+export function clearHistory(server = state.activeServer) {
+  if (server) {
+    state.history = state.history.filter(h => !isReportOnServer(h, server))
+  } else {
+    state.history = []
+  }
+  try {
+    localStorage.setItem('qibocal_report_history', JSON.stringify(state.history))
+  } catch (e) {
+    console.error('Failed to clear history in localStorage', e)
+  }
 }
 
 // --- Author Resolution ---

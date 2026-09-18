@@ -1,5 +1,5 @@
 import { ref, onUnmounted } from 'vue'
-import { state, addToHistory, apiFetch, getActiveWsUrl } from '../store.js'
+import { state, addToHistory, removeFromHistory, apiFetch, getActiveWsUrl } from '../store.js'
 
 /**
  * Composable for loading report details via WebSocket streaming or HTTP fallback,
@@ -77,6 +77,9 @@ export function useReportDetail(reportId) {
           } else if (msg.type === 'error') {
             clearTimeout(timer)
             resolved = true
+            if (msg.message && msg.message.toLowerCase().includes('not found')) {
+              removeFromHistory(id)
+            }
             reject(new Error(msg.message || 'Report not found'))
           }
         } catch (e) {
@@ -107,7 +110,12 @@ export function useReportDetail(reportId) {
       loadingStatus.value = 'Fetching report metadata...'
       const encodedId = encodeURIComponent(id)
       const res = await apiFetch(`/api/reports/${encodedId}`)
-      if (!res.ok) throw new Error(`Report not found (${res.status})`)
+      if (!res.ok) {
+        if (res.status === 404) {
+          removeFromHistory(id)
+        }
+        throw new Error(`Report not found (${res.status})`)
+      }
       const data = await res.json()
       report.value = data
       state.currentReportId = data.id
