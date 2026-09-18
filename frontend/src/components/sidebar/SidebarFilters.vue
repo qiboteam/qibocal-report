@@ -130,6 +130,32 @@
       />
     </div>
 
+    <!-- Tags Checklist with Search -->
+    <div class="mb-4 w-full min-w-0">
+      <label class="block text-xs font-semibold text-gray-700 mb-1">Tags</label>
+      <input
+        v-model="labelSearch"
+        placeholder="Filter tags..."
+        class="w-full text-xs px-2.5 py-1 mb-2 bg-gray-50 border-0 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#833dff] box-border"
+      />
+      <div class="space-y-1 max-h-32 overflow-y-auto overflow-x-hidden w-full">
+        <label
+          v-for="lab in filteredLabels"
+          :key="lab"
+          class="flex items-center gap-2 text-xs text-gray-700 hover:bg-gray-50 p-1 rounded cursor-pointer min-w-0"
+        >
+          <input
+            type="checkbox"
+            :value="lab"
+            :checked="selectedLabels.includes(lab)"
+            @change="$emit('toggle-label', lab)"
+            class="rounded text-[#833dff] focus:ring-[#833dff] h-3.5 w-3.5 shrink-0"
+          />
+          <span class="text-xs font-mono truncate min-w-0 flex-1">{{ lab }}</span>
+        </label>
+      </div>
+    </div>
+
     <!-- Author Filter -->
     <div class="mb-4 w-full min-w-0">
       <label class="block text-xs font-semibold text-gray-700 mb-1">Author</label>
@@ -144,7 +170,7 @@
     </div>
 
     <!-- Protocols Checklist (sorted by frequency) -->
-    <div class="mb-4 w-full min-w-0">
+    <div class="w-full min-w-0">
       <div class="flex items-center justify-between mb-1.5">
         <label class="text-xs font-semibold text-gray-700">Protocols</label>
         <span class="text-[10px] text-gray-400">By frequency</span>
@@ -178,32 +204,6 @@
           >
             {{ p.count }}
           </span>
-        </label>
-      </div>
-    </div>
-
-    <!-- Tags Checklist with Search -->
-    <div class="w-full min-w-0">
-      <label class="block text-xs font-semibold text-gray-700 mb-1">Tags</label>
-      <input
-        v-model="labelSearch"
-        placeholder="Filter tags..."
-        class="w-full text-xs px-2.5 py-1 mb-2 bg-gray-50 border-0 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#833dff] box-border"
-      />
-      <div class="space-y-1 max-h-32 overflow-y-auto overflow-x-hidden w-full">
-        <label
-          v-for="lab in filteredLabels"
-          :key="lab"
-          class="flex items-center gap-2 text-xs text-gray-700 hover:bg-gray-50 p-1 rounded cursor-pointer min-w-0"
-        >
-          <input
-            type="checkbox"
-            :value="lab"
-            :checked="selectedLabels.includes(lab)"
-            @change="$emit('toggle-label', lab)"
-            class="rounded text-[#833dff] focus:ring-[#833dff] h-3.5 w-3.5 shrink-0"
-          />
-          <span class="text-xs font-mono truncate min-w-0 flex-1">{{ lab }}</span>
         </label>
       </div>
     </div>

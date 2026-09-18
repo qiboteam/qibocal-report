@@ -2,9 +2,9 @@
   <div class="flex h-screen overflow-hidden bg-[#f7f7f7]">
     <!-- Left Sidebar -->
     <sidebar
-      :filter-stats="filteredStats || filterStats"
+      :filter-stats="timelineStats"
       :full-stats="filterStats"
-      :is-filtered="hasActiveFilters"
+      :is-filtered="isTimelineFiltered"
       :selected-author="filters.author"
       :selected-protocols="filters.protocols"
       :selected-labels="filters.labels"
@@ -23,10 +23,10 @@
     <!-- Main Content Panel -->
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
       <!-- Top Bar: Search, View Mode Switcher, Active Server info -->
-      <div class="sticky top-0 bg-[#f7f7f7]/90 backdrop-blur-md px-6 py-4 border-b border-gray-200/70 z-20">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div class="sticky top-0 bg-[#f7f7f7]/90 backdrop-blur-md px-4 sm:px-6 py-3 sm:py-3.5 border-b border-gray-200/70 z-20">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
           <!-- Full-text search input -->
-          <div class="relative flex-1 max-w-md">
+          <div class="relative flex-1 min-w-[160px] max-w-xs">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -35,17 +35,34 @@
             <input
               v-model="filters.q"
               type="text"
-              placeholder="Search reports by platform, tags, protocols, author..."
+              placeholder="Search reports..."
               class="w-full pl-9 pr-4 py-2 bg-white rounded-xl text-xs sm:text-sm border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff] shadow-xs"
             />
           </div>
 
-          <!-- Controls: View Mode, Sort, & Summary Recap -->
-          <div class="flex items-center gap-2">
+          <!-- Controls: Server Status, Summary Recap, Sort, & View Mode -->
+          <div class="flex items-center gap-2 min-w-0 flex-wrap sm:flex-nowrap">
+            <!-- Active Server Status Indicator -->
+            <div
+              class="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs bg-white border border-gray-200 shadow-2xs min-w-0 max-w-xs shrink"
+              :title="activeServer?.url ? `${activeServer?.name || 'Server'}: ${activeServer.url}` : (activeServer?.name || 'Local Instance')"
+            >
+              <span
+                class="w-2 h-2 rounded-full shrink-0"
+                :class="connectionError ? 'bg-red-500' : loading ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'"
+              ></span>
+              <span class="font-semibold text-gray-700 truncate">
+                {{ activeServer?.name || 'Local Instance' }}
+              </span>
+              <span class="text-[10px] font-mono text-gray-400 truncate hidden xl:inline">
+                ({{ activeServer?.url || 'local' }})
+              </span>
+            </div>
+
             <!-- Summary / Recap Toggle Button (InspireHEP style) -->
             <button
               @click="showRecap = !showRecap"
-              class="px-2.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs border cursor-pointer"
+              class="px-2.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs border cursor-pointer shrink-0"
               :class="showRecap ? 'bg-[#ebe0ff] text-[#833dff] border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:text-gray-900'"
               :title="showRecap ? 'Hide statistics summary' : 'Show statistics summary'"
             >
@@ -59,7 +76,7 @@
             <!-- Sort dropdown -->
             <select
               v-model="filters.sort_by"
-              class="text-xs py-2 px-3 bg-white border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] text-gray-700 shadow-xs"
+              class="text-xs py-2 px-2.5 bg-white border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] text-gray-700 shadow-xs shrink-0 cursor-pointer"
             >
               <option value="date_desc">Newest first</option>
               <option value="date_asc">Oldest first</option>
@@ -67,10 +84,10 @@
             </select>
 
             <!-- Visualization Mode Switcher: Table vs Cards -->
-            <div class="flex items-center bg-white p-0.5 rounded-xl border border-gray-200 shadow-xs">
+            <div class="flex items-center bg-white p-0.5 rounded-xl border border-gray-200 shadow-xs shrink-0">
               <button
                 @click="viewMode = 'table'"
-                class="p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1"
+                class="p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
                 :class="viewMode === 'table' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-500 hover:text-gray-800'"
                 title="Table view (Default)"
               >
@@ -80,7 +97,7 @@
               </button>
               <button
                 @click="viewMode = 'cards'"
-                class="p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1"
+                class="p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
                 :class="viewMode === 'cards' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-500 hover:text-gray-800'"
                 title="Horizontal cards view"
               >
@@ -92,79 +109,10 @@
           </div>
         </div>
 
-        <!-- Active Filter Pills -->
-        <div v-if="hasActiveFilters" class="flex flex-wrap items-center gap-1.5 mt-2.5">
-          <span class="text-[11px] text-gray-500 font-medium">Active Filters:</span>
-          <span
-            v-if="filters.author"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800"
-          >
-            Author: {{ filters.author }}
-            <button type="button" @click="clearFilter('author')" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
-          </span>
-          <span
-            v-if="filters.platform"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
-          >
-            Platform: {{ filters.platform }}
-            <button type="button" @click="clearFilter('platform')" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
-          </span>
-          <span
-            v-for="p in filters.protocols"
-            :key="p"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
-          >
-            {{ p }}
-            <button type="button" @click="clearFilter('protocol', p)" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
-          </span>
-          <span
-            v-for="l in filters.labels"
-            :key="l"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
-          >
-            Tag: {{ l }}
-            <button type="button" @click="clearFilter('label', l)" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
-          </span>
-          <span
-            v-if="filters.date"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
-          >
-            Date: {{ filters.date }}
-            <button type="button" @click="clearFilter('date')" class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none">&times;</button>
-          </span>
-        </div>
       </div>
 
       <!-- Main Results Area -->
-      <div class="p-6">
-        <!-- Results Count & Active Server Indicator -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-          <div class="flex items-center gap-3">
-            <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wider">
-              Calibration Reports <span v-if="!loading">({{ totalReports }})</span><span v-else class="text-gray-400 font-normal text-xs font-mono">(loading...)</span>
-            </h2>
-            <div
-              class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs bg-white border border-gray-200 shadow-2xs"
-              :title="activeServer?.url || 'Local Instance'"
-            >
-              <span
-                class="w-2 h-2 rounded-full"
-                :class="connectionError ? 'bg-red-500' : loading ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500'"
-              ></span>
-              <span class="text-gray-400 text-[11px]">Server:</span>
-              <span class="font-semibold text-gray-700 max-w-[120px] sm:max-w-[200px] truncate">
-                {{ activeServer?.name || 'Local Instance' }}
-              </span>
-              <span class="text-[10px] font-mono text-gray-400 max-w-[150px] sm:max-w-[220px] truncate hidden sm:inline">
-                ({{ activeServer?.url || 'local' }})
-              </span>
-            </div>
-          </div>
-          <span v-if="loading" class="text-xs text-purple-600 font-medium animate-pulse">Loading reports...</span>
-          <span v-else-if="totalReports > 0" class="text-xs text-gray-400">Page {{ currentPage }} of {{ totalPages }}</span>
-          <span v-else class="text-xs text-gray-400">0 matches</span>
-        </div>
-
+      <div class="px-4 sm:px-6 pt-4 pb-6">
         <!-- Connection Error Banner -->
         <div
           v-if="connectionError"
@@ -210,13 +158,13 @@
           :filter-stats="filteredStats || filterStats"
           :full-stats="filterStats"
           :is-filtered="hasActiveFilters"
+          :selected-count="selectedReports.length"
+          :selected-reports="selectedReportsData"
+          :filters="filters"
           @toggle-protocol="onToggleProtocol"
           @filter-platform="p => onUpdateFilter({ key: 'platform', value: p })"
           @filter-author="a => onUpdateFilter({ key: 'author', value: a })"
-          @filter-tag="onToggleLabel"
-          @select-date="d => onUpdateFilter({ key: 'date', value: d })"
-          @reset-filters="onResetFilters"
-          @close="showRecap = false"
+          @clear-filter="(key, val) => clearFilter(key, val)"
         />
 
         <!-- Loading State -->
@@ -347,6 +295,7 @@ import Sidebar from '../components/Sidebar.vue'
 import ReportTable from '../components/ReportTable.vue'
 import ReportCards from '../components/ReportCards.vue'
 import FilteredRecap from '../components/FilteredRecap.vue'
+import { computeStatsFromReports } from '../utils/stats.js'
 import PaginationBar from '../components/PaginationBar.vue'
 import LabelModal from '../components/modals/LabelModal.vue'
 import UnlabelModal from '../components/modals/UnlabelModal.vue'
@@ -428,6 +377,31 @@ const tagsOnSelectedReports = computed(() => {
     }
   }
   return Array.from(tags)
+})
+
+const selectedReportsData = computed(() => {
+  if (selectedReports.value.length === 0) return []
+  const idSet = new Set(selectedReports.value)
+  return reports.value.filter(r => idSet.has(r.id))
+})
+
+const selectedStats = computed(() => {
+  if (selectedReportsData.value.length === 0) return null
+  return computeStatsFromReports(selectedReportsData.value)
+})
+
+const timelineStats = computed(() => {
+  if (selectedReports.value.length > 0 && selectedStats.value) {
+    return selectedStats.value
+  }
+  if (hasActiveFilters.value && filteredStats.value) {
+    return filteredStats.value
+  }
+  return filterStats.value
+})
+
+const isTimelineFiltered = computed(() => {
+  return hasActiveFilters.value || selectedReports.value.length > 0
 })
 
 const authorSuggestions = computed(() => {
@@ -574,9 +548,41 @@ async function fetchFilteredStats() {
     filters.protocols.forEach(p => params.append('protocol', p))
     filters.labels.forEach(l => params.append('label', l))
 
-    const res = await apiFetch(`/api/reports/stats?${params.toString()}`)
-    if (res.ok) {
-      filteredStats.value = await res.json()
+    // 1. Try backend /api/reports/stats endpoint
+    let statsData = null
+    try {
+      const res = await apiFetch(`/api/reports/stats?${params.toString()}`)
+      if (res.ok) {
+        statsData = await res.json()
+      }
+    } catch {
+      statsData = null
+    }
+
+    // 2. Verify if the returned stats actually reflect the filter.
+    // If backend ignored query parameters, statsData.total_reports will equal fullStats.total_reports
+    // while totalReports.value is smaller, or it won't respect active criteria.
+    const fullTotal = filterStats.value?.total_reports ?? 0
+    const isHonored = Boolean(
+      statsData &&
+      (fullTotal === 0 || totalReports.value === 0 || statsData.total_reports === totalReports.value || statsData.total_reports < fullTotal) &&
+      (!filters.platform || statsData.platforms.every(p => p.name === filters.platform)) &&
+      (!filters.author || statsData.authors.every(a => a === filters.author)) &&
+      (!filters.date || statsData.date_histogram.every(d => d.date === filters.date))
+    )
+
+    if (isHonored) {
+      filteredStats.value = statsData
+      return
+    }
+
+    // 3. Fallback: Fetch all matching reports from /api/reports (unpaginated) and compute stats client-side.
+    // This is 100% reliable across all servers and dev setups.
+    const reportsRes = await apiFetch(`/api/reports?${params.toString()}`)
+    if (reportsRes.ok) {
+      const data = await reportsRes.json()
+      const items = Array.isArray(data) ? data : (data.items || [])
+      filteredStats.value = computeStatsFromReports(items)
     } else {
       filteredStats.value = null
     }

@@ -31,7 +31,7 @@
           v-model="authorText"
           type="text"
           placeholder="e.g. Alice, Bob, lab_team..."
-          class="w-full text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] focus:bg-white transition"
+          class="w-full box-border text-xs px-3.5 py-2.5 bg-gray-50 border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] focus:bg-white transition shadow-2xs"
           @keyup.enter="onSubmit"
         />
 

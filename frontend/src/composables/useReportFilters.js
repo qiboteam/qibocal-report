@@ -16,6 +16,7 @@ export function useReportFilters() {
 
   const hasActiveFilters = computed(() => {
     return Boolean(
+      (filters.q && filters.q.trim()) ||
       filters.author ||
       filters.platform ||
       filters.date ||

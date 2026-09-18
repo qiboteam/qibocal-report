@@ -42,19 +42,6 @@
           :class="isFiltered ? 'bg-[#833dff] group-hover:bg-[#6c28d9]' : 'bg-[#c8a8ff] group-hover:bg-[#833dff]'"
           :style="{ height: `${Math.max(isFiltered ? 4 : 12, (bin.filteredCount / maxCount) * 100)}%` }"
         ></div>
-
-        <!-- Floating Tooltip -->
-        <div
-          class="opacity-0 group-hover:opacity-100 transition absolute bottom-full left-1/2 -translate-x-1/2 mb-1 pointer-events-none z-30 whitespace-nowrap bg-black text-white text-[10px] px-1.5 py-0.5 rounded shadow pointer-events-none"
-        >
-          <div class="font-bold">{{ bin.date }}</div>
-          <div v-if="isFiltered">
-            {{ bin.filteredCount }} of {{ bin.fullCount }} reports
-          </div>
-          <div v-else>
-            {{ bin.fullCount }} {{ bin.fullCount === 1 ? 'report' : 'reports' }}
-          </div>
-        </div>
       </div>
     </div>
 

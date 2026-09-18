@@ -1,68 +1,50 @@
 <template>
-  <div class="bm-card p-4 sm:p-5 mb-5 transition-all animate-fade-in border border-purple-100/80 bg-white shadow-xs">
-    <!-- Header: Title, Ratio Badge & Actions -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-100">
-      <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-8 h-8 rounded-xl bg-purple-100 text-[#833dff] flex items-center justify-center font-bold text-sm shrink-0">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-        </div>
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <h3 class="text-sm font-bold text-gray-900 tracking-tight">
-              {{ isFiltered ? 'Filtered Calibration Summary' : 'Calibration Corpus Summary' }}
-            </h3>
-            <span
-              v-if="isFiltered"
-              class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-100 text-purple-800 font-mono"
-            >
-              {{ totalFilteredReports }} / {{ totalFullReports }} reports ({{ filteredPercentage }}%)
-            </span>
-            <span
-              v-else
-              class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 font-mono"
-            >
-              {{ totalFullReports }} reports total
-            </span>
-          </div>
-          <p class="text-[11px] text-gray-400 truncate">
-            {{ isFiltered ? 'InspireHEP-style aggregated statistics for current filter criteria' : 'Aggregated statistics across all calibration runs' }}
-          </p>
-        </div>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="flex items-center gap-3 shrink-0 self-end sm:self-center">
-        <button
+  <div class="bm-card p-4 sm:p-5 mb-4 transition-all animate-fade-in border border-purple-100/80 bg-white shadow-xs">
+    <!-- Header: Scope Toggle (only shown when selection is active) -->
+    <div
+      v-if="selectedCount > 0"
+      class="flex items-center justify-between gap-3 pb-2 mb-3 border-b border-gray-100"
+    >
+      <div>
+        <!-- Segmented scope switch (when checkboxes are selected and filters are active) -->
+        <div
           v-if="isFiltered"
-          @click="$emit('reset-filters')"
-          class="text-xs text-[#833dff] hover:underline font-semibold bg-transparent border-0 cursor-pointer p-0"
+          class="inline-flex items-center bg-gray-100 p-0.5 rounded-lg text-xs"
         >
-          Reset filters
-        </button>
-        <button
-          @click="$emit('close')"
-          class="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition cursor-pointer bg-transparent border-0"
-          title="Hide statistics recap"
+          <button
+            @click="scopeMode = 'filtered'"
+            class="px-2.5 py-0.5 rounded-md font-medium transition cursor-pointer"
+            :class="scopeMode === 'filtered' ? 'bg-white text-purple-900 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-800'"
+          >
+            Filtered ({{ totalFilteredReports }})
+          </button>
+          <button
+            @click="scopeMode = 'selected'"
+            class="px-2.5 py-0.5 rounded-md font-medium transition cursor-pointer"
+            :class="scopeMode === 'selected' ? 'bg-white text-purple-900 shadow-2xs font-semibold' : 'text-gray-500 hover:text-gray-800'"
+          >
+            Selected ({{ selectedCount }})
+          </button>
+        </div>
+        <span
+          v-else
+          class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-800"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+          Selected ({{ selectedCount }})
+        </span>
       </div>
     </div>
 
     <!-- Key Metrics Banner (InspireHEP Stat Callouts) -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-3.5">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-3.5">
       <!-- Reports Tile -->
       <div class="bg-gray-50/90 p-2.5 rounded-xl border border-gray-100 flex flex-col justify-between">
         <span class="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Reports</span>
         <div class="flex items-baseline gap-1.5 mt-0.5">
-          <span class="text-xl font-bold font-mono text-gray-900">{{ totalFilteredReports }}</span>
-          <span v-if="isFiltered" class="text-[11px] font-mono text-gray-400">/ {{ totalFullReports }}</span>
+          <span class="text-xl font-bold font-mono text-gray-900">{{ activeReportCount }}</span>
+          <span v-if="isEffectiveFiltered" class="text-[11px] font-mono text-gray-400">/ {{ totalFullReports }}</span>
         </div>
-        <span v-if="isFiltered" class="text-[10px] text-purple-700 font-mono mt-0.5">{{ filteredPercentage }}% matched</span>
+        <span v-if="isEffectiveFiltered" class="text-[10px] text-purple-700 font-mono mt-0.5">{{ activePercentage }}% matched</span>
         <span v-else class="text-[10px] text-gray-400 mt-0.5">100% of dataset</span>
       </div>
 
@@ -94,22 +76,22 @@
       </div>
     </div>
 
-    <!-- Structured Distribution Breakdown (InspireHEP Multi-column Blueprint) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+    <!-- Structured Distribution Breakdown (InspireHEP 2-column Blueprint) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1">
       <!-- Column 1: Protocols Breakdown Table -->
-      <div class="bg-gray-50/60 rounded-xl p-3 border border-gray-100 flex flex-col min-w-0">
+      <div class="bg-gray-50/60 rounded-xl p-3.5 border border-gray-100 flex flex-col min-w-0">
         <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200/60">
           <div class="flex items-center gap-1.5 min-w-0">
             <div class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></div>
             <span class="text-xs font-bold text-gray-700 uppercase tracking-wider truncate">Protocols Breakdown</span>
           </div>
-          <span class="text-[10px] text-gray-400 font-mono">{{ topProtocols.length }}</span>
+          <span class="text-[10px] text-gray-400 font-mono">{{ topProtocols.length }} protocols</span>
         </div>
 
-        <div v-if="topProtocols.length === 0" class="py-6 text-center text-xs text-gray-400 italic">
+        <div v-if="topProtocols.length === 0" class="py-8 text-center text-xs text-gray-400 italic">
           No protocol data found
         </div>
-        <div v-else class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+        <div v-else class="space-y-1.5 max-h-52 overflow-y-auto pr-1">
           <div
             v-for="p in topProtocols"
             :key="p.name"
@@ -147,7 +129,7 @@
             <span class="text-[10px] text-gray-400 font-mono">{{ topPlatforms.length }}</span>
           </div>
 
-          <div v-if="topPlatforms.length === 0" class="py-2 text-center text-xs text-gray-400 italic">No platforms</div>
+          <div v-if="topPlatforms.length === 0" class="py-3 text-center text-xs text-gray-400 italic">No platforms</div>
           <div v-else class="space-y-1 max-h-24 overflow-y-auto pr-1">
             <div
               v-for="plat in topPlatforms"
@@ -176,7 +158,7 @@
             <span class="text-[10px] text-gray-400 font-mono">{{ topAuthors.length }}</span>
           </div>
 
-          <div v-if="topAuthors.length === 0" class="py-2 text-center text-xs text-gray-400 italic">No authors</div>
+          <div v-if="topAuthors.length === 0" class="py-3 text-center text-xs text-gray-400 italic">No authors</div>
           <div v-else class="space-y-1 max-h-24 overflow-y-auto pr-1">
             <div
               v-for="auth in topAuthors"
@@ -195,57 +177,154 @@
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Column 3: Dual-Timeline Activity (Filtered vs Full Set) -->
-      <div class="bg-gray-50/60 rounded-xl p-3 border border-gray-100 flex flex-col justify-between min-w-0">
-        <div>
-          <div class="flex items-center justify-between pb-2 mb-2 border-b border-gray-200/60">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <div class="w-2 h-2 rounded-full bg-violet-500 shrink-0"></div>
-              <span class="text-xs font-bold text-gray-700 uppercase tracking-wider truncate">Activity Timeline</span>
-            </div>
-            <span v-if="isFiltered" class="text-[10px] text-purple-700 font-mono bg-purple-100 px-1.5 py-0.2 rounded shrink-0">
-              Filtered vs Full
-            </span>
-          </div>
-
-          <!-- Dual-bar DateHistogram -->
-          <date-histogram
-            :histogram="filterStats?.date_histogram"
-            :full-histogram="fullStats?.date_histogram"
-            :is-filtered="isFiltered"
-            :show-title="false"
-            height-class="h-28"
-            @select-date="d => $emit('select-date', d)"
-          />
-        </div>
-
-        <div class="text-[10px] text-gray-400 text-center mt-2 italic">
-          {{ isFiltered ? 'Purple shows filtered reports; grey shows full dataset. Click bar to filter.' : 'Click any day bar to filter reports for that date.' }}
-        </div>
-      </div>
+    <!-- Active Filter Pills at the bottom of summary -->
+    <div
+      v-if="hasAnyFilter"
+      class="mt-3.5 pt-3 border-t border-gray-100 flex flex-wrap items-center gap-1.5"
+    >
+      <span class="text-[11px] text-gray-400 font-medium">Active Filters:</span>
+      <span
+        v-if="filters.author"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800"
+      >
+        Author: {{ filters.author }}
+        <button
+          type="button"
+          @click="$emit('clear-filter', 'author')"
+          class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none ml-0.5"
+          title="Clear author filter"
+        >&times;</button>
+      </span>
+      <span
+        v-if="filters.platform"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
+      >
+        Platform: {{ filters.platform }}
+        <button
+          type="button"
+          @click="$emit('clear-filter', 'platform')"
+          class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none ml-0.5"
+          title="Clear platform filter"
+        >&times;</button>
+      </span>
+      <span
+        v-for="p in filters.protocols"
+        :key="p"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
+      >
+        {{ p }}
+        <button
+          type="button"
+          @click="$emit('clear-filter', 'protocol', p)"
+          class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none ml-0.5"
+          title="Clear protocol filter"
+        >&times;</button>
+      </span>
+      <span
+        v-for="l in filters.labels"
+        :key="l"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
+      >
+        Tag: {{ l }}
+        <button
+          type="button"
+          @click="$emit('clear-filter', 'label', l)"
+          class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none ml-0.5"
+          title="Clear tag filter"
+        >&times;</button>
+      </span>
+      <span
+        v-if="filters.date"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
+      >
+        Date: {{ filters.date }}
+        <button
+          type="button"
+          @click="$emit('clear-filter', 'date')"
+          class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none ml-0.5"
+          title="Clear date filter"
+        >&times;</button>
+      </span>
+      <span
+        v-if="filters.q && filters.q.trim()"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
+      >
+        Search: "{{ filters.q }}"
+        <button
+          type="button"
+          @click="$emit('clear-filter', 'q')"
+          class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none ml-0.5"
+          title="Clear search query"
+        >&times;</button>
+      </span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import DateHistogram from './DateHistogram.vue'
+import { ref, computed } from 'vue'
+import { computeStatsFromReports } from '../utils/stats.js'
 
 const props = defineProps({
   filterStats: { type: Object, default: () => ({}) },
   fullStats: { type: Object, default: () => ({}) },
-  isFiltered: { type: Boolean, default: false }
+  isFiltered: { type: Boolean, default: false },
+  selectedCount: { type: Number, default: 0 },
+  selectedReports: { type: Array, default: () => [] },
+  filters: { type: Object, default: () => ({}) }
 })
 
 defineEmits([
   'toggle-protocol',
   'filter-platform',
   'filter-author',
-  'select-date',
-  'reset-filters',
-  'close'
+  'clear-filter'
 ])
+
+const hasAnyFilter = computed(() => {
+  const f = props.filters || {}
+  return Boolean(
+    f.author ||
+    f.platform ||
+    (f.protocols && f.protocols.length > 0) ||
+    (f.labels && f.labels.length > 0) ||
+    f.date ||
+    (f.q && f.q.trim())
+  )
+})
+
+const scopeMode = ref('filtered')
+
+const selectedStats = computed(() => {
+  if (!props.selectedReports || props.selectedReports.length === 0) return null
+  return computeStatsFromReports(props.selectedReports)
+})
+
+const isShowingSelected = computed(() => {
+  if (props.selectedCount > 0) {
+    if (!props.isFiltered) return true
+    return scopeMode.value === 'selected'
+  }
+  return false
+})
+
+const activeStats = computed(() => {
+  if (isShowingSelected.value && selectedStats.value) {
+    return selectedStats.value
+  }
+  return props.filterStats || props.fullStats || {}
+})
+
+const isEffectiveFiltered = computed(() => {
+  return props.isFiltered || isShowingSelected.value
+})
+
+
+const activeReportCount = computed(() => {
+  return activeStats.value?.total_reports ?? 0
+})
 
 const totalFilteredReports = computed(() => {
   return props.filterStats?.total_reports ?? 0
@@ -255,25 +334,25 @@ const totalFullReports = computed(() => {
   return props.fullStats?.total_reports ?? props.filterStats?.total_reports ?? 0
 })
 
-const filteredPercentage = computed(() => {
-  if (!props.isFiltered || totalFullReports.value === 0) return 100
-  return ((totalFilteredReports.value / totalFullReports.value) * 100).toFixed(1)
+const activePercentage = computed(() => {
+  if (!isEffectiveFiltered.value || totalFullReports.value === 0) return 100
+  return ((activeReportCount.value / totalFullReports.value) * 100).toFixed(1)
 })
 
 const topProtocols = computed(() => {
-  return props.filterStats?.protocols || []
+  return activeStats.value?.protocols || []
 })
 
 const topPlatforms = computed(() => {
-  return props.filterStats?.platforms || []
+  return activeStats.value?.platforms || []
 })
 
 const topAuthors = computed(() => {
-  return props.filterStats?.author_frequencies || []
+  return activeStats.value?.author_frequencies || []
 })
 
 const maxProtocolCount = computed(() => {
-  const protos = props.filterStats?.protocols || []
+  const protos = activeStats.value?.protocols || []
   if (protos.length === 0) return 1
   return Math.max(...protos.map(p => p.count), 1)
 })

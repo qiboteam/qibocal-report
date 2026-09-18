@@ -73,7 +73,12 @@ def server(directory: str, host: str, port: int):
 @click.option(
     "--frontend-port", default=5173, type=int, help="Frontend Vite dev server port."
 )
-def dev(directory: str, host: str, port: int, frontend_port: int):
+@click.option(
+    "--reload/--no-reload",
+    default=True,
+    help="Enable auto-reload for backend server.",
+)
+def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool = True):
     """Serve Qibocal reports in developer mode with live Vite HMR."""
     dir_path = Path(directory).resolve()
     set_report_root(dir_path)
@@ -143,7 +148,7 @@ def dev(directory: str, host: str, port: int, frontend_port: int):
     vite_proc = subprocess.Popen(vite_cmd, cwd=frontend_dir, env=env)
 
     try:
-        uvicorn.run("qibocal_report.api:app", host=host, port=port)
+        uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
     finally:
         if vite_proc.poll() is None:
             console.print("\n[dim]Stopping Vite development server...[/dim]")
