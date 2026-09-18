@@ -23,7 +23,7 @@ def setup_env(tmp_path, monkeypatch):
     sample_src = Path(__file__).parent.parent / "sample_data"
     test_reports = tmp_path / "sample_data"
     shutil.copytree(sample_src, test_reports, ignore=shutil.ignore_patterns("*.zip"))
-    set_report_root(test_reports)
+    set_report_root(test_reports, is_original=True)
 
 
 def test_config_servers(tmp_path):
@@ -530,6 +530,71 @@ def test_author_identities_and_search_index():
     assert first.platform.lower() in first.search_index
     assert first.id.lower() in first.search_index
 
+    # 4. Test compute_filter_stats and filter_reports with author_identities
+    from qibocal_report.models import ReportSummary
+    from qibocal_report.scanner import compute_filter_stats, filter_reports
+
+    dummy_reports = [
+        ReportSummary(
+            id="rep1",
+            title="Rep 1",
+            path="rep1",
+            date="2024-01-01T00:00:00",
+            author="alecandido",
+        ),
+        ReportSummary(
+            id="rep2",
+            title="Rep 2",
+            path="rep2",
+            date="2024-01-02T00:00:00",
+            author="Dr. Quantum",
+        ),
+        ReportSummary(
+            id="rep3",
+            title="Rep 3",
+            path="rep3",
+            date="2024-01-03T00:00:00",
+            author="qibo_user",
+        ),
+        ReportSummary(
+            id="rep4",
+            title="Rep 4",
+            path="rep4",
+            date="2024-01-04T00:00:00",
+            author="Bob",
+        ),
+    ]
+    # Stats aggregation
+    stats = compute_filter_stats(
+        dummy_reports, author_identities=srv["author_identities"]
+    )
+    assert "Dr. Quantum" in stats.authors
+    assert "alecandido" not in stats.authors
+    assert "qibo_user" not in stats.authors
+    assert len(stats.authors) == 2  # Dr. Quantum and Bob
+    dr_freq = next(
+        (f for f in stats.author_frequencies if f.name == "Dr. Quantum"), None
+    )
+    assert dr_freq is not None
+    assert dr_freq.count == 3  # alecandido, Dr. Quantum, qibo_user
+
+    # Filtering by canonical name matches alias reports
+    filtered = filter_reports(
+        dummy_reports,
+        authors=["Dr. Quantum"],
+        author_identities=srv["author_identities"],
+    )
+    assert len(filtered) == 3
+    assert {r.id for r in filtered} == {"rep1", "rep2", "rep3"}
+
+    # Filtering by alias name also matches the canonical group
+    filtered_alias = filter_reports(
+        dummy_reports,
+        authors=["alecandido"],
+        author_identities=srv["author_identities"],
+    )
+    assert len(filtered_alias) == 3
+
 
 def test_pagination_and_cache_invalidation():
     client = TestClient(app)
@@ -585,3 +650,105 @@ def test_pagination_and_cache_invalidation():
         os.utime(meta_file, (new_mtime, new_mtime))
         scan_modified = scan_reports(test_reports)
         assert scan_modified is not scan3
+
+
+def test_server_directory_management(tmp_path):
+    client = TestClient(app)
+    test_reports = get_report_root()
+
+    # 1. Test get directory info
+    res = client.get("/api/server/directory")
+    assert res.status_code == 200
+    dir_info = res.json()
+    assert dir_info["original_root"] == str(test_reports)
+    assert dir_info["current_root"] == str(test_reports)
+    assert dir_info["relative_current"] == ""
+    assert dir_info["reports_count"] >= 3
+
+    # 2. Browse directory (root): report folders are leaves and omitted
+    browse_res = client.get("/api/server/directory/browse")
+    assert browse_res.status_code == 200
+    browse_data = browse_res.json()
+    assert browse_data["current_browse_path"] == ""
+    assert browse_data["parent_path"] is None
+    assert browse_data["is_active_root"] is True
+    assert browse_data["reports_count"] >= 3
+    # Report directories like pi-pulse must NOT be returned as directory options
+    sub_names = [d["name"] for d in browse_data["directories"]]
+    assert not any("pi-pulse" in n for n in sub_names)
+
+    # 3. Create a container folder containing a report folder
+    batch_dir = test_reports / "experiments_batch"
+    run_dir = batch_dir / "run_1"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "meta.json").write_text(
+        json.dumps({"title": "Sub Run"}), encoding="utf-8"
+    )
+
+    browse_after = client.get("/api/server/directory/browse")
+    assert browse_after.status_code == 200
+    after_data = browse_after.json()
+    found_batch = next(
+        (d for d in after_data["directories"] if d["name"] == "experiments_batch"),
+        None,
+    )
+    assert found_batch is not None
+    assert found_batch["reports_count"] == 1
+
+    # 4. Browse inside container: child report run_1 is a leaf, so directories is empty
+    browse_inside = client.get("/api/server/directory/browse?path=experiments_batch")
+    assert browse_inside.status_code == 200
+    inside_data = browse_inside.json()
+    assert inside_data["current_browse_path"] == "experiments_batch"
+    assert inside_data["parent_path"] == ""
+    assert len(inside_data["breadcrumbs"]) == 2
+    assert len(inside_data["directories"]) == 0
+    assert inside_data["reports_count"] == 1
+
+    # 5. Attempting to select a report leaf folder as root is rejected (400)
+    leaf_change = client.post(
+        "/api/server/directory", json={"path": "experiments_batch/run_1"}
+    )
+    assert leaf_change.status_code == 400
+
+    # 6. Change server directory to container folder
+    change_res = client.post(
+        "/api/server/directory", json={"path": "experiments_batch"}
+    )
+    assert change_res.status_code == 200
+    changed_info = change_res.json()
+    assert changed_info["current_root"] == str(batch_dir)
+    assert changed_info["relative_current"] == "experiments_batch"
+    assert changed_info["reports_count"] == 1
+
+    # Invalidate / verify reports list now only reflects this subfolder
+    reports_res = client.get("/api/reports")
+    assert reports_res.status_code == 200
+    reports = reports_res.json()
+    assert len(reports) == 1
+
+    # 7. Change server directory back to root
+    reset_res = client.post("/api/server/directory", json={"path": ""})
+    assert reset_res.status_code == 200
+    reset_info = reset_res.json()
+    assert reset_info["current_root"] == str(test_reports)
+    assert reset_info["relative_current"] == ""
+    assert reset_info["reports_count"] >= 3
+
+    # 7. Security: Browsing or changing outside original root is forbidden (403)
+    forbidden_browse = client.get("/api/server/directory/browse?path=../../")
+    assert forbidden_browse.status_code == 403
+
+    forbidden_change = client.post("/api/server/directory", json={"path": "../../"})
+    assert forbidden_change.status_code == 403
+
+    # 8. Non-existent path returns 404 on browse and 400 on change
+    not_found_browse = client.get(
+        "/api/server/directory/browse?path=nonexistent_folder_xyz"
+    )
+    assert not_found_browse.status_code == 404
+
+    not_found_change = client.post(
+        "/api/server/directory", json={"path": "nonexistent_folder_xyz"}
+    )
+    assert not_found_change.status_code == 400

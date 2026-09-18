@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { state, apiFetch } from '../store.js'
+import { state, apiFetch, resolveAuthor } from '../store.js'
 
 /**
  * Composable providing statistics calculations, filtering, and data fetching.
@@ -41,16 +41,24 @@ export function useStatisticsData() {
   })
 
   const authorsList = computed(() => {
+    let list = []
     if (stats.value?.author_frequencies?.length) {
-      return stats.value.author_frequencies
-    }
-    if (stats.value?.authors?.length) {
-      return stats.value.authors.map(a => ({
+      list = stats.value.author_frequencies
+    } else if (stats.value?.authors?.length) {
+      list = stats.value.authors.map(a => ({
         name: a,
         count: (stats.value.author_counts && stats.value.author_counts[a]) || 1
       }))
     }
-    return []
+    if (!list.length) return []
+    const map = new Map()
+    for (const item of list) {
+      const canonical = resolveAuthor(item.name, state.activeServer)
+      map.set(canonical, (map.get(canonical) || 0) + item.count)
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
   })
 
   const tagsList = computed(() => {

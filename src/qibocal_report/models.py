@@ -14,6 +14,7 @@ class ServerModel(BaseModel):
     is_default: bool = False
     created_at: str | None = None
     author_identities: dict[str, list[str]] = Field(default_factory=dict)
+    protocol_docs: dict[str, str] = Field(default_factory=dict)
 
 
 class ServerCreate(BaseModel):
@@ -22,6 +23,7 @@ class ServerCreate(BaseModel):
     description: str | None = None
     avatar: str | None = None
     author_identities: dict[str, list[str]] | None = None
+    protocol_docs: dict[str, str] | None = None
 
 
 class ServerUpdate(BaseModel):
@@ -31,6 +33,7 @@ class ServerUpdate(BaseModel):
     avatar: str | None = None
     is_default: bool | None = None
     author_identities: dict[str, list[str]] | None = None
+    protocol_docs: dict[str, str] | None = None
 
 
 class ProtocolFigure(BaseModel):
@@ -133,6 +136,7 @@ class HealthResponse(BaseModel):
     server_name: str
     reports_count: int
     root_dir: str
+    original_root_dir: str | None = None
 
 
 class BulkActionRequest(BaseModel):
@@ -155,3 +159,38 @@ class SingleLabelRequest(BaseModel):
 
 class UpdateAuthorRequest(BaseModel):
     author: str
+
+
+class DirectoryBreadcrumb(BaseModel):
+    name: str
+    path: str
+
+
+class DirectoryEntry(BaseModel):
+    name: str
+    path: str
+    has_subdirs: bool = False
+    is_current: bool = False
+    reports_count: int = 0
+
+
+class ServerDirectoryInfo(BaseModel):
+    original_root: str
+    current_root: str
+    relative_current: str
+    reports_count: int = 0
+
+
+class DirectoryBrowseResponse(BaseModel):
+    original_root: str
+    current_root: str
+    current_browse_path: str
+    parent_path: str | None = None
+    breadcrumbs: list[DirectoryBreadcrumb] = Field(default_factory=list)
+    directories: list[DirectoryEntry] = Field(default_factory=list)
+    is_active_root: bool = False
+    reports_count: int = 0
+
+
+class ChangeDirectoryRequest(BaseModel):
+    path: str = ""

@@ -8,16 +8,10 @@
       :selected-author="filters.author"
       :selected-protocols="filters.protocols"
       :selected-labels="filters.labels"
-      :selected-count="selectedReports.length"
       @update-filter="onUpdateFilter"
       @toggle-protocol="onToggleProtocol"
       @toggle-label="onToggleLabel"
       @reset-filters="onResetFilters"
-      @open-label="openLabelModal"
-      @open-unlabel="openUnlabelModal"
-      @open-author="() => openAuthorModal()"
-      @open-delete="openDeleteModal"
-      @clear-selection="clearSelection"
     />
 
     <!-- Main Content Panel -->
@@ -165,6 +159,7 @@
           @filter-platform="p => onUpdateFilter({ key: 'platform', value: p })"
           @filter-author="a => onUpdateFilter({ key: 'author', value: a })"
           @clear-filter="(key, val) => clearFilter(key, val)"
+          @edit-authors-mapping="showAuthorMappingModal = true"
         />
 
         <!-- Loading State -->
@@ -206,6 +201,7 @@
           :reports="reports"
           :selected="selectedReports"
           @select="openReport"
+          @open-protocol="onOpenProtocol"
           @toggle-select="toggleSelect"
           @toggle-select-all="() => toggleSelectAll(reports.map(r => r.id))"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
@@ -219,6 +215,7 @@
           :reports="reports"
           :selected="selectedReports"
           @select="openReport"
+          @open-protocol="onOpenProtocol"
           @toggle-select="toggleSelect"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
           @edit-author="r => openAuthorModal(r)"
@@ -291,13 +288,20 @@
       @close="showDeleteModal = false"
       @confirm="() => applyBulkDelete(onBulkActionSuccess)"
     />
+
+    <author-mapping-modal
+      :show="showAuthorMappingModal"
+      :server="activeServer"
+      @close="showAuthorMappingModal = false"
+      @saved="onAuthorMappingSaved"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { state, addToHistory, apiFetch, ensureServersLoaded } from '../store.js'
+import { state, addToHistory, apiFetch, ensureServersLoaded, resolveAuthor, persistSearchState } from '../store.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useBulkActions } from '../composables/useBulkActions.js'
@@ -312,6 +316,7 @@ import LabelModal from '../components/modals/LabelModal.vue'
 import UnlabelModal from '../components/modals/UnlabelModal.vue'
 import AuthorModal from '../components/modals/AuthorModal.vue'
 import DeleteConfirmModal from '../components/modals/DeleteConfirmModal.vue'
+import AuthorMappingModal from '../components/modals/AuthorMappingModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -322,6 +327,11 @@ const filteredStats = ref(null)
 const showRecap = ref(true)
 const loading = ref(true)
 const connectionError = ref(null)
+const showAuthorMappingModal = ref(false)
+
+async function onAuthorMappingSaved() {
+  await refreshData()
+}
 
 const activeServer = computed(() => state.activeServer)
 
@@ -349,7 +359,10 @@ const {
   getFromCache,
   setCache,
   hasInCache
-} = usePagination(10)
+} = usePagination(
+  state.searchState?.pageSize || 10,
+  state.searchState?.currentPage || 1
+)
 
 const {
   selectedReports,
@@ -424,10 +437,10 @@ const authorSuggestions = computed(() => {
   }
   if (filterStats.value?.authors && Array.isArray(filterStats.value.authors)) {
     for (const a of filterStats.value.authors) {
-      if (a && a !== 'Unknown') authors.add(a)
+      if (a && a !== 'Unknown') authors.add(resolveAuthor(a, activeServer.value))
     }
   }
-  return Array.from(authors)
+  return Array.from(authors).sort((a, b) => a.localeCompare(b))
 })
 
 function getCurrentFilterKey() {
@@ -492,10 +505,18 @@ function onResetFilters() {
   })
 }
 
-function openReport(report) {
+function openReport(report, targetProtocol = null) {
   state.currentReportId = report.id
   addToHistory(report)
-  router.push(`/reports/${report.id}`)
+  if (targetProtocol) {
+    router.push({ path: `/reports/${report.id}`, query: { protocol: targetProtocol } })
+  } else {
+    router.push(`/reports/${report.id}`)
+  }
+}
+
+function onOpenProtocol({ report, protocol }) {
+  openReport(report, protocol)
 }
 
 async function onBulkActionSuccess() {
@@ -504,16 +525,17 @@ async function onBulkActionSuccess() {
   await fetchFilteredStats()
 }
 
-async function refreshData() {
+async function refreshData(preservePage = false) {
   loading.value = true
   connectionError.value = null
   reports.value = []
   totalReports.value = 0
-  currentPage.value = 1
+  const targetPage = preservePage ? (currentPage.value || 1) : 1
+  currentPage.value = targetPage
   filterStats.value = null
   filteredStats.value = null
   clearCache()
-  await Promise.all([fetchStats(), fetchReports(1, false)])
+  await Promise.all([fetchStats(), fetchReports(targetPage, false)])
   await fetchFilteredStats()
 }
 
@@ -721,11 +743,48 @@ function syncFiltersFromRoute(query) {
 }
 
 onMounted(async () => {
-  syncFiltersFromRoute(route.query)
   loading.value = true
   await ensureServersLoaded()
-  await refreshData()
+
+  // 1. If server changed while away, reset search state
+  const currentServerId = activeServer.value?.id || activeServer.value?.url || 'local'
+  if (state.searchState.serverId && state.searchState.serverId !== currentServerId) {
+    resetFilters()
+    currentPage.value = 1
+  }
+
+  // 2. Check pending filter from another view (e.g. Statistics page)
+  if (state.pendingFilter) {
+    const { key, value } = state.pendingFilter
+    state.pendingFilter = null
+    resetFilters()
+    if (key === 'author') filters.author = value
+    else if (key === 'platform') filters.platform = value
+    else if (key === 'protocol') filters.protocols = [value]
+    else if (key === 'label' || key === 'tag') filters.labels = [value]
+    else if (key === 'date') filters.date = value
+    currentPage.value = 1
+  } else {
+    // 3. Sync from route query if parameters are specified
+    const routeChanged = syncFiltersFromRoute(route.query)
+    if (routeChanged) {
+      currentPage.value = 1
+    }
+  }
+
+  await refreshData(true)
 })
+
+watch(
+  () => [currentPage.value, pageSize.value],
+  ([p, s]) => {
+    if (state.searchState) {
+      state.searchState.currentPage = p
+      state.searchState.pageSize = s
+      persistSearchState()
+    }
+  }
+)
 
 watch(
   () => route.query,
@@ -741,9 +800,12 @@ watch(
 )
 
 watch(
-  () => [state.activeServer?.id, state.activeServer?.url],
-  async ([newId, newUrl], [oldId, oldUrl]) => {
-    if (newId !== oldId || newUrl !== oldUrl) {
+  () => [state.activeServer?.id, state.activeServer?.url, state.serverDataVersion],
+  async ([newId, newUrl, newVer], [oldId, oldUrl, oldVer]) => {
+    if (newId !== oldId || newUrl !== oldUrl || newVer !== oldVer) {
+      if (newId !== oldId || newUrl !== oldUrl) {
+        resetFilters()
+      }
       reports.value = []
       totalReports.value = 0
       currentPage.value = 1

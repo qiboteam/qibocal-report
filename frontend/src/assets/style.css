@@ -19,7 +19,9 @@ body {
   padding: 0;
   background-color: var(--bg-main);
   color: var(--text-main);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -36,8 +38,14 @@ h1 {
   letter-spacing: -0.02em;
 }
 
-h2, h3, h4, h5, h6 {
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   letter-spacing: -0.01em;
 }
 
@@ -46,12 +54,16 @@ h2, h3, h4, h5, h6 {
   background: #ffffff;
   border-radius: 12px;
   border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(131, 61, 255, 0.03);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 2px 8px rgba(131, 61, 255, 0.03);
   transition: all 0.07s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .bm-card:hover {
-  box-shadow: 0 4px 16px rgba(131, 61, 255, 0.07), 0 2px 6px rgba(0, 0, 0, 0.03);
+  box-shadow:
+    0 4px 16px rgba(131, 61, 255, 0.07),
+    0 2px 6px rgba(0, 0, 0, 0.03);
 }
 
 .bm-btn-primary {
@@ -81,7 +93,7 @@ h2, h3, h4, h5, h6 {
 
 /* Accelerated animations & transitions: exactly 1/3 of standard durations */
 .animate-fade-in {
-  animation: fade-in 0.33s linear 1 !important;
+  animation: fade-in 0.15s linear 1 !important;
 }
 
 .transition,
@@ -117,25 +129,28 @@ h2, h3, h4, h5, h6 {
   transition-duration: 167ms !important;
 }
 
-
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.15);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.25);
 }
 
 /* Print CSS for High-Quality Multi-Page PDF Export */
 @media print {
+
   /* Enforce exact colors, background fills, and borders */
   *,
   *::before,
@@ -203,7 +218,7 @@ h2, h3, h4, h5, h6 {
   }
 
   /* Ensure content wrapper fills width */
-  .report-print-container > div {
+  .report-print-container>div {
     max-width: 100% !important;
     width: 100% !important;
     margin: 0 !important;
@@ -242,7 +257,7 @@ h2, h3, h4, h5, h6 {
   }
 
   /* Prevent awkward orphans: keep protocol headers with following content */
-  .bm-card > div:first-child {
+  .bm-card>div:first-child {
     page-break-after: avoid !important;
     break-after: avoid !important;
   }

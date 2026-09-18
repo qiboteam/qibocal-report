@@ -29,6 +29,10 @@ from qibocal_report.logger import log_error, log_info
 from qibocal_report.models import (
     BulkActionRequest,
     BulkActionResponse,
+    ChangeDirectoryRequest,
+    DirectoryBreadcrumb,
+    DirectoryBrowseResponse,
+    DirectoryEntry,
     FilterStats,
     HealthResponse,
     PaginatedReportsResponse,
@@ -36,6 +40,7 @@ from qibocal_report.models import (
     ReportDetail,
     ReportSummary,
     ServerCreate,
+    ServerDirectoryInfo,
     ServerModel,
     ServerUpdate,
     SingleLabelRequest,
@@ -77,20 +82,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-REPORT_ROOT_DIR = Path(os.environ.get("QIBOCAL_REPORT_DIR", Path.cwd()))
+REPORT_ROOT_DIR = Path(os.environ.get("QIBOCAL_REPORT_DIR", Path.cwd())).resolve()
+ORIGINAL_ROOT_DIR = Path(
+    os.environ.get("QIBOCAL_ORIGINAL_REPORT_DIR", REPORT_ROOT_DIR)
+).resolve()
 SERVER_NAME = os.environ.get("QIBOCAL_SERVER_NAME", "local-instance")
 
 
-def set_report_root(path: Path) -> None:
+def set_report_root(path: Path, is_original: bool = False) -> None:
     """Set the root directory to scan for reports."""
-    global REPORT_ROOT_DIR
-    REPORT_ROOT_DIR = path.resolve()
+    global REPORT_ROOT_DIR, ORIGINAL_ROOT_DIR
+    resolved = path.resolve()
+    if is_original or "ORIGINAL_ROOT_DIR" not in globals() or ORIGINAL_ROOT_DIR is None:
+        ORIGINAL_ROOT_DIR = resolved
+    REPORT_ROOT_DIR = resolved
     invalidate_report_cache()
 
 
 def get_report_root() -> Path:
-    """Get the root directory."""
+    """Get the current root directory."""
     return REPORT_ROOT_DIR
+
+
+def get_original_root() -> Path:
+    """Get the original directory where the server was spawned."""
+    return ORIGINAL_ROOT_DIR
 
 
 # --- Health Endpoint ---
@@ -103,6 +119,7 @@ def health_check() -> HealthResponse:
         server_name=SERVER_NAME,
         reports_count=len(reports),
         root_dir=str(REPORT_ROOT_DIR),
+        original_root_dir=str(ORIGINAL_ROOT_DIR),
     )
 
 
@@ -133,6 +150,7 @@ def update_server_endpoint(server_id: str, data: ServerUpdate) -> ServerModel:
     updated = config.update_server(server_id, data.model_dump(exclude_unset=True))
     if not updated:
         raise HTTPException(status_code=404, detail="Server not found")
+    invalidate_report_cache()
     return ServerModel(**updated)
 
 
@@ -155,6 +173,202 @@ def save_servers_endpoint() -> dict[str, Any]:
         "count": len(servers),
         "path": str(config.get_config_file()),
     }
+
+
+# --- Server Directory Management Endpoints ---
+def _get_relative_current() -> str:
+    """Return relative path of REPORT_ROOT_DIR compared to ORIGINAL_ROOT_DIR."""
+    try:
+        cur = REPORT_ROOT_DIR.resolve()
+        orig = ORIGINAL_ROOT_DIR.resolve()
+        if cur == orig:
+            return ""
+        return cur.relative_to(orig).as_posix()
+    except ValueError:
+        return str(REPORT_ROOT_DIR)
+
+
+def _count_reports_fast(path: Path) -> int:
+    """Fast count of reports in a folder without affecting main report cache."""
+    from qibocal_report.scanner import IGNORED_DIRS, is_report_directory
+
+    if not path.is_dir():
+        return 0
+    if is_report_directory(path):
+        return 1
+    count = 0
+    for dirpath, dirnames, _ in os.walk(path):
+        dirnames[:] = [
+            d for d in dirnames if d not in IGNORED_DIRS and not d.startswith(".")
+        ]
+        dp = Path(dirpath)
+        if dp != path and is_report_directory(dp):
+            count += 1
+            dirnames.clear()
+    return count
+
+
+@app.get(
+    "/api/server/directory",
+    response_model=ServerDirectoryInfo,
+    tags=["Server Directory"],
+)
+def get_server_directory_info() -> ServerDirectoryInfo:
+    """Get original root and currently active server directory information."""
+    reports = scan_reports(REPORT_ROOT_DIR)
+    return ServerDirectoryInfo(
+        original_root=str(ORIGINAL_ROOT_DIR),
+        current_root=str(REPORT_ROOT_DIR),
+        relative_current=_get_relative_current(),
+        reports_count=len(reports),
+    )
+
+
+@app.get(
+    "/api/server/directory/browse",
+    response_model=DirectoryBrowseResponse,
+    tags=["Server Directory"],
+)
+def browse_server_directory(path: str = "") -> DirectoryBrowseResponse:
+    """Browse subdirectories of the originally spawned server directory."""
+    from qibocal_report.scanner import IGNORED_DIRS
+
+    orig = ORIGINAL_ROOT_DIR.resolve()
+    clean_subpath = path.strip().lstrip("/")
+    target = (orig / clean_subpath).resolve()
+
+    # Strict security check: target must be inside or equal to ORIGINAL_ROOT_DIR
+    if not (target == orig or orig in target.parents):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Access forbidden: cannot browse outside originally spawned "
+                "server folder"
+            ),
+        )
+
+    if not target.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Directory '{clean_subpath}' not found",
+        )
+
+    # Compute breadcrumbs
+    root_display_name = orig.name or "root"
+    breadcrumbs = [DirectoryBreadcrumb(name=root_display_name, path="")]
+    if clean_subpath:
+        rel_parts = Path(clean_subpath).parts
+        accum: list[str] = []
+        for part in rel_parts:
+            accum.append(part)
+            breadcrumbs.append(DirectoryBreadcrumb(name=part, path="/".join(accum)))
+
+    # Compute parent path
+    if target == orig:
+        parent_path = None
+    else:
+        parent_rel = target.parent.relative_to(orig).as_posix()
+        parent_path = "" if parent_rel == "." else parent_rel
+
+    # List subdirectories (treating report folders as leaves and omitting them)
+    from qibocal_report.scanner import is_report_directory
+
+    subdirs: list[DirectoryEntry] = []
+    try:
+        for item in sorted(target.iterdir(), key=lambda x: x.name.lower()):
+            if (
+                item.is_dir()
+                and not item.name.startswith(".")
+                and item.name not in IGNORED_DIRS
+                and not is_report_directory(item)
+            ):
+                has_sub = any(
+                    c.is_dir()
+                    and not c.name.startswith(".")
+                    and c.name not in IGNORED_DIRS
+                    and not is_report_directory(c)
+                    for c in item.iterdir()
+                )
+                is_cur = item.resolve() == REPORT_ROOT_DIR.resolve()
+                item_rel = item.relative_to(orig).as_posix()
+                count = _count_reports_fast(item)
+                subdirs.append(
+                    DirectoryEntry(
+                        name=item.name,
+                        path=item_rel,
+                        has_subdirs=has_sub,
+                        is_current=is_cur,
+                        reports_count=count,
+                    )
+                )
+    except PermissionError:
+        pass
+
+    current_rel = "" if target == orig else target.relative_to(orig).as_posix()
+    is_active_root = target.resolve() == REPORT_ROOT_DIR.resolve()
+    reports_in_current = _count_reports_fast(target)
+
+    return DirectoryBrowseResponse(
+        original_root=str(orig),
+        current_root=str(REPORT_ROOT_DIR.resolve()),
+        current_browse_path=current_rel,
+        parent_path=parent_path,
+        breadcrumbs=breadcrumbs,
+        directories=subdirs,
+        is_active_root=is_active_root,
+        reports_count=reports_in_current,
+    )
+
+
+@app.post(
+    "/api/server/directory",
+    response_model=ServerDirectoryInfo,
+    tags=["Server Directory"],
+)
+def change_server_directory(req: ChangeDirectoryRequest) -> ServerDirectoryInfo:
+    """Change report root directory (must be subfolder of spawned directory)."""
+    from qibocal_report.scanner import is_report_directory
+
+    orig = ORIGINAL_ROOT_DIR.resolve()
+    clean_subpath = req.path.strip().lstrip("/")
+    target = (orig / clean_subpath).resolve()
+
+    # Strict security check: target must be inside or equal to ORIGINAL_ROOT_DIR
+    if not (target == orig or orig in target.parents):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Target directory must be a subfolder of the originally spawned "
+                "server folder"
+            ),
+        )
+
+    if not target.is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Target directory '{clean_subpath}' does not exist or is not "
+                "a directory"
+            ),
+        )
+
+    if is_report_directory(target):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Cannot select a calibration report folder as the server root directory"
+            ),
+        )
+
+    set_report_root(target)
+    reports = scan_reports(REPORT_ROOT_DIR)
+
+    return ServerDirectoryInfo(
+        original_root=str(orig),
+        current_root=str(REPORT_ROOT_DIR),
+        relative_current=_get_relative_current(),
+        reports_count=len(reports),
+    )
 
 
 # --- Reports & Search Endpoints ---

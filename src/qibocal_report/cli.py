@@ -36,8 +36,9 @@ def report():
 def server(directory: str, host: str, port: int):
     """Start the FastAPI backend server."""
     dir_path = Path(directory).resolve()
-    set_report_root(dir_path)
+    os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
+    set_report_root(dir_path, is_original=True)
 
     url = f"http://{host}:{port}"
     config.add_server(
@@ -81,8 +82,9 @@ def server(directory: str, host: str, port: int):
 def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool = True):
     """Serve Qibocal reports in developer mode with live Vite HMR."""
     dir_path = Path(directory).resolve()
-    set_report_root(dir_path)
+    os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
+    set_report_root(dir_path, is_original=True)
 
     # Locate frontend directory
     frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"

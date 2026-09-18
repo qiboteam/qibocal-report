@@ -44,7 +44,7 @@
         <div class="flex items-center gap-4 flex-wrap">
           <div class="group/author flex items-center gap-1.5">
             <strong class="text-gray-900">Author:</strong>
-            <span>{{ report.author }}</span>
+            <span>{{ resolveAuthor(report.author, state.activeServer) || report.author }}</span>
             <button
               @click.stop="$emit('edit-author', report)"
               class="opacity-0 group-hover/author:opacity-100 text-gray-400 hover:text-[#833dff] transition cursor-pointer"
@@ -84,7 +84,9 @@
         <span
           v-for="proto in report.protocols"
           :key="proto"
-          class="px-2 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-md text-xs font-mono transition"
+          @click.stop="$emit('open-protocol', { report, protocol: proto })"
+          class="px-2 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-800 hover:text-[#833dff] rounded-md text-xs font-mono transition cursor-pointer"
+          :title="`Open ${proto} protocol in report`"
         >
           {{ proto }}
         </span>
@@ -94,10 +96,12 @@
 </template>
 
 <script setup>
+import { state, resolveAuthor } from '../store.js'
+
 defineProps({
   reports: { type: Array, required: true },
   selected: { type: Array, default: () => [] }
 })
 
-defineEmits(['select', 'toggle-select', 'remove-tag', 'edit-author', 'filter-tag'])
+defineEmits(['select', 'open-protocol', 'toggle-select', 'remove-tag', 'edit-author', 'filter-tag'])
 </script>

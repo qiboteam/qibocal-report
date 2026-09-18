@@ -20,6 +20,48 @@ try {
   console.warn('Failed to parse saved history from localStorage', e)
 }
 
+// --- Search State Persistence (Session Storage) ---
+const SEARCH_STATE_STORAGE_KEY = 'qibocal_report_search_state'
+
+function loadSavedSearchState() {
+  try {
+    const raw = sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return {
+        serverId: parsed.serverId || null,
+        filters: {
+          q: parsed.filters?.q || '',
+          author: parsed.filters?.author || '',
+          platform: parsed.filters?.platform || '',
+          date: parsed.filters?.date || '',
+          protocols: Array.isArray(parsed.filters?.protocols) ? parsed.filters.protocols : [],
+          labels: Array.isArray(parsed.filters?.labels) ? parsed.filters.labels : [],
+          sort_by: parsed.filters?.sort_by || 'date_desc'
+        },
+        currentPage: typeof parsed.currentPage === 'number' ? parsed.currentPage : 1,
+        pageSize: typeof parsed.pageSize === 'number' ? parsed.pageSize : 10
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load search state from sessionStorage', e)
+  }
+  return {
+    serverId: null,
+    filters: {
+      q: '',
+      author: '',
+      platform: '',
+      date: '',
+      protocols: [],
+      labels: [],
+      sort_by: 'date_desc'
+    },
+    currentPage: 1,
+    pageSize: 10
+  }
+}
+
 /**
  * Global reactive application store.
  */
@@ -31,8 +73,49 @@ export const state = reactive({
   currentReportData: null,
   sidebarCollapsed: false,
   loading: false,
-  error: null
+  error: null,
+  serverDataVersion: 0,
+  pendingFilter: null,
+  searchState: loadSavedSearchState()
 })
+
+export function persistSearchState() {
+  try {
+    const currentServerId = state.activeServer?.id || state.activeServer?.url || 'local'
+    state.searchState.serverId = currentServerId
+    sessionStorage.setItem(SEARCH_STATE_STORAGE_KEY, JSON.stringify(state.searchState))
+  } catch (e) {
+    console.warn('Failed to save search state to sessionStorage', e)
+  }
+}
+
+export function resetSearchState() {
+  state.searchState.filters.q = ''
+  state.searchState.filters.author = ''
+  state.searchState.filters.platform = ''
+  state.searchState.filters.date = ''
+  state.searchState.filters.protocols = []
+  state.searchState.filters.labels = []
+  state.searchState.filters.sort_by = 'date_desc'
+  state.searchState.currentPage = 1
+  persistSearchState()
+}
+
+export function hasActiveSearchFilters(filters = state.searchState?.filters) {
+  if (!filters) return false
+  return Boolean(
+    (filters.q && filters.q.trim()) ||
+    filters.author ||
+    filters.platform ||
+    filters.date ||
+    (filters.protocols && filters.protocols.length > 0) ||
+    (filters.labels && filters.labels.length > 0)
+  )
+}
+
+export function notifyServerDataChanged() {
+  state.serverDataVersion = (state.serverDataVersion || 0) + 1
+}
 
 // --- URL & Protocol Helpers ---
 export function normalizeUrl(url) {

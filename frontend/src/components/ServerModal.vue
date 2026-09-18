@@ -77,6 +77,55 @@
           </div>
         </div>
 
+        <!-- Report Root Directory Section (Edit Server Configuration) -->
+        <div v-if="isEdit" class="pt-2 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+              Report Directory
+            </label>
+            <span v-if="dirInfo?.reports_count !== undefined" class="text-[10px] font-mono font-medium text-[#833dff] bg-purple-50 px-1.5 py-0.2 rounded border border-purple-100">
+              {{ dirInfo.reports_count }} {{ dirInfo.reports_count === 1 ? 'report' : 'reports' }}
+            </span>
+          </div>
+
+          <div class="p-2.5 bg-gray-50/90 rounded-xl border border-gray-200 flex items-center justify-between gap-2.5">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 text-xs text-gray-800 font-semibold truncate">
+                <svg class="w-4 h-4 text-[#833dff] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                <span class="truncate" :title="dirInfo?.current_root || 'Connecting to server...'">
+                  {{ dirInfo?.relative_current ? dirInfo.relative_current : (dirInfo?.current_root ? 'Original root folder' : 'Checking...') }}
+                </span>
+                <span v-if="dirInfo && !dirInfo.relative_current" class="text-[9px] font-bold bg-gray-200/80 text-gray-600 px-1 py-0.2 rounded font-mono shrink-0">
+                  spawn-root
+                </span>
+              </div>
+              <p class="text-[10px] font-mono text-gray-400 truncate mt-0.5" :title="dirInfo?.current_root">
+                {{ dirInfo?.current_root || (isServerOffline ? 'Server offline' : 'Loading path...') }}
+              </p>
+            </div>
+
+            <!-- Further button to open tiny file browser -->
+            <button
+              type="button"
+              @click="showBrowser = true"
+              :disabled="dirLoading || isServerOffline"
+              class="border border-purple-200 bg-white hover:bg-purple-50 hover:border-purple-300 text-[#833dff] px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer shrink-0"
+              title="Open file browser to change report directory"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+              </svg>
+              Browse Folders
+            </button>
+          </div>
+
+          <p v-if="isServerOffline" class="text-[11px] text-amber-600 mt-1">
+            Server is unreachable. Start the server to browse or change its directory.
+          </p>
+        </div>
+
         <!-- Author Identities (Alias Mapping) -->
         <div class="pt-2 border-t border-gray-100">
           <div class="flex items-center justify-between mb-1.5">
@@ -147,19 +196,29 @@
         </div>
       </form>
     </div>
+
+    <!-- Tiny File Browser Modal for selecting server directory -->
+    <directory-browser-modal
+      :show="showBrowser"
+      :server-url="form.url || props.server?.url || ''"
+      :initial-path="dirInfo?.relative_current || ''"
+      @close="showBrowser = false"
+      @select="onDirectorySelected"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { AVATAR_KEYS, renderAvatar } from './Avatars.js'
-import { normalizeUrl } from '../store.js'
+import DirectoryBrowserModal from './modals/DirectoryBrowserModal.vue'
+import { state, normalizeUrl, notifyServerDataChanged } from '../store.js'
 
 const props = defineProps({
   server: { type: Object, default: null }
 })
 
-const emit = defineEmits(['close', 'save'])
+const emit = defineEmits(['close', 'save', 'directory-changed'])
 
 const isEdit = computed(() => !!props.server?.id)
 
@@ -179,6 +238,57 @@ const identityRows = ref(
       }))
     : []
 )
+
+// Server Directory Management State
+const showBrowser = ref(false)
+const dirInfo = ref(null)
+const dirLoading = ref(false)
+const isServerOffline = ref(false)
+
+async function fetchDirectoryInfo() {
+  const url = props.server?.url || form.url
+  if (!url) return
+  dirLoading.value = true
+  isServerOffline.value = false
+  try {
+    const base = normalizeUrl(url)
+    const targetUrl = `${base}/api/server/directory`
+    const res = await fetch(targetUrl, { signal: AbortSignal.timeout(4000) })
+    if (res.ok) {
+      dirInfo.value = await res.json()
+      isServerOffline.value = false
+    } else {
+      isServerOffline.value = true
+    }
+  } catch {
+    isServerOffline.value = true
+  } finally {
+    dirLoading.value = false
+  }
+}
+
+function onDirectorySelected({ path, dirInfo: newInfo }) {
+  dirInfo.value = newInfo
+  if (state.activeServer?.id === props.server?.id) {
+    notifyServerDataChanged()
+  }
+  emit('directory-changed', { server: props.server, dirInfo: newInfo })
+}
+
+watch(
+  () => props.server?.id,
+  () => {
+    if (isEdit.value) {
+      fetchDirectoryInfo()
+    }
+  }
+)
+
+onMounted(() => {
+  if (isEdit.value) {
+    fetchDirectoryInfo()
+  }
+})
 
 function addIdentityRow() {
   identityRows.value.push({ canonical: '', aliases: '' })

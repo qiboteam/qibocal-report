@@ -1,114 +1,5 @@
 <template>
   <div v-if="!isCollapsed" class="w-full min-w-0">
-    <!-- Bulk Selection / Actions (Permanently visible above filters) -->
-    <div class="mb-3.5 pb-3 border-b border-gray-100">
-      <div class="flex items-center justify-between mb-2">
-        <span
-          class="text-xs font-medium truncate min-w-0 mr-1"
-          :class="selectedCount > 0 ? 'text-purple-900 font-semibold' : 'text-gray-400'"
-        >
-          {{ selectedCount }} {{ selectedCount === 1 ? 'report' : 'reports' }} selected
-        </span>
-        <button
-          v-if="selectedCount > 0"
-          @click="$emit('clear-selection')"
-          class="text-[11px] text-gray-400 hover:text-gray-700 underline cursor-pointer shrink-0 bg-transparent hover:bg-transparent border-0 shadow-none p-0"
-        >
-          Deselect
-        </button>
-      </div>
-
-      <div class="grid grid-cols-2 gap-1.5 w-full">
-        <!-- Label Action Button -->
-        <button
-          @click="selectedCount > 0 && $emit('open-label')"
-          :disabled="selectedCount === 0"
-          class="px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition min-w-0"
-          :class="selectedCount > 0
-            ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-800 shadow-2xs cursor-pointer'
-            : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
-          title="Add a label to selected reports"
-        >
-          <svg
-            class="w-3.5 h-3.5 shrink-0"
-            :class="selectedCount > 0 ? 'text-purple-600' : 'text-gray-400'"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-          </svg>
-          <span class="truncate">Label</span>
-        </button>
-
-        <!-- Unlabel Action Button -->
-        <button
-          @click="selectedCount > 0 && $emit('open-unlabel')"
-          :disabled="selectedCount === 0"
-          class="px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition min-w-0"
-          :class="selectedCount > 0
-            ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-800 shadow-2xs cursor-pointer'
-            : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
-          title="Remove a label from selected reports"
-        >
-          <svg
-            class="w-3.5 h-3.5 shrink-0"
-            :class="selectedCount > 0 ? 'text-purple-600' : 'text-gray-400'"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          <span class="truncate">Unlabel</span>
-        </button>
-
-        <!-- Author Action Button -->
-        <button
-          @click="selectedCount > 0 && $emit('open-author')"
-          :disabled="selectedCount === 0"
-          class="px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition min-w-0"
-          :class="selectedCount > 0
-            ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-purple-800 shadow-2xs cursor-pointer'
-            : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
-          title="Modify author for selected reports"
-        >
-          <svg
-            class="w-3.5 h-3.5 shrink-0"
-            :class="selectedCount > 0 ? 'text-purple-600' : 'text-gray-400'"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-          <span class="truncate">Author</span>
-        </button>
-
-        <!-- Delete Action Button -->
-        <button
-          @click="selectedCount > 0 && $emit('open-delete')"
-          :disabled="selectedCount === 0"
-          class="px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition min-w-0"
-          :class="selectedCount > 0
-            ? 'bg-red-600 hover:bg-red-700 text-white shadow-2xs cursor-pointer'
-            : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
-          title="Permanently remove selected report folders"
-        >
-          <svg
-            class="w-3.5 h-3.5 shrink-0"
-            :class="selectedCount > 0 ? 'text-white' : 'text-gray-400'"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          <span class="truncate">Delete</span>
-        </button>
-      </div>
-    </div>
-
     <!-- Filters Header -->
     <div class="flex items-center justify-between mb-3">
       <span class="text-xs font-bold uppercase tracking-wider text-gray-800">Filters</span>
@@ -160,7 +51,7 @@
     <div class="mb-4 w-full min-w-0">
       <label class="block text-xs font-semibold text-gray-700 mb-1">Author</label>
       <select
-        :value="selectedAuthor"
+        :value="resolveAuthor(selectedAuthor, state.activeServer) || selectedAuthor"
         @change="$emit('update-filter', { key: 'author', value: $event.target.value })"
         class="w-full text-xs p-2 rounded-lg bg-gray-50 border-0 focus:outline-none focus:ring-1 focus:ring-[#833dff] max-w-full truncate"
       >
@@ -169,135 +60,87 @@
       </select>
     </div>
 
-    <!-- Protocols Checklist (sorted by frequency) -->
-    <div class="w-full min-w-0">
-      <div class="flex items-center justify-between mb-1.5">
-        <label class="text-xs font-semibold text-gray-700">Protocols</label>
-        <span class="text-[10px] text-gray-400">By frequency</span>
+    <!-- Protocols Search & Autocomplete -->
+    <div class="relative w-full min-w-0">
+      <div class="flex items-center justify-between mb-1">
+        <label class="block text-xs font-semibold text-gray-700">Protocols</label>
+        <span v-if="selectedProtocols.length > 0" class="text-[10px] text-purple-700 font-mono font-medium">
+          {{ selectedProtocols.length }} active
+        </span>
       </div>
-      <div class="space-y-1.5 max-h-36 overflow-y-auto overflow-x-hidden pr-1 w-full">
-        <label
-          v-for="p in displayedProtocols"
-          :key="p.name"
-          class="flex items-center justify-between text-xs text-gray-700 hover:bg-gray-50 p-1 rounded cursor-pointer gap-1.5 min-w-0"
+
+      <div class="relative">
+        <input
+          v-model="protocolInput"
+          type="text"
+          placeholder="Search protocols..."
+          @focus="isProtocolFocused = true"
+          @blur="handleProtocolBlur"
+          @keydown.enter.prevent="selectTopProtocolSuggestion"
+          @keydown.esc="protocolInput = ''; isProtocolFocused = false"
+          class="w-full text-xs p-2 rounded-lg bg-gray-50 border-0 focus:outline-none focus:ring-1 focus:ring-[#833dff] text-gray-900 font-mono placeholder:font-sans placeholder:text-gray-400"
+        />
+        <button
+          v-if="protocolInput"
+          type="button"
+          @click="protocolInput = ''"
+          class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs bg-transparent border-0 cursor-pointer p-0 leading-none"
         >
-          <div class="flex items-center gap-2 truncate min-w-0 flex-1">
-            <input
-              type="checkbox"
-              :value="p.name"
-              :checked="selectedProtocols.includes(p.name)"
-              @change="$emit('toggle-protocol', p.name)"
-              class="rounded text-[#833dff] focus:ring-[#833dff] h-3.5 w-3.5 shrink-0"
-            />
-            <span class="truncate font-mono text-[11px]">{{ p.name }}</span>
+          &times;
+        </button>
+
+        <!-- Autocomplete Suggestions Dropdown -->
+        <div
+          v-if="isProtocolFocused && protocolSuggestions.length > 0"
+          class="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-gray-100 z-50 max-h-48 overflow-y-auto py-1"
+        >
+          <div
+            v-for="p in protocolSuggestions"
+            :key="p.name"
+            @mousedown.prevent="selectProtocolSuggestion(p.name)"
+            class="px-2.5 py-1.5 text-xs hover:bg-purple-50 cursor-pointer flex items-center justify-between transition group"
+            :class="selectedProtocols.includes(p.name) ? 'bg-purple-50/70 font-semibold text-[#833dff]' : 'text-gray-700'"
+          >
+            <span class="font-mono text-[11px] truncate flex-1">{{ p.name }}</span>
+            <div class="flex items-center gap-1.5 shrink-0 ml-1.5">
+              <span class="text-[10px] font-mono text-gray-400 group-hover:text-purple-600">
+                {{ p.count }}
+              </span>
+              <span v-if="selectedProtocols.includes(p.name)" class="text-[10px] text-[#833dff] font-bold">
+                ✓
+              </span>
+            </div>
           </div>
-          <span
-            v-if="isFiltered"
-            class="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded-full shrink-0"
-            :title="`${p.count} matching filter out of ${p.fullCount} total`"
+        </div>
+      </div>
+
+      <!-- Selected Protocols Chips -->
+      <div v-if="selectedProtocols.length > 0" class="flex flex-wrap gap-1 mt-2">
+        <span
+          v-for="p in selectedProtocols"
+          :key="p"
+          class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-100 text-purple-800 font-mono truncate max-w-full"
+        >
+          <span class="truncate">{{ p }}</span>
+          <button
+            type="button"
+            @click="$emit('toggle-protocol', p)"
+            class="hover:text-purple-950 cursor-pointer font-bold leading-none bg-transparent border-0 p-0 text-[11px] shrink-0"
+            title="Remove protocol filter"
           >
-            {{ p.count }}/{{ p.fullCount }}
-          </span>
-          <span
-            v-else
-            class="text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded-full shrink-0"
-          >
-            {{ p.count }}
-          </span>
-        </label>
+            &times;
+          </button>
+        </span>
       </div>
     </div>
   </div>
 
-  <!-- Collapsed Mode Bulk Actions and Filter Reset Buttons -->
+  <!-- Collapsed Mode Filter Reset Button -->
   <div v-else class="flex flex-col items-center gap-2 w-full">
-    <!-- Selected Count Indicator -->
-    <div
-      v-if="selectedCount > 0"
-      class="text-[10px] font-bold text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded-full font-mono text-center"
-      :title="`${selectedCount} report(s) selected`"
-    >
-      {{ selectedCount }}
-    </div>
-
-    <!-- Label Button -->
-    <button
-      @click="selectedCount > 0 && $emit('open-label')"
-      :disabled="selectedCount === 0"
-      class="w-9 h-9 rounded-xl flex items-center justify-center transition shadow-2xs"
-      :class="selectedCount > 0
-        ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-[#833dff] cursor-pointer'
-        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
-      title="Add label to selected reports"
-    >
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-      </svg>
-    </button>
-
-    <!-- Unlabel Button -->
-    <button
-      @click="selectedCount > 0 && $emit('open-unlabel')"
-      :disabled="selectedCount === 0"
-      class="w-9 h-9 rounded-xl flex items-center justify-center transition shadow-2xs"
-      :class="selectedCount > 0
-        ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-[#833dff] cursor-pointer'
-        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
-      title="Remove label from selected reports"
-    >
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    </button>
-
-    <!-- Author Button -->
-    <button
-      @click="selectedCount > 0 && $emit('open-author')"
-      :disabled="selectedCount === 0"
-      class="w-9 h-9 rounded-xl flex items-center justify-center transition shadow-2xs"
-      :class="selectedCount > 0
-        ? 'bg-white border border-purple-200 hover:border-purple-300 hover:bg-purple-50 text-[#833dff] cursor-pointer'
-        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
-      title="Set author for selected reports"
-    >
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-    </button>
-
-    <!-- Delete Button -->
-    <button
-      @click="selectedCount > 0 && $emit('open-delete')"
-      :disabled="selectedCount === 0"
-      class="w-9 h-9 rounded-xl flex items-center justify-center transition shadow-2xs"
-      :class="selectedCount > 0
-        ? 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'
-        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'"
-      title="Delete selected reports"
-    >
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-      </svg>
-    </button>
-
-    <!-- Deselect Button (if reports are selected) -->
-    <button
-      v-if="selectedCount > 0"
-      @click="$emit('clear-selection')"
-      class="w-9 h-9 flex items-center justify-center transition text-gray-400 hover:text-gray-700 cursor-pointer bg-transparent hover:bg-transparent border-0 shadow-none"
-      title="Deselect all reports"
-    >
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-      </svg>
-    </button>
-
-    <div class="w-6 border-b border-gray-200/80 my-1"></div>
-
-    <!-- Clear Filters Button -->
     <button
       @click="$emit('reset-filters')"
       class="w-9 h-9 flex items-center justify-center transition text-[#833dff] hover:text-purple-800 cursor-pointer bg-transparent hover:bg-transparent border-0 shadow-none"
+      :class="isFiltered ? 'opacity-100' : 'opacity-40 pointer-events-none'"
       title="Reset all search filters"
     >
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -310,6 +153,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import DateHistogram from '../DateHistogram.vue'
+import { state, resolveAuthor } from '../../store.js'
 
 const props = defineProps({
   filterStats: { type: Object, default: () => ({}) },
@@ -318,26 +162,35 @@ const props = defineProps({
   selectedAuthor: { type: String, default: '' },
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
-  selectedCount: { type: Number, default: 0 },
   isCollapsed: { type: Boolean, default: false }
 })
 
-defineEmits([
+const emit = defineEmits([
   'update-filter',
   'reset-filters',
   'toggle-protocol',
-  'toggle-label',
-  'open-label',
-  'open-unlabel',
-  'open-author',
-  'open-delete',
-  'clear-selection'
+  'toggle-label'
 ])
 
 const labelSearch = ref('')
+const protocolInput = ref('')
+const isProtocolFocused = ref(false)
+
+function handleProtocolBlur() {
+  setTimeout(() => {
+    isProtocolFocused.value = false
+  }, 200)
+}
 
 const displayedAuthors = computed(() => {
-  return props.fullStats?.authors?.length ? props.fullStats.authors : (props.filterStats?.authors || [])
+  const baseList = props.fullStats?.authors?.length ? props.fullStats.authors : (props.filterStats?.authors || [])
+  const uniqueSet = new Set()
+  for (const a of baseList) {
+    if (a) {
+      uniqueSet.add(resolveAuthor(a, state.activeServer))
+    }
+  }
+  return Array.from(uniqueSet).sort((a, b) => a.localeCompare(b))
 })
 
 const displayedLabels = computed(() => {
@@ -362,4 +215,26 @@ const displayedProtocols = computed(() => {
     fullCount: p.count
   }))
 })
+
+const protocolSuggestions = computed(() => {
+  const base = displayedProtocols.value
+  const q = protocolInput.value.trim().toLowerCase()
+  if (!q) {
+    return base.slice(0, 8)
+  }
+  return base
+    .filter(p => p.name.toLowerCase().includes(q))
+    .slice(0, 10)
+})
+
+function selectProtocolSuggestion(name) {
+  emit('toggle-protocol', name)
+  protocolInput.value = ''
+}
+
+function selectTopProtocolSuggestion() {
+  if (protocolSuggestions.value.length > 0) {
+    selectProtocolSuggestion(protocolSuggestions.value[0].name)
+  }
+}
 </script>

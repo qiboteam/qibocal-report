@@ -3,8 +3,8 @@ import { ref, computed } from 'vue'
 /**
  * Composable for paginated data management with pre-fetch memory caching.
  */
-export function usePagination(initialPageSize = 10) {
-  const currentPage = ref(1)
+export function usePagination(initialPageSize = 10, initialPage = 1) {
+  const currentPage = ref(initialPage || 1)
   const pageSize = ref(initialPageSize)
   const totalReports = ref(0)
   const totalPages = ref(1)

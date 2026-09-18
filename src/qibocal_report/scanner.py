@@ -270,6 +270,26 @@ def get_directory_mtime(root_dir: Path) -> float:
     return latest
 
 
+def _discover_author_identities() -> dict[str, list[str]] | None:
+    try:
+        from qibocal_report.config import load_servers
+
+        servers = load_servers()
+        curr_name = os.environ.get("QIBOCAL_SERVER_NAME", "")
+        for s in servers:
+            if curr_name and s.get("name") == curr_name and s.get("author_identities"):
+                return s["author_identities"]
+        for s in servers:
+            if s.get("is_default") and s.get("author_identities"):
+                return s["author_identities"]
+        for s in servers:
+            if s.get("author_identities"):
+                return s["author_identities"]
+    except (OSError, KeyError, TypeError, ValueError):
+        pass
+    return None
+
+
 def scan_reports(
     root_dir: Path,
     author_identities: dict[str, list[str]] | None = None,
@@ -280,15 +300,7 @@ def scan_reports(
         return []
 
     if author_identities is None:
-        try:
-            from qibocal_report.config import load_servers
-
-            for s in load_servers():
-                if s.get("is_default") and s.get("author_identities"):
-                    author_identities = s["author_identities"]
-                    break
-        except (OSError, KeyError, TypeError, ValueError):
-            author_identities = None
+        author_identities = _discover_author_identities()
 
     auth_key = (
         json.dumps(author_identities, sort_keys=True) if author_identities else ""
@@ -349,12 +361,16 @@ def filter_reports(
     start_date: str | None = None,
     end_date: str | None = None,
     sort_by: str = "date_desc",
+    author_identities: dict[str, list[str]] | None = None,
 ) -> list[ReportSummary]:
     """Filter and sort reports based on search criteria."""
-    filtered = list(reports)
+    filtered = reports
+
+    if author_identities is None:
+        author_identities = _discover_author_identities()
 
     if query:
-        q_lower = query.lower().strip()
+        q_lower = query.lower()
         filtered = [
             r
             for r in filtered
@@ -368,7 +384,28 @@ def filter_reports(
         ]
 
     if authors:
-        filtered = [r for r in filtered if r.author in authors]
+        from qibocal_report.config import resolve_author_identity
+
+        expanded_authors: set[str] = set()
+        for a in authors:
+            clean_a = a.strip().lower()
+            expanded_authors.add(clean_a)
+            if author_identities:
+                for canonical, aliases in author_identities.items():
+                    all_variants = [canonical] + [al for al in aliases if al]
+                    if any(clean_a == v.strip().lower() for v in all_variants):
+                        for v in all_variants:
+                            expanded_authors.add(v.strip().lower())
+        filtered = [
+            r
+            for r in filtered
+            if (r.author and r.author.strip().lower() in expanded_authors)
+            or (
+                author_identities
+                and resolve_author_identity(r.author, author_identities).strip().lower()
+                in expanded_authors
+            )
+        ]
 
     if platforms:
         filtered = [r for r in filtered if r.platform in platforms]
@@ -400,9 +437,23 @@ def filter_reports(
     return filtered
 
 
-def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
+def compute_filter_stats(
+    reports: list[ReportSummary],
+    author_identities: dict[str, list[str]] | None = None,
+) -> FilterStats:
     """Compute aggregate filter statistics (Issue #3)."""
-    authors = sorted({r.author for r in reports if r.author})
+    if author_identities is None:
+        author_identities = _discover_author_identities()
+
+    from qibocal_report.config import resolve_author_identity
+
+    authors = sorted(
+        {
+            resolve_author_identity(r.author, author_identities)
+            for r in reports
+            if r.author
+        }
+    )
     labels = sorted({lab for r in reports for lab in (r.tags or r.labels)})
 
     proto_counter = Counter()
@@ -422,7 +473,11 @@ def compute_filter_stats(reports: list[ReportSummary]) -> FilterStats:
         for name, count in platform_counter.most_common()
     ]
 
-    author_counter = Counter(r.author for r in reports if r.author)
+    author_counter = Counter(
+        resolve_author_identity(r.author, author_identities)
+        for r in reports
+        if r.author
+    )
     author_freqs = [
         AuthorFrequency(name=name, count=count)
         for name, count in author_counter.most_common()

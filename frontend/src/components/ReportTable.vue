@@ -64,6 +64,7 @@
           @remove-tag="$emit('remove-tag', $event)"
           @edit-author="$emit('edit-author', $event)"
           @filter-tag="$emit('filter-tag', $event)"
+          @open-protocol="$emit('open-protocol', $event)"
         />
       </tbody>
     </table>
@@ -80,7 +81,7 @@ const props = defineProps({
   selected: { type: Array, default: () => [] }
 })
 
-defineEmits(['select', 'toggle-select', 'toggle-select-all', 'remove-tag', 'edit-author', 'filter-tag'])
+defineEmits(['select', 'open-protocol', 'toggle-select', 'toggle-select-all', 'remove-tag', 'edit-author', 'filter-tag'])
 
 const {
   columns,

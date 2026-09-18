@@ -22,9 +22,13 @@
         <p class="text-xs mt-1">{{ error }}</p>
         <p class="text-xs text-gray-500 mt-2 font-mono">Server: {{ activeServer?.name || 'Local Instance' }} ({{ activeServer?.url || 'local' }})</p>
         <div class="flex items-center gap-2 mt-4">
-          <router-link to="/dashboard" class="inline-block px-3 py-1.5 bg-red-100 text-red-800 rounded-lg text-xs font-semibold">
-            Back to Dashboard
-          </router-link>
+          <button
+            type="button"
+            @click="goBackToSearch"
+            class="inline-block px-3 py-1.5 bg-red-100 text-red-800 rounded-lg text-xs font-semibold cursor-pointer hover:bg-red-200 transition"
+          >
+            Back to Search
+          </button>
           <button @click="loadReportData" class="px-3 py-1.5 bg-white border border-red-200 text-red-700 rounded-lg text-xs font-semibold hover:bg-red-50 transition cursor-pointer">
             Retry
           </button>
@@ -34,15 +38,23 @@
       <div v-else-if="report" class="max-w-5xl mx-auto space-y-6">
         <!-- Top Navigation / Action Bar (hidden when printing) -->
         <div class="no-print flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-200">
-          <router-link
-            to="/dashboard"
-            class="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-[#833dff] transition"
+          <button
+            type="button"
+            @click="goBackToSearch"
+            class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-[#833dff] transition cursor-pointer group"
+            title="Back to search (filters preserved)"
           >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-gray-500 group-hover:text-[#833dff] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back to Search
-          </router-link>
+            <span>Back to Search</span>
+            <span
+              v-if="hasActiveSearch"
+              class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-purple-100 text-purple-700 font-medium"
+            >
+              Filtered
+            </span>
+          </button>
 
           <!-- Actions: Print to PDF & Regenerate plots -->
           <div class="flex items-center gap-2">
@@ -112,16 +124,25 @@
 
 <script setup>
 import { computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { state, ensureServersLoaded } from '../store.js'
+import { useRoute, useRouter } from 'vue-router'
+import { state, ensureServersLoaded, hasActiveSearchFilters } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
 import ProtocolCard from '../components/report/ProtocolCard.vue'
 
 const route = useRoute()
+const router = useRouter()
 const reportId = computed(() => route.params.id)
 const activeServer = computed(() => state.activeServer)
+
+const hasActiveSearch = computed(() => {
+  return hasActiveSearchFilters(state.searchState?.filters)
+})
+
+function goBackToSearch() {
+  router.push('/dashboard')
+}
 
 const {
   loading,
@@ -138,6 +159,23 @@ const {
   handleRemoveTag
 } = useReportDetail(reportId)
 
+function scrollToProtocol(protoId) {
+  if (!protoId) return
+  const cleanId = String(protoId).toLowerCase().trim()
+  let el = document.getElementById(`proto-${protoId}`) || document.getElementById(`proto-${cleanId}`)
+  if (!el && protocols.value?.length) {
+    const matched = protocols.value.find(
+      p => p.id?.toLowerCase() === cleanId || p.name?.toLowerCase() === cleanId
+    )
+    if (matched) {
+      el = document.getElementById(`proto-${matched.id}`)
+    }
+  }
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth' })
+  }
+}
+
 async function handlePrintPDF() {
   window.dispatchEvent(new Event('resize'))
   await new Promise(r => setTimeout(r, 120))
@@ -148,6 +186,18 @@ onMounted(async () => {
   await ensureServersLoaded()
   await loadReportData()
 })
+
+watch(
+  () => [loading.value, route.query.protocol],
+  ([isLoading, targetProto]) => {
+    if (!isLoading && targetProto) {
+      setTimeout(() => {
+        scrollToProtocol(targetProto)
+      }, 150)
+    }
+  },
+  { immediate: true }
+)
 
 watch(
   () => route.params.id,

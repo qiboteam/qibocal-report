@@ -155,7 +155,20 @@
               <div class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></div>
               <span class="text-xs font-bold text-gray-700 uppercase tracking-wider truncate">Authors</span>
             </div>
-            <span class="text-[10px] text-gray-400 font-mono">{{ topAuthors.length }}</span>
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                @click.stop="$emit('edit-authors-mapping')"
+                class="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-[#833dff] hover:bg-purple-50 rounded transition cursor-pointer bg-transparent border-0 shadow-none p-0"
+                title="Edit author identities mapping"
+                aria-label="Edit author identities mapping"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </button>
+              <span class="text-[10px] text-gray-400 font-mono">{{ topAuthors.length }}</span>
+            </div>
           </div>
 
           <div v-if="topAuthors.length === 0" class="py-3 text-center text-xs text-gray-400 italic">No authors</div>
@@ -266,6 +279,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { computeStatsFromReports } from '../utils/stats.js'
+import { state, resolveAuthor } from '../store.js'
 
 const props = defineProps({
   filterStats: { type: Object, default: () => ({}) },
@@ -280,7 +294,8 @@ defineEmits([
   'toggle-protocol',
   'filter-platform',
   'filter-author',
-  'clear-filter'
+  'clear-filter',
+  'edit-authors-mapping'
 ])
 
 const hasAnyFilter = computed(() => {
@@ -348,7 +363,16 @@ const topPlatforms = computed(() => {
 })
 
 const topAuthors = computed(() => {
-  return activeStats.value?.author_frequencies || []
+  const raw = activeStats.value?.author_frequencies || []
+  const map = new Map()
+  for (const item of raw) {
+    if (!item?.name) continue
+    const canonical = resolveAuthor(item.name, state.activeServer)
+    map.set(canonical, (map.get(canonical) || 0) + (item.count || 0))
+  }
+  return Array.from(map.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 })
 
 const maxProtocolCount = computed(() => {

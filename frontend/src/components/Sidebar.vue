@@ -56,17 +56,11 @@
           :selected-author="selectedAuthor"
           :selected-protocols="selectedProtocols"
           :selected-labels="selectedLabels"
-          :selected-count="selectedCount"
           :is-collapsed="isCollapsed"
           @update-filter="$emit('update-filter', $event)"
           @reset-filters="$emit('reset-filters')"
           @toggle-protocol="$emit('toggle-protocol', $event)"
           @toggle-label="$emit('toggle-label', $event)"
-          @open-label="$emit('open-label')"
-          @open-unlabel="$emit('open-unlabel')"
-          @open-author="$emit('open-author')"
-          @open-delete="$emit('open-delete')"
-          @clear-selection="$emit('clear-selection')"
         />
 
         <!-- Protocols Summary Context -->
@@ -134,7 +128,6 @@ defineProps({
   selectedLabels: { type: Array, default: () => [] },
   reportProtocols: { type: Array, default: () => [] },
   reportId: { type: String, default: null },
-  selectedCount: { type: Number, default: 0 },
   regenerating: { type: Boolean, default: false }
 })
 
@@ -143,11 +136,6 @@ defineEmits([
   'reset-filters',
   'toggle-protocol',
   'toggle-label',
-  'open-label',
-  'open-unlabel',
-  'open-author',
-  'open-delete',
-  'clear-selection',
   'regenerate',
   'print-pdf'
 ])

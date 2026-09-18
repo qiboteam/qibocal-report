@@ -95,6 +95,7 @@
         :server="editingServer"
         @close="modalOpen = false"
         @save="saveModalServer"
+        @directory-changed="handleDirectoryChanged"
       />
     </div>
   </div>
@@ -103,7 +104,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { state, addServer, updateServer, deleteServer, setActiveServer, persistServersConfig } from '../store.js'
+import { state, fetchServers, addServer, updateServer, deleteServer, setActiveServer, persistServersConfig } from '../store.js'
 import ServerCard from '../components/ServerCard.vue'
 import ServerModal from '../components/ServerModal.vue'
 
@@ -115,6 +116,12 @@ const toastMessage = ref('')
 
 const servers = computed(() => state.servers)
 const activeServer = computed(() => state.activeServer)
+
+function handleDirectoryChanged({ server, dirInfo }) {
+  const targetName = dirInfo?.relative_current || 'root'
+  toastMessage.value = `Folder for "${server?.name || 'Server'}" set to ${targetName}.`
+  fetchServers()
+}
 
 async function handleQuickAdd() {
   if (!newServerUrl.value.trim()) return

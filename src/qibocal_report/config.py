@@ -109,6 +109,7 @@ def add_server(
     description: str | None = None,
     avatar: str | None = None,
     author_identities: dict[str, list[str]] | None = None,
+    protocol_docs: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Register a new server."""
     servers = load_servers()
@@ -130,6 +131,7 @@ def add_server(
         "is_default": len(servers) == 0,
         "created_at": "now",
         "author_identities": author_identities or {},
+        "protocol_docs": protocol_docs or {},
     }
     servers.append(new_server)
     save_servers(servers)
@@ -148,6 +150,7 @@ def update_server(server_id: str, updates: dict[str, Any]) -> dict[str, Any] | N
                 "avatar",
                 "is_default",
                 "author_identities",
+                "protocol_docs",
             ]:
                 if k in updates and updates[k] is not None:
                     if k == "url":

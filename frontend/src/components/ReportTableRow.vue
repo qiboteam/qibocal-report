@@ -32,7 +32,9 @@
         <span
           v-for="proto in report.protocols.slice(0, 3)"
           :key="proto"
-          class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 truncate"
+          @click.stop="$emit('open-protocol', { report, protocol: proto })"
+          class="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-[#833dff] truncate cursor-pointer transition"
+          :title="`Open ${proto.replace('_', ' ')} protocol in report`"
         >
           {{ proto.replace('_', ' ') }}
         </span>
@@ -83,7 +85,7 @@
     <!-- Author Column -->
     <td class="py-3.5 px-4 text-gray-600 text-xs overflow-hidden">
       <div class="group/author flex items-center gap-1.5 truncate">
-        <span class="truncate">{{ report.author }}</span>
+        <span class="truncate">{{ resolveAuthor(report.author, state.activeServer) || report.author }}</span>
         <button
           @click.stop="$emit('edit-author', report)"
           class="opacity-0 group-hover/author:opacity-100 text-gray-400 hover:text-[#833dff] transition cursor-pointer shrink-0"
@@ -105,10 +107,12 @@
 </template>
 
 <script setup>
+import { state, resolveAuthor } from '../store.js'
+
 defineProps({
   report: { type: Object, required: true },
   isSelected: { type: Boolean, default: false }
 })
 
-defineEmits(['select', 'toggle-select', 'remove-tag', 'edit-author', 'filter-tag'])
+defineEmits(['select', 'open-protocol', 'toggle-select', 'remove-tag', 'edit-author', 'filter-tag'])
 </script>

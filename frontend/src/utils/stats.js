@@ -1,8 +1,6 @@
-/**
- * Utility to compute aggregate filter statistics from a list of reports.
- */
+import { state, resolveAuthor } from '../store.js'
 
-export function computeStatsFromReports(reports) {
+export function computeStatsFromReports(reports, server = state.activeServer) {
   if (!reports || reports.length === 0) {
     return {
       authors: [],
@@ -27,8 +25,9 @@ export function computeStatsFromReports(reports) {
 
   for (const r of reports) {
     if (r.author) {
-      authorsSet.add(r.author)
-      authorMap.set(r.author, (authorMap.get(r.author) || 0) + 1)
+      const canonical = resolveAuthor(r.author, server)
+      authorsSet.add(canonical)
+      authorMap.set(canonical, (authorMap.get(canonical) || 0) + 1)
     }
     if (r.platform) {
       platformMap.set(r.platform, (platformMap.get(r.platform) || 0) + 1)
