@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-[#f7f7f7] py-10 px-4 sm:px-6 lg:px-8">
     <div class="max-w-3xl mx-auto">
-      <!-- Top Utility Nav: Back to Dashboard & Save Config -->
+      <!-- Top Utility Nav: Back to Dashboard -->
       <div class="flex items-center justify-between pb-6 mb-6 border-b border-gray-200/60">
         <router-link
           to="/dashboard"
@@ -12,16 +12,6 @@
           </svg>
           Dashboard
         </router-link>
-
-        <button
-          @click="handleSaveConfig"
-          class="border-0 text-xs font-medium px-3 py-1 rounded-full bg-white hover:bg-gray-50 text-gray-700 shadow-xs hover:shadow-sm transition flex items-center gap-1.5 active:scale-[0.98]"
-        >
-          <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-          </svg>
-          Save Configuration
-        </button>
       </div>
 
       <!-- Clean Editorial Header -->
@@ -104,7 +94,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { state, fetchServers, addServer, updateServer, deleteServer, setActiveServer, persistServersConfig } from '../store.js'
+import { state, fetchServers, addServer, updateServer, deleteServer, setActiveServer } from '../store.js'
 import ServerCard from '../components/ServerCard.vue'
 import ServerModal from '../components/ServerModal.vue'
 
@@ -164,13 +154,6 @@ async function handleDelete(server) {
   if (confirm(`Remove server "${server.name}"?`)) {
     await deleteServer(server.id)
     toastMessage.value = `Server removed.`
-  }
-}
-
-async function handleSaveConfig() {
-  const res = await persistServersConfig()
-  if (res && res.saved) {
-    toastMessage.value = `Configuration saved to ~/.config/qibocal-report/servers.json`
   }
 }
 </script>

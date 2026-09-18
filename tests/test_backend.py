@@ -23,6 +23,11 @@ def setup_env(tmp_path, monkeypatch):
     sample_src = Path(__file__).parent.parent / "sample_data"
     test_reports = tmp_path / "sample_data"
     shutil.copytree(sample_src, test_reports, ignore=shutil.ignore_patterns("*.zip"))
+    target_meta = test_reports / "10:50:56_[0]_resonator_punchout" / "meta.json"
+    if target_meta.exists():
+        m_data = json.loads(target_meta.read_text(encoding="utf-8"))
+        m_data["tag"] = ["broken"]
+        target_meta.write_text(json.dumps(m_data, indent=2), encoding="utf-8")
     set_report_root(test_reports, is_original=True)
 
 
@@ -65,7 +70,7 @@ def test_config_servers(tmp_path):
 
 
 def test_scanner_and_filters():
-    sample_dir = Path(__file__).parent.parent / "sample_data"
+    sample_dir = get_report_root()
     reports = scan_reports(sample_dir)
     assert len(reports) >= 3
 
