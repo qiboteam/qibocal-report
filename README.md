@@ -1,85 +1,146 @@
 # Qibocal Report (`qibocal-report`)
 
+<div align="center">
+
+<img src="https://raw.githubusercontent.com/qiboteam/qibo/main/doc/source/_static/qibo_logo_dark.svg" alt="Qibo Logo" width="300" style="margin: 1.2rem 0;" />
+
+**Modern, lightweight web application and high-throughput server to explore, analyze, and manage [Qibocal](https://github.com/qiboteam/qibocal) calibration reports interactively.**
+
 [![Python](https://img.shields.io/badge/python-3.10+-purple.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![Vue 3](https://img.shields.io/badge/frontend-Vue_3-42b883.svg)](https://vuejs.org/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Website](https://img.shields.io/badge/website-qibo.science-833dff.svg)](https://qibo.science)
 
-Modern, lightweight web application and server to serve, explore, and analyze [Qibocal](https://github.com/qiboteam/qibocal) calibration reports interactively.
-
-Designed as an easily deployable alternative to static HTML pages, `qibocal-report` provides an interactive SPA frontend, a high-throughput FastAPI backend, a multi-server management dashboard, and instant print-to-PDF reports.
+</div>
 
 ---
 
-## ⚡ Quick Start
+## 🌐 The Qibo Ecosystem
+
+`qibocal-report` is part of the **[Qibo](https://qibo.science)** open-source quantum computing ecosystem:
+
+| Project | Description | Link |
+| :--- | :--- | :--- |
+| **Qibo** | Full-stack quantum simulation and algorithms framework. | [qibo.science/qibo](https://qibo.science/qibo/stable/) • [GitHub](https://github.com/qiboteam/qibo) |
+| **Qibolab** | Dedicated quantum hardware control and pulse execution layer. | [qibo.science/qibolab](https://qibo.science/qibolab/stable/) • [GitHub](https://github.com/qiboteam/qibolab) |
+| **Qibocal** | Protocols for characterization, calibration, and validation of quantum processors. | [qibo.science/qibocal](https://qibo.science/qibocal/stable/) • [GitHub](https://github.com/qiboteam/qibocal) |
+| **Qibocal Report** | Modern web app and server to explore, compare, and manage Qibocal calibration runs. | [qibocal-report Docs](#-documentation) • [GitHub](https://github.com/qiboteam/qibocal-report) |
+
+---
+
+## ⚡ Key Features
+
+- **Interactive Visualizations**: High-resolution 2D and 3D graphics powered by **Plotly.js** with zoom, pan, hover data inspection, and image export.
+- **Multi-Server Dashboard**: Connect to, name, and monitor multiple local or remote Qibocal report servers across your lab network; auto-assigned Docker-style names and abstract geometric avatars, with persistent storage in `~/.config/qibocal-report/servers.json`.
+- **Search & Smart Facets**: Instant full-text search across titles, platforms, authors, protocols, and tags; faceted filtering with author filters, protocol frequency ranking, interactive date histogram timeline, and tag search.
+- **Dual Display Modes**: Toggle seamlessly between sortable, resizable **Table View** and rich **Card View** (inspired by Inspire-HEP full-width cards).
+- **Statistics Dashboard**: Dedicated analytics view (`/#/statistics`) tracking calibration throughput, activity over time, protocol frequency distribution, author activity, and platform breakdowns.
+- **Batch Actions**: Bulk tag, update author, or safely delete multiple calibration runs simultaneously from the dashboard.
+- **Detailed Protocol Cards**:
+  - Individual routine duration extracted directly from `meta.json`.
+  - Injected protocol summary tables styled natively to match the application aesthetic.
+  - One-click individual protocol data zip downloads.
+- **Instant On-The-Fly Downloads**:
+  - Full report folder as `.zip`.
+  - Calibrated platform configuration folder (`new_platform/`) as `.zip` (sparkled chip icon).
+  - Initial platform configuration folder (`platform/`) as `.zip` (plain chip icon).
+  - Protocol-level data folder as `.zip`.
+  - Direct browser viewing of `meta.json` (`{}`).
+- **On-The-Fly Regeneration**: Recompute and refresh protocol figures dynamically via backend evaluation routines.
+- **Publication-Grade Print to PDF**: Dedicated print media stylesheets that cleanly format tables and charts while hiding navigation and controls for archival PDF exports.
+
+---
+
+## 🚀 Quick Start
 
 ### 1. Installation
 
-Install directly with `pip` or `uv`:
+Install directly using `pip` or `uv`:
 
 ```bash
-# In your Python environment
-pip install .
+# Using pip
+pip install qibocal-report
 
 # Or using uv
-uv pip install .
+uv pip install qibocal-report
 ```
 
 ### 2. Serving Reports (CLI)
 
-Point to any directory containing Qibocal calibration folders:
+Point `qibocal report server` to any directory containing Qibocal calibration runs:
 
 ```bash
-# Start the FastAPI backend server
+# Start backend server and embedded web app
 qibocal report server ./sample_data --port 8000
-
-# Or serve both backend and web application
-qibocal report serve ./sample_data --port 8000
 ```
 
-Open your browser at `http://127.0.0.1:8000`.
+Open your browser at **`http://localhost:8000`**.
 
 ### 3. Standalone Client Mode
 
-To monitor and connect to multiple remote Qibocal report servers across your network:
+To monitor and manage multiple remote report servers across your lab network from your workstation:
 
 ```bash
 qibocal report client --port 8000
 ```
 
-## 🛠️ Development & Environment (devenv, uv, pnpm)
+### 4. Developer Mode (Live HMR)
 
-This repository uses [devenv](https://devenv.sh) for reproducible nix-based environments, [uv](https://docs.astral.sh/uv/) for Python packaging, and [pnpm](https://pnpm.io/) for frontend packages.
-
-### Enter Development Shell
+For developers modifying the frontend or backend:
 
 ```bash
-devenv shell
-```
-
-The shell provides:
-
-- Python 3.12 (`languages.python`)
-- `uv` package manager
-- Node.js 22 & `pnpm`
-- Pre-configured shell scripts
-
-### Common Development Tasks
-
-```bash
-# Run backend test suite
-devenv shell -- pytest tests/
-# or: devenv test
-
-# Build frontend and copy assets into Python package
-devenv shell -- build-frontend
-
-# Build standalone Python wheel
-devenv shell -- uv build
-
-# Start developer mode with live Vite HMR
-devenv shell -- dev
-# or directly:
 qibocal report dev ./sample_data
 ```
 
-Open `http://localhost:5173` with instant Vite HMR proxying `/api` requests to port 8000.
+Starts the FastAPI backend with auto-reload and the Vite frontend dev server at `http://localhost:5173` with instant Hot Module Replacement.
+
+---
+
+## 📖 Documentation
+
+Comprehensive documentation is available directly within the running web application at **`/#/docs`** and organized in sections and subpages:
+
+- **Overview & Qibo Ecosystem** (`docs/index.md`)
+- **User Guide**:
+  - [Quickstart & Directory Layout](docs/user-guide/quickstart.md)
+  - [Dashboard & Server Management](docs/user-guide/dashboard.md)
+  - [Reports, Protocols & Exports](docs/user-guide/reports.md)
+- **Developer & Architecture**:
+  - [System Architecture](docs/developer/architecture.md)
+  - [Development Workflow](docs/developer/workflow.md)
+  - [Design System & Aesthetics](docs/developer/design-system.md)
+- **Reference**:
+  - [CLI Reference](docs/reference/cli.md)
+  - [REST API & WebSockets](docs/reference/api.md)
+
+Interactive OpenAPI / Swagger documentation is also accessible at **`/api/docs/swagger`**.
+
+---
+
+## 🛠️ Development & Environment (`devenv`, `uv`, `pnpm`)
+
+This repository uses [devenv](https://devenv.sh) for reproducible nix-based environments:
+
+```bash
+# Enter development shell
+devenv shell
+
+# Run pytest backend test suite
+devenv shell -- pytest tests/
+
+# Build frontend and embed into Python package
+devenv shell -- build-frontend
+
+# Build standalone Python wheel
+devenv shell -- build-wheel
+
+# Run pre-commit hooks and linters
+devenv shell -- prek run --all-files
+```
+
+---
+
+## 📄 License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).

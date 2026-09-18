@@ -1,5 +1,7 @@
+import io
 import json
 import shutil
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -235,13 +237,106 @@ def test_api_endpoints():
         msg2 = ws.receive_json()
         assert msg2["type"] in ("status", "ready")
 
+    # Download full report zip
+    r_full = client.get(f"/api/reports/{first_id}/download/full")
+    assert r_full.status_code == 200
+    assert r_full.headers["content-type"] == "application/zip"
+    assert "attachment;" in r_full.headers.get("content-disposition", "")
+    with zipfile.ZipFile(io.BytesIO(r_full.content)) as zf:
+        namelist = zf.namelist()
+        assert any("index.html" in name for name in namelist)
+
+    # Download new platform zip
+    r_new_plat = client.get(f"/api/reports/{first_id}/download/new-platform")
+    assert r_new_plat.status_code == 200
+    assert r_new_plat.headers["content-type"] == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(r_new_plat.content)) as zf:
+        namelist = zf.namelist()
+        assert len(namelist) > 0
+
+    # Download old platform zip
+    r_old_plat = client.get(f"/api/reports/{first_id}/download/old-platform")
+    assert r_old_plat.status_code == 200
+    assert r_old_plat.headers["content-type"] == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(r_old_plat.content)) as zf:
+        namelist = zf.namelist()
+        assert len(namelist) > 0
+
+    # View meta.json
+    r_meta = client.get(f"/api/reports/{first_id}/meta.json")
+    assert r_meta.status_code == 200
+    assert "application/json" in r_meta.headers["content-type"]
+    assert r_meta.headers.get("content-disposition") == "inline"
+    meta_json = r_meta.json()
+    assert "platform" in meta_json
+
+    # Download protocol data zip
+    proto_id = protos[0]["id"]
+    r_proto_data = client.get(f"/api/reports/{first_id}/download/data/{proto_id}")
+    assert r_proto_data.status_code == 200
+    assert r_proto_data.headers["content-type"] == "application/zip"
+    with zipfile.ZipFile(io.BytesIO(r_proto_data.content)) as zf:
+        namelist = zf.namelist()
+        assert len(namelist) > 0
+
+    # Verify execution_time is filled from meta.json
+    assert protos[0]["execution_time"] is not None
+    assert protos[0]["execution_time"] != "N/A"
+
+    # Non-existent report downloads
+    assert client.get("/api/reports/nonexistent/download/full").status_code == 404
+    assert client.get("/api/reports/nonexistent/meta.json").status_code == 404
+    assert (
+        client.get(f"/api/reports/{first_id}/download/data/nonexistent").status_code
+        == 404
+    )
+
 
 def test_docs_endpoint():
     client = TestClient(app)
+    # Test docs nav tree
+    r_nav = client.get("/api/docs-nav")
+    assert r_nav.status_code == 200
+    nav_data = r_nav.json()
+    assert len(nav_data) >= 4
+    assert nav_data[0]["section"] == "Overview"
+
+    # Test main page (index)
+    r_index = client.get("/api/docs-content/index")
+    assert r_index.status_code == 200
+    assert "Qibo Ecosystem" in r_index.text
+    assert "qibo.science" in r_index.text
+
+    # Test legacy path
     r = client.get("/api/docs-content/usage")
     assert r.status_code == 200
     assert "# User Guide" in r.text
 
+    # Test nested subpage path
+    r_sub = client.get("/api/docs-content/user-guide/quickstart")
+    assert r_sub.status_code == 200
+    assert "Installation" in r_sub.text
+
+    # Test pages ending with 'd' or 'm' to prevent rstrip regressions
+    r_dash = client.get("/api/docs-content/user-guide/dashboard")
+    assert r_dash.status_code == 200
+    assert "Multi-Server Management" in r_dash.text
+
+    r_design = client.get("/api/docs-content/developer/design-system")
+    assert r_design.status_code == 200
+    assert "Color Palette" in r_design.text
+
+    # Test minimal section table of contents pages
+    for sec_path, expected_subpage in [
+        ("user-guide", "quickstart"),
+        ("developer", "architecture"),
+        ("reference", "cli"),
+    ]:
+        r_sec = client.get(f"/api/docs-content/{sec_path}")
+        assert r_sec.status_code == 200
+        assert expected_subpage in r_sec.text
+
+    # Test 404 for nonexistent doc
     r = client.get("/api/docs-content/nonexistent")
     assert r.status_code == 404
 

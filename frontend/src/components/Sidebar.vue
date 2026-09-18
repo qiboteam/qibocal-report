@@ -73,6 +73,7 @@
         <sidebar-protocols
           v-else-if="isReportMode"
           :protocols="reportProtocols"
+          :report-id="reportId || currentReportId"
           :is-collapsed="isCollapsed"
           :regenerating="regenerating"
           @regenerate="$emit('regenerate')"
@@ -132,6 +133,7 @@ defineProps({
   selectedProtocols: { type: Array, default: () => [] },
   selectedLabels: { type: Array, default: () => [] },
   reportProtocols: { type: Array, default: () => [] },
+  reportId: { type: String, default: null },
   selectedCount: { type: Number, default: 0 },
   regenerating: { type: Boolean, default: false }
 })

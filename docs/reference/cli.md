@@ -1,0 +1,84 @@
+# Reference: Command Line Interface (CLI)
+
+`qibocal-report` provides command line entry points under the `qibocal report` command group.
+
+```bash
+qibocal report [OPTIONS] COMMAND [ARGS]...
+```
+
+---
+
+## 💻 Commands
+
+### `qibocal report server`
+
+Starts the FastAPI backend server and serves the embedded web application.
+
+```bash
+qibocal report server [DIRECTORY] [OPTIONS]
+```
+
+#### Arguments
+- `DIRECTORY`: Target folder containing Qibocal calibration run folders. Defaults to `.` (current working directory).
+
+#### Options
+- `--host TEXT`: Host address to bind to. Default: `localhost`.
+- `--port INTEGER`: Port to listen on. Default: `8000`.
+- `--help`: Show help message and exit.
+
+#### Example
+```bash
+qibocal report server /data/calibration_runs --host 0.0.0.0 --port 8080
+```
+
+---
+
+### `qibocal report client`
+
+Starts the standalone client web application. Useful for monitoring multiple remote servers from your workstation.
+
+```bash
+qibocal report client [OPTIONS]
+```
+
+#### Options
+- `--host TEXT`: Host address to bind to. Default: `127.0.0.1`.
+- `--port INTEGER`: Port to listen on. Default: `8000`.
+- `--reload`: Enable auto-reload for local development. Default: `False`.
+- `--help`: Show help message and exit.
+
+#### Aliases
+- `qibocal report dashboard` (backward-compatible alias).
+
+---
+
+### `qibocal report dev`
+
+Starts the developer server with live Vite Hot Module Replacement (HMR) for the frontend and Uvicorn auto-reload for the backend.
+
+```bash
+qibocal report dev [DIRECTORY] [OPTIONS]
+```
+
+#### Arguments
+- `DIRECTORY`: Target calibration folder. Defaults to `.`.
+
+#### Options
+- `--host TEXT`: Host address to bind to. Default: `localhost`.
+- `--port INTEGER`: Backend API port. Default: `8000`.
+- `--frontend-port INTEGER`: Frontend Vite dev server port. Default: `5173`.
+- `--reload / --no-reload`: Toggle backend auto-reload. Default: `--reload`.
+- `--help`: Show help message and exit.
+
+#### Aliases
+- `qibocal report develop` (backward-compatible alias).
+
+---
+
+## ⚙️ Environment Variables
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `QIBOCAL_REPORT_DIR` | Absolute path to the calibration directory scanned for reports. | Set by CLI argument |
+| `QIBOCAL_FRONTEND_URL` | Used by developer mode to proxy requests to the Vite dev server. | Unset |
+| `HOME` | Determines configuration folder path (`~/.config/qibocal-report/`). | User home |

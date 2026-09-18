@@ -134,19 +134,64 @@ h2, h3, h4, h5, h6 {
   background: rgba(0, 0, 0, 0.25);
 }
 
-/* Print CSS to isolate report content (Issue #3) */
+/* Print CSS for High-Quality Multi-Page PDF Export */
 @media print {
-  body {
-    background: #ffffff !important;
-    color: #000000 !important;
+  /* Enforce exact colors, background fills, and borders */
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
   }
+
+  /* Page Setup: Clean A4 margins */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 12mm 14mm 12mm;
+  }
+
+  /* Reset all scroll containers & fixed height viewports to allow multi-page flow */
+  html,
+  body,
+  #app,
+  .h-screen,
+  .min-h-screen,
+  .overflow-hidden,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  main,
+  .report-print-container {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+    float: none !important;
+  }
+
+  body {
+    background-color: #f7f7f7 !important;
+    color: #111827 !important;
+    font-size: 10pt;
+    line-height: 1.45;
+  }
+
+  /* Hide interactive web-only elements */
   .no-print,
   nav,
   aside,
   header,
-  .print-hide {
+  .print-hide,
+  button,
+  a[download],
+  .modebar,
+  .modebar-container {
     display: none !important;
   }
+
+  /* Main container: Full width, zero margins, no shadows or clipping */
   .report-print-container {
     width: 100% !important;
     max-width: 100% !important;
@@ -154,9 +199,126 @@ h2, h3, h4, h5, h6 {
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
+    background: transparent !important;
   }
+
+  /* Ensure content wrapper fills width */
+  .report-print-container > div {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* Apple-style Cards in Print */
+  .bm-card {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+    margin-bottom: 20px !important;
+    padding: 20px !important;
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+
+  /* Report Header Card: Keep together */
+  .report-header-card,
+  .bm-card:first-child {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 20px !important;
+  }
+
+  /* Protocol Card Page Breaks:
+     Break cleanly after each protocol, but avoid blank page after last card */
   .page-break {
     page-break-after: always;
     break-after: page;
+  }
+
+  .page-break:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* Prevent awkward orphans: keep protocol headers with following content */
+  .bm-card > div:first-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Keep individual figures and tables intact on one page */
+  .plot-container,
+  .js-plotly-plot,
+  .plotly-viewer,
+  .protocol-html-container,
+  table {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Plotly chart container styling in print */
+  .js-plotly-plot {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .main-svg {
+    max-width: 100% !important;
+  }
+
+  /* Fitting Tables in Print */
+  .protocol-html-container {
+    border: 1px solid #e5e7eb !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+    margin: 12px 0 !important;
+  }
+
+  .protocol-html-container table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 8pt !important;
+  }
+
+  .protocol-html-container th {
+    background-color: #f9fafb !important;
+    color: #4b5563 !important;
+    border-bottom: 1px solid #e5e7eb !important;
+    padding: 6px 10px !important;
+    font-size: 7.5pt !important;
+  }
+
+  .protocol-html-container td {
+    padding: 6px 10px !important;
+    border-bottom: 1px solid #f3f4f6 !important;
+    font-size: 8pt !important;
+  }
+
+  /* Badges in Print */
+  .bg-purple-100 {
+    background-color: #f3e8ff !important;
+    color: #7e22ce !important;
+  }
+
+  .bg-purple-50 {
+    background-color: #faf5ff !important;
+    color: #6b21a8 !important;
+  }
+
+  .bg-emerald-100 {
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+  }
+
+  .bg-amber-100 {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+  }
+
+  .bg-amber-50\/80 {
+    background-color: #fffbeb !important;
+    color: #78350f !important;
   }
 }

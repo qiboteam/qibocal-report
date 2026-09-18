@@ -70,6 +70,8 @@ onMounted(() => {
     renderPlot()
   })
   window.addEventListener('resize', handleResize)
+  window.addEventListener('beforeprint', handleResize)
+  window.addEventListener('afterprint', handleResize)
 })
 
 // Shallow watch on figure identity/title only - NEVER deep watch mutable Plotly figures!
@@ -79,6 +81,8 @@ watch(() => [props.figure?.id, props.figure?.title], () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('beforeprint', handleResize)
+  window.removeEventListener('afterprint', handleResize)
   if (resizeTimer) cancelAnimationFrame(resizeTimer)
   if (plotContainer.value) {
     Plotly.purge(plotContainer.value)

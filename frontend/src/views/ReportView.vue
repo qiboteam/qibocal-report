@@ -3,6 +3,7 @@
     <!-- Left Sidebar with Protocols Summary in lower half -->
     <sidebar
       :report-protocols="protocols"
+      :report-id="reportId"
       :regenerating="regenerating"
       @regenerate="handleRegenerate"
       @print-pdf="handlePrintPDF"
@@ -94,12 +95,6 @@
           @save-author="handleSaveAuthor"
         />
 
-        <!-- Collapsible Platform Snapshot Card -->
-        <platform-snapshot-card
-          v-if="report.platform_snapshot"
-          :snapshot="report.platform_snapshot"
-        />
-
         <!-- Protocols List with Figures -->
         <div class="space-y-6">
           <protocol-card
@@ -107,6 +102,7 @@
             :key="proto.id"
             :proto="proto"
             :index="idx"
+            :report-id="reportId"
           />
         </div>
       </div>
@@ -121,7 +117,6 @@ import { state, ensureServersLoaded } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
-import PlatformSnapshotCard from '../components/report/PlatformSnapshotCard.vue'
 import ProtocolCard from '../components/report/ProtocolCard.vue'
 
 const route = useRoute()
@@ -143,7 +138,9 @@ const {
   handleRemoveTag
 } = useReportDetail(reportId)
 
-function handlePrintPDF() {
+async function handlePrintPDF() {
+  window.dispatchEvent(new Event('resize'))
+  await new Promise(r => setTimeout(r, 120))
   window.print()
 }
 

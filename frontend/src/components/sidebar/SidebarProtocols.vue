@@ -1,5 +1,60 @@
 <template>
   <div v-if="!isCollapsed">
+    <!-- Download & Meta Actions Row -->
+    <div class="mb-2.5 pb-2.5 border-b border-gray-100">
+      <div class="flex items-center justify-evenly gap-1.5 w-full">
+        <!-- Download Full Protocol Folder (.zip) -->
+        <a
+          :href="downloadFullUrl"
+          download
+          class="flex-1 max-w-[52px] h-7 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer shrink-0"
+          title="Download full protocol folder (.zip)"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+        </a>
+
+        <!-- Download New Platform (.zip) -->
+        <a
+          :href="downloadNewPlatformUrl"
+          download
+          class="group flex-1 max-w-[52px] h-7 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer shrink-0"
+          title="Download new platform (.zip)"
+        >
+          <svg class="h-3.5 w-auto shrink-0" viewBox="0 0 26 24" fill="none">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 5h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2z" />
+            <path d="M15 3.5C15 6 13 8.5 10 8.5C13 8.5 15 11 15 13.5C15 11 17 8.5 20 8.5C17 8.5 15 6 15 3.5Z" class="fill-gray-400 group-hover:fill-[#833dff] transition-colors" />
+            <path d="M22 0.5C22 2 20.5 3.5 19 3.5C20.5 3.5 22 5 22 6.5C22 5 23.5 3.5 25 3.5C23.5 3.5 22 2 22 0.5Z" class="fill-gray-400 group-hover:fill-[#833dff] transition-colors" />
+          </svg>
+        </a>
+
+        <!-- Download Old Platform (.zip) -->
+        <a
+          :href="downloadOldPlatformUrl"
+          download
+          class="flex-1 max-w-[52px] h-7 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer shrink-0"
+          title="Download old platform (.zip)"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 5h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2z" />
+          </svg>
+        </a>
+
+        <!-- View meta.json (plain JSON in new browser tab) -->
+        <a
+          :href="metaJsonUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="flex-1 max-w-[52px] h-7 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer shrink-0 font-mono font-bold text-xs no-underline"
+          style="text-decoration: none;"
+          title="View meta.json (plain JSON)"
+        >
+          { }
+        </a>
+      </div>
+    </div>
+
     <!-- Expanded Protocol Summary -->
     <div class="flex items-center justify-between mb-3">
       <span class="text-xs font-bold uppercase tracking-wider text-gray-800">Protocols Summary</span>
@@ -58,6 +113,55 @@
 
     <div class="w-6 border-b border-gray-200/80 my-1"></div>
 
+    <!-- Collapsed Download & Meta Buttons -->
+    <a
+      :href="downloadFullUrl"
+      download
+      class="w-9 h-9 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer"
+      title="Download full protocol folder (.zip)"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+    </a>
+
+    <a
+      :href="downloadNewPlatformUrl"
+      download
+      class="group w-9 h-9 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer"
+      title="Download new platform (.zip)"
+    >
+      <svg class="h-3.5 w-auto shrink-0" viewBox="0 0 26 24" fill="none">
+        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 5h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2z" />
+        <path d="M15 3.5C15 6 13 8.5 10 8.5C13 8.5 15 11 15 13.5C15 11 17 8.5 20 8.5C17 8.5 15 6 15 3.5Z" class="fill-gray-400 group-hover:fill-[#833dff] transition-colors" />
+        <path d="M22 0.5C22 2 20.5 3.5 19 3.5C20.5 3.5 22 5 22 6.5C22 5 23.5 3.5 25 3.5C23.5 3.5 22 2 22 0.5Z" class="fill-gray-400 group-hover:fill-[#833dff] transition-colors" />
+      </svg>
+    </a>
+
+    <a
+      :href="downloadOldPlatformUrl"
+      download
+      class="w-9 h-9 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer"
+      title="Download old platform (.zip)"
+    >
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 5h10a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2z" />
+      </svg>
+    </a>
+
+    <a
+      :href="metaJsonUrl"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="w-9 h-9 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer font-mono font-bold text-xs no-underline"
+      style="text-decoration: none;"
+      title="View meta.json (plain JSON)"
+    >
+      { }
+    </a>
+
+    <div class="w-6 border-b border-gray-200/80 my-1"></div>
+
     <!-- Routine Count Badge -->
     <div
       v-if="protocols?.length"
@@ -88,13 +192,39 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+import { getApiUrl } from '../../store.js'
+
+const props = defineProps({
   protocols: { type: Array, default: () => [] },
   isCollapsed: { type: Boolean, default: false },
-  regenerating: { type: Boolean, default: false }
+  regenerating: { type: Boolean, default: false },
+  reportId: { type: String, default: null }
 })
 
 defineEmits(['select-protocol', 'regenerate', 'print-pdf'])
+
+const encodedId = computed(() => (props.reportId ? encodeURIComponent(props.reportId) : ''))
+
+const downloadFullUrl = computed(() => {
+  if (!encodedId.value) return '#'
+  return getApiUrl(`/api/reports/${encodedId.value}/download/full`)
+})
+
+const downloadNewPlatformUrl = computed(() => {
+  if (!encodedId.value) return '#'
+  return getApiUrl(`/api/reports/${encodedId.value}/download/new-platform`)
+})
+
+const downloadOldPlatformUrl = computed(() => {
+  if (!encodedId.value) return '#'
+  return getApiUrl(`/api/reports/${encodedId.value}/download/old-platform`)
+})
+
+const metaJsonUrl = computed(() => {
+  if (!encodedId.value) return '#'
+  return getApiUrl(`/api/reports/${encodedId.value}/meta.json`)
+})
 
 function getInitial(name) {
   if (!name) return '?'

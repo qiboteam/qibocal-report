@@ -240,6 +240,16 @@
       </div>
     </main>
 
+    <!-- Floating Bulk Actions Bar -->
+    <bulk-actions-bar
+      :selected-count="selectedReports.length"
+      @open-label="openLabelModal"
+      @open-unlabel="openUnlabelModal"
+      @open-author="() => openAuthorModal()"
+      @open-delete="openDeleteModal"
+      @clear-selection="clearSelection"
+    />
+
     <!-- Modals -->
     <label-modal
       :show="showLabelModal"
@@ -297,6 +307,7 @@ import ReportCards from '../components/ReportCards.vue'
 import FilteredRecap from '../components/FilteredRecap.vue'
 import { computeStatsFromReports } from '../utils/stats.js'
 import PaginationBar from '../components/PaginationBar.vue'
+import BulkActionsBar from '../components/BulkActionsBar.vue'
 import LabelModal from '../components/modals/LabelModal.vue'
 import UnlabelModal from '../components/modals/UnlabelModal.vue'
 import AuthorModal from '../components/modals/AuthorModal.vue'
@@ -439,56 +450,46 @@ function goToPage(p) {
   fetchReports(p, false)
 }
 
-function onPageSizeChange(newSize) {
-  pageSize.value = newSize
+function applyFilterChange(changeFn) {
+  if (changeFn) changeFn()
   currentPage.value = 1
   clearCache()
   fetchReports(1, false)
+  fetchFilteredStats()
+}
+
+function onPageSizeChange(newSize) {
+  pageSize.value = newSize
+  applyFilterChange()
 }
 
 function clearFilter(key, value = null) {
-  if (key === 'author') filters.author = ''
-  else if (key === 'platform') filters.platform = ''
-  else if (key === 'date') filters.date = ''
-  else if (key === 'protocol') toggleProtocol(value)
-  else if (key === 'label') toggleLabel(value)
-  currentPage.value = 1
-  clearCache()
-  fetchReports(1, false)
-  fetchFilteredStats()
+  applyFilterChange(() => {
+    if (key === 'author') filters.author = ''
+    else if (key === 'platform') filters.platform = ''
+    else if (key === 'date') filters.date = ''
+    else if (key === 'protocol') toggleProtocol(value)
+    else if (key === 'label') toggleLabel(value)
+  })
 }
 
 function onUpdateFilter(payload) {
-  updateFilter(payload)
-  currentPage.value = 1
-  clearCache()
-  fetchReports(1, false)
-  fetchFilteredStats()
+  applyFilterChange(() => updateFilter(payload))
 }
 
 function onToggleProtocol(p) {
-  toggleProtocol(p)
-  currentPage.value = 1
-  clearCache()
-  fetchReports(1, false)
-  fetchFilteredStats()
+  applyFilterChange(() => toggleProtocol(p))
 }
 
 function onToggleLabel(l) {
-  toggleLabel(l)
-  currentPage.value = 1
-  clearCache()
-  fetchReports(1, false)
-  fetchFilteredStats()
+  applyFilterChange(() => toggleLabel(l))
 }
 
 function onResetFilters() {
-  resetFilters()
-  clearSelection()
-  currentPage.value = 1
-  clearCache()
-  fetchReports(1, false)
-  fetchFilteredStats()
+  applyFilterChange(() => {
+    resetFilters()
+    clearSelection()
+  })
 }
 
 function openReport(report) {

@@ -12,23 +12,6 @@
           {{ report.platform }}
         </span>
         <span
-          v-for="t in (report.tags || report.labels || [])"
-          :key="t"
-          @click.stop="onTagClick(t)"
-          class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono cursor-pointer transition select-none"
-          :title="`Filter by tag: ${t}`"
-        >
-          <span>{{ t }}</span>
-          <button
-            type="button"
-            @click.stop="$emit('remove-tag', t)"
-            class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
-            title="Remove tag"
-          >
-            &times;
-          </button>
-        </span>
-        <span
           v-if="report.has_cached_report"
           class="px-2 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase bg-emerald-100 text-emerald-800"
         >
@@ -46,7 +29,7 @@
             <strong class="text-gray-800">{{ report.author }}</strong>
             <button
               @click="startEditAuthor"
-              class="text-gray-400 hover:text-[#833dff] transition cursor-pointer"
+              class="no-print text-gray-400 hover:text-[#833dff] transition cursor-pointer"
               title="Edit author"
             >
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -112,7 +95,7 @@
           <button
             type="button"
             @click.stop="$emit('remove-tag', l)"
-            class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
+            class="no-print bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
             title="Remove tag"
           >
             &times;

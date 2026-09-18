@@ -18,6 +18,52 @@ def has_cached_report(report_dir: Path) -> bool:
     return any(report_path.glob("*.json"))
 
 
+def format_execution_time(seconds: float | None) -> str:
+    """Format execution duration in seconds to a human-readable string."""
+    if seconds is None:
+        return "N/A"
+    try:
+        s = float(seconds)
+    except (ValueError, TypeError):
+        return str(seconds)
+    if s < 0:
+        return "N/A"
+    if s < 60:
+        return f"{s:.2f}s"
+    minutes = int(s // 60)
+    rem_seconds = int(s % 60)
+    return f"{minutes}m {rem_seconds}s"
+
+
+def _extract_protocol_timing_map(report_dir: Path) -> dict[str, str]:
+    """Extract protocol execution times from meta.json stats."""
+    timing_map: dict[str, str] = {}
+    meta_path = report_dir / "meta.json"
+    if not meta_path.is_file():
+        meta_path = report_dir / "report" / "meta.json"
+    if not meta_path.is_file():
+        return timing_map
+
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+        stats = meta.get("stats", {})
+        if isinstance(stats, dict):
+            for proto_id, p_stat in stats.items():
+                if isinstance(p_stat, dict):
+                    acq = p_stat.get("acquisition", 0.0) or 0.0
+                    fit = p_stat.get("fit", 0.0) or 0.0
+                    total = acq + fit
+                    if total > 0:
+                        timing_map[proto_id] = format_execution_time(total)
+                elif isinstance(p_stat, (int, float)) and p_stat > 0:
+                    timing_map[proto_id] = format_execution_time(p_stat)
+    except (json.JSONDecodeError, OSError, TypeError) as err:
+        log_warning(f"Error reading timing from meta.json: {err}")
+
+    return timing_map
+
+
 def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
     """Load pre-cached report protocol details without importing qibocal."""
     report_path = report_dir / "report"
@@ -27,6 +73,7 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
         return protocols
 
     log_info(f"Loading pre-cached report artifacts for '{report_dir.name}'...")
+    timing_map = _extract_protocol_timing_map(report_dir)
 
     # Check for protocols.json first
     single_file = report_path / "protocols.json"
@@ -36,9 +83,17 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
                 data = json.load(f)
                 if isinstance(data, list):
                     protocols = [ProtocolDetail(**p) for p in data]
+                    for proto in protocols:
+                        if not proto.execution_time or proto.execution_time == "N/A":
+                            proto.execution_time = (
+                                timing_map.get(proto.id)
+                                or timing_map.get(proto.id.replace("-", "_"))
+                                or timing_map.get(proto.id.replace("_", "-"))
+                                or "N/A"
+                            )
                     log_success(
                         f"Loaded {len(protocols)} pre-cached protocol(s) "
-                        "for '{report_dir.name}'"
+                        f"for '{report_dir.name}'"
                     )
                     return protocols
         except (json.JSONDecodeError, OSError, TypeError) as err:
@@ -51,7 +106,15 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
         try:
             with open(json_file, encoding="utf-8") as f:
                 p_data = json.load(f)
-                protocols.append(ProtocolDetail(**p_data))
+                proto_obj = ProtocolDetail(**p_data)
+                if not proto_obj.execution_time or proto_obj.execution_time == "N/A":
+                    proto_obj.execution_time = (
+                        timing_map.get(proto_obj.id)
+                        or timing_map.get(proto_obj.id.replace("-", "_"))
+                        or timing_map.get(proto_obj.id.replace("_", "-"))
+                        or "N/A"
+                    )
+                protocols.append(proto_obj)
         except (json.JSONDecodeError, OSError, TypeError) as err:
             log_warning(f"Error reading {json_file.name}: {err}")
 
@@ -84,6 +147,7 @@ def _generate_qibocal_protocols(
 
     try:
         rep_output = Output.load(report_dir)
+        timing_map = _extract_protocol_timing_map(report_dir)
         generated: list[ProtocolDetail] = []
         for task_id, completed in rep_output.history.items():
             task_str = str(task_id)
@@ -154,12 +218,18 @@ def _generate_qibocal_protocols(
                     )
 
             has_output = bool(all_figs or html_parts)
+            exec_time = (
+                timing_map.get(task_str)
+                or timing_map.get(task_str.replace("-", "_"))
+                or timing_map.get(task_str.replace("_", "-"))
+                or "N/A"
+            )
             generated.append(
                 ProtocolDetail(
                     id=task_str,
                     name=clean_name,
                     category="calibration",
-                    execution_time="N/A",
+                    execution_time=exec_time,
                     status="success" if has_output else "error",
                     error=None
                     if has_output
@@ -255,6 +325,7 @@ def generate_report_on_the_fly(
     )
 
     protocols = []
+    timing_map = _extract_protocol_timing_map(report_dir)
     total = len(discovered_protocols)
     for idx, proto in enumerate(discovered_protocols):
         clean_name = proto.replace("_", " ").title()
@@ -263,12 +334,18 @@ def generate_report_on_the_fly(
                 progress_callback(idx + 1, total, clean_name)
             except (TypeError, RuntimeError, OSError):
                 pass
+        exec_time = (
+            timing_map.get(proto)
+            or timing_map.get(proto.replace("-", "_"))
+            or timing_map.get(proto.replace("_", "-"))
+            or "N/A"
+        )
         protocols.append(
             ProtocolDetail(
                 id=proto,
                 name=clean_name,
                 category="calibration",
-                execution_time="N/A",
+                execution_time=exec_time,
                 status="error",
                 error=err_msg,
                 html="",

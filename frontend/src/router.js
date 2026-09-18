@@ -11,7 +11,7 @@ const routes = [
   { path: '/dashboard', name: 'dashboard', component: DashboardView },
   { path: '/statistics', name: 'statistics', component: StatisticsView },
   { path: '/reports/:id(.*)', name: 'report', component: ReportView },
-  { path: '/docs', name: 'docs', component: DocsView }
+  { path: '/docs/:page(.*)?', name: 'docs', component: DocsView }
 ]
 
 export const router = createRouter({

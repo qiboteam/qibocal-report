@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from qibocal_report.generator import (
+    _extract_protocol_timing_map,
+    format_execution_time,
     has_cached_report,
     load_cached_protocols,
 )
@@ -163,7 +165,20 @@ def parse_report_directory(
         tags = [str(t) for t in raw_tags if t is not None]
     else:
         tags = []
-    exec_time = meta.get("total_execution_time") or meta.get("duration") or "34.2s"
+    exec_time = meta.get("total_execution_time") or meta.get("duration")
+    if not exec_time and isinstance(meta.get("stats"), dict):
+        total_s = 0.0
+        for p_stat in meta["stats"].values():
+            if isinstance(p_stat, dict):
+                total_s += (p_stat.get("acquisition", 0.0) or 0.0) + (
+                    p_stat.get("fit", 0.0) or 0.0
+                )
+            elif isinstance(p_stat, (int, float)):
+                total_s += float(p_stat)
+        if total_s > 0:
+            exec_time = format_execution_time(total_s)
+    if not exec_time:
+        exec_time = "N/A"
     cached = has_cached_report(report_dir)
     protocols = _discover_protocols(report_dir, meta)
 
@@ -514,12 +529,13 @@ def get_report_detail(
             for p in protocols
         ]
     else:
+        timing_map = _extract_protocol_timing_map(target_dir)
         proto_summaries = [
             ProtocolSummary(
                 id=p_name,
                 name=p_name.replace("_", " ").title(),
                 category="calibration",
-                execution_time="N/A",
+                execution_time=timing_map.get(p_name) or "N/A",
                 status="pending",
                 num_figures=0,
             )

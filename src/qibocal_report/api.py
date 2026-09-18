@@ -1,10 +1,6 @@
-"""FastAPI Backend Server for Qibocal Report (Issue #10, Issue #5)."""
+"""FastAPI Backend Server for Qibocal Report."""
 
-import asyncio
-import json
 import os
-import shutil
-import sysconfig
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -14,25 +10,22 @@ from fastapi import (
     Query,
     Response,
     WebSocket,
-    WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from qibocal_report import config
-from qibocal_report.generator import (
-    get_report_protocols,
-    has_cached_report,
-    load_cached_protocols,
-    regenerate_report,
+from qibocal_report.actions import execute_bulk_action, find_report_dirs
+from qibocal_report.archive import (
+    resolve_meta_file,
+    resolve_protocol_data_dir,
+    resolve_report_dir,
+    zip_directory,
 )
-from qibocal_report.logger import (
-    log_error,
-    log_info,
-    log_success,
-    log_warning,
-)
+from qibocal_report.docs import DOCS_NAVIGATION, resolve_docs_content
+from qibocal_report.generator import get_report_protocols, regenerate_report
+from qibocal_report.logger import log_error, log_info
 from qibocal_report.models import (
     BulkActionRequest,
     BulkActionResponse,
@@ -55,6 +48,16 @@ from qibocal_report.scanner import (
     invalidate_report_cache,
     scan_reports,
 )
+from qibocal_report.websocket import handle_report_websocket
+
+# Backward-compatible internal aliases
+_find_report_dirs = find_report_dirs
+_zip_directory = zip_directory
+
+
+def _resolve_report_target_dir(report_id: str) -> Path:
+    return resolve_report_dir(REPORT_ROOT_DIR, report_id)
+
 
 app = FastAPI(
     title="Qibocal Report Server",
@@ -74,7 +77,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# App state configuration
 REPORT_ROOT_DIR = Path(os.environ.get("QIBOCAL_REPORT_DIR", Path.cwd()))
 SERVER_NAME = os.environ.get("QIBOCAL_SERVER_NAME", "local-instance")
 
@@ -122,7 +124,6 @@ def create_server(data: ServerCreate) -> ServerModel:
         avatar=data.avatar,
         author_identities=data.author_identities,
     )
-
     return ServerModel(**new_server)
 
 
@@ -149,7 +150,11 @@ def save_servers_endpoint() -> dict[str, Any]:
     """Explicitly persist current servers to the configuration file."""
     servers = config.load_servers()
     config.save_servers(servers)
-    return {"saved": True, "count": len(servers), "path": str(config.get_config_file())}
+    return {
+        "saved": True,
+        "count": len(servers),
+        "path": str(config.get_config_file()),
+    }
 
 
 # --- Reports & Search Endpoints ---
@@ -249,247 +254,13 @@ def get_filter_statistics(
     return compute_filter_stats(filtered)
 
 
-def _find_report_dirs(root_dir: Path, report_ids: list[str]) -> list[Path]:
-    """Find directories corresponding to the given report IDs safely."""
-    import urllib.parse
-
-    resolved_root = root_dir.resolve()
-    id_set: set[str] = set()
-    for rid in report_ids:
-        id_set.add(rid)
-        unquoted = urllib.parse.unquote(rid)
-        if unquoted != rid:
-            id_set.add(unquoted)
-
-    matched: dict[str, Path] = {}
-
-    for rid in id_set:
-        candidate = (root_dir / rid).resolve()
-        try:
-            if (
-                candidate.is_relative_to(resolved_root)
-                and candidate != resolved_root
-                and candidate.is_dir()
-            ):
-                matched[rid] = candidate
-        except (ValueError, OSError):
-            pass
-
-    remaining = id_set - set(matched.keys())
-    if remaining:
-        for r in scan_reports(root_dir):
-            if r.id in remaining or Path(r.path).name in remaining:
-                cand = Path(r.path).resolve()
-                try:
-                    if (
-                        cand.is_relative_to(resolved_root)
-                        and cand != resolved_root
-                        and cand.is_dir()
-                    ):
-                        matched[r.id] = cand
-                except (ValueError, OSError):
-                    pass
-
-    return list(matched.values())
-
-
+# --- Bulk & Single Report Actions ---
 @app.post(
-    "/api/reports/bulk-action",
-    response_model=BulkActionResponse,
-    tags=["Reports"],
+    "/api/reports/bulk-action", response_model=BulkActionResponse, tags=["Reports"]
 )
 def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
-    """Execute a bulk action (such as 'label' or 'delete') on multiple reports."""
-    log_info(
-        f"Bulk action requested: '{req.action}' on {len(req.report_ids)} report(s)"
-    )
-    matched_dirs = _find_report_dirs(REPORT_ROOT_DIR, req.report_ids)
-
-    if not matched_dirs and req.report_ids:
-        log_error(f"No matching report directories found for IDs: {req.report_ids}")
-        raise HTTPException(
-            status_code=404,
-            detail="None of the specified report folders could be found on the server.",
-        )
-
-    if req.action == "delete":
-        deleted = []
-        for rep_dir in matched_dirs:
-            try:
-                shutil.rmtree(rep_dir)
-                deleted.append(rep_dir.name)
-                log_info(f"Deleted report folder: {rep_dir}")
-            except OSError as err:
-                log_error(f"Failed to delete {rep_dir}: {err}")
-        invalidate_report_cache()
-        return BulkActionResponse(
-            success=True,
-            action="delete",
-            affected=len(deleted),
-            message=f"Successfully deleted {len(deleted)} report folder(s)",
-        )
-
-    if req.action == "label":
-        if not req.label or not req.label.strip():
-            raise HTTPException(status_code=400, detail="Label cannot be empty")
-        new_tag = req.label.strip()
-        labeled = []
-        for rep_dir in matched_dirs:
-            meta_paths = [rep_dir / "meta.json"]
-            if (rep_dir / "report" / "meta.json").is_file():
-                meta_paths.append(rep_dir / "report" / "meta.json")
-
-            updated_any = False
-            for meta_path in meta_paths:
-                meta_data: dict[str, Any] = {}
-                if meta_path.is_file():
-                    try:
-                        meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
-                    except (json.JSONDecodeError, OSError):
-                        meta_data = {}
-
-                raw_tag = meta_data.get("tag")
-                if raw_tag is None:
-                    tags_list = [new_tag]
-                elif isinstance(raw_tag, list):
-                    tags_list = [str(t) for t in raw_tag if t is not None]
-                    if new_tag not in tags_list:
-                        tags_list.append(new_tag)
-                elif isinstance(raw_tag, str):
-                    tags_list = [raw_tag] if raw_tag == new_tag else [raw_tag, new_tag]
-                else:
-                    tags_list = [new_tag]
-
-                meta_data["tag"] = tags_list
-                if (
-                    "tags" in meta_data
-                    and isinstance(meta_data["tags"], list)
-                    and new_tag not in meta_data["tags"]
-                ):
-                    meta_data["tags"].append(new_tag)
-                if (
-                    "labels" in meta_data
-                    and isinstance(meta_data["labels"], list)
-                    and new_tag not in meta_data["labels"]
-                ):
-                    meta_data["labels"].append(new_tag)
-
-                try:
-                    meta_path.write_text(
-                        json.dumps(meta_data, indent=2), encoding="utf-8"
-                    )
-                    updated_any = True
-                except OSError as err:
-                    log_error(f"Failed to update meta.json at {meta_path}: {err}")
-
-            if updated_any:
-                labeled.append(rep_dir.name)
-                log_info(f"Added label '{new_tag}' to report {rep_dir}")
-
-        invalidate_report_cache()
-        return BulkActionResponse(
-            success=True,
-            action="label",
-            affected=len(labeled),
-            message=f"Added label '{new_tag}' to {len(labeled)} report(s)",
-        )
-
-    if req.action in ("unlabel", "remove_label", "delete_label"):
-        if not req.label or not req.label.strip():
-            raise HTTPException(status_code=400, detail="Label cannot be empty")
-        target_tag = req.label.strip()
-        unlabeled = []
-        for rep_dir in matched_dirs:
-            meta_paths = [rep_dir / "meta.json"]
-            if (rep_dir / "report" / "meta.json").is_file():
-                meta_paths.append(rep_dir / "report" / "meta.json")
-
-            updated_any = False
-            for meta_path in meta_paths:
-                if not meta_path.is_file():
-                    continue
-                try:
-                    meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
-                    continue
-
-                changed = False
-                for key in ("tag", "tags", "labels"):
-                    if key in meta_data and isinstance(meta_data[key], list):
-                        if target_tag in meta_data[key]:
-                            meta_data[key] = [
-                                t for t in meta_data[key] if t != target_tag
-                            ]
-                            changed = True
-                    elif (
-                        key in meta_data
-                        and isinstance(meta_data[key], str)
-                        and meta_data[key] == target_tag
-                    ):
-                        meta_data[key] = []
-                        changed = True
-
-                if changed:
-                    try:
-                        meta_path.write_text(
-                            json.dumps(meta_data, indent=2), encoding="utf-8"
-                        )
-                        updated_any = True
-                    except OSError as err:
-                        log_error(f"Failed to update meta.json at {meta_path}: {err}")
-
-            if updated_any:
-                unlabeled.append(rep_dir.name)
-                log_info(f"Removed label '{target_tag}' from report {rep_dir}")
-
-        invalidate_report_cache()
-        return BulkActionResponse(
-            success=True,
-            action="unlabel",
-            affected=len(unlabeled),
-            message=f"Removed label '{target_tag}' from {len(unlabeled)} report(s)",
-        )
-
-    if req.action in ("author", "set_author"):
-        new_author = (req.author if req.author is not None else req.label or "").strip()
-        updated_authors = []
-        for rep_dir in matched_dirs:
-            meta_paths = [rep_dir / "meta.json"]
-            if (rep_dir / "report" / "meta.json").is_file():
-                meta_paths.append(rep_dir / "report" / "meta.json")
-
-            updated_any = False
-            for meta_path in meta_paths:
-                if not meta_path.is_file():
-                    continue
-                try:
-                    meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
-                    continue
-
-                meta_data["author"] = new_author or None
-                try:
-                    meta_path.write_text(
-                        json.dumps(meta_data, indent=2), encoding="utf-8"
-                    )
-                    updated_any = True
-                except OSError as err:
-                    log_error(f"Failed to update meta.json at {meta_path}: {err}")
-
-            if updated_any:
-                updated_authors.append(rep_dir.name)
-                log_info(f"Updated author to '{new_author}' in report {rep_dir}")
-
-        count = len(updated_authors)
-        invalidate_report_cache()
-        return BulkActionResponse(
-            success=True,
-            action="author",
-            affected=count,
-            message=f"Updated author to '{new_author}' on {count} report(s)",
-        )
-
-    raise HTTPException(status_code=400, detail=f"Unsupported action: '{req.action}'")
+    """Execute bulk actions (delete, label, unlabel, author) across reports."""
+    return execute_bulk_action(REPORT_ROOT_DIR, req)
 
 
 @app.delete(
@@ -504,8 +275,9 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
 )
 def remove_single_report_label(report_id: str, label_name: str) -> BulkActionResponse:
     """Remove a label or tag from a single report."""
-    return bulk_report_action(
-        BulkActionRequest(action="unlabel", report_ids=[report_id], label=label_name)
+    return execute_bulk_action(
+        REPORT_ROOT_DIR,
+        BulkActionRequest(action="unlabel", report_ids=[report_id], label=label_name),
     )
 
 
@@ -523,8 +295,9 @@ def update_single_report_author(
     report_id: str, body: UpdateAuthorRequest
 ) -> BulkActionResponse:
     """Update the author of a single report."""
-    return bulk_report_action(
-        BulkActionRequest(action="author", report_ids=[report_id], author=body.author)
+    return execute_bulk_action(
+        REPORT_ROOT_DIR,
+        BulkActionRequest(action="author", report_ids=[report_id], author=body.author),
     )
 
 
@@ -545,8 +318,9 @@ def label_single_report(
 ) -> BulkActionResponse:
     """Add a label or tag to a single report."""
     tag_name = (body and body.label) or label or ""
-    return bulk_report_action(
-        BulkActionRequest(action="label", report_ids=[report_id], label=tag_name)
+    return execute_bulk_action(
+        REPORT_ROOT_DIR,
+        BulkActionRequest(action="label", report_ids=[report_id], label=tag_name),
     )
 
 
@@ -556,119 +330,20 @@ def label_single_report(
     tags=["Reports"],
 )
 def delete_single_report(report_id: str) -> BulkActionResponse:
-    """Delete a single report directory by ID or path."""
-    return bulk_report_action(
-        BulkActionRequest(action="delete", report_ids=[report_id])
+    """Delete a single report directory."""
+    return execute_bulk_action(
+        REPORT_ROOT_DIR, BulkActionRequest(action="delete", report_ids=[report_id])
     )
 
 
+# --- Real-Time WebSocket ---
 @app.websocket("/ws/reports/{report_id:path}")
 async def report_websocket_endpoint(websocket: WebSocket, report_id: str):
-    """WebSocket endpoint for real-time report.
-
-    Streaming and plot generation.
-    The server initiates responses and streams progress so the browser stays completely
-    idle.
-    """
-    await websocket.accept()
-    log_info(f"WebSocket client connected for report: '{report_id}'")
-
-    target_dir = REPORT_ROOT_DIR / report_id
-    if not target_dir.is_dir():
-        for r in scan_reports(REPORT_ROOT_DIR):
-            if r.id == report_id:
-                target_dir = Path(r.path)
-                break
-
-    if not target_dir.is_dir():
-        log_error(f"Report '{report_id}' not found for WebSocket client")
-        await websocket.send_json(
-            {"type": "error", "message": f"Report '{report_id}' not found"}
-        )
-        await websocket.close()
-        return
-
-    try:
-        # Step 1: Send metadata immediately
-        detail = get_report_detail(REPORT_ROOT_DIR, report_id)
-        if detail:
-            await websocket.send_json(
-                {"type": "metadata", "report": detail.model_dump()}
-            )
-
-        # Step 2: Stream protocols
-        if has_cached_report(target_dir):
-            log_info(f"Report '{report_id}' has cached artifacts. Loading from disk...")
-            await websocket.send_json(
-                {"type": "status", "message": "Loading pre-cached report artifacts..."}
-            )
-            protocols = load_cached_protocols(target_dir)
-            await websocket.send_json(
-                {"type": "ready", "protocols": [p.model_dump() for p in protocols]}
-            )
-            log_success(
-                f"Dispatched {len(protocols)} pre-cached protocol(s) over "
-                f"WebSocket for '{report_id}'."
-            )
-        else:
-            log_info(f"Report '{report_id}' needs plot generation. Starting worker...")
-            await websocket.send_json(
-                {
-                    "type": "status",
-                    "message": (
-                        "Initializing protocol evaluation and plot generation..."
-                    ),
-                }
-            )
-
-            loop = asyncio.get_running_loop()
-
-            def sync_progress(step: int, total: int, proto_name: str):
-                try:
-                    asyncio.run_coroutine_threadsafe(
-                        websocket.send_json(
-                            {
-                                "type": "progress",
-                                "step": step,
-                                "total": total,
-                                "protocol": proto_name,
-                                "message": (
-                                    f"Plotting protocol {proto_name} "
-                                    f"({step}/{total})..."
-                                ),
-                            }
-                        ),
-                        loop,
-                    )
-                except (RuntimeError, OSError) as err:
-                    log_warning(f"Could not send WebSocket progress: {err}")
-
-            protocols = await loop.run_in_executor(
-                None,
-                lambda: get_report_protocols(
-                    target_dir, progress_callback=sync_progress
-                ),
-            )
-
-            await websocket.send_json(
-                {"type": "ready", "protocols": [p.model_dump() for p in protocols]}
-            )
-            log_success(
-                f"Dispatched {len(protocols)} generated protocol(s) over "
-                f"WebSocket for '{report_id}'."
-            )
-
-        # Keep alive loop
-        while True:
-            msg = await websocket.receive_text()
-            if msg == "ping":
-                await websocket.send_text("pong")
-    except WebSocketDisconnect:
-        log_info(f"WebSocket client disconnected for report: '{report_id}'")
-    except (RuntimeError, OSError) as err:
-        log_warning(f"WebSocket session ended for '{report_id}': {err}")
+    """WebSocket endpoint for real-time report streaming and plot generation."""
+    await handle_report_websocket(websocket, report_id, REPORT_ROOT_DIR)
 
 
+# --- Protocol Outputs & Regeneration ---
 @app.get(
     "/api/reports/{report_id:path}/protocols",
     response_model=list[ProtocolDetail],
@@ -677,17 +352,7 @@ async def report_websocket_endpoint(websocket: WebSocket, report_id: str):
 def get_protocols_for_report(report_id: str) -> list[ProtocolDetail]:
     """Get all protocol outputs (HTML and Plotly figures) for a report."""
     log_info(f"HTTP GET /protocols for '{report_id}'")
-    target_dir = REPORT_ROOT_DIR / report_id
-    if not target_dir.is_dir():
-        # Search match
-        for r in scan_reports(REPORT_ROOT_DIR):
-            if r.id == report_id:
-                target_dir = Path(r.path)
-                break
-    if not target_dir.is_dir():
-        log_error(f"HTTP 404: Report '{report_id}' not found")
-        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
-
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
     return get_report_protocols(target_dir)
 
 
@@ -699,50 +364,150 @@ def get_protocols_for_report(report_id: str) -> list[ProtocolDetail]:
 def regenerate_report_plots(report_id: str) -> list[ProtocolDetail]:
     """Regenerate protocol plots by deleting cached report and re-evaluating."""
     log_info(f"HTTP POST /regenerate for '{report_id}'")
-    target_dir = REPORT_ROOT_DIR / report_id
-    if not target_dir.is_dir():
-        for r in scan_reports(REPORT_ROOT_DIR):
-            if r.id == report_id:
-                target_dir = Path(r.path)
-                break
-    if not target_dir.is_dir():
-        log_error(f"HTTP 404: Report '{report_id}' not found")
-        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
-
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
     return regenerate_report(target_dir)
+
+
+# --- On-the-Fly Downloads ---
+@app.get("/api/reports/{report_id:path}/download/full", tags=["Reports"])
+@app.get("/api/reports/{report_id:path}/download", tags=["Reports"])
+def download_full_report_zip(report_id: str) -> StreamingResponse:
+    """Download full protocol report folder compressed on the fly as a zip archive."""
+    log_info(f"HTTP GET download full folder for '{report_id}'")
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
+    safe_name = target_dir.name.replace(":", "-")
+    buffer = zip_directory(target_dir, prefix=target_dir.name)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.zip"'},
+    )
+
+
+@app.get("/api/reports/{report_id:path}/download/new-platform", tags=["Reports"])
+def download_new_platform_zip(report_id: str) -> StreamingResponse:
+    """Download calibrated new_platform folder on the fly as a zip archive."""
+    log_info(f"HTTP GET download new platform for '{report_id}'")
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
+    new_plat = target_dir / "new_platform"
+    if not new_plat.is_dir():
+        log_error(f"HTTP 404: new_platform directory not found in '{report_id}'")
+        raise HTTPException(
+            status_code=404, detail=f"new_platform not found for report {report_id}"
+        )
+    safe_name = target_dir.name.replace(":", "-")
+    buffer = zip_directory(new_plat, prefix="new_platform")
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{safe_name}_new_platform.zip"'
+            )
+        },
+    )
+
+
+@app.get("/api/reports/{report_id:path}/download/old-platform", tags=["Reports"])
+@app.get("/api/reports/{report_id:path}/download/platform", tags=["Reports"])
+def download_old_platform_zip(report_id: str) -> StreamingResponse:
+    """Download initial platform folder on the fly as a zip archive."""
+    log_info(f"HTTP GET download old platform for '{report_id}'")
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
+    plat = target_dir / "platform"
+    if not plat.is_dir():
+        log_error(f"HTTP 404: platform directory not found in '{report_id}'")
+        raise HTTPException(
+            status_code=404, detail=f"platform not found for report {report_id}"
+        )
+    safe_name = target_dir.name.replace(":", "-")
+    buffer = zip_directory(plat, prefix="platform")
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{safe_name}_old_platform.zip"'
+            )
+        },
+    )
+
+
+@app.get("/api/reports/{report_id:path}/download/data/{protocol_id}", tags=["Reports"])
+@app.get(
+    "/api/reports/{report_id:path}/download/protocol/{protocol_id}", tags=["Reports"]
+)
+def download_protocol_data_zip(report_id: str, protocol_id: str) -> StreamingResponse:
+    """Download data directory for a specific protocol on the fly as a zip archive."""
+    log_info(f"HTTP GET download protocol data for '{report_id}' / '{protocol_id}'")
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
+    data_dir = resolve_protocol_data_dir(target_dir, protocol_id)
+    if not data_dir or not data_dir.is_dir():
+        log_error(
+            f"HTTP 404: Protocol data not found for '{protocol_id}' in '{report_id}'"
+        )
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"Data directory for protocol '{protocol_id}' not found in report"
+                f" '{report_id}'"
+            ),
+        )
+
+    safe_rep = target_dir.name.replace(":", "-")
+    safe_proto = data_dir.name.replace(":", "-")
+    buffer = zip_directory(data_dir, prefix=data_dir.name)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_rep}_{safe_proto}.zip"'
+        },
+    )
+
+
+@app.get("/api/reports/{report_id:path}/meta.json", tags=["Reports"])
+def get_report_meta_json(report_id: str) -> Response:
+    """Access meta.json as plain inline JSON for browser rendering."""
+    log_info(f"HTTP GET meta.json for '{report_id}'")
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
+    meta_file = resolve_meta_file(target_dir)
+    if not meta_file:
+        log_error(f"HTTP 404: meta.json not found in '{report_id}'")
+        raise HTTPException(
+            status_code=404, detail=f"meta.json not found for report {report_id}"
+        )
+    return Response(
+        content=meta_file.read_bytes(),
+        media_type="application/json",
+        headers={"Content-Disposition": "inline"},
+    )
 
 
 @app.get("/api/reports/{report_id:path}", response_model=ReportDetail, tags=["Reports"])
 def get_single_report(report_id: str) -> ReportDetail:
     """Get metadata, platform snapshot, history, and protocols summary for a report."""
-    log_info(f"HTTP GET metadata for '{report_id}'")
     detail = get_report_detail(REPORT_ROOT_DIR, report_id)
     if not detail:
-        log_error(f"HTTP 404: Report '{report_id}' not found")
         raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
     return detail
 
 
-# --- Documentation Endpoints (Issue #12) ---
+# --- Documentation Endpoints ---
+@app.get("/api/docs-nav", tags=["Documentation"])
+def get_documentation_navigation() -> list[dict]:
+    """Return the structured navigation tree for documentation."""
+    return DOCS_NAVIGATION
+
+
 @app.get(
-    "/api/docs-content/{doc_name}",
+    "/api/docs-content/{doc_name:path}",
     response_class=PlainTextResponse,
     tags=["Documentation"],
 )
 def get_documentation(doc_name: str) -> str:
-    """Serve plain markdown documentation content (usage, developer, api)."""
-    # 1. Shipped package location (when wheel is installed)
-    # 2. Development fallbacks (repo root docs/ directory)
-    candidate_paths = [
-        Path(sysconfig.get_path("purelib")) / f"{doc_name}.md",
-        Path(sysconfig.get_path("data")) / f"{doc_name}.md",
-        Path(__file__).resolve().parents[2] / "docs" / f"{doc_name}.md",
-        Path.cwd() / "docs" / f"{doc_name}.md",
-    ]
-    for p in candidate_paths:
-        if p.is_file():
-            return p.read_text(encoding="utf-8")
-    raise HTTPException(status_code=404, detail=f"Documentation '{doc_name}' not found")
+    """Serve plain markdown documentation content."""
+    return resolve_docs_content(doc_name)
 
 
 # --- Static Files and SPA Frontend Mount ---
@@ -767,10 +532,6 @@ async def serve_spa(full_path: str):
             return FileResponse(file_path)
         return FileResponse(STATIC_DIR / "index.html")
 
-    raise HTTPException(
-        status_code=404,
-        detail=(
-            "SPA frontend not found. Please build the frontend "
-            "or run in developer mode with 'qibocal report dev'."
-        ),
+    return PlainTextResponse(
+        "Qibocal Report Server running (API only mode)", status_code=200
     )

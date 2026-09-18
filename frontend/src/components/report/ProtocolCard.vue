@@ -22,6 +22,20 @@
         >
           {{ proto.status }}
         </span>
+
+        <!-- Protocol Data Download Button -->
+        <a
+          v-if="reportId"
+          :href="downloadDataUrl"
+          download
+          class="no-print px-2 py-1 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer text-xs font-medium shrink-0"
+          :title="`Download ${proto.name} data (.zip)`"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span class="text-[11px] font-semibold">Data</span>
+        </a>
       </div>
     </div>
 
@@ -38,7 +52,11 @@
     </div>
 
     <!-- Injected Protocol HTML Output -->
-    <div v-if="proto.html" class="my-4" v-html="proto.html"></div>
+    <div
+      v-if="proto.html"
+      class="protocol-html-container my-4 overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-2xs"
+      v-html="proto.html"
+    ></div>
 
     <!-- Injected Plotly Figures -->
     <div v-if="proto.figures && proto.figures.length > 0" class="mt-4 space-y-4">
@@ -55,10 +73,104 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { getApiUrl } from '../../store.js'
 import PlotlyViewer from '../PlotlyViewer.vue'
 
-defineProps({
+const props = defineProps({
   proto: { type: Object, required: true },
-  index: { type: Number, required: true }
+  index: { type: Number, required: true },
+  reportId: { type: String, default: null }
+})
+
+const downloadDataUrl = computed(() => {
+  if (!props.reportId || !props.proto?.id) return '#'
+  const encRepId = encodeURIComponent(props.reportId)
+  const encProtoId = encodeURIComponent(props.proto.id)
+  return getApiUrl(`/api/reports/${encRepId}/download/data/${encProtoId}`)
 })
 </script>
+
+<style scoped>
+:deep(.protocol-html-container table) {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  border: none;
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+:deep(.protocol-html-container thead) {
+  background-color: #f9fafb;
+}
+
+:deep(.protocol-html-container tr) {
+  text-align: left !important;
+}
+
+:deep(.protocol-html-container th) {
+  padding: 0.625rem 1rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+  text-align: left !important;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+:deep(.protocol-html-container td) {
+  padding: 0.625rem 1rem;
+  font-size: 0.75rem;
+  color: #374151;
+  border-bottom: 1px solid #f3f4f6;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+:deep(.protocol-html-container tbody tr) {
+  transition: background-color 50ms ease;
+}
+
+:deep(.protocol-html-container tbody tr:hover) {
+  background-color: #faf5ff;
+}
+
+:deep(.protocol-html-container tbody tr:last-child td) {
+  border-bottom: none;
+}
+
+:deep(.protocol-html-container tbody td:first-child) {
+  font-weight: 600;
+  color: #111827;
+}
+
+:deep(.protocol-html-container tbody td:nth-child(n+3)) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #111827;
+}
+
+:deep(.protocol-html-container sub),
+:deep(.protocol-html-container sup) {
+  font-size: 75%;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+
+:deep(.protocol-html-container sup) {
+  top: -0.5em;
+}
+
+:deep(.protocol-html-container sub) {
+  bottom: -0.25em;
+}
+
+:deep(.protocol-html-container table + table) {
+  margin-top: 1rem;
+  border-top: 2px solid #f3f4f6;
+}
+</style>
