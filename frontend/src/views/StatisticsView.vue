@@ -557,41 +557,37 @@
 
                 <div v-else class="flex flex-col justify-end min-w-0 w-full">
                   <div
-                    class="flex items-end gap-1.5 h-28 w-full max-w-full min-w-0 pt-4 overflow-x-auto pb-1 box-border"
+                    class="h-28 sm:h-32 w-full max-w-full min-w-0 bg-gray-50 p-2 rounded-lg border border-gray-100 overflow-hidden flex items-end gap-1 sm:gap-1.5 relative box-border"
                   >
                     <div
                       v-for="bin in dateBins"
                       :key="bin.date"
                       @click="filterBy('date', bin.date)"
-                      class="flex-1 min-w-[24px] max-w-[48px] flex flex-col items-center gap-1 group cursor-pointer shrink-0"
-                      :title="`${bin.date}: ${bin.count} report(s) - Click to filter`"
+                      class="flex-1 min-w-[2px] h-full flex flex-col justify-end relative group cursor-pointer"
+                      :title="`${bin.date}: ${bin.count} report${bin.count === 1 ? '' : 's'}`"
                     >
-                      <span
-                        class="text-[9px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition"
-                      >
-                        {{ bin.count }}
-                      </span>
+                      <!-- Background subtle track -->
                       <div
-                        class="w-full bg-purple-100 group-hover:bg-purple-200 rounded-t transition-all duration-200 relative overflow-hidden h-full flex items-end"
-                      >
-                        <div
-                          class="w-full bg-[#833dff] group-hover:bg-[#6c2bd9] rounded-t transition-all duration-300"
-                          :style="{
-                            height: `${Math.max(12, getPercentage(bin.count, maxDateCount))}%`,
-                          }"
-                        ></div>
-                      </div>
-                      <span
-                        class="text-[9px] font-mono text-gray-500 truncate w-full text-center"
-                      >
-                        {{ bin.date.slice(5) }}
-                      </span>
+                        class="w-full bg-purple-100/60 group-hover:bg-purple-200/80 rounded-t transition-all absolute inset-0"
+                      ></div>
+
+                      <!-- Foreground filled bar -->
+                      <div
+                        class="w-full bg-[#833dff] group-hover:bg-[#6c2bd9] rounded-t transition-all duration-200 absolute bottom-0 z-10"
+                        :style="{
+                          height: `${Math.max(8, getPercentage(bin.count, maxDateCount))}%`,
+                        }"
+                      ></div>
                     </div>
                   </div>
+
+                  <!-- Date Range Footer (Start & End dates) -->
                   <div
-                    class="text-[10px] text-gray-400 text-center mt-2 italic"
+                    v-if="dateBins.length > 0"
+                    class="flex justify-between text-[10px] text-gray-400 mt-1.5 font-mono px-0.5 overflow-hidden"
                   >
-                    Click any day to filter table reports for that date
+                    <span class="truncate min-w-0">{{ dateBins[0]?.date }}</span>
+                    <span v-if="dateBins.length > 1" class="truncate min-w-0 text-right">{{ dateBins[dateBins.length - 1]?.date }}</span>
                   </div>
                 </div>
               </div>
