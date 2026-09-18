@@ -48,6 +48,14 @@
 
       <!-- Right stats & Copy Path -->
       <div class="flex items-center gap-2 shrink-0">
+        <!-- Pulse Sequence Badge -->
+        <span
+          v-if="node.isPulseSequence"
+          class="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-indigo-100 text-indigo-700 border border-indigo-200"
+        >
+          Pulse Sequence
+        </span>
+
         <!-- Leaves Count Badge -->
         <span
           v-if="node.leafEntries?.length"
@@ -80,6 +88,14 @@
 
     <!-- Node Content (Expanded) -->
     <div v-show="isExpanded" class="p-3 sm:p-4 space-y-4">
+      <!-- Native Gate Pulse Sequence -->
+      <div v-if="node.isPulseSequence && node.pulseSequence?.length > 0">
+        <platform-pulse-sequence
+          :sequence="node.pulseSequence"
+          :gate-name="displayKey"
+        />
+      </div>
+
       <!-- Direct Leaf Properties (Grid) -->
       <div v-if="node.leafEntries?.length > 0">
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
@@ -107,6 +123,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import PlatformLeafProperty from './PlatformLeafProperty.vue'
+import PlatformPulseSequence from './PlatformPulseSequence.vue'
 import { copyToClipboard } from '../../utils/clipboard.js'
 
 const props = defineProps({

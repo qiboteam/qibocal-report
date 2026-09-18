@@ -90,6 +90,24 @@ export function formatLeafDisplay(val) {
 }
 
 /**
+ * Check if a value is a pulse sequence (e.g. in native_gates):
+ * An array of [channelName, eventObject] where eventObject has a 'kind'.
+ */
+export function isPulseSequence(val) {
+  if (!Array.isArray(val) || val.length === 0) return false
+  return val.every(item => {
+    return (
+      Array.isArray(item) &&
+      item.length === 2 &&
+      typeof item[0] === 'string' &&
+      item[1] &&
+      typeof item[1] === 'object' &&
+      typeof item[1].kind === 'string'
+    )
+  })
+}
+
+/**
  * Recursively build a structured tree from an arbitrary JSON object.
  */
 export function buildTreeNode(key, value, path = '', depth = 0) {
@@ -102,6 +120,23 @@ export function buildTreeNode(key, value, path = '', depth = 0) {
       path: currentPath,
       isLeaf: true,
       value,
+      depth
+    }
+  }
+
+  // Native gates pulse sequence detection
+  if (isPulseSequence(value)) {
+    return {
+      id: currentPath || 'root',
+      key: String(key),
+      path: currentPath,
+      isLeaf: false,
+      isPulseSequence: true,
+      pulseSequence: value,
+      leafEntries: [],
+      branchEntries: [],
+      totalLeavesCount: value.length,
+      totalBranchesCount: 0,
       depth
     }
   }
@@ -166,6 +201,12 @@ export function filterTree(node, query) {
     const valMatches = String(display.raw || display.text).toLowerCase().includes(q)
     const matches = keyMatches || valMatches
     return { node, matches, hasMatchingDescendant: matches }
+  }
+
+  if (node.isPulseSequence) {
+    const rawSeq = JSON.stringify(node.pulseSequence || '').toLowerCase()
+    const seqMatches = keyMatches || rawSeq.includes(q)
+    return { node, matches: seqMatches, hasMatchingDescendant: seqMatches }
   }
 
   const filteredLeaves = node.leafEntries.filter(l => {

@@ -18,32 +18,6 @@
           Pre-cached
         </span>
 
-        <!-- Old Platform Button -->
-        <button
-          type="button"
-          @click="goToPlatform('old')"
-          class="no-print px-2.5 py-1 rounded-full text-xs font-semibold bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs inline-flex items-center gap-1.5 transition cursor-pointer"
-          title="Open Old Platform navigation (parameters.json & calibration.json)"
-        >
-          <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-          <span>Old Platform</span>
-        </button>
-
-        <!-- New Platform Button -->
-        <button
-          type="button"
-          @click="goToPlatform('new')"
-          class="no-print px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 hover:bg-purple-100 text-[#833dff] hover:text-purple-900 border border-purple-200 hover:border-purple-300 shadow-2xs inline-flex items-center gap-1.5 transition cursor-pointer"
-          title="Open New Platform navigation (parameters.json & calibration.json)"
-        >
-          <svg class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-          </svg>
-          <span>New Platform</span>
-        </button>
-
         <a
           href="https://qibo.science/qibocal/stable/protocols/"
           target="_blank"
@@ -83,7 +57,7 @@
             <input
               v-model="editAuthorText"
               type="text"
-              class="px-1.5 py-0.5 text-xs border border-purple-300 rounded focus:outline-none focus:ring-1 focus:ring-[#833dff] w-28 font-medium"
+              class="px-2 py-0.5 text-xs bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400/50 w-28 font-medium text-gray-800"
               @keyup.enter="onSaveAuthor"
               @keyup.esc="isEditingAuthor = false"
             />
@@ -119,34 +93,66 @@
       </div>
     </div>
 
-    <!-- Tags & Git Commit -->
-    <div
-      v-if="(report.tags || report.labels)?.length || report.history?.git_commit"
-      class="mt-4 pt-3 border-t border-gray-50 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500"
-    >
-      <div class="flex items-center gap-1.5 flex-wrap">
-        <span class="text-gray-500 font-semibold">Tags:</span>
-        <span
-          v-for="l in (report.tags || report.labels || [])"
-          :key="l"
-          @click.stop="onTagClick(l)"
-          class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono cursor-pointer transition select-none"
-          :title="`Filter by tag: ${l}`"
+    <!-- Platform Navigation Buttons (below metadata) -->
+    <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-xs font-semibold text-gray-500">Platform Files:</span>
+
+        <!-- Old Platform Button -->
+        <button
+          type="button"
+          @click="goToPlatform('old')"
+          class="no-print px-3 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs inline-flex items-center gap-1.5 transition cursor-pointer"
+          title="Open Old Platform navigation (parameters.json & calibration.json)"
         >
-          <span>{{ l }}</span>
-          <button
-            type="button"
-            @click.stop="$emit('remove-tag', l)"
-            class="no-print bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
-            title="Remove tag"
-          >
-            &times;
-          </button>
-        </span>
+          <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          <span>Old Platform</span>
+        </button>
+
+        <!-- New Platform Button -->
+        <button
+          type="button"
+          @click="goToPlatform('new')"
+          class="no-print px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-50 hover:bg-purple-100 text-[#833dff] hover:text-purple-900 border border-purple-200 hover:border-purple-300 shadow-2xs inline-flex items-center gap-1.5 transition cursor-pointer"
+          title="Open New Platform navigation (parameters.json & calibration.json)"
+        >
+          <svg class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+          <span>New Platform</span>
+        </button>
       </div>
+
       <div v-if="report.history?.git_commit" class="font-mono text-[11px] text-gray-400">
         commit: {{ report.history.git_commit }}
       </div>
+    </div>
+
+    <!-- Tags -->
+    <div
+      v-if="(report.tags || report.labels)?.length"
+      class="mt-3 pt-2.5 border-t border-gray-50 flex items-center gap-1.5 flex-wrap text-xs text-gray-500"
+    >
+      <span class="text-gray-500 font-semibold">Tags:</span>
+      <span
+        v-for="l in (report.tags || report.labels || [])"
+        :key="l"
+        @click.stop="onTagClick(l)"
+        class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono cursor-pointer transition select-none"
+        :title="`Filter by tag: ${l}`"
+      >
+        <span>{{ l }}</span>
+        <button
+          type="button"
+          @click.stop="$emit('remove-tag', l)"
+          class="no-print bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
+          title="Remove tag"
+        >
+          &times;
+        </button>
+      </span>
     </div>
   </div>
 </template>

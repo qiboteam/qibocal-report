@@ -118,13 +118,13 @@
 
           <!-- View Mode & Search Filter -->
           <div class="flex items-center gap-2.5 flex-wrap">
-            <!-- Search Filter -->
-            <div class="relative min-w-[200px] sm:min-w-[260px]">
+            <!-- Search Filter (hidden in raw view) -->
+            <div v-if="viewMode !== 'raw'" class="relative min-w-[200px] sm:min-w-[260px]">
               <input
                 v-model="searchQuery"
                 type="text"
                 placeholder="Filter keys, values, or qubits..."
-                class="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] focus:border-transparent transition"
+                class="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-100/90 hover:bg-gray-100 focus:bg-white rounded-xl border-0 focus:outline-none focus:ring-2 focus:ring-purple-400/50 shadow-inner transition text-gray-800 placeholder-gray-400"
               />
               <svg class="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -138,7 +138,7 @@
               </button>
             </div>
 
-            <!-- View Modes: Boxes / Graph / Raw -->
+            <!-- View Modes: Boxes / Pulses (if parameters) / Graph / Raw -->
             <div class="inline-flex p-0.5 bg-gray-200/70 rounded-xl shadow-inner text-xs font-semibold">
               <button
                 type="button"
@@ -151,6 +151,19 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                 </svg>
                 <span>Boxes</span>
+              </button>
+              <button
+                v-if="activeFile === 'parameters'"
+                type="button"
+                @click="viewMode = 'pulses'"
+                class="px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                :class="viewMode === 'pulses' ? 'bg-white text-[#833dff] shadow-xs' : 'text-gray-600 hover:text-gray-900'"
+                title="Multi-channel pulse sequence timelines for native gates"
+              >
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span>Pulse Sequences</span>
               </button>
               <button
                 type="button"
@@ -288,7 +301,73 @@
             </div>
           </div>
 
-          <!-- 2. Hierarchy Tree Graph View -->
+          <!-- 2. Pulse Sequences Dedicated View -->
+          <div v-else-if="viewMode === 'pulses'" class="space-y-6">
+            <div class="flex items-center justify-between gap-3 p-4 bg-purple-50/50 rounded-2xl border border-purple-100 flex-wrap">
+              <div>
+                <h3 class="font-bold text-gray-900 text-sm">Native Gate Pulse Sequences</h3>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  Synchronized multi-channel pulse-like events across control channels (drive, flux, acquisition)
+                </p>
+              </div>
+
+              <!-- Filter by Category -->
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  @click="pulseCategoryFilter = 'all'"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  :class="pulseCategoryFilter === 'all' ? 'bg-[#833dff] text-white shadow-xs' : 'bg-white text-gray-700 hover:bg-purple-50 border border-gray-200'"
+                >
+                  All Gates ({{ allNativeGates.length }})
+                </button>
+                <button
+                  type="button"
+                  @click="pulseCategoryFilter = 'single_qubit'"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  :class="pulseCategoryFilter === 'single_qubit' ? 'bg-[#833dff] text-white shadow-xs' : 'bg-white text-gray-700 hover:bg-purple-50 border border-gray-200'"
+                >
+                  Single Qubit
+                </button>
+                <button
+                  type="button"
+                  @click="pulseCategoryFilter = 'two_qubit'"
+                  class="px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  :class="pulseCategoryFilter === 'two_qubit' ? 'bg-[#833dff] text-white shadow-xs' : 'bg-white text-gray-700 hover:bg-purple-50 border border-gray-200'"
+                >
+                  Two Qubit
+                </button>
+              </div>
+            </div>
+
+            <!-- List of Native Gates with Pulse Diagrams -->
+            <div v-if="filteredNativeGates.length > 0" class="space-y-6">
+              <div
+                v-for="gate in filteredNativeGates"
+                :key="gate.id"
+                class="space-y-2"
+              >
+                <div class="flex items-center gap-2 pl-1">
+                  <span class="text-xs font-bold font-mono px-2 py-0.5 rounded bg-gray-200/80 text-gray-800">
+                    {{ gate.targetLabel }}
+                  </span>
+                  <span class="text-xs font-semibold text-purple-700 font-mono">
+                    {{ gate.category }}
+                  </span>
+                </div>
+                <platform-pulse-sequence
+                  :sequence="gate.sequence"
+                  :gate-name="gate.name"
+                />
+              </div>
+            </div>
+
+            <div v-else class="text-center py-12 bg-white rounded-2xl border border-gray-200 text-gray-400 text-xs">
+              No calibrated native gates found matching the criteria.
+            </div>
+          </div>
+
+          <!-- 3. Hierarchy Tree Graph View -->
           <div v-else-if="viewMode === 'graph'">
             <platform-graph-view
               v-if="filteredTree"
@@ -296,7 +375,7 @@
             />
           </div>
 
-          <!-- 3. Raw JSON View -->
+          <!-- 4. Raw JSON View -->
           <div v-else-if="viewMode === 'raw'" class="relative">
             <div class="p-4 bg-gray-900 text-purple-100 rounded-2xl font-mono text-xs overflow-x-auto shadow-inner max-h-[700px]">
               <pre>{{ formattedJsonString }}</pre>
@@ -315,8 +394,9 @@ import Sidebar from '../components/Sidebar.vue'
 import PlatformBoxNode from '../components/platform/PlatformBoxNode.vue'
 import PlatformLeafProperty from '../components/platform/PlatformLeafProperty.vue'
 import PlatformGraphView from '../components/platform/PlatformGraphView.vue'
+import PlatformPulseSequence from '../components/platform/PlatformPulseSequence.vue'
 import { getApiUrl } from '../store.js'
-import { buildTreeNode, filterTree } from '../utils/platformTree.js'
+import { buildTreeNode, filterTree, isPulseSequence } from '../utils/platformTree.js'
 import { copyToClipboard } from '../utils/clipboard.js'
 
 const route = useRoute()
@@ -423,6 +503,62 @@ function handleCopyActiveJson() {
     copyStatusText.value = 'Copy JSON'
   }, 1200)
 }
+
+// Native Gate Pulse Sequences logic
+const pulseCategoryFilter = ref('all')
+
+const allNativeGates = computed(() => {
+  const ng = platformData.value?.parameters?.native_gates
+  if (!ng || typeof ng !== 'object') return []
+
+  const gates = []
+  Object.entries(ng).forEach(([category, targets]) => {
+    if (!targets || typeof targets !== 'object') return
+    Object.entries(targets).forEach(([target, gateDict]) => {
+      if (!gateDict || typeof gateDict !== 'object') return
+      Object.entries(gateDict).forEach(([gateName, seq]) => {
+        if (isPulseSequence(seq)) {
+          const targetLabel = category === 'single_qubit' ? `Qubit ${target}` : `Qubits ${target}`
+          gates.push({
+            id: `${category}-${target}-${gateName}`,
+            category,
+            target,
+            targetLabel,
+            name: `${targetLabel} : ${gateName}`,
+            gateName,
+            sequence: seq
+          })
+        }
+      })
+    })
+  })
+  return gates
+})
+
+const filteredNativeGates = computed(() => {
+  let list = allNativeGates.value
+  if (pulseCategoryFilter.value !== 'all') {
+    list = list.filter(g => g.category === pulseCategoryFilter.value)
+  }
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase().trim()
+    list = list.filter(g => {
+      return (
+        g.name.toLowerCase().includes(q) ||
+        g.gateName.toLowerCase().includes(q) ||
+        g.target.toLowerCase().includes(q) ||
+        JSON.stringify(g.sequence).toLowerCase().includes(q)
+      )
+    })
+  }
+  return list
+})
+
+watch(activeFile, (newFile) => {
+  if (newFile === 'calibration' && viewMode.value === 'pulses') {
+    viewMode.value = 'boxes'
+  }
+})
 
 watch(() => route.params.id, () => {
   loadPlatformData()
