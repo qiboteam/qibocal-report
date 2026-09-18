@@ -28,7 +28,7 @@
             type="text"
             required
             placeholder="http://127.0.0.1:8000"
-            class="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-lg text-xs font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#833dff]/15 focus:border-[#833dff] transition"
+            class="w-full px-3 py-2 bg-gray-50/70 rounded-lg text-xs font-mono text-gray-900 transition"
           />
         </div>
 
@@ -41,7 +41,7 @@
             v-model="form.name"
             type="text"
             placeholder="e.g. quantum-curie"
-            class="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#833dff]/15 focus:border-[#833dff] transition"
+            class="w-full px-3 py-2 bg-gray-50/70 rounded-lg text-xs text-gray-900 transition"
           />
         </div>
 
@@ -54,7 +54,7 @@
             v-model="form.description"
             rows="2"
             placeholder="Lab QPU calibration archive..."
-            class="w-full px-3 py-2 bg-gray-50/70 border border-gray-200 rounded-lg text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#833dff]/15 focus:border-[#833dff] transition resize-none"
+            class="w-full px-3 py-2 bg-gray-50/70 rounded-lg text-xs text-gray-900 transition resize-none"
           ></textarea>
         </div>
 
@@ -158,13 +158,13 @@
                 v-model="row.canonical"
                 type="text"
                 placeholder="Canonical name (e.g. Alice)"
-                class="flex-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs"
               />
               <input
                 v-model="row.aliases"
                 type="text"
                 placeholder="Aliases (e.g. alice, a.smith)"
-                class="flex-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono"
               />
               <button
                 type="button"
@@ -210,13 +210,13 @@
                 v-model="row.protoId"
                 type="text"
                 placeholder="Protocol ID (e.g. rabi)"
-                class="w-1/3 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+                class="w-1/3 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono"
               />
               <input
                 v-model="row.docPath"
                 type="text"
                 placeholder="Relative path or full URL"
-                class="flex-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono"
               />
               <button
                 type="button"
@@ -397,3 +397,22 @@ function submitForm() {
   })
 }
 </script>
+
+<style scoped>
+:deep(input[type="text"]),
+:deep(textarea),
+input[type="text"],
+textarea {
+  border: none !important;
+  outline: none;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+:deep(input[type="text"]:focus),
+:deep(textarea:focus),
+input[type="text"]:focus,
+textarea:focus {
+  box-shadow: 0 0 0 1.5px #833dff !important;
+}
+</style>
