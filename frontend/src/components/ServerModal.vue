@@ -178,6 +178,58 @@
           </div>
         </div>
 
+        <!-- Protocol Documentation Index (Overrides static docs) -->
+        <div class="pt-2 border-t border-gray-100">
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+              Custom Protocol Docs
+            </label>
+            <button
+              type="button"
+              @click="addProtocolDocRow"
+              class="text-[11px] text-[#833dff] hover:text-[#722ce6] font-medium flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0"
+            >
+              + Add Rule
+            </button>
+          </div>
+          <p class="text-[11px] text-gray-400 mb-2">
+            Configure custom protocol documentation URLs or paths for this server (masks default static index).
+          </p>
+
+          <div v-if="protocolDocRows.length === 0" class="text-[11px] text-gray-400 italic bg-gray-50/60 p-2.5 rounded-lg border border-dashed border-gray-200 text-center">
+            No custom protocol docs configured
+          </div>
+
+          <div v-else class="space-y-2 max-h-32 overflow-y-auto pr-1">
+            <div
+              v-for="(row, idx) in protocolDocRows"
+              :key="idx"
+              class="flex items-center gap-1.5 p-1.5 bg-gray-50/80 rounded-lg border border-gray-200 text-xs"
+            >
+              <input
+                v-model="row.protoId"
+                type="text"
+                placeholder="Protocol ID (e.g. rabi)"
+                class="w-1/3 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+              />
+              <input
+                v-model="row.docPath"
+                type="text"
+                placeholder="Relative path or full URL"
+                class="flex-1 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#833dff]"
+              />
+              <button
+                type="button"
+                @click="removeProtocolDocRow(idx)"
+                class="text-gray-400 hover:text-red-500 p-1 text-sm leading-none cursor-pointer bg-transparent border-0"
+                title="Remove rule"
+              >
+                &times;
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Actions -->
         <div class="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
           <button
@@ -235,6 +287,15 @@ const identityRows = ref(
     ? Object.entries(props.server.author_identities).map(([canonical, aliases]) => ({
         canonical,
         aliases: Array.isArray(aliases) ? aliases.join(', ') : String(aliases || '')
+      }))
+    : []
+)
+
+const protocolDocRows = ref(
+  props.server?.protocol_docs
+    ? Object.entries(props.server.protocol_docs).map(([protoId, docPath]) => ({
+        protoId,
+        docPath: String(docPath || '')
       }))
     : []
 )
@@ -298,6 +359,14 @@ function removeIdentityRow(idx) {
   identityRows.value.splice(idx, 1)
 }
 
+function addProtocolDocRow() {
+  protocolDocRows.value.push({ protoId: '', docPath: '' })
+}
+
+function removeProtocolDocRow(idx) {
+  protocolDocRows.value.splice(idx, 1)
+}
+
 function submitForm() {
   const author_identities = {}
   for (const row of identityRows.value) {
@@ -310,10 +379,21 @@ function submitForm() {
       author_identities[c] = aliasList
     }
   }
+
+  const protocol_docs = {}
+  for (const row of protocolDocRows.value) {
+    const id = (row.protoId || '').trim()
+    const path = (row.docPath || '').trim()
+    if (id && path) {
+      protocol_docs[id] = path
+    }
+  }
+
   emit('save', {
     ...form,
     url: normalizeUrl(form.url),
-    author_identities
+    author_identities,
+    protocol_docs
   })
 }
 </script>

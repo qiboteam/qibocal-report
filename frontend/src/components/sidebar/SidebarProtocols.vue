@@ -72,7 +72,22 @@
       >
         <div class="flex items-center justify-between">
           <span class="font-semibold text-gray-800 group-hover:text-[#833dff] truncate">{{ p.name }}</span>
-          <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded">✓</span>
+          <div class="flex items-center gap-1.5 shrink-0 ml-1.5">
+            <a
+              v-if="getDocLink(p)"
+              :href="getDocLink(p)"
+              target="_blank"
+              rel="noopener noreferrer"
+              @click.stop
+              class="text-gray-400 hover:text-[#833dff] transition-colors p-0.5 rounded hover:bg-white inline-flex items-center"
+              title="Open documentation"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+            <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded">✓</span>
+          </div>
         </div>
         <div class="flex items-center justify-between text-[10px] text-gray-400 mt-1 font-mono">
           <span>{{ p.execution_time || 'N/A' }}</span>
@@ -193,7 +208,8 @@
 
 <script setup>
 import { computed } from 'vue'
-import { getApiUrl } from '../../store.js'
+import { getApiUrl, state } from '../../store.js'
+import { getProtocolDocUrl } from '../../utils/protocolDocs.js'
 
 const props = defineProps({
   protocols: { type: Array, default: () => [] },
@@ -203,6 +219,10 @@ const props = defineProps({
 })
 
 defineEmits(['select-protocol', 'regenerate', 'print-pdf'])
+
+function getDocLink(p) {
+  return getProtocolDocUrl(p?.id, p?.name, state.activeServer)
+}
 
 const encodedId = computed(() => (props.reportId ? encodeURIComponent(props.reportId) : ''))
 

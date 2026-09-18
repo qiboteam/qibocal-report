@@ -44,6 +44,20 @@ def test_config_servers(tmp_path):
     updated_norm = config.update_server(norm_srv["id"], {"url": "10.0.0.1:8080/"})
     assert updated_norm["url"] == "http://10.0.0.1:8080"
 
+    # Protocol docs index
+    docs_srv = config.add_server(
+        "http://example.com:9001",
+        name="docs-qpu",
+        protocol_docs={"custom_routine": "custom/custom_routine.html"},
+    )
+    assert docs_srv["protocol_docs"]["custom_routine"] == "custom/custom_routine.html"
+    updated_docs = config.update_server(
+        docs_srv["id"],
+        {"protocol_docs": {"custom_routine": "custom/v2.html", "rabi": "rabi.html"}},
+    )
+    assert updated_docs["protocol_docs"]["rabi"] == "rabi.html"
+    config.delete_server(docs_srv["id"])
+
     # Delete
     deleted = config.delete_server(new_srv["id"])
     assert deleted is True
