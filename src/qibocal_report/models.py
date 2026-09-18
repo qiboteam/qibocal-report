@@ -77,6 +77,8 @@ class ReportSummary(BaseModel):
     labels: list[str] = Field(default_factory=list)
     total_execution_time: str | None = None
     has_cached_report: bool = False
+    has_old_platform: bool = False
+    has_new_platform: bool = False
     search_index: str = ""
 
 
@@ -84,6 +86,16 @@ class ReportDetail(ReportSummary):
     history: Any | None = Field(default_factory=dict)
     platform_snapshot: dict[str, Any] | None = Field(default_factory=dict)
     protocols_summary: list[ProtocolSummary] = Field(default_factory=list)
+
+
+class PlatformDataResponse(BaseModel):
+    report_id: str
+    platform_name: str | None = None
+    platform_type: str = "new"  # "old" or "new"
+    has_old_platform: bool = False
+    has_new_platform: bool = False
+    parameters: dict[str, Any] | None = None
+    calibration: dict[str, Any] | None = None
 
 
 class PaginatedReportsResponse(BaseModel):

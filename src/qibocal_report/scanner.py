@@ -191,6 +191,8 @@ def parse_report_directory(
         exec_time = "N/A"
     cached = has_cached_report(report_dir)
     protocols = _discover_protocols(report_dir, meta)
+    has_old = (report_dir / "platform").is_dir()
+    has_new = (report_dir / "new_platform").is_dir()
 
     # Pre-compile search index from platform, author, tags, protocols, targets, date, id
     tag_tokens = " ".join(tags)
@@ -216,6 +218,8 @@ def parse_report_directory(
         labels=tags,
         total_execution_time=exec_time,
         has_cached_report=cached,
+        has_old_platform=has_old,
+        has_new_platform=has_new,
         search_index=search_index,
     )
 

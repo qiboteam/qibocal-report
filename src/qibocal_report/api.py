@@ -1,5 +1,4 @@
-"""FastAPI Backend Server for Qibocal Report."""
-
+import json
 import os
 from pathlib import Path
 from typing import Annotated, Any
@@ -36,6 +35,7 @@ from qibocal_report.models import (
     FilterStats,
     HealthResponse,
     PaginatedReportsResponse,
+    PlatformDataResponse,
     ProtocolDetail,
     ReportDetail,
     ReportSummary,
@@ -47,6 +47,7 @@ from qibocal_report.models import (
     UpdateAuthorRequest,
 )
 from qibocal_report.scanner import (
+    _parse_meta_json,
     compute_filter_stats,
     filter_reports,
     get_report_detail,
@@ -702,6 +703,94 @@ def get_report_meta_json(report_id: str) -> Response:
     return Response(
         content=meta_file.read_bytes(),
         media_type="application/json",
+        headers={"Content-Disposition": "inline"},
+    )
+
+
+def _read_platform_json_or_yaml(file_prefix: Path) -> Any | None:
+    for ext in (".json", ".yaml", ".yml"):
+        cand = file_prefix.with_suffix(ext)
+        if cand.is_file():
+            try:
+                with open(cand, encoding="utf-8") as f:
+                    if ext in (".yaml", ".yml"):
+                        import yaml
+
+                        return yaml.safe_load(f)
+                    return json.load(f)
+            except Exception:
+                pass
+    return None
+
+
+@app.get(
+    "/api/reports/{report_id:path}/platform-data",
+    response_model=PlatformDataResponse,
+    tags=["Reports"],
+)
+@app.get(
+    "/api/reports/{report_id:path}/platform/{platform_type}",
+    response_model=PlatformDataResponse,
+    tags=["Reports"],
+)
+def get_report_platform_data(
+    report_id: str,
+    platform_type: str = "new",
+) -> PlatformDataResponse:
+    """Get parameters.json and calibration.json trees for old or new platform."""
+    log_info(f"HTTP GET platform data ({platform_type}) for '{report_id}'")
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
+    norm_type = (
+        "old"
+        if str(platform_type).lower() in ("old", "platform", "old-platform", "old_platform")
+        else "new"
+    )
+    plat_dir = target_dir / ("platform" if norm_type == "old" else "new_platform")
+
+    has_old = (target_dir / "platform").is_dir()
+    has_new = (target_dir / "new_platform").is_dir()
+
+    meta = _parse_meta_json(target_dir / "meta.json")
+    platform_name = meta.get("platform") or "Generic QPU"
+
+    params_data = _read_platform_json_or_yaml(plat_dir / "parameters")
+    calib_data = _read_platform_json_or_yaml(plat_dir / "calibration")
+
+    return PlatformDataResponse(
+        report_id=report_id,
+        platform_name=platform_name,
+        platform_type=norm_type,
+        has_old_platform=has_old,
+        has_new_platform=has_new,
+        parameters=params_data,
+        calibration=calib_data,
+    )
+
+
+@app.get(
+    "/api/reports/{report_id:path}/platform/{platform_type}/{file_name}",
+    tags=["Reports"],
+)
+def get_report_platform_raw_file(
+    report_id: str, platform_type: str, file_name: str
+) -> Response:
+    """Access raw parameters.json or calibration.json inline."""
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
+    norm_type = (
+        "old"
+        if str(platform_type).lower() in ("old", "platform", "old-platform", "old_platform")
+        else "new"
+    )
+    plat_dir = target_dir / ("platform" if norm_type == "old" else "new_platform")
+    target_file = plat_dir / file_name
+    if not target_file.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"{file_name} not found in {norm_type} platform for report {report_id}",
+        )
+    return Response(
+        content=target_file.read_bytes(),
+        media_type="application/json" if target_file.suffix == ".json" else "text/plain",
         headers={"Content-Disposition": "inline"},
     )
 

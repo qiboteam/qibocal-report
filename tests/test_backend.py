@@ -327,6 +327,26 @@ def test_api_endpoints():
     assert protos[0]["execution_time"] is not None
     assert protos[0]["execution_time"] != "N/A"
 
+    # Platform data endpoints
+    r_plat_old = client.get(f"/api/reports/{first_id}/platform/old")
+    assert r_plat_old.status_code == 200
+    p_data_old = r_plat_old.json()
+    assert p_data_old["platform_type"] == "old"
+    assert "parameters" in p_data_old
+    assert "calibration" in p_data_old
+
+    r_plat_new = client.get(f"/api/reports/{first_id}/platform/new")
+    assert r_plat_new.status_code == 200
+    p_data_new = r_plat_new.json()
+    assert p_data_new["platform_type"] == "new"
+
+    # Platform raw file endpoints
+    r_raw_params = client.get(f"/api/reports/{first_id}/platform/old/parameters.json")
+    assert r_raw_params.status_code == 200
+    assert "application/json" in r_raw_params.headers["content-type"]
+    r_raw_calib = client.get(f"/api/reports/{first_id}/platform/old/calibration.json")
+    assert r_raw_calib.status_code == 200
+
     # Non-existent report downloads
     assert client.get("/api/reports/nonexistent/download/full").status_code == 404
     assert client.get("/api/reports/nonexistent/meta.json").status_code == 404
