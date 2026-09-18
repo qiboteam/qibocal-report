@@ -169,9 +169,7 @@ def _update_authors(matched_dirs: list[Path], author: str) -> list[str]:
     return updated_authors
 
 
-def execute_bulk_action(
-    root_dir: Path, req: BulkActionRequest
-) -> BulkActionResponse:
+def execute_bulk_action(root_dir: Path, req: BulkActionRequest) -> BulkActionResponse:
     """Execute bulk actions (delete, label, unlabel, author) on multiple reports."""
     log_info(
         f"Bulk action requested: '{req.action}' on {len(req.report_ids)} report(s)"
