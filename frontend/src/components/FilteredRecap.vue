@@ -1,14 +1,13 @@
 <template>
   <div class="bm-card p-4 sm:p-5 mb-4 transition-all animate-fade-in border border-purple-100/80 bg-white shadow-xs">
-    <!-- Header: Scope Toggle (only shown when selection is active) -->
+    <!-- Header: Scope Toggle & Select All Actions -->
     <div
-      v-if="selectedCount > 0"
-      class="flex items-center justify-between gap-3 pb-2 mb-3 border-b border-gray-100"
+      class="flex flex-wrap items-center justify-between gap-3 pb-2.5 mb-3 border-b border-gray-100"
     >
-      <div>
+      <div class="flex items-center gap-2">
         <!-- Segmented scope switch (when checkboxes are selected and filters are active) -->
         <div
-          v-if="isFiltered"
+          v-if="selectedCount > 0 && isFiltered"
           class="inline-flex items-center bg-gray-100 p-0.5 rounded-lg text-xs"
         >
           <button
@@ -27,11 +26,54 @@
           </button>
         </div>
         <span
-          v-else
+          v-else-if="selectedCount > 0"
           class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-purple-50 text-purple-800"
         >
           Selected ({{ selectedCount }})
         </span>
+        <span
+          v-else
+          class="text-xs font-bold uppercase tracking-wider text-gray-500"
+        >
+          {{ isFiltered ? 'Filtered Overview' : 'Overview' }}
+        </span>
+      </div>
+
+      <!-- Select All Filtered Action -->
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          :disabled="selectingAll || totalFilteredReports === 0"
+          @click="$emit('select-all-filtered')"
+          class="px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs border"
+          :class="allFilteredSelected
+            ? 'bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200'
+            : 'bg-white text-gray-700 border-gray-200 hover:text-[#833dff] hover:border-purple-200 hover:bg-purple-50/50'"
+          :title="allFilteredSelected ? 'Deselect all filtered reports' : 'Select all filtered reports across all pages'"
+        >
+          <svg v-if="selectingAll" class="w-3.5 h-3.5 animate-spin text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <svg v-else-if="allFilteredSelected" class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <svg v-else class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+          <span>
+            {{ allFilteredSelected ? `Deselect All (${totalFilteredReports})` : `Select All (${totalFilteredReports})` }}
+          </span>
+        </button>
+
+        <button
+          v-if="selectedCount > 0 && !allFilteredSelected"
+          type="button"
+          @click="$emit('clear-selection')"
+          class="px-2 py-1 text-xs text-gray-500 hover:text-gray-800 transition cursor-pointer bg-transparent border-0"
+          title="Clear current selection"
+        >
+          Clear ({{ selectedCount }})
+        </button>
       </div>
     </div>
 
@@ -223,6 +265,18 @@
         >&times;</button>
       </span>
       <span
+        v-if="filters.folder"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
+      >
+        Folder: {{ filters.folder }}
+        <button
+          type="button"
+          @click="$emit('clear-filter', 'folder')"
+          class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-black cursor-pointer leading-none ml-0.5"
+          title="Clear folder filter"
+        >&times;</button>
+      </span>
+      <span
         v-for="p in filters.protocols"
         :key="p"
         class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-800 font-mono"
@@ -300,7 +354,9 @@ const props = defineProps({
   isFiltered: { type: Boolean, default: false },
   selectedCount: { type: Number, default: 0 },
   selectedReports: { type: Array, default: () => [] },
-  filters: { type: Object, default: () => ({}) }
+  filters: { type: Object, default: () => ({}) },
+  allFilteredSelected: { type: Boolean, default: false },
+  selectingAll: { type: Boolean, default: false }
 })
 
 defineEmits([
@@ -308,7 +364,9 @@ defineEmits([
   'filter-platform',
   'filter-author',
   'clear-filter',
-  'edit-authors-mapping'
+  'edit-authors-mapping',
+  'select-all-filtered',
+  'clear-selection'
 ])
 
 const hasAnyFilter = computed(() => {
@@ -316,6 +374,7 @@ const hasAnyFilter = computed(() => {
   return Boolean(
     f.author ||
     f.platform ||
+    f.folder ||
     (f.protocols && f.protocols.length > 0) ||
     (f.labels && f.labels.length > 0) ||
     (f.qubits && f.qubits.length > 0) ||

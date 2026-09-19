@@ -59,11 +59,14 @@
           :selected-start-date="selectedStartDate"
           :selected-end-date="selectedEndDate"
           :selected-date="selectedDate"
+          :selected-folder="selectedFolder"
           :is-collapsed="isCollapsed"
           @update-filter="$emit('update-filter', $event)"
           @reset-filters="$emit('reset-filters')"
           @toggle-protocol="$emit('toggle-protocol', $event)"
           @toggle-label="$emit('toggle-label', $event)"
+          @open-folder-browser="$emit('open-folder-browser')"
+          @clear-folder="$emit('update-filter', { key: 'folder', value: '' })"
         />
 
         <!-- Protocols Summary Context -->
@@ -132,6 +135,7 @@ defineProps({
   selectedStartDate: { type: String, default: '' },
   selectedEndDate: { type: String, default: '' },
   selectedDate: { type: String, default: '' },
+  selectedFolder: { type: String, default: '' },
   reportProtocols: { type: Array, default: () => [] },
   reportId: { type: String, default: null },
   regenerating: { type: Boolean, default: false }
@@ -142,6 +146,7 @@ defineEmits([
   'reset-filters',
   'toggle-protocol',
   'toggle-label',
+  'open-folder-browser',
   'regenerate',
   'print-pdf'
 ])

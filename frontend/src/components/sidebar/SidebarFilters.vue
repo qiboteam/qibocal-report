@@ -66,7 +66,7 @@
     </div>
 
     <!-- Protocols Search & Autocomplete -->
-    <div class="relative w-full min-w-0">
+    <div class="relative w-full min-w-0 mb-4">
       <div class="flex items-center justify-between mb-1">
         <label class="block text-xs font-semibold text-gray-700">Protocols</label>
         <span v-if="selectedProtocols.length > 0" class="text-[10px] text-purple-700 font-mono font-medium">
@@ -138,6 +138,52 @@
         </span>
       </div>
     </div>
+
+    <!-- Subfolder Filter -->
+    <div class="w-full min-w-0">
+      <div class="flex items-center justify-between mb-1">
+        <label class="block text-xs font-semibold text-gray-700">Subfolder</label>
+        <button
+          v-if="selectedFolder"
+          type="button"
+          @click="$emit('clear-folder')"
+          class="text-[10px] text-[#833dff] hover:underline font-semibold cursor-pointer bg-transparent border-0 p-0"
+        >
+          Clear
+        </button>
+      </div>
+
+      <div v-if="selectedFolder" class="flex items-center gap-1.5 p-2 bg-purple-50/80 border border-purple-200 rounded-lg">
+        <svg class="w-3.5 h-3.5 text-[#833dff] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+        <span class="text-xs font-mono text-purple-900 truncate flex-1" :title="selectedFolder">
+          {{ selectedFolder }}
+        </span>
+        <button
+          type="button"
+          @click="$emit('open-folder-browser')"
+          class="p-1 text-gray-500 hover:text-[#833dff] hover:bg-white rounded transition cursor-pointer border-0 bg-transparent"
+          title="Change subfolder"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+        </button>
+      </div>
+
+      <button
+        v-else
+        type="button"
+        @click="$emit('open-folder-browser')"
+        class="w-full text-xs py-1.5 px-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 border border-dashed border-gray-300 flex items-center justify-center gap-1.5 transition cursor-pointer"
+      >
+        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+        <span>Browse subfolders...</span>
+      </button>
+    </div>
   </div>
 
   <!-- Collapsed Mode Filter Reset Button -->
@@ -170,6 +216,7 @@ const props = defineProps({
   selectedStartDate: { type: String, default: '' },
   selectedEndDate: { type: String, default: '' },
   selectedDate: { type: String, default: '' },
+  selectedFolder: { type: String, default: '' },
   isCollapsed: { type: Boolean, default: false }
 })
 
@@ -177,7 +224,9 @@ const emit = defineEmits([
   'update-filter',
   'reset-filters',
   'toggle-protocol',
-  'toggle-label'
+  'toggle-label',
+  'open-folder-browser',
+  'clear-folder'
 ])
 
 const labelSearch = ref('')

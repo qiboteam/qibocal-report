@@ -76,6 +76,7 @@ export function useReportFilters() {
   function updateFilter({ key, value, startDate, endDate }) {
     if (key === 'author') filters.author = value
     if (key === 'platform') filters.platform = value
+    if (key === 'folder') filters.folder = value || ''
     if (key === 'date') {
       filters.date = value || ''
       filters.startDate = value || ''
@@ -99,6 +100,16 @@ export function useReportFilters() {
     persistSearchState()
   }
 
+  function setFolder(folder) {
+    filters.folder = folder || ''
+    persistSearchState()
+  }
+
+  function clearFolder() {
+    filters.folder = ''
+    persistSearchState()
+  }
+
   function resetFilters() {
     resetSearchState()
   }
@@ -111,11 +122,11 @@ export function useReportFilters() {
     const qStr = (filters.q || '').trim().toLowerCase()
     const start = filters.startDate || filters.date || ''
     const end = filters.endDate || filters.date || ''
-    return `${serverKey}|${qStr}|${filters.author || ''}|${filters.platform || ''}|${start}|${end}|${protos}|${labels}|${qubits}|${filters.sort_by || 'date_desc'}|${pageSize}`
+    return `${serverKey}|${qStr}|${filters.author || ''}|${filters.platform || ''}|${filters.folder || ''}|${start}|${end}|${protos}|${labels}|${qubits}|${filters.sort_by || 'date_desc'}|${pageSize}`
   }
 
   watch(
-    () => [filters.q, filters.sort_by, filters.author, filters.platform, filters.date, filters.startDate, filters.endDate, filters.qubits?.length],
+    () => [filters.q, filters.sort_by, filters.author, filters.platform, filters.folder, filters.date, filters.startDate, filters.endDate, filters.qubits?.length],
     () => {
       persistSearchState()
     }
@@ -130,6 +141,8 @@ export function useReportFilters() {
     toggleAuthor,
     toggleQubit,
     updateFilter,
+    setFolder,
+    clearFolder,
     resetFilters,
     getFilterQueryKey
   }

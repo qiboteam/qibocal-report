@@ -118,6 +118,12 @@ def test_scanner_and_filters():
     platforms = [r.platform.lower() for r in sorted_by_platform if r.platform]
     assert platforms == sorted(platforms)
 
+    # Filter by folder
+    first_report_id = reports[0].id
+    folder_reports = filter_reports(reports, folder=first_report_id)
+    assert len(folder_reports) == 1
+    assert folder_reports[0].id == first_report_id
+
 
 def test_generator_modes():
     test_reports = get_report_root()
@@ -252,6 +258,22 @@ def test_api_endpoints():
         r_range_stats = client.get(f"/api/reports/stats?start_date={start_d}&end_date={end_d}")
         assert r_range_stats.status_code == 200
         assert r_range_stats.json()["total_reports"] == stats["total_reports"]
+
+    # Filter by folder endpoint
+    r_folder = client.get(f"/api/reports?folder={reports[0]['id']}")
+    assert r_folder.status_code == 200
+    assert len(r_folder.json()) == 1
+    assert r_folder.json()[0]["id"] == reports[0]["id"]
+
+    # Filter stats by folder endpoint
+    r_fstats = client.get(f"/api/reports/stats?folder={reports[0]['id']}")
+    assert r_fstats.status_code == 200
+    assert r_fstats.json()["total_reports"] == 1
+
+    # Browse directory with scope=root
+    r_browse_root = client.get("/api/server/directory/browse?scope=root")
+    assert r_browse_root.status_code == 200
+    assert "directories" in r_browse_root.json()
 
     # Single report detail
     first_id = reports[0]["id"]

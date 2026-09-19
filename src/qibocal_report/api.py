@@ -230,21 +230,27 @@ def get_server_directory_info() -> ServerDirectoryInfo:
     response_model=DirectoryBrowseResponse,
     tags=["Server Directory"],
 )
-def browse_server_directory(path: str = "") -> DirectoryBrowseResponse:
-    """Browse subdirectories of the originally spawned server directory."""
+def browse_server_directory(
+    path: str = "",
+    scope: str = "original",
+) -> DirectoryBrowseResponse:
+    """Browse subdirectories of the originally spawned server directory or current report root."""
     from qibocal_report.scanner import IGNORED_DIRS
 
-    orig = ORIGINAL_ROOT_DIR.resolve()
+    base_root = (
+        REPORT_ROOT_DIR.resolve()
+        if scope in ("root", "current")
+        else ORIGINAL_ROOT_DIR.resolve()
+    )
     clean_subpath = path.strip().lstrip("/")
-    target = (orig / clean_subpath).resolve()
+    target = (base_root / clean_subpath).resolve()
 
-    # Strict security check: target must be inside or equal to ORIGINAL_ROOT_DIR
-    if not (target == orig or orig in target.parents):
+    # Strict security check: target must be inside or equal to base_root
+    if not (target == base_root or base_root in target.parents):
         raise HTTPException(
             status_code=403,
             detail=(
-                "Access forbidden: cannot browse outside originally spawned "
-                "server folder"
+                "Access forbidden: cannot browse outside server folder"
             ),
         )
 
@@ -255,7 +261,7 @@ def browse_server_directory(path: str = "") -> DirectoryBrowseResponse:
         )
 
     # Compute breadcrumbs
-    root_display_name = orig.name or "root"
+    root_display_name = base_root.name or "root"
     breadcrumbs = [DirectoryBreadcrumb(name=root_display_name, path="")]
     if clean_subpath:
         rel_parts = Path(clean_subpath).parts
@@ -265,10 +271,10 @@ def browse_server_directory(path: str = "") -> DirectoryBrowseResponse:
             breadcrumbs.append(DirectoryBreadcrumb(name=part, path="/".join(accum)))
 
     # Compute parent path
-    if target == orig:
+    if target == base_root:
         parent_path = None
     else:
-        parent_rel = target.parent.relative_to(orig).as_posix()
+        parent_rel = target.parent.relative_to(base_root).as_posix()
         parent_path = "" if parent_rel == "." else parent_rel
 
     # List subdirectories (treating report folders as leaves and omitting them)
@@ -291,7 +297,7 @@ def browse_server_directory(path: str = "") -> DirectoryBrowseResponse:
                     for c in item.iterdir()
                 )
                 is_cur = item.resolve() == REPORT_ROOT_DIR.resolve()
-                item_rel = item.relative_to(orig).as_posix()
+                item_rel = item.relative_to(base_root).as_posix()
                 count = _count_reports_fast(item)
                 subdirs.append(
                     DirectoryEntry(
@@ -305,12 +311,12 @@ def browse_server_directory(path: str = "") -> DirectoryBrowseResponse:
     except PermissionError:
         pass
 
-    current_rel = "" if target == orig else target.relative_to(orig).as_posix()
+    current_rel = "" if target == base_root else target.relative_to(base_root).as_posix()
     is_active_root = target.resolve() == REPORT_ROOT_DIR.resolve()
     reports_in_current = _count_reports_fast(target)
 
     return DirectoryBrowseResponse(
-        original_root=str(orig),
+        original_root=str(ORIGINAL_ROOT_DIR.resolve()),
         current_root=str(REPORT_ROOT_DIR.resolve()),
         current_browse_path=current_rel,
         parent_path=parent_path,
@@ -381,6 +387,7 @@ def change_server_directory(req: ChangeDirectoryRequest) -> ServerDirectoryInfo:
 def get_reports(
     response: Response,
     q: str | None = None,
+    folder: str | None = None,
     author: Annotated[list[str] | None, Query()] = None,
     platform: Annotated[list[str] | None, Query()] = None,
     protocol: Annotated[list[str] | None, Query()] = None,
@@ -404,6 +411,7 @@ def get_reports(
     filtered = filter_reports(
         all_reports,
         query=q,
+        folder=folder,
         authors=author,
         platforms=platform,
         labels=combined_tags,
@@ -447,6 +455,7 @@ def get_reports(
 @app.get("/api/reports/stats", response_model=FilterStats, tags=["Reports"])
 def get_filter_statistics(
     q: str | None = None,
+    folder: str | None = None,
     author: Annotated[list[str] | None, Query()] = None,
     platform: Annotated[list[str] | None, Query()] = None,
     protocol: Annotated[list[str] | None, Query()] = None,
@@ -465,6 +474,7 @@ def get_filter_statistics(
     filtered = filter_reports(
         all_reports,
         query=q,
+        folder=folder,
         authors=author,
         platforms=platform,
         labels=combined_tags,

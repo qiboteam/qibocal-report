@@ -11,7 +11,7 @@
           <svg class="w-4 h-4 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
-          Select Report Directory
+          {{ filterMode ? 'Filter by Folder' : 'Select Report Directory' }}
         </div>
         <button
           type="button"
@@ -84,10 +84,10 @@
           <div class="min-w-0">
             <div class="flex items-center gap-1.5">
               <span class="text-xs font-semibold text-gray-800 truncate">
-                {{ currentBrowsePath ? currentBrowsePath.split('/').pop() : 'Root Directory' }}
+                {{ currentBrowsePath ? currentBrowsePath.split('/').pop() : (filterMode ? 'All Folders (Root)' : 'Root Directory') }}
               </span>
               <span v-if="isActiveRoot" class="px-1.5 py-0.2 text-[9px] font-bold bg-emerald-100 text-emerald-800 rounded font-mono">
-                Active Server Root
+                {{ filterMode ? 'Server Root' : 'Active Server Root' }}
               </span>
               <span v-if="reportsCount > 0" class="px-1.5 py-0.2 text-[9px] font-mono font-medium bg-purple-100 text-purple-800 rounded">
                 {{ reportsCount }} {{ reportsCount === 1 ? 'report' : 'reports' }}
@@ -107,7 +107,7 @@
             ? 'bg-[#833dff] text-white shadow-2xs font-semibold'
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
         >
-          {{ selectedPath === currentBrowsePath ? 'Selected' : 'Select Folder' }}
+          {{ selectedPath === currentBrowsePath ? 'Selected' : (filterMode ? 'Select This Folder' : 'Select Folder') }}
         </button>
       </div>
 
@@ -189,12 +189,20 @@
       <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between gap-3 shrink-0">
         <div class="min-w-0">
           <span class="text-[10px] text-gray-400 uppercase tracking-wider block">Target Selection</span>
-          <span class="text-xs font-mono font-semibold text-gray-800 truncate block max-w-[220px]" :title="selectedPath || '(Root directory)'">
-            📁 {{ selectedPath || '(Root directory)' }}
+          <span class="text-xs font-mono font-semibold text-gray-800 truncate block max-w-[220px]" :title="selectedPath || (filterMode ? 'All folders (no filter)' : '(Root directory)')">
+            📁 {{ selectedPath || (filterMode ? 'All folders (no filter)' : '(Root directory)') }}
           </span>
         </div>
 
         <div class="flex items-center gap-2 shrink-0">
+          <button
+            v-if="filterMode && selectedPath"
+            type="button"
+            @click="selectedPath = ''"
+            class="border-0 px-2.5 py-1.5 rounded-lg text-xs font-medium text-purple-700 hover:bg-purple-50 transition cursor-pointer"
+          >
+            Clear Filter
+          </button>
           <button
             type="button"
             @click="$emit('close')"
@@ -211,7 +219,7 @@
             <svg v-if="applying" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            {{ applying ? 'Applying...' : 'Apply Selection' }}
+            {{ applying ? 'Applying...' : (filterMode ? 'Apply Filter' : 'Apply Selection') }}
           </button>
         </div>
       </div>
@@ -226,7 +234,8 @@ import { normalizeUrl } from '../../store.js'
 const props = defineProps({
   show: { type: Boolean, default: false },
   serverUrl: { type: String, default: '' },
-  initialPath: { type: String, default: '' }
+  initialPath: { type: String, default: '' },
+  filterMode: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['close', 'select'])
@@ -264,6 +273,9 @@ async function browseTo(subpath = '') {
     if (subpath) {
       url.searchParams.set('path', subpath)
     }
+    if (props.filterMode) {
+      url.searchParams.set('scope', 'root')
+    }
     const res = await fetch(url.toString(), { signal: AbortSignal.timeout(6000) })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -289,6 +301,11 @@ async function browseTo(subpath = '') {
 }
 
 async function applyChange() {
+  if (props.filterMode) {
+    emit('select', { path: selectedPath.value })
+    emit('close')
+    return
+  }
   applying.value = true
   error.value = null
   try {

@@ -34,6 +34,7 @@ function loadSavedSearchState() {
           q: parsed.filters?.q || '',
           author: parsed.filters?.author || '',
           platform: parsed.filters?.platform || '',
+          folder: parsed.filters?.folder || '',
           date: parsed.filters?.date || '',
           startDate: parsed.filters?.startDate || parsed.filters?.date || '',
           endDate: parsed.filters?.endDate || parsed.filters?.date || '',
@@ -55,6 +56,7 @@ function loadSavedSearchState() {
       q: '',
       author: '',
       platform: '',
+      folder: '',
       date: '',
       startDate: '',
       endDate: '',
@@ -99,6 +101,7 @@ export function resetSearchState() {
   state.searchState.filters.q = ''
   state.searchState.filters.author = ''
   state.searchState.filters.platform = ''
+  state.searchState.filters.folder = ''
   state.searchState.filters.date = ''
   state.searchState.filters.startDate = ''
   state.searchState.filters.endDate = ''
@@ -116,6 +119,7 @@ export function hasActiveSearchFilters(filters = state.searchState?.filters) {
     (filters.q && filters.q.trim()) ||
     filters.author ||
     filters.platform ||
+    filters.folder ||
     filters.date ||
     filters.startDate ||
     filters.endDate ||

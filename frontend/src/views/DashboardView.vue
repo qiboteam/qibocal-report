@@ -11,10 +11,12 @@
       :selected-start-date="filters.startDate"
       :selected-end-date="filters.endDate"
       :selected-date="filters.date"
+      :selected-folder="filters.folder"
       @update-filter="onUpdateFilter"
       @toggle-protocol="onToggleProtocol"
       @toggle-label="onToggleLabel"
       @reset-filters="onResetFilters"
+      @open-folder-browser="showFolderBrowser = true"
     />
 
     <!-- Main Content Panel -->
@@ -158,11 +160,15 @@
           :selected-count="selectedReports.length"
           :selected-reports="selectedReportsData"
           :filters="filters"
+          :all-filtered-selected="allFilteredSelected"
+          :selecting-all="selectingAll"
           @toggle-protocol="onToggleProtocol"
           @filter-platform="onTogglePlatform"
           @filter-author="onToggleAuthor"
           @clear-filter="(key, val) => clearFilter(key, val)"
           @edit-authors-mapping="showAuthorMappingModal = true"
+          @select-all-filtered="selectAllFilteredReports"
+          @clear-selection="clearSelection"
         />
 
         <!-- Loading State -->
@@ -304,6 +310,16 @@
       @close="showAuthorMappingModal = false"
       @saved="onAuthorMappingSaved"
     />
+
+    <!-- Subfolder Filter Modal -->
+    <directory-browser-modal
+      :show="showFolderBrowser"
+      :server-url="state.activeServer?.url || ''"
+      :initial-path="filters.folder"
+      :filter-mode="true"
+      @close="showFolderBrowser = false"
+      @select="handleFolderSelect"
+    />
   </div>
 </template>
 
@@ -326,6 +342,7 @@ import UnlabelModal from '../components/modals/UnlabelModal.vue'
 import AuthorModal from '../components/modals/AuthorModal.vue'
 import DeleteConfirmModal from '../components/modals/DeleteConfirmModal.vue'
 import AuthorMappingModal from '../components/modals/AuthorMappingModal.vue'
+import DirectoryBrowserModal from '../components/modals/DirectoryBrowserModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -337,6 +354,8 @@ const showRecap = ref(true)
 const loading = ref(true)
 const connectionError = ref(null)
 const showAuthorMappingModal = ref(false)
+const showFolderBrowser = ref(false)
+const selectingAll = ref(false)
 
 async function onAuthorMappingSaved() {
   await refreshData()
@@ -492,6 +511,7 @@ function clearFilter(key, value = null) {
   applyFilterChange(() => {
     if (key === 'author') filters.author = ''
     else if (key === 'platform') filters.platform = ''
+    else if (key === 'folder') filters.folder = ''
     else if (key === 'date' || key === 'dateRange') {
       filters.date = ''
       filters.startDate = ''
@@ -502,6 +522,50 @@ function clearFilter(key, value = null) {
     else if (key === 'qubit') toggleQubit(value)
     else if (key === 'q') filters.q = ''
   })
+}
+
+function handleFolderSelect({ path }) {
+  applyFilterChange(() => {
+    updateFilter({ key: 'folder', value: path || '' })
+  })
+}
+
+const allFilteredSelected = computed(() => {
+  return totalReports.value > 0 && selectedReports.value.length >= totalReports.value
+})
+
+async function selectAllFilteredReports() {
+  if (allFilteredSelected.value) {
+    clearSelection()
+    return
+  }
+  selectingAll.value = true
+  try {
+    const params = new URLSearchParams()
+    if (filters.q.trim()) params.set('q', filters.q.trim())
+    if (filters.sort_by) params.set('sort_by', filters.sort_by)
+    if (filters.author) params.set('author', filters.author)
+    if (filters.platform) params.set('platform', filters.platform)
+    if (filters.folder) params.set('folder', filters.folder)
+    const start = filters.startDate || filters.date
+    const end = filters.endDate || filters.date
+    if (start) params.set('start_date', start)
+    if (end) params.set('end_date', end)
+    filters.protocols.forEach(p => params.append('protocol', p))
+    filters.labels.forEach(l => params.append('label', l))
+    filters.qubits?.forEach(q => params.append('qubit', q))
+
+    const res = await apiFetch(`/api/reports?${params.toString()}`)
+    if (res.ok) {
+      const data = await res.json()
+      const allItems = Array.isArray(data) ? data : (data.items || [])
+      selectedReports.value = allItems.map(r => r.id)
+    }
+  } catch (err) {
+    console.error('Failed to select all filtered reports', err)
+  } finally {
+    selectingAll.value = false
+  }
 }
 
 function onUpdateFilter(payload) {
@@ -594,6 +658,7 @@ async function fetchFilteredStats() {
     if (filters.sort_by) params.set('sort_by', filters.sort_by)
     if (filters.author) params.set('author', filters.author)
     if (filters.platform) params.set('platform', filters.platform)
+    if (filters.folder) params.set('folder', filters.folder)
     const start = filters.startDate || filters.date
     const end = filters.endDate || filters.date
     if (start) params.set('start_date', start)
@@ -678,6 +743,7 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
     if (filters.sort_by) params.set('sort_by', filters.sort_by)
     if (filters.author) params.set('author', filters.author)
     if (filters.platform) params.set('platform', filters.platform)
+    if (filters.folder) params.set('folder', filters.folder)
     const start = filters.startDate || filters.date
     const end = filters.endDate || filters.date
     if (start) params.set('start_date', start)

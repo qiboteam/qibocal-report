@@ -377,9 +377,19 @@ def filter_reports(
     end_date: str | None = None,
     sort_by: str = "date_desc",
     author_identities: dict[str, list[str]] | None = None,
+    folder: str | None = None,
 ) -> list[ReportSummary]:
     """Filter and sort reports based on search criteria."""
     filtered = reports
+
+    if folder:
+        clean_folder = folder.strip().strip("/")
+        if clean_folder:
+            filtered = [
+                r
+                for r in filtered
+                if r.id == clean_folder or r.id.startswith(f"{clean_folder}/")
+            ]
 
     if author_identities is None:
         author_identities = _discover_author_identities()

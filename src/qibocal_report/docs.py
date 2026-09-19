@@ -114,12 +114,12 @@ def resolve_docs_content(doc_name: str) -> str:
         clean_name = "index"
 
     roots = [
+        Path(__file__).resolve().parents[2] / "docs",
+        Path.cwd() / "docs",
         Path(sysconfig.get_path("purelib")) / "docs",
         Path(sysconfig.get_path("purelib")),
         Path(sysconfig.get_path("data")) / "docs",
         Path(sysconfig.get_path("data")),
-        Path(__file__).resolve().parents[2] / "docs",
-        Path.cwd() / "docs",
     ]
 
     targets = [
