@@ -994,3 +994,103 @@ def test_archive_workflow(tmp_path):
     del_res = client.delete(f"/api/archives/{arc2_id}")
     assert del_res.status_code == 200
     assert del_res.json()["success"] is True
+
+
+def test_protocol_execution_order_sorting(tmp_path: Path):
+    """Test protocol execution order sorting in report view (Issue #3)."""
+    from qibocal_report.generator import (
+        get_execution_order,
+        load_cached_protocols,
+        get_report_protocols,
+        sort_protocols_by_execution_order,
+    )
+    from qibocal_report.scanner import get_report_detail
+    from qibocal_report.models import ProtocolDetail
+
+    # 1. Test real sample data with 9 routines
+    sample_dir = Path("sample_data/21:47:29_[3]_pi-pulse")
+    assert sample_dir.is_dir()
+
+    expected_order = [
+        "qubit_spectroscopy-0",
+        "rabi_amplitude_signal-0",
+        "single_shot_classification-0",
+        "rabi_amplitude-0",
+        "ramsey-0",
+        "single_shot_classification-1",
+        "drag_simple-0",
+        "flipping-0",
+        "allxy-0",
+    ]
+
+    # Verify get_execution_order
+    order = get_execution_order(sample_dir)
+    assert order == expected_order
+
+    # Verify load_cached_protocols preserves execution order (not alphabetical where allxy-0 would be first)
+    cached_protos = load_cached_protocols(sample_dir)
+    assert [p.id for p in cached_protos] == expected_order
+    assert cached_protos[0].id == "qubit_spectroscopy-0"
+    assert cached_protos[-1].id == "allxy-0"
+
+    # Verify get_report_protocols
+    rep_protos = get_report_protocols(sample_dir)
+    assert [p.id for p in rep_protos] == expected_order
+
+    # Verify get_report_detail protocols_summary
+    detail = get_report_detail(Path("sample_data"), "21:47:29_[3]_pi-pulse")
+    assert detail is not None
+    assert [p.id for p in detail.protocols_summary] == expected_order
+
+    # Verify HTTP API returns protocols in execution order
+    client = TestClient(app)
+    r = client.get("/api/reports/21:47:29_[3]_pi-pulse/protocols")
+    assert r.status_code == 200
+    api_protos = r.json()
+    assert [p["id"] for p in api_protos] == expected_order
+
+    # 2. Test fallback to meta.json stats (effective backup) when history.json is absent
+    test_dir_meta = tmp_path / "test_meta_backup"
+    test_dir_meta.mkdir()
+    meta_content = {
+        "stats": {
+            "routine_omega-0": {"acquisition": 10.0, "fit": 2.0},
+            "routine_alpha-0": {"acquisition": 5.0, "fit": 1.0},
+            "routine_beta-0": {"acquisition": 2.5, "fit": 0.5},
+        }
+    }
+    with open(test_dir_meta / "meta.json", "w", encoding="utf-8") as f:
+        json.dump(meta_content, f)
+
+    meta_order = get_execution_order(test_dir_meta)
+    assert meta_order == ["routine_omega-0", "routine_alpha-0", "routine_beta-0"]
+
+    # Sort protocol details
+    unsorted = [
+        ProtocolDetail(id="routine_alpha-0", name="Alpha", category="calibration"),
+        ProtocolDetail(id="routine_beta-0", name="Beta", category="calibration"),
+        ProtocolDetail(id="routine_omega-0", name="Omega", category="calibration"),
+    ]
+    sorted_res = sort_protocols_by_execution_order(unsorted, test_dir_meta)
+    assert [p.id for p in sorted_res] == ["routine_omega-0", "routine_alpha-0", "routine_beta-0"]
+
+    # 3. Test authoritative source precedence (history.json over meta.json)
+    test_dir_both = tmp_path / "test_authoritative"
+    test_dir_both.mkdir()
+    with open(test_dir_both / "meta.json", "w", encoding="utf-8") as f:
+        json.dump(meta_content, f)  # omega, alpha, beta
+    with open(test_dir_both / "history.json", "w", encoding="utf-8") as f:
+        json.dump(["routine_beta-0", "routine_alpha-0", "routine_omega-0"], f)
+
+    both_order = get_execution_order(test_dir_both)
+    assert both_order == ["routine_beta-0", "routine_alpha-0", "routine_omega-0"]
+
+    # 4. Test flexible matching (dash/underscore, stripped suffix, and unlisted)
+    flex_protos = [
+        ProtocolDetail(id="routine_unlisted", name="Unlisted", category="calibration"),
+        ProtocolDetail(id="routine_omega_0", name="Omega", category="calibration"),
+        ProtocolDetail(id="routine_alpha", name="Alpha", category="calibration"),
+    ]
+    flex_sorted = sort_protocols_by_execution_order(flex_protos, test_dir_meta)
+    assert [p.id for p in flex_sorted] == ["routine_omega_0", "routine_alpha", "routine_unlisted"]
+

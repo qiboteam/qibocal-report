@@ -50,6 +50,7 @@ def test_dev_command(tmp_path):
         assert result.exit_code == 0
         assert mock_popen.called
         assert mock_uvicorn.called
+        assert "log_config" in mock_uvicorn.call_args.kwargs
         mock_proc.terminate.assert_called_once()
 
 
@@ -65,6 +66,7 @@ def test_server_command(tmp_path):
         )
         assert result.exit_code == 0
         assert mock_uvicorn.called
+        assert "log_config" in mock_uvicorn.call_args.kwargs
 
 
 def test_client_command():
@@ -76,3 +78,35 @@ def test_client_command():
         )
         assert result.exit_code == 0
         assert mock_uvicorn.called
+        assert "log_config" in mock_uvicorn.call_args.kwargs
+
+
+def test_request_logging_configuration():
+    import logging
+    from uvicorn.logging import AccessFormatter
+    from qibocal_report.logger import get_uvicorn_log_config
+
+    cfg = get_uvicorn_log_config()
+    access_fmt = cfg["formatters"]["access"]["fmt"]
+    datefmt = cfg["formatters"]["access"]["datefmt"]
+
+    # IP address of the server/client must be omitted
+    assert "%(client_addr)s" not in access_fmt
+    # Time must be in human-readable format (hours, minutes, seconds)
+    assert "%(asctime)s" in access_fmt
+    assert datefmt == "%H:%M:%S"
+
+    formatter = AccessFormatter(fmt=access_fmt, datefmt=datefmt)
+    record = logging.LogRecord(
+        name="uvicorn.access",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg='%s - "%s %s HTTP/%s" %s',
+        args=("127.0.0.1:54321", "GET", "/api/reports", "1.1", 200),
+        exc_info=None,
+    )
+    formatted = formatter.format(record)
+    assert "127.0.0.1" not in formatted
+    assert "GET /api/reports HTTP/1.1" in formatted
+    assert "200" in formatted

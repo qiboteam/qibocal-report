@@ -12,6 +12,7 @@ from rich.panel import Panel
 
 from qibocal_report import config
 from qibocal_report.api import set_report_root
+from qibocal_report.logger import get_uvicorn_log_config
 
 
 @click.group(name="qibocal")
@@ -60,7 +61,12 @@ def server(directory: str, host: str, port: int):
         )
     )
 
-    uvicorn.run("qibocal_report.api:app", host=host, port=port)
+    uvicorn.run(
+        "qibocal_report.api:app",
+        host=host,
+        port=port,
+        log_config=get_uvicorn_log_config(),
+    )
 
 
 @report.command(name="dev")
@@ -150,7 +156,13 @@ def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool =
     vite_proc = subprocess.Popen(vite_cmd, cwd=frontend_dir, env=env)
 
     try:
-        uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
+        uvicorn.run(
+            "qibocal_report.api:app",
+            host=host,
+            port=port,
+            reload=reload,
+            log_config=get_uvicorn_log_config(),
+        )
     finally:
         if vite_proc.poll() is None:
             console.print("\n[dim]Stopping Vite development server...[/dim]")
@@ -205,7 +217,13 @@ def client(host: str, port: int, reload: bool):
         )
     )
 
-    uvicorn.run("qibocal_report.api:app", host=host, port=port, reload=reload)
+    uvicorn.run(
+        "qibocal_report.api:app",
+        host=host,
+        port=port,
+        reload=reload,
+        log_config=get_uvicorn_log_config(),
+    )
 
 
 @report.command(name="dashboard", hidden=True)

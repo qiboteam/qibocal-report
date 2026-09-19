@@ -5,6 +5,8 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
+from typing import Any
+
 from qibocal_report.logger import log_info, log_success, log_warning
 from qibocal_report.models import ProtocolDetail
 
@@ -64,6 +66,152 @@ def _extract_protocol_timing_map(report_dir: Path) -> dict[str, str]:
     return timing_map
 
 
+def get_execution_order(report_dir: Path) -> list[str]:
+    """Retrieve protocol execution order for a report (Issue #3).
+
+    Authoritative source: history.json
+    Effective backup: meta.json (stats keys are sorted by execution order).
+    """
+    # 1. Authoritative source: history.json
+    for path in [report_dir / "history.json", report_dir / "report" / "history.json"]:
+        if path.is_file():
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    order = []
+                    for item in data:
+                        if isinstance(item, str) and item.strip():
+                            order.append(item.strip())
+                        elif isinstance(item, dict):
+                            t_id = (
+                                item.get("id")
+                                or item.get("task")
+                                or item.get("name")
+                            )
+                            if t_id:
+                                order.append(str(t_id).strip())
+                    if order:
+                        return order
+                elif isinstance(data, dict) and data:
+                    return [str(k).strip() for k in data.keys()]
+            except (json.JSONDecodeError, OSError, TypeError) as err:
+                log_warning(f"Error reading history.json for execution order: {err}")
+
+    # 2. Effective backup: meta.json stats keys
+    for path in [report_dir / "meta.json", report_dir / "report" / "meta.json"]:
+        if path.is_file():
+            try:
+                with open(path, encoding="utf-8") as f:
+                    meta = json.load(f)
+                stats = meta.get("stats")
+                if isinstance(stats, dict) and stats:
+                    return [str(k).strip() for k in stats.keys()]
+                protos = meta.get("protocols") or meta.get("actions")
+                if isinstance(protos, list) and protos:
+                    return [str(p).strip() for p in protos if p]
+            except (json.JSONDecodeError, OSError, TypeError) as err:
+                log_warning(f"Error reading meta.json for execution order: {err}")
+
+    return []
+
+
+def _normalize_key(k: str) -> str:
+    """Normalize a routine ID or protocol name for matching."""
+    return k.replace("-", "_").lower().strip()
+
+
+def _base_key(k: str) -> str:
+    """Extract base protocol name without numeric task index."""
+    norm = _normalize_key(k)
+    parts = norm.rsplit("_", 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        return parts[0]
+    return norm
+
+
+def sort_protocols_by_execution_order(
+    protocols: list[Any],
+    report_dir: Path | None = None,
+    order: list[str] | None = None,
+) -> list[Any]:
+    """Sort protocol objects or names by their execution order (Issue #3).
+
+    Uses history.json as authoritative source, with meta.json stats as backup.
+    """
+    if not protocols or len(protocols) <= 1:
+        return protocols
+
+    if order is None and report_dir is not None:
+        order = get_execution_order(report_dir)
+
+    if not order:
+        return protocols
+
+    def get_id(p: Any) -> str:
+        if hasattr(p, "id"):
+            return str(p.id)
+        if isinstance(p, dict):
+            return str(p.get("id") or p.get("name") or "")
+        return str(p)
+
+    used_slots: set[int] = set()
+    assigned_slots: dict[int, int] = {}
+
+    # Pass 1: exact matches
+    for idx, p in enumerate(protocols):
+        pid = get_id(p)
+        for slot_idx, ord_id in enumerate(order):
+            if slot_idx not in used_slots and pid == ord_id:
+                used_slots.add(slot_idx)
+                assigned_slots[idx] = slot_idx
+                break
+
+    # Pass 2: normalized matches (handling dashes vs underscores)
+    for idx, p in enumerate(protocols):
+        if idx in assigned_slots:
+            continue
+        pid_norm = _normalize_key(get_id(p))
+        for slot_idx, ord_id in enumerate(order):
+            if slot_idx not in used_slots and pid_norm == _normalize_key(ord_id):
+                used_slots.add(slot_idx)
+                assigned_slots[idx] = slot_idx
+                break
+
+    # Pass 3: base key matches (ignoring trailing execution index)
+    for idx, p in enumerate(protocols):
+        if idx in assigned_slots:
+            continue
+        pid_base = _base_key(get_id(p))
+        for slot_idx, ord_id in enumerate(order):
+            if slot_idx not in used_slots and pid_base == _base_key(ord_id):
+                used_slots.add(slot_idx)
+                assigned_slots[idx] = slot_idx
+                break
+
+    # Pass 4: prefix / substring matches
+    for idx, p in enumerate(protocols):
+        if idx in assigned_slots:
+            continue
+        pid_base = _base_key(get_id(p))
+        for slot_idx, ord_id in enumerate(order):
+            ord_base = _base_key(ord_id)
+            if slot_idx not in used_slots and (
+                pid_base.startswith(ord_base) or ord_base.startswith(pid_base)
+            ):
+                used_slots.add(slot_idx)
+                assigned_slots[idx] = slot_idx
+                break
+
+    def sort_key(item: tuple[int, Any]) -> tuple[int, int]:
+        orig_idx, _ = item
+        slot = assigned_slots.get(orig_idx, len(order))
+        return (slot, orig_idx)
+
+    sorted_pairs = sorted(enumerate(protocols), key=sort_key)
+    return [p for _, p in sorted_pairs]
+
+
 def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
     """Load pre-cached report protocol details without importing qibocal."""
     report_path = report_dir / "report"
@@ -91,6 +239,7 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
                                 or timing_map.get(proto.id.replace("_", "-"))
                                 or "N/A"
                             )
+                    protocols = sort_protocols_by_execution_order(protocols, report_dir)
                     log_success(
                         f"Loaded {len(protocols)} pre-cached protocol(s) "
                         f"for '{report_dir.name}'"
@@ -99,8 +248,8 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
         except (json.JSONDecodeError, OSError, TypeError) as err:
             log_warning(f"Error parsing protocols.json: {err}")
 
-    # Otherwise read all *.json files except meta.json
-    for json_file in sorted(report_path.glob("*.json")):
+    # Otherwise read all *.json files except meta.json and history.json
+    for json_file in report_path.glob("*.json"):
         if json_file.name in ("meta.json", "history.json"):
             continue
         try:
@@ -117,6 +266,8 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
                 protocols.append(proto_obj)
         except (json.JSONDecodeError, OSError, TypeError) as err:
             log_warning(f"Error reading {json_file.name}: {err}")
+
+    protocols = sort_protocols_by_execution_order(protocols, report_dir)
 
     log_success(
         f"Loaded {len(protocols)} pre-cached protocol(s) for '{report_dir.name}'"
@@ -269,7 +420,7 @@ def generate_report_on_the_fly(
             f"Generated {len(native_protocols)} protocol(s) "
             "using native Qibocal engine."
         )
-        protocols = native_protocols
+        protocols = sort_protocols_by_execution_order(native_protocols, report_dir)
 
         # Cache into report/ directory
         report_path = report_dir / "report"
@@ -299,22 +450,26 @@ def generate_report_on_the_fly(
         return protocols
 
     # Qibocal cannot generate the plots
-    data_dir = report_dir / "data"
     discovered_protocols: list[str] = []
-    if data_dir.is_dir():
-        for p in sorted(data_dir.iterdir()):
-            if p.is_dir() and not p.name.startswith("."):
-                discovered_protocols.append(p.name)
+    exec_order = get_execution_order(report_dir)
+    if exec_order:
+        discovered_protocols = list(exec_order)
+    else:
+        data_dir = report_dir / "data"
+        if data_dir.is_dir():
+            for p in sorted(data_dir.iterdir()):
+                if p.is_dir() and not p.name.startswith("."):
+                    discovered_protocols.append(p.name)
 
-    if not discovered_protocols:
-        meta_file = report_dir / "meta.json"
-        if meta_file.exists():
-            try:
-                with open(meta_file, encoding="utf-8") as f:
-                    m = json.load(f)
-                    discovered_protocols = m.get("protocols") or m.get("actions") or []
-            except (json.JSONDecodeError, OSError):
-                pass
+        if not discovered_protocols:
+            meta_file = report_dir / "meta.json"
+            if meta_file.exists():
+                try:
+                    with open(meta_file, encoding="utf-8") as f:
+                        m = json.load(f)
+                        discovered_protocols = m.get("protocols") or m.get("actions") or []
+                except (json.JSONDecodeError, OSError):
+                    pass
 
     if not discovered_protocols:
         discovered_protocols = [report_dir.name]
@@ -353,6 +508,7 @@ def generate_report_on_the_fly(
             )
         )
 
+    protocols = sort_protocols_by_execution_order(protocols, report_dir)
     log_warning(f"Plots could not be generated for '{report_dir.name}': {err_msg}")
     return protocols
 
@@ -362,8 +518,10 @@ def get_report_protocols(
 ) -> list[ProtocolDetail]:
     """Retrieve report protocols: pre-cached if present, or generate on-the-fly."""
     if has_cached_report(report_dir):
-        return load_cached_protocols(report_dir)
-    return generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
+        protocols = load_cached_protocols(report_dir)
+    else:
+        protocols = generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
+    return sort_protocols_by_execution_order(protocols, report_dir)
 
 
 def regenerate_report(

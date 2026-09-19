@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import json
 import os
 from pathlib import Path
@@ -33,7 +34,7 @@ from qibocal_report.archive import (
 )
 from qibocal_report.docs import DOCS_NAVIGATION, resolve_docs_content
 from qibocal_report.generator import get_report_protocols, regenerate_report
-from qibocal_report.logger import log_error, log_info
+from qibocal_report.logger import log_error, log_info, setup_uvicorn_logging
 from qibocal_report.models import (
     ArchiveCreateRequest,
     ArchiveMetadata,
@@ -79,6 +80,12 @@ def _resolve_report_target_dir(report_id: str) -> Path:
     return resolve_report_dir(REPORT_ROOT_DIR, report_id)
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_uvicorn_logging()
+    yield
+
+
 app = FastAPI(
     title="Qibocal Report Server",
     description="REST API for serving and managing Qibocal calibration reports",
@@ -86,6 +93,7 @@ app = FastAPI(
     docs_url="/api/docs/swagger",
     redoc_url="/api/docs/redoc",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 # Enable CORS for development frontend

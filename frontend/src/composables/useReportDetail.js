@@ -2,6 +2,90 @@ import { ref, onUnmounted } from 'vue'
 import { state, addToHistory, removeFromHistory, apiFetch, getActiveWsUrl } from '../store.js'
 
 /**
+ * Sort protocol objects by execution order using history or stats from report detail.
+ */
+export function sortProtocolsByExecutionOrder(protocolsList, reportDetail) {
+  if (!protocolsList || protocolsList.length <= 1) return protocolsList || []
+  const history = reportDetail?.history
+  const stats = reportDetail?.meta?.stats || reportDetail?.stats
+
+  let order = []
+  if (Array.isArray(history) && history.length > 0) {
+    order = history
+      .map(item => (typeof item === 'string' ? item : item?.id || item?.task || item?.name))
+      .filter(Boolean)
+  } else if (history && typeof history === 'object' && Object.keys(history).length > 0) {
+    order = Object.keys(history)
+  } else if (stats && typeof stats === 'object' && Object.keys(stats).length > 0) {
+    order = Object.keys(stats)
+  } else if (Array.isArray(reportDetail?.protocols_summary) && reportDetail.protocols_summary.length > 0) {
+    order = reportDetail.protocols_summary.map(p => p.id).filter(Boolean)
+  }
+
+  if (order.length === 0) return protocolsList
+
+  const norm = s => String(s || '').toLowerCase().replace(/[-_]/g, '').trim()
+  const base = s => {
+    const n = String(s || '').toLowerCase().replace(/-/g, '_').trim()
+    const lastIdx = n.lastIndexOf('_')
+    if (lastIdx !== -1 && /^\d+$/.test(n.slice(lastIdx + 1))) {
+      return n.slice(0, lastIdx).replace(/_/g, '')
+    }
+    return n.replace(/_/g, '')
+  }
+
+  const usedSlots = new Set()
+  const assignedSlots = new Map()
+
+  // Pass 1: exact matches
+  protocolsList.forEach((p, idx) => {
+    const pid = String(p.id || '')
+    for (let i = 0; i < order.length; i++) {
+      if (!usedSlots.has(i) && pid === order[i]) {
+        usedSlots.add(i)
+        assignedSlots.set(idx, i)
+        break
+      }
+    }
+  })
+
+  // Pass 2: normalized matches
+  protocolsList.forEach((p, idx) => {
+    if (assignedSlots.has(idx)) return
+    const pidNorm = norm(p.id)
+    for (let i = 0; i < order.length; i++) {
+      if (!usedSlots.has(i) && pidNorm === norm(order[i])) {
+        usedSlots.add(i)
+        assignedSlots.set(idx, i)
+        break
+      }
+    }
+  })
+
+  // Pass 3: base key matches
+  protocolsList.forEach((p, idx) => {
+    if (assignedSlots.has(idx)) return
+    const pidBase = base(p.id)
+    for (let i = 0; i < order.length; i++) {
+      if (!usedSlots.has(i) && pidBase === base(order[i])) {
+        usedSlots.add(i)
+        assignedSlots.set(idx, i)
+        break
+      }
+    }
+  })
+
+  return [...protocolsList].sort((a, b) => {
+    const idxA = protocolsList.indexOf(a)
+    const idxB = protocolsList.indexOf(b)
+    const slotA = assignedSlots.has(idxA) ? assignedSlots.get(idxA) : order.length
+    const slotB = assignedSlots.has(idxB) ? assignedSlots.get(idxB) : order.length
+    if (slotA !== slotB) return slotA - slotB
+    return idxA - idxB
+  })
+}
+
+/**
  * Composable for loading report details via WebSocket streaming or HTTP fallback,
  * managing routine protocols, plot regeneration, author updates, and tag removals.
  */
@@ -64,6 +148,9 @@ export function useReportDetail(reportId) {
             report.value = msg.report
             state.currentReportId = msg.report.id
             addToHistory(msg.report)
+            if (protocols.value?.length > 0) {
+              protocols.value = sortProtocolsByExecutionOrder(protocols.value, msg.report)
+            }
           } else if (msg.type === 'status') {
             loadingStatus.value = msg.message
           } else if (msg.type === 'progress') {
@@ -71,7 +158,7 @@ export function useReportDetail(reportId) {
           } else if (msg.type === 'ready') {
             clearTimeout(timer)
             resolved = true
-            protocols.value = msg.protocols
+            protocols.value = sortProtocolsByExecutionOrder(msg.protocols, report.value)
             loading.value = false
             resolve(true)
           } else if (msg.type === 'error') {
@@ -124,7 +211,8 @@ export function useReportDetail(reportId) {
       loadingStatus.value = 'Retrieving report protocols...'
       const protoRes = await apiFetch(`/api/reports/${encodedId}/protocols`)
       if (protoRes.ok) {
-        protocols.value = await protoRes.json()
+        const protoData = await protoRes.json()
+        protocols.value = sortProtocolsByExecutionOrder(protoData, report.value)
       } else {
         throw new Error(`Failed to load protocols (${protoRes.status})`)
       }
@@ -170,7 +258,8 @@ export function useReportDetail(reportId) {
       const encodedId = encodeURIComponent(id)
       const res = await apiFetch(`/api/reports/${encodedId}/regenerate`, { method: 'POST' })
       if (res.ok) {
-        protocols.value = await res.json()
+        const regenData = await res.json()
+        protocols.value = sortProtocolsByExecutionOrder(regenData, report.value)
         showBanner('Report plots regenerated successfully!', 3500)
         if (report.value) {
           report.value.has_cached_report = true

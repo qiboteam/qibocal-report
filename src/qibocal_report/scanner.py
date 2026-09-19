@@ -11,8 +11,10 @@ from typing import Any
 from qibocal_report.generator import (
     _extract_protocol_timing_map,
     format_execution_time,
+    get_execution_order,
     has_cached_report,
     load_cached_protocols,
+    sort_protocols_by_execution_order,
 )
 from qibocal_report.models import (
     AuthorFrequency,
@@ -85,7 +87,12 @@ def _parse_meta_json(meta_path: Path) -> dict[str, Any]:
 
 
 def _discover_protocols(report_dir: Path, meta_data: dict[str, Any]) -> list[str]:
-    """Discover protocols in a report folder."""
+    """Discover protocols in a report folder in execution order (Issue #3)."""
+    # 1. Authoritative source: history.json; 2. Backup: meta.json stats
+    exec_order = get_execution_order(report_dir)
+    if exec_order:
+        return list(dict.fromkeys(k.rsplit("-", 1)[0] for k in exec_order))
+
     # From meta.json
     if "protocols" in meta_data and isinstance(meta_data["protocols"], list):
         return meta_data["protocols"]
@@ -624,7 +631,7 @@ def get_report_detail(
                 pass
 
     # Protocol summaries: read from cache if available, otherwise summarize from
-    # metadata
+    # metadata in execution order
     if has_cached_report(target_dir):
         protocols = load_cached_protocols(target_dir)
         proto_summaries = [
@@ -640,17 +647,24 @@ def get_report_detail(
         ]
     else:
         timing_map = _extract_protocol_timing_map(target_dir)
+        exec_order = get_execution_order(target_dir)
+        proto_list = exec_order if exec_order else summary.protocols
         proto_summaries = [
             ProtocolSummary(
                 id=p_name,
                 name=p_name.replace("_", " ").title(),
                 category="calibration",
-                execution_time=timing_map.get(p_name) or "N/A",
+                execution_time=timing_map.get(p_name)
+                or timing_map.get(p_name.rsplit("-", 1)[0])
+                or "N/A",
                 status="pending",
                 num_figures=0,
             )
-            for p_name in summary.protocols
+            for p_name in proto_list
         ]
+        proto_summaries = sort_protocols_by_execution_order(
+            proto_summaries, target_dir
+        )
 
     return ReportDetail(
         **summary.model_dump(),
