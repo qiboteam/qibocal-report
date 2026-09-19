@@ -312,7 +312,7 @@
       :loading="bulkActionInProgress"
       :error="bulkError"
       @close="showArchiveModal = false"
-      @submit="opts => applyBulkArchive({ ...opts, filters: activeFiltersForArchive }, onBulkActionSuccess)"
+      @submit="opts => applyBulkArchive({ ...opts, filters: activeFiltersForArchive }, onArchiveSuccess)"
     />
 
     <author-mapping-modal
@@ -432,7 +432,8 @@ const {
   applyAuthor,
   applyBulkDelete,
   applyBulkArchive,
-  removeTagFromReport
+  removeTagFromReport,
+  showSuccess
 } = useBulkActions()
 
 const activeFiltersForArchive = computed(() => {
@@ -644,6 +645,22 @@ async function onBulkActionSuccess() {
   clearCache()
   await Promise.all([fetchStats(), fetchReports(currentPage.value, false)])
   await fetchFilteredStats()
+}
+
+async function onArchiveSuccess() {
+  clearCache()
+  await Promise.all([fetchStats(), fetchReports(currentPage.value, false)])
+  await fetchFilteredStats()
+
+  if (currentPage.value > 1 && reports.value.length === 0 && totalReports.value > 0) {
+    await fetchReports(1, false)
+  }
+
+  // After archiving, if the filtered selection is empty, reset all filters automatically
+  if (totalReports.value === 0 && hasActiveFilters.value) {
+    onResetFilters()
+    showSuccess('Archive created. Filtered selection was empty, all filters reset automatically.')
+  }
 }
 
 async function refreshData(preservePage = false) {

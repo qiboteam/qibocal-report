@@ -298,6 +298,7 @@ export function useBulkActions() {
     applyAuthor,
     applyBulkDelete,
     applyBulkArchive,
-    removeTagFromReport
+    removeTagFromReport,
+    showSuccess
   }
 }
