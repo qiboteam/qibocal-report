@@ -179,7 +179,7 @@ const {
   reset: resetVerticalResize
 } = useResizable({
   direction: 'vertical',
-  defaultSize: 180,
+  defaultSize: 215,
   min: 80,
   max: () => window.innerHeight - 180,
   storageKey: 'qibocal_sidebar_top_height',

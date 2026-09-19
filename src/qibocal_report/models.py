@@ -206,3 +206,46 @@ class DirectoryBrowseResponse(BaseModel):
 
 class ChangeDirectoryRequest(BaseModel):
     path: str = ""
+
+
+class ArchiveMetadata(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    created_at: str
+    filters: dict[str, Any] = Field(default_factory=dict)
+    report_count: int = 0
+    size_bytes: int = 0
+    zip_filename: str = ""
+    report_ids: list[str] = Field(default_factory=list)
+
+
+class ArchiveReportIndexItem(BaseModel):
+    id: str
+    title: str = ""
+    date: str = ""
+    time: str | None = ""
+    author: str | None = "Unknown"
+    platform: str | None = "Unknown"
+    protocols: list[str] = Field(default_factory=list)
+    qubits: list[Any] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    size_bytes: int = 0
+
+
+class ArchiveCreateRequest(BaseModel):
+    report_ids: list[str]
+    name: str | None = None
+    description: str | None = None
+    filters: dict[str, Any] | None = None
+    remove_from_active: bool = True
+
+
+class ArchiveRestoreRequest(BaseModel):
+    report_ids: list[str] | None = None
+    delete_after_restore: bool = False
+
+
+class ArchiveUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None

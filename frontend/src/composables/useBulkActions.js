@@ -14,6 +14,7 @@ export function useBulkActions() {
   const showLabelModal = ref(false)
   const showUnlabelModal = ref(false)
   const showAuthorModal = ref(false)
+  const showArchiveModal = ref(false)
   const showDeleteModal = ref(false)
 
   // Context for single-item vs bulk author editing
@@ -63,6 +64,11 @@ export function useBulkActions() {
       authorInitialValue.value = ''
     }
     showAuthorModal.value = true
+  }
+
+  function openArchiveModal() {
+    bulkError.value = null
+    showArchiveModal.value = true
   }
 
   function openDeleteModal() {
@@ -209,6 +215,41 @@ export function useBulkActions() {
     }
   }
 
+  async function applyBulkArchive({ name, description, filters, removeFromActive = true }, onSuccess) {
+    if (selectedReports.value.length === 0) return
+    bulkActionInProgress.value = true
+    bulkError.value = null
+    try {
+      const res = await apiFetch('/api/archives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          report_ids: selectedReports.value,
+          name: name || undefined,
+          description: description || undefined,
+          filters: filters || {},
+          remove_from_active: removeFromActive
+        })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || 'Failed to create archive')
+      }
+      const data = await res.json()
+      if (removeFromActive) {
+        removeFromHistory(selectedReports.value)
+      }
+      showArchiveModal.value = false
+      selectedReports.value = []
+      showSuccess(`Archive "${data.name}" created with ${data.report_count} report(s)`)
+      if (onSuccess) await onSuccess()
+    } catch (err) {
+      bulkError.value = err.message
+    } finally {
+      bulkActionInProgress.value = false
+    }
+  }
+
   async function removeTagFromReport({ report, tag }, onSuccess) {
     if (!report?.id || !tag) return
     try {
@@ -240,6 +281,7 @@ export function useBulkActions() {
     showLabelModal,
     showUnlabelModal,
     showAuthorModal,
+    showArchiveModal,
     showDeleteModal,
     targetReportIdForAuthor,
     authorInitialValue,
@@ -249,11 +291,13 @@ export function useBulkActions() {
     openLabelModal,
     openUnlabelModal,
     openAuthorModal,
+    openArchiveModal,
     openDeleteModal,
     applyBulkLabel,
     applyBulkUnlabel,
     applyAuthor,
     applyBulkDelete,
+    applyBulkArchive,
     removeTagFromReport
   }
 }

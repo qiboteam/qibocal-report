@@ -17,15 +17,29 @@ from fastapi.staticfiles import StaticFiles
 from qibocal_report import config
 from qibocal_report.actions import execute_bulk_action, find_report_dirs
 from qibocal_report.archive import (
+    create_archive,
+    delete_archive,
+    get_archive_index,
+    get_archive_metadata,
+    get_archive_storage_dir,
+    get_archive_zip_path,
+    list_archives,
     resolve_meta_file,
     resolve_protocol_data_dir,
     resolve_report_dir,
+    restore_archive,
+    update_archive,
     zip_directory,
 )
 from qibocal_report.docs import DOCS_NAVIGATION, resolve_docs_content
 from qibocal_report.generator import get_report_protocols, regenerate_report
 from qibocal_report.logger import log_error, log_info
 from qibocal_report.models import (
+    ArchiveCreateRequest,
+    ArchiveMetadata,
+    ArchiveReportIndexItem,
+    ArchiveRestoreRequest,
+    ArchiveUpdateRequest,
     BulkActionRequest,
     BulkActionResponse,
     ChangeDirectoryRequest,
@@ -829,6 +843,136 @@ def get_documentation_navigation() -> list[dict]:
 def get_documentation(doc_name: str) -> str:
     """Serve plain markdown documentation content."""
     return resolve_docs_content(doc_name)
+
+
+# --- Archive Management Endpoints (Issue #2) ---
+@app.get("/api/archives", response_model=list[ArchiveMetadata], tags=["Archives"])
+def get_archives() -> list[ArchiveMetadata]:
+    """List all available archives with metadata, ordered newest first."""
+    storage = get_archive_storage_dir(REPORT_ROOT_DIR)
+    archives = list_archives(storage)
+    return [ArchiveMetadata(**a) for a in archives]
+
+
+@app.post("/api/archives", response_model=ArchiveMetadata, tags=["Archives"])
+def post_create_archive(req: ArchiveCreateRequest) -> ArchiveMetadata:
+    """Create a new archive from a selection of reports."""
+    try:
+        storage = get_archive_storage_dir(REPORT_ROOT_DIR)
+        meta = create_archive(
+            report_ids=req.report_ids,
+            root_dir=REPORT_ROOT_DIR,
+            name=req.name,
+            description=req.description,
+            filters=req.filters,
+            remove_from_active=req.remove_from_active,
+            storage_dir=storage,
+        )
+        if req.remove_from_active:
+            invalidate_report_cache()
+        return ArchiveMetadata(**meta)
+    except ValueError as err:
+        log_error(f"HTTP 400 creating archive: {err}")
+        raise HTTPException(status_code=400, detail=str(err))
+    except FileNotFoundError as err:
+        log_error(f"HTTP 404 creating archive: {err}")
+        raise HTTPException(status_code=404, detail=str(err))
+
+
+@app.get("/api/archives/{archive_id}", response_model=ArchiveMetadata, tags=["Archives"])
+def get_single_archive_metadata(archive_id: str) -> ArchiveMetadata:
+    """Get metadata for a specific archive."""
+    storage = get_archive_storage_dir(REPORT_ROOT_DIR)
+    meta = get_archive_metadata(archive_id, storage)
+    if not meta:
+        raise HTTPException(status_code=404, detail=f"Archive '{archive_id}' not found")
+    return ArchiveMetadata(**meta)
+
+
+@app.get(
+    "/api/archives/{archive_id}/index",
+    response_model=list[ArchiveReportIndexItem],
+    tags=["Archives"],
+)
+def get_single_archive_index(archive_id: str) -> list[ArchiveReportIndexItem]:
+    """Get compact report index for peaking archive content without unzipping."""
+    storage = get_archive_storage_dir(REPORT_ROOT_DIR)
+    index_data = get_archive_index(archive_id, storage)
+    if index_data is None:
+        raise HTTPException(
+            status_code=404, detail=f"Archive index for '{archive_id}' not found"
+        )
+    return [ArchiveReportIndexItem(**item) for item in index_data]
+
+
+@app.get("/api/archives/{archive_id}/download", tags=["Archives"])
+def download_archive_zip(archive_id: str) -> FileResponse:
+    """Download the full zip file of an archive."""
+    storage = get_archive_storage_dir(REPORT_ROOT_DIR)
+    zip_path = get_archive_zip_path(archive_id, storage)
+    if not zip_path or not zip_path.is_file():
+        raise HTTPException(
+            status_code=404, detail=f"Archive zip for '{archive_id}' not found"
+        )
+    meta = get_archive_metadata(archive_id, storage)
+    raw_name = meta.get("name", archive_id) if meta else archive_id
+    safe_name = "".join(c for c in raw_name if c.isalnum() or c in " ._-").strip() or archive_id
+    if not safe_name.endswith(".zip"):
+        safe_name += ".zip"
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=safe_name,
+    )
+
+
+@app.post("/api/archives/{archive_id}/restore", tags=["Archives"])
+def post_restore_archive(
+    archive_id: str, req: ArchiveRestoreRequest | None = None
+) -> dict[str, Any]:
+    """Restore reports from an archive back to the active reports directory."""
+    try:
+        storage = get_archive_storage_dir(REPORT_ROOT_DIR)
+        report_ids = req.report_ids if req else None
+        delete_after = req.delete_after_restore if req else False
+        res = restore_archive(
+            archive_id=archive_id,
+            root_dir=REPORT_ROOT_DIR,
+            report_ids=report_ids,
+            delete_after_restore=delete_after,
+            storage_dir=storage,
+        )
+        invalidate_report_cache()
+        return res
+    except FileNotFoundError as err:
+        raise HTTPException(status_code=404, detail=str(err))
+
+
+@app.delete("/api/archives/{archive_id}", tags=["Archives"])
+def delete_single_archive(archive_id: str) -> dict[str, Any]:
+    """Delete an archive directory and its files."""
+    storage = get_archive_storage_dir(REPORT_ROOT_DIR)
+    success = delete_archive(archive_id, storage)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Archive '{archive_id}' not found")
+    return {"success": True, "archive_id": archive_id}
+
+
+@app.patch("/api/archives/{archive_id}", response_model=ArchiveMetadata, tags=["Archives"])
+def patch_archive_metadata(
+    archive_id: str, req: ArchiveUpdateRequest
+) -> ArchiveMetadata:
+    """Update name or description of an archive."""
+    storage = get_archive_storage_dir(REPORT_ROOT_DIR)
+    updated = update_archive(
+        archive_id=archive_id,
+        name=req.name,
+        description=req.description,
+        storage_dir=storage,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Archive '{archive_id}' not found")
+    return ArchiveMetadata(**updated)
 
 
 # --- Static Files and SPA Frontend Mount ---

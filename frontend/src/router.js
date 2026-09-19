@@ -5,11 +5,13 @@ import ReportView from './views/ReportView.vue'
 import DocsView from './views/DocsView.vue'
 import StatisticsView from './views/StatisticsView.vue'
 import PlatformView from './views/PlatformView.vue'
+import ArchivesView from './views/ArchivesView.vue'
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
   { path: '/servers', name: 'servers', component: ServersView },
   { path: '/dashboard', name: 'dashboard', component: DashboardView },
+  { path: '/archives', name: 'archives', component: ArchivesView },
   { path: '/statistics', name: 'statistics', component: StatisticsView },
   { path: '/platform/:id(.*)', name: 'platform', component: PlatformView },
   {

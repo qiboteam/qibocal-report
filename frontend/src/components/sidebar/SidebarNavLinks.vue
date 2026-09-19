@@ -53,6 +53,22 @@
       <span v-if="!isCollapsed">Statistics</span>
     </router-link>
 
+    <!-- Archives (Storage Explorer) -->
+    <router-link
+      to="/archives"
+      class="rounded-xl text-xs font-semibold transition flex items-center"
+      :class="[
+        $route.path === '/archives' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-700 hover:bg-gray-100',
+        isCollapsed ? 'w-9 h-9 justify-center' : 'gap-3 px-3 py-2'
+      ]"
+      title="Archives (Storage Explorer)"
+    >
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+      </svg>
+      <span v-if="!isCollapsed">Archives</span>
+    </router-link>
+
     <!-- Docs Button -->
     <router-link
       to="/docs"
@@ -75,6 +91,6 @@
 defineProps({
   isCollapsed: { type: Boolean, default: false },
   currentReportId: { type: String, default: null },
-  height: { type: Number, default: 175 }
+  height: { type: Number, default: 215 }
 })
 </script>

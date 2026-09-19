@@ -38,6 +38,9 @@ IGNORED_DIRS = {
     ".gemini",
     "build",
     ".cache",
+    ".archive",
+    "archive",
+    "archives",
 }
 
 

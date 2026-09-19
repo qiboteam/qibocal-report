@@ -838,3 +838,159 @@ def test_server_directory_management(tmp_path):
         "/api/server/directory", json={"path": "nonexistent_folder_xyz"}
     )
     assert not_found_change.status_code == 400
+
+
+def test_archive_workflow(tmp_path):
+    client = TestClient(app)
+    root = get_report_root()
+
+    # 1. Initially no archives exist
+    res = client.get("/api/archives")
+    assert res.status_code == 200
+    assert res.json() == []
+
+    # Get active reports to select from
+    reports_res = client.get("/api/reports")
+    assert reports_res.status_code == 200
+    initial_reports = reports_res.json()
+    assert len(initial_reports) >= 2
+
+    report_1_id = initial_reports[0]["id"]
+    report_2_id = initial_reports[1]["id"]
+    initial_count = len(initial_reports)
+
+    # 2. Create archive with remove_from_active=True
+    create_payload = {
+        "report_ids": [report_1_id, report_2_id],
+        "name": "Benchmark Qubits Archive",
+        "description": "Weekly calibration benchmarks",
+        "filters": {
+            "tags": ["broken"],
+            "protocols": ["resonator_punchout"]
+        },
+        "remove_from_active": True
+    }
+    create_res = client.post("/api/archives", json=create_payload)
+    assert create_res.status_code == 200
+    archive_data = create_res.json()
+    archive_id = archive_data["id"]
+    assert archive_data["name"] == "Benchmark Qubits Archive"
+    assert archive_data["description"] == "Weekly calibration benchmarks"
+    assert archive_data["report_count"] == 2
+    assert archive_data["size_bytes"] > 0
+    assert archive_data["filters"]["tags"] == ["broken"]
+    assert archive_data["zip_filename"] == f"{archive_id}.zip"
+    assert set(archive_data["report_ids"]) == {report_1_id, report_2_id}
+
+    # 3. Active reports list should now have 2 fewer reports, and .archive must NOT be scanned
+    after_archive_res = client.get("/api/reports")
+    assert after_archive_res.status_code == 200
+    remaining_reports = after_archive_res.json()
+    assert len(remaining_reports) == initial_count - 2
+    remaining_ids = {r["id"] for r in remaining_reports}
+    assert report_1_id not in remaining_ids
+    assert report_2_id not in remaining_ids
+    # Ensure no archive directory was parsed as report
+    assert not any(".archive" in r["id"] or "archive" in r["id"].lower() for r in remaining_reports)
+
+    # 4. GET /api/archives lists the new archive
+    list_res = client.get("/api/archives")
+    assert list_res.status_code == 200
+    archives = list_res.json()
+    assert len(archives) == 1
+    assert archives[0]["id"] == archive_id
+
+    # 5. GET /api/archives/{id}
+    meta_res = client.get(f"/api/archives/{archive_id}")
+    assert meta_res.status_code == 200
+    assert meta_res.json()["id"] == archive_id
+
+    # 6. GET /api/archives/{id}/index - Zero decompression peaking
+    index_res = client.get(f"/api/archives/{archive_id}/index")
+    assert index_res.status_code == 200
+    index_items = index_res.json()
+    assert len(index_items) == 2
+    for item in index_items:
+        assert "id" in item
+        assert "date" in item
+        assert "author" in item
+        assert "platform" in item
+        assert "protocols" in item
+        assert "qubits" in item
+        assert "tags" in item
+        assert item["size_bytes"] > 0
+
+    # 7. GET /api/archives/{id}/download
+    download_res = client.get(f"/api/archives/{archive_id}/download")
+    assert download_res.status_code == 200
+    assert download_res.headers["content-type"] == "application/zip"
+    assert len(download_res.content) > 0
+    # Verify zip content structure
+    with zipfile.ZipFile(io.BytesIO(download_res.content)) as zf:
+        namelist = zf.namelist()
+        assert any(n.startswith(report_1_id) for n in namelist)
+        assert any(n.startswith(report_2_id) for n in namelist)
+
+    # 8. PATCH /api/archives/{id}
+    patch_res = client.patch(
+        f"/api/archives/{archive_id}",
+        json={"name": "Updated Archive Title", "description": "New notes"}
+    )
+    assert patch_res.status_code == 200
+    patched_data = patch_res.json()
+    assert patched_data["name"] == "Updated Archive Title"
+    assert patched_data["description"] == "New notes"
+
+    # 9. POST /api/archives/{id}/restore - restore only report_1_id first
+    restore_part = client.post(
+        f"/api/archives/{archive_id}/restore",
+        json={"report_ids": [report_1_id], "delete_after_restore": False}
+    )
+    assert restore_part.status_code == 200
+    part_json = restore_part.json()
+    assert part_json["restored_count"] == 1
+    assert part_json["restored_ids"] == [report_1_id]
+
+    # Check that report_1 is now back in active reports
+    rep_check = client.get("/api/reports")
+    assert rep_check.status_code == 200
+    cur_ids = {r["id"] for r in rep_check.json()}
+    assert report_1_id in cur_ids
+    assert report_2_id not in cur_ids
+
+    # Restore the remaining report with delete_after_restore=True
+    restore_all = client.post(
+        f"/api/archives/{archive_id}/restore",
+        json={"report_ids": [report_2_id], "delete_after_restore": True}
+    )
+    assert restore_all.status_code == 200
+    all_json = restore_all.json()
+    assert all_json["restored_count"] == 1
+    assert all_json["archive_deleted"] is True
+
+    # Check both reports are now back in active reports
+    rep_check2 = client.get("/api/reports")
+    assert rep_check2.status_code == 200
+    cur_ids2 = {r["id"] for r in rep_check2.json()}
+    assert report_1_id in cur_ids2
+    assert report_2_id in cur_ids2
+    assert len(cur_ids2) == initial_count
+
+    # Archive should now be deleted because delete_after_restore was True
+    archives_after = client.get("/api/archives").json()
+    assert len(archives_after) == 0
+
+    # 10. Delete non-existent archive -> 404
+    del_404 = client.delete(f"/api/archives/{archive_id}")
+    assert del_404.status_code == 404
+
+    # 11. Create archive with delete and then DELETE endpoint
+    c_res2 = client.post(
+        "/api/archives",
+        json={"report_ids": [report_1_id], "name": "Temp Archive", "remove_from_active": False}
+    )
+    assert c_res2.status_code == 200
+    arc2_id = c_res2.json()["id"]
+    del_res = client.delete(f"/api/archives/{arc2_id}")
+    assert del_res.status_code == 200
+    assert del_res.json()["success"] is True

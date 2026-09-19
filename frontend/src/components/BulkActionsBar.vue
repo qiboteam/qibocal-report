@@ -13,25 +13,52 @@
     </div>
 
     <div class="flex items-center gap-2">
-      <button
-        @click="$emit('open-label')"
-        class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-50/70 hover:bg-purple-100 text-[#833dff] transition flex items-center gap-1.5 cursor-pointer border border-purple-200 shadow-2xs"
-      >
-        <svg class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-        </svg>
-        Tag
-      </button>
+      <!-- Tag / Untag split dropdown button -->
+      <div class="relative inline-flex rounded-xl shadow-2xs" ref="tagDropdownRef">
+        <button
+          @click="$emit('open-label')"
+          class="px-3 py-1.5 rounded-l-xl text-xs font-semibold bg-purple-50/70 hover:bg-purple-100 text-[#833dff] transition flex items-center gap-1.5 cursor-pointer border border-purple-200 border-r-0"
+          title="Add label to selected reports"
+        >
+          <svg class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+          </svg>
+          Tag
+        </button>
+        <button
+          @click.stop="showTagDropdown = !showTagDropdown"
+          class="px-1.5 py-1.5 rounded-r-xl text-xs font-semibold bg-purple-50/70 hover:bg-purple-100 text-[#833dff] transition flex items-center cursor-pointer border border-purple-200"
+          title="Tag actions menu"
+        >
+          <svg class="w-3 h-3 text-[#833dff] transition-transform duration-150" :class="{ 'rotate-180': showTagDropdown }" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          </svg>
+        </button>
 
-      <button
-        @click="$emit('open-unlabel')"
-        class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-50/70 hover:bg-purple-100 text-[#833dff] transition flex items-center gap-1.5 cursor-pointer border border-purple-200 shadow-2xs"
-      >
-        <svg class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        Untag
-      </button>
+        <div
+          v-if="showTagDropdown"
+          class="absolute bottom-full mb-2 left-0 w-36 bg-white rounded-xl shadow-xl border border-purple-100 py-1 z-50 animate-fade-in text-xs overflow-hidden"
+        >
+          <button
+            @click="triggerTagAction('open-label')"
+            class="w-full text-left px-3 py-1.5 hover:bg-purple-50 flex items-center gap-2 text-gray-700 font-medium transition cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            Tag...
+          </button>
+          <button
+            @click="triggerTagAction('open-unlabel')"
+            class="w-full text-left px-3 py-1.5 hover:bg-purple-50 flex items-center gap-2 text-red-600 font-medium transition cursor-pointer"
+          >
+            <svg class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Untag...
+          </button>
+        </div>
+      </div>
 
       <button
         @click="$emit('open-author')"
@@ -41,6 +68,18 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
         Change Author
+      </button>
+
+      <!-- Archive button (Issue #2) -->
+      <button
+        @click="$emit('open-archive')"
+        class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50/70 hover:bg-indigo-100 text-indigo-600 transition flex items-center gap-1.5 cursor-pointer border border-indigo-200 shadow-2xs"
+        title="Archive selected reports"
+      >
+        <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+        </svg>
+        Archive
       </button>
 
       <button
@@ -67,6 +106,8 @@
 </template>
 
 <script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+
 defineProps({
   selectedCount: {
     type: Number,
@@ -74,11 +115,34 @@ defineProps({
   }
 })
 
-defineEmits([
+const emit = defineEmits([
   'open-label',
   'open-unlabel',
   'open-author',
+  'open-archive',
   'open-delete',
   'clear-selection'
 ])
+
+const showTagDropdown = ref(false)
+const tagDropdownRef = ref(null)
+
+function triggerTagAction(action) {
+  showTagDropdown.value = false
+  emit(action)
+}
+
+function handleClickOutside(event) {
+  if (tagDropdownRef.value && !tagDropdownRef.value.contains(event.target)) {
+    showTagDropdown.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 </script>

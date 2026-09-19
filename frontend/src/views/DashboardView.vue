@@ -258,6 +258,7 @@
       @open-label="openLabelModal"
       @open-unlabel="openUnlabelModal"
       @open-author="() => openAuthorModal()"
+      @open-archive="openArchiveModal"
       @open-delete="openDeleteModal"
       @clear-selection="clearSelection"
     />
@@ -304,6 +305,16 @@
       @confirm="() => applyBulkDelete(onBulkActionSuccess)"
     />
 
+    <archive-modal
+      :show="showArchiveModal"
+      :selected-count="selectedReports.length"
+      :active-filters="activeFiltersForArchive"
+      :loading="bulkActionInProgress"
+      :error="bulkError"
+      @close="showArchiveModal = false"
+      @submit="opts => applyBulkArchive({ ...opts, filters: activeFiltersForArchive }, onBulkActionSuccess)"
+    />
+
     <author-mapping-modal
       :show="showAuthorMappingModal"
       :server="activeServer"
@@ -340,6 +351,7 @@ import BulkActionsBar from '../components/BulkActionsBar.vue'
 import LabelModal from '../components/modals/LabelModal.vue'
 import UnlabelModal from '../components/modals/UnlabelModal.vue'
 import AuthorModal from '../components/modals/AuthorModal.vue'
+import ArchiveModal from '../components/modals/ArchiveModal.vue'
 import DeleteConfirmModal from '../components/modals/DeleteConfirmModal.vue'
 import AuthorMappingModal from '../components/modals/AuthorMappingModal.vue'
 import DirectoryBrowserModal from '../components/modals/DirectoryBrowserModal.vue'
@@ -403,6 +415,7 @@ const {
   showLabelModal,
   showUnlabelModal,
   showAuthorModal,
+  showArchiveModal,
   showDeleteModal,
   targetReportIdForAuthor,
   authorInitialValue,
@@ -412,13 +425,27 @@ const {
   openLabelModal,
   openUnlabelModal,
   openAuthorModal,
+  openArchiveModal,
   openDeleteModal,
   applyBulkLabel,
   applyBulkUnlabel,
   applyAuthor,
   applyBulkDelete,
+  applyBulkArchive,
   removeTagFromReport
 } = useBulkActions()
+
+const activeFiltersForArchive = computed(() => {
+  const res = {}
+  if (filters.query) res.search = filters.query
+  if (filters.folder) res.subfolder = filters.folder
+  if (filters.labels?.length) res.tags = [...filters.labels]
+  if (filters.protocols?.length) res.protocols = [...filters.protocols]
+  if (filters.platform) res.platforms = [filters.platform]
+  if (filters.author) res.authors = [filters.author]
+  if (filters.qubits?.length) res.qubits = [...filters.qubits]
+  return res
+})
 
 // Computed metadata
 const tagsOnSelectedReports = computed(() => {
