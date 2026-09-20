@@ -330,11 +330,55 @@ def validate_invite(token: str) -> tuple[bool, str, dict | None]:
     return True, "Valid", inv
 
 
+def list_admins() -> list[dict]:
+    """List all registered users with the administrator role."""
+    data = load_auth_data()
+    result = []
+    for u in data.get("users", []):
+        if u.get("role") == UserRole.ADMIN.value:
+            result.append(
+                {
+                    "id": u["id"],
+                    "username": u["username"],
+                    "role": u["role"],
+                    "created_at": u.get("created_at", ""),
+                }
+            )
+    return result
+
+
+def reset_user_password(username: str, new_password: str) -> dict:
+    """Reset the password for an existing user."""
+    clean_username = username.strip()
+    if len(new_password) < 4:
+        raise ValueError("Password must be at least 4 characters long")
+
+    data = load_auth_data()
+    target = None
+    for u in data.get("users", []):
+        if u["username"].strip().lower() == clean_username.lower():
+            target = u
+            break
+
+    if not target:
+        raise ValueError(f"User '{clean_username}' not found")
+
+    target["password_hash"] = hash_password(new_password)
+    save_auth_data(data)
+    return {
+        "id": target["id"],
+        "username": target["username"],
+        "role": target["role"],
+        "created_at": target.get("created_at", ""),
+    }
+
+
 def create_invite(
     role: str = "viewer",
     expires_in_hours: int | None = 168,
     max_uses: int | None = None,
     created_by: str = "admin",
+    target_username: str | None = None,
 ) -> dict:
     """Generate a new invitation token."""
     valid_roles = {UserRole.VIEWER.value, UserRole.EDITOR.value, UserRole.ADMIN.value}
@@ -346,13 +390,14 @@ def create_invite(
     now = datetime.now(timezone.utc)
     expires_at = (
         (now + timedelta(hours=expires_in_hours)).isoformat()
-        if expires_in_hours is not None
+        if (expires_in_hours is not None and expires_in_hours > 0)
         else None
     )
 
     invite = {
         "token": token,
         "role": norm_role,
+        "target_username": target_username.strip() if target_username else None,
         "expires_at": expires_at,
         "created_at": now.isoformat(),
         "created_by": created_by,
@@ -364,6 +409,65 @@ def create_invite(
     data.setdefault("invites", []).append(invite)
     save_auth_data(data)
     return invite
+
+
+def regenerate_admin_invite(
+    username: str | None = None,
+    expires_in_hours: int | None = 168,
+) -> dict:
+    """Regenerate an invitation token for an administrator account.
+
+    If username is specified:
+      Validates that the administrator exists and revokes any prior pending invites
+      for that specific administrator before creating a new single-use invite.
+    If username is None:
+      If no users exist in the database, generates an initial admin invite.
+      Otherwise raises ValueError indicating a specific administrator must be specified.
+    """
+    data = load_auth_data()
+    users = data.get("users", [])
+
+    if not username:
+        if not users:
+            return create_invite(
+                role=UserRole.ADMIN.value,
+                expires_in_hours=expires_in_hours,
+                max_uses=1,
+                created_by="system",
+            )
+        raise ValueError("Username must be specified when users already exist")
+
+    clean_username = username.strip()
+    target_user = None
+    for u in users:
+        if u["username"].strip().lower() == clean_username.lower():
+            target_user = u
+            break
+
+    if not target_user:
+        raise ValueError(f"Administrator user '{clean_username}' not found")
+
+    if target_user.get("role") != UserRole.ADMIN.value:
+        raise ValueError(
+            f"User '{clean_username}' is not an administrator (role: {target_user.get('role')})"
+        )
+
+    # Revoke any prior pending invites for this specific admin
+    invites = data.get("invites", [])
+    data["invites"] = [
+        inv
+        for inv in invites
+        if (inv.get("target_username") or "").strip().lower() != clean_username.lower()
+    ]
+    save_auth_data(data)
+
+    return create_invite(
+        role=UserRole.ADMIN.value,
+        expires_in_hours=expires_in_hours,
+        max_uses=1,
+        created_by="admin-cli",
+        target_username=target_user["username"],
+    )
 
 
 def use_invite(token: str) -> dict | None:

@@ -7,10 +7,10 @@
         </svg>
       </div>
       <h1 class="text-2xl font-bold text-gray-900 tracking-tight">
-        Join Qibocal Report Server
+        {{ inviteInfo?.target_username ? 'Restore Administrator Access' : 'Join Qibocal Report Server' }}
       </h1>
       <p class="mt-1.5 text-xs sm:text-sm text-gray-500">
-        You've been invited to access this report instance.
+        {{ inviteInfo?.target_username ? `Re-authenticate and restore access for ${inviteInfo.target_username}` : "You've been invited to access this report instance." }}
       </p>
     </div>
 
@@ -88,28 +88,33 @@
           <form @submit.prevent="handleRegister" class="space-y-4">
             <div>
               <label class="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                Choose Username
+                {{ inviteInfo?.target_username ? 'Administrator Username' : 'Choose Username' }}
               </label>
               <input
                 v-model="username"
                 type="text"
                 required
                 autocomplete="username"
+                :readonly="!!inviteInfo?.target_username"
                 placeholder="e.g. quantum_researcher"
-                class="w-full px-3.5 py-2.5 bg-gray-100/70 focus:bg-white rounded-xl text-xs sm:text-sm text-gray-900 border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff]/25 transition shadow-2xs"
+                class="w-full px-3.5 py-2.5 rounded-xl text-xs sm:text-sm text-gray-900 border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff]/25 transition shadow-2xs"
+                :class="inviteInfo?.target_username ? 'bg-gray-200/80 text-gray-700 cursor-not-allowed' : 'bg-gray-100/70 focus:bg-white'"
               />
+              <p v-if="inviteInfo?.target_username" class="mt-1 text-[11px] text-purple-700">
+                This invitation link restores access for administrator <strong>{{ inviteInfo.target_username }}</strong>.
+              </p>
             </div>
 
             <div>
               <label class="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                Password
+                {{ inviteInfo?.target_username ? 'Set / Update Password' : 'Password' }}
               </label>
               <input
                 v-model="password"
                 type="password"
                 required
                 autocomplete="new-password"
-                placeholder="Choose a password"
+                placeholder="Choose or confirm your password"
                 class="w-full px-3.5 py-2.5 bg-gray-100/70 focus:bg-white rounded-xl text-xs sm:text-sm text-gray-900 border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff]/25 transition shadow-2xs"
               />
             </div>
@@ -134,7 +139,7 @@
               class="w-full mt-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-semibold bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 border-0"
             >
               <span v-if="submitting" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              <span>{{ submitting ? 'Setting Up Account...' : 'Complete Registration' }}</span>
+              <span>{{ submitting ? 'Updating Account...' : (inviteInfo?.target_username ? 'Restore Access & Sign In' : 'Complete Registration') }}</span>
             </button>
           </form>
 
@@ -234,6 +239,9 @@ async function resolveAndValidate() {
       const data = await res.json()
       if (data.valid) {
         inviteInfo.value = data
+        if (data.target_username) {
+          username.value = data.target_username
+        }
       } else {
         tokenError.value = data.detail || 'Invitation link has expired or has already been used.'
       }

@@ -290,11 +290,13 @@ class InviteCreateRequest(BaseModel):
     role: str = "viewer"
     expires_in_hours: int | None = 168
     max_uses: int | None = None
+    target_username: str | None = None
 
 
 class InviteModel(BaseModel):
     token: str
     role: str
+    target_username: str | None = None
     expires_at: str | None = None
     created_at: str
     created_by: str = "admin"
@@ -306,6 +308,7 @@ class InviteValidateResponse(BaseModel):
     valid: bool
     token: str
     role: str | None = None
+    target_username: str | None = None
     expires_at: str | None = None
     server_name: str | None = None
     detail: str | None = None

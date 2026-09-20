@@ -314,6 +314,7 @@ def check_invitation(token: str) -> InviteValidateResponse:
         valid=True,
         token=token,
         role=inv.get("role"),
+        target_username=inv.get("target_username"),
         expires_at=inv.get("expires_at"),
         server_name=SERVER_NAME,
     )
@@ -321,16 +322,24 @@ def check_invitation(token: str) -> InviteValidateResponse:
 
 @app.post("/api/auth/register", response_model=LoginResponse, tags=["Authentication"])
 def register_user(req: RegisterRequest) -> LoginResponse:
-    """Self-register using a valid invitation link token."""
+    """Self-register or reclaim access using a valid invitation link token."""
     valid, reason, inv = auth.validate_invite(req.invite_token)
     if not valid or not inv:
         raise HTTPException(status_code=400, detail=reason)
     try:
-        user = auth.create_user(
-            username=req.username,
-            password=req.password,
-            role=inv["role"],
-        )
+        target_username = inv.get("target_username")
+        if target_username:
+            if req.username.strip().lower() != target_username.strip().lower():
+                raise ValueError(
+                    f"This invitation token is specifically reserved for '{target_username}'"
+                )
+            user = auth.reset_user_password(target_username, req.password)
+        else:
+            user = auth.create_user(
+                username=req.username,
+                password=req.password,
+                role=inv["role"],
+            )
         auth.use_invite(req.invite_token)
         token = auth.create_access_token(user)
         return LoginResponse(
@@ -414,6 +423,7 @@ def admin_create_invite(
             expires_in_hours=req.expires_in_hours,
             max_uses=req.max_uses,
             created_by=user.get("username", "admin"),
+            target_username=req.target_username,
         )
         return InviteModel(**inv)
     except ValueError as err:

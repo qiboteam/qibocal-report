@@ -14,7 +14,7 @@
             </svg>
           </div>
           <h2 class="text-sm font-semibold text-gray-900">
-            Accept Invitation & Register
+            {{ inviteData?.target_username ? 'Restore Administrator Access' : 'Accept Invitation & Register' }}
           </h2>
         </div>
         <button
@@ -76,7 +76,7 @@
         </div>
 
         <p class="text-xs text-gray-500 mb-3">
-          Create your account on <strong class="text-gray-800">{{ serverName }}</strong>.
+          {{ inviteData?.target_username ? `Re-authenticate and restore administrator access on ` : `Create your account on ` }}<strong class="text-gray-800">{{ serverName }}</strong>.
         </p>
 
         <!-- Error banner -->
@@ -91,21 +91,26 @@
         <form @submit.prevent="handleRegister" class="space-y-3">
           <div>
             <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">
-              Username
+              {{ inviteData?.target_username ? 'Administrator Username' : 'Username' }}
             </label>
             <input
               v-model="form.username"
               type="text"
               required
               autocomplete="username"
+              :readonly="!!inviteData?.target_username"
               placeholder="e.g. quantum_user"
-              class="w-full px-3.5 py-2.5 bg-gray-100/70 focus:bg-white rounded-xl text-xs text-gray-900 border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff]/25 transition shadow-2xs"
+              class="w-full px-3.5 py-2.5 rounded-xl text-xs text-gray-900 border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff]/25 transition shadow-2xs"
+              :class="inviteData?.target_username ? 'bg-gray-200/80 text-gray-700 cursor-not-allowed' : 'bg-gray-100/70 focus:bg-white'"
             />
+            <p v-if="inviteData?.target_username" class="mt-1 text-[11px] text-purple-700">
+              Restoring credentials for administrator <strong>{{ inviteData.target_username }}</strong>.
+            </p>
           </div>
 
           <div>
             <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">
-              Password
+              {{ inviteData?.target_username ? 'Set / Update Password' : 'Password' }}
             </label>
             <input
               v-model="form.password"
@@ -145,7 +150,7 @@
               class="border-0 px-4 py-2 rounded-xl text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
             >
               <span v-if="submitting" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              <span>{{ submitting ? 'Registering...' : 'Register & Connect' }}</span>
+              <span>{{ submitting ? 'Updating...' : (inviteData?.target_username ? 'Restore Access & Sign In' : 'Register & Connect') }}</span>
             </button>
           </div>
         </form>
@@ -200,6 +205,9 @@ async function validateToken(token, server = state.activeServer) {
       const data = await res.json()
       if (data.valid) {
         inviteData.value = data
+        if (data.target_username) {
+          form.username = data.target_username
+        }
       } else {
         inviteError.value = data.detail || 'Invitation link is invalid or has expired.'
       }

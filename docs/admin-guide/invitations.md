@@ -85,3 +85,38 @@ To invalidate an invitation token before it expires or before its remaining uses
 2. Scroll to the **Active Invitation Tokens** table.
 3. Locate the token and click **Revoke**.
 4. The token is immediately deleted and can no longer be used for registration.
+
+---
+
+## 🔑 Restoring Admin Access via CLI (`qibocal report admin invite`)
+
+If you deleted the server entry from your web client interface, lost your session token, or need to recover access from the server machine, you can regenerate an invitation link directly from the command line.
+
+### Listing Existing Administrators
+
+View the administrators registered in the server database:
+
+```bash
+qibocal report admin list
+```
+
+### Regenerating the Invite Link
+
+Run the `admin invite` command:
+
+```bash
+# Interactive selection (lists administrators and prompts for choice):
+qibocal report admin invite
+
+# Non-interactive generation for a specific administrator:
+qibocal report admin invite <username>
+
+# Shortcut alias:
+qibocal report invite <username>
+```
+
+### Reclaiming Access
+
+Once the link is generated:
+1. **Direct browser access**: Open the link (`http://<host>:<port>/#/invite?token=...`). The username will be pre-filled and designated for that administrator. Enter your password to update credentials and immediately log in.
+2. **Server Management paste box**: If you use the standalone client (`#/servers`), paste the entire invite link into the search bar. The client will automatically re-add the deleted server to your local list, prompt for credentials, and sign you in as administrator.

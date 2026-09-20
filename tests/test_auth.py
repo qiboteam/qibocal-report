@@ -470,3 +470,108 @@ def test_unauthenticated_restrictions_and_public_docs(auth_env):
     res_reports = client.get("/api/reports", headers=headers)
     assert res_reports.status_code == 200
 
+
+def test_regenerate_admin_invite_and_reclaim(auth_env):
+    client = TestClient(app)
+
+    # Initially no users: regenerate_admin_invite without username generates initial invite
+    initial_inv = auth.regenerate_admin_invite()
+    assert initial_inv["role"] == UserRole.ADMIN.value
+    assert initial_inv["target_username"] is None
+
+    # Register admin
+    res = client.post(
+        "/api/auth/register",
+        json={
+            "invite_token": initial_inv["token"],
+            "username": "lab_admin",
+            "password": "initial_password",
+        },
+    )
+    assert res.status_code == 200
+
+    # Also register a viewer
+    viewer_inv = auth.create_invite(role="viewer")
+    res_viewer = client.post(
+        "/api/auth/register",
+        json={
+            "invite_token": viewer_inv["token"],
+            "username": "viewer_user",
+            "password": "viewer_password",
+        },
+    )
+    assert res_viewer.status_code == 200
+
+    # Test list_admins
+    admins = auth.list_admins()
+    assert len(admins) == 1
+    assert admins[0]["username"] == "lab_admin"
+
+    # Regenerate invite for non-existent admin should raise ValueError
+    with pytest.raises(ValueError, match="not found"):
+        auth.regenerate_admin_invite("nonexistent")
+
+    # Regenerate invite for non-admin user should raise ValueError
+    with pytest.raises(ValueError, match="not an administrator"):
+        auth.regenerate_admin_invite("viewer_user")
+
+    # Regenerate invite for lab_admin
+    regen_inv = auth.regenerate_admin_invite("lab_admin", expires_in_hours=24)
+    assert regen_inv["role"] == "admin"
+    assert regen_inv["target_username"] == "lab_admin"
+    token = regen_inv["token"]
+
+    # Validating invite via API should expose target_username
+    res_check = client.get(f"/api/auth/invite/{token}")
+    assert res_check.status_code == 200
+    check_data = res_check.json()
+    assert check_data["valid"] is True
+    assert check_data["role"] == "admin"
+    assert check_data["target_username"] == "lab_admin"
+
+    # Trying to claim with mismatched username should fail
+    res_wrong = client.post(
+        "/api/auth/register",
+        json={
+            "invite_token": token,
+            "username": "different_user",
+            "password": "new_password_123",
+        },
+    )
+    assert res_wrong.status_code == 400
+    assert "reserved for 'lab_admin'" in res_wrong.json()["detail"]
+
+    # Reclaim access with matching username and new password
+    res_reclaim = client.post(
+        "/api/auth/register",
+        json={
+            "invite_token": token,
+            "username": "lab_admin",
+            "password": "new_password_123",
+        },
+    )
+    assert res_reclaim.status_code == 200
+    reclaim_data = res_reclaim.json()
+    assert reclaim_data["user"]["username"] == "lab_admin"
+    assert reclaim_data["user"]["role"] == "admin"
+    assert "access_token" in reclaim_data
+
+    # Token should be consumed now
+    res_check_after = client.get(f"/api/auth/invite/{token}")
+    assert res_check_after.json()["valid"] is False
+
+    # Sign in with new password works
+    res_login = client.post(
+        "/api/auth/login",
+        json={"username": "lab_admin", "password": "new_password_123"},
+    )
+    assert res_login.status_code == 200
+    assert "access_token" in res_login.json()
+
+    # Old password no longer works
+    res_old_login = client.post(
+        "/api/auth/login",
+        json={"username": "lab_admin", "password": "initial_password"},
+    )
+    assert res_old_login.status_code == 401
+
