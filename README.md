@@ -95,6 +95,20 @@ qibocal report dev ./sample_data
 
 Starts the FastAPI backend with auto-reload and the Vite frontend dev server at `http://localhost:5173` with instant Hot Module Replacement.
 
+### 5. Static Export & GitHub Pages Deployment
+
+The frontend can be exported as a standalone static Single Page Application (SPA) for static hosts such as **GitHub Pages**. Because GitHub Pages serves static files, only the frontend is deployed; backend instances run independently on your lab servers or cloud infrastructure and connect directly via the web interface:
+
+```bash
+# Export static bundle via CLI
+qibocal report export ./dist
+
+# Or build directly with pnpm
+cd frontend && pnpm run build
+```
+
+Automated deployment to GitHub Pages is configured via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
+
 ---
 
 ## 📖 Documentation
@@ -131,6 +145,9 @@ devenv shell -- pytest tests/
 
 # Build frontend and embed into Python package
 devenv shell -- build-frontend
+
+# Build frontend static export for static web hosting
+devenv shell -- export-static
 
 # Build standalone Python wheel
 devenv shell -- build-wheel

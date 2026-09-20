@@ -19,6 +19,7 @@ def test_report_help():
     assert "server" in result.output
     assert "client" in result.output
     assert "dev" in result.output
+    assert "export" in result.output
 
 
 def test_dev_command(tmp_path):
@@ -83,7 +84,9 @@ def test_client_command():
 
 def test_request_logging_configuration():
     import logging
+
     from uvicorn.logging import AccessFormatter
+
     from qibocal_report.logger import get_uvicorn_log_config
 
     cfg = get_uvicorn_log_config()
@@ -110,3 +113,41 @@ def test_request_logging_configuration():
     assert "127.0.0.1" not in formatted
     assert "GET /api/reports HTTP/1.1" in formatted
     assert "200" in formatted
+
+
+def test_export_command(tmp_path):
+    runner = CliRunner()
+    export_dest = tmp_path / "exported_site"
+
+    result = runner.invoke(
+        main,
+        ["report", "export", str(export_dest), "--no-build"],
+    )
+    assert result.exit_code == 0
+    assert (export_dest / "index.html").is_file()
+    assert (export_dest / "404.html").is_file()
+    assert (export_dest / ".nojekyll").is_file()
+
+
+def test_export_command_with_build(tmp_path):
+    runner = CliRunner()
+    export_dest = tmp_path / "built_site"
+
+    mock_res = MagicMock()
+    mock_res.returncode = 0
+
+    with patch("qibocal_report.cli.subprocess.run", return_value=mock_res) as mock_run:
+        result = runner.invoke(
+            main,
+            [
+                "report",
+                "export",
+                str(export_dest),
+                "--build",
+                "--base-path",
+                "/qibocal-report/",
+            ],
+        )
+        assert result.exit_code == 0
+        assert mock_run.called
+        assert (export_dest / ".nojekyll").is_file()

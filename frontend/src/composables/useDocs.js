@@ -83,6 +83,25 @@ export const DEFAULT_DOCS_NAV = [
   }
 ]
 
+const bundledDocs = import.meta.glob('../../../docs/**/*.md', { query: '?raw', import: 'default', eager: true })
+
+function getBundledDocContent(name) {
+  const cleanName = (name || '').replace(/^\/+/, '').replace(/\.md$/, '')
+  for (const [key, content] of Object.entries(bundledDocs)) {
+    const normKey = key
+      .replace(/^(\.\.\/)+docs\//, '')
+      .replace(/\.md$/, '')
+    if (
+      normKey === cleanName ||
+      normKey === `${cleanName}/index` ||
+      (cleanName.endsWith('/index') && normKey === cleanName.replace(/\/index$/, ''))
+    ) {
+      return content
+    }
+  }
+  return null
+}
+
 export function useDocs() {
   const route = useRoute()
   const router = useRouter()
@@ -203,6 +222,13 @@ export function useDocs() {
         return
       }
     } catch {}
+
+    const fallback = getBundledDocContent(name)
+    if (fallback) {
+      rawMarkdown.value = fallback
+      loading.value = false
+      return
+    }
 
     rawMarkdown.value = `# Not Found\nCould not load documentation for \`${name}\`.`
     loading.value = false

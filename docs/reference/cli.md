@@ -75,6 +75,24 @@ qibocal report dev [DIRECTORY] [OPTIONS]
 
 ---
 
+### `qibocal report export`
+
+Exports the standalone frontend application for deployment to static web hosts (such as GitHub Pages).
+
+```bash
+qibocal report export [OUTPUT_DIR] [OPTIONS]
+```
+
+#### Arguments
+- `OUTPUT_DIR`: Directory where static assets (`index.html`, `404.html`, `.nojekyll`, and `assets/`) will be written. Default: `./dist`.
+
+#### Options
+- `--build / --no-build`: Build from frontend source tree if present. Default: `--build`.
+- `--base-path TEXT`: Base URL path for assets. Default: `./` (relative paths, compatible with GitHub Pages project subpaths).
+- `--help`: Show help message and exit.
+
+---
+
 ## ⚙️ Environment Variables
 
 | Variable | Description | Default |

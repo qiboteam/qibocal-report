@@ -234,3 +234,94 @@ def client(host: str, port: int, reload: bool):
 def dashboard_alias(ctx, host: str, port: int, reload: bool):
     """Backward-compatible alias for 'client'."""
     ctx.forward(client)
+
+
+@report.command(name="export")
+@click.argument(
+    "output_dir",
+    default="./dist",
+    type=click.Path(file_okay=False, dir_okay=True),
+)
+@click.option(
+    "--build/--no-build",
+    default=True,
+    help="Build frontend from source if frontend directory exists.",
+)
+@click.option(
+    "--base-path",
+    default="./",
+    help="Base URL path for assets (default: ./ for relative paths).",
+)
+def export_static(output_dir: str, build: bool, base_path: str):
+    """Export static web application for hosting (e.g. GitHub Pages)."""
+    out_path = Path(output_dir).resolve()
+    console = Console()
+
+    # Locate frontend directory
+    frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
+    if not frontend_dir.is_dir() or not (frontend_dir / "package.json").is_file():
+        frontend_dir = Path.cwd() / "frontend"
+
+    has_frontend_src = (
+        frontend_dir.is_dir() and (frontend_dir / "package.json").is_file()
+    )
+
+    built_fresh = False
+    if build and has_frontend_src:
+        console.print(f"[dim]Building frontend in {frontend_dir}...[/dim]")
+        if shutil.which("pnpm"):
+            cmd = ["pnpm", "run", "build"]
+        elif shutil.which("npm"):
+            cmd = ["npm", "run", "build"]
+        elif shutil.which("npx"):
+            cmd = ["npx", "vite", "build"]
+        else:
+            raise click.ClickException(
+                "Neither pnpm nor npm found in PATH to build frontend."
+            )
+        env = os.environ.copy()
+        env["BASE_PATH"] = base_path
+        res = subprocess.run(cmd, cwd=frontend_dir, env=env, check=False)
+        if res.returncode != 0:
+            raise click.ClickException(
+                f"Frontend build failed with exit code {res.returncode}"
+            )
+        source_dist = frontend_dir / "dist"
+        built_fresh = True
+    else:
+        source_dist = Path(__file__).resolve().parent / "static"
+        if not source_dist.is_dir() or not (source_dist / "index.html").is_file():
+            if has_frontend_src and (frontend_dir / "dist" / "index.html").is_file():
+                source_dist = frontend_dir / "dist"
+            else:
+                raise click.ClickException(
+                    "No static build found in static directory or frontend/dist. "
+                    "Run with --build or build the frontend first."
+                )
+
+    out_path.mkdir(parents=True, exist_ok=True)
+    if out_path != source_dist.resolve():
+        for item in source_dist.iterdir():
+            dest = out_path / item.name
+            if item.is_dir():
+                if dest.exists():
+                    shutil.rmtree(dest)
+                shutil.copytree(item, dest)
+            else:
+                shutil.copy2(item, dest)
+
+    (out_path / ".nojekyll").touch(exist_ok=True)
+    if (out_path / "index.html").is_file() and not (out_path / "404.html").is_file():
+        shutil.copy2(out_path / "index.html", out_path / "404.html")
+
+    src_label = "Fresh build from source" if built_fresh else str(source_dist)
+    console.print(
+        Panel.fit(
+            f"[bold cyan]📁 Export Destination :[/bold cyan] {out_path}\n"
+            f"[bold cyan]🌐 Base Asset Path    :[/bold cyan] {base_path}\n"
+            f"[bold cyan]📦 Source             :[/bold cyan] {src_label}\n\n"
+            "[green]✓ Static export ready for GitHub Pages or static web hosts.[/green]",
+            title="[bold magenta]⚛️  Qibocal Report Static Export[/bold magenta]",
+            border_style="magenta",
+        )
+    )

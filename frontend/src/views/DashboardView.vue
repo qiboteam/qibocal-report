@@ -137,6 +137,23 @@
           </div>
         </div>
 
+        <!-- No Server Connected Banner (Static / Fresh client mode) -->
+        <div
+          v-else-if="!activeServer && (!state.servers || state.servers.length === 0) && !loading"
+          class="bg-purple-50 text-purple-900 p-5 rounded-2xl border border-purple-200/80 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs"
+        >
+          <div>
+            <div class="font-bold text-sm">No Report Server Connected</div>
+            <div class="text-xs mt-1 text-purple-700">Connect to a local or remote Qibocal report server to explore and analyze calibration runs.</div>
+          </div>
+          <router-link
+            to="/servers"
+            class="px-4 py-2 bg-[#833dff] text-white rounded-xl text-xs font-semibold hover:bg-[#722ce6] transition shrink-0 inline-flex items-center gap-1.5 shadow-2xs"
+          >
+            Connect Server
+          </router-link>
+        </div>
+
         <!-- Bulk Success Message Banner -->
         <div
           v-if="bulkSuccessMessage"
@@ -775,6 +792,13 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
   }
 
   if (!isPrefetch) {
+    if (!activeServer.value && (!state.servers || state.servers.length === 0)) {
+      reports.value = []
+      totalReports.value = 0
+      loading.value = false
+      connectionError.value = null
+      return
+    }
     loading.value = true
     connectionError.value = null
   }
@@ -830,7 +854,11 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
   } catch (err) {
     if (!isPrefetch) {
       console.error('Failed to fetch reports', err)
-      connectionError.value = `Could not connect to ${activeServer.value?.name || 'server'} (${activeServer.value?.url || ''}): ${err.message || 'Network error'}`
+      if (!activeServer.value && (!state.servers || state.servers.length === 0)) {
+        connectionError.value = null
+      } else {
+        connectionError.value = `Could not connect to ${activeServer.value?.name || 'server'} (${activeServer.value?.url || ''}): ${err.message || 'Network error'}`
+      }
       reports.value = []
       loading.value = false
     }

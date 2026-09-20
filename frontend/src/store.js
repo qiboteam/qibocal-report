@@ -156,34 +156,70 @@ export async function apiFetch(path, options = {}) {
 }
 
 // --- Server Management ---
+const SERVERS_STORAGE_KEY = 'qibocal_report_servers'
+
+function loadStoredServers() {
+  try {
+    const raw = localStorage.getItem(SERVERS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed
+    }
+  } catch (e) {
+    console.warn('Failed to parse saved servers from localStorage', e)
+  }
+  return []
+}
+
+function saveStoredServers(servers) {
+  try {
+    localStorage.setItem(SERVERS_STORAGE_KEY, JSON.stringify(servers))
+  } catch (e) {
+    console.warn('Failed to save servers to localStorage', e)
+  }
+}
+
 let serversPromise = null
 
 export function fetchServers() {
   if (!serversPromise) {
     serversPromise = (async () => {
+      let loaded = false
       try {
         const res = await fetch('/api/servers')
         if (res.ok) {
           const data = await res.json()
-          state.servers = data
-          const savedActiveId = localStorage.getItem('qibocal_active_server_id')
-          const found = data.find(s => s.id === savedActiveId)
-          if (found) {
-            state.activeServer = found
-          } else if (!state.activeServer && data.length > 0) {
-            state.activeServer = data[0]
-          } else if (state.activeServer) {
-            const current = data.find(s => s.id === state.activeServer.id)
-            if (current) state.activeServer = current
-          }
-          if (state.activeServer?.id) {
-            localStorage.setItem('qibocal_active_server_id', state.activeServer.id)
+          if (Array.isArray(data)) {
+            state.servers = data
+            saveStoredServers(data)
+            loaded = true
           }
         }
       } catch (err) {
-        console.error('Failed to fetch servers', err)
+        console.debug('Backend /api/servers not available, using stored servers', err)
       } finally {
         serversPromise = null
+      }
+
+      if (!loaded) {
+        const stored = loadStoredServers()
+        if (stored.length > 0) {
+          state.servers = stored
+        }
+      }
+
+      const savedActiveId = localStorage.getItem('qibocal_active_server_id')
+      const found = state.servers.find(s => s.id === savedActiveId)
+      if (found) {
+        state.activeServer = found
+      } else if (!state.activeServer && state.servers.length > 0) {
+        state.activeServer = state.servers[0]
+      } else if (state.activeServer) {
+        const current = state.servers.find(s => s.id === state.activeServer.id)
+        if (current) state.activeServer = current
+      }
+      if (state.activeServer?.id) {
+        localStorage.setItem('qibocal_active_server_id', state.activeServer.id)
       }
     })()
   }
@@ -211,20 +247,21 @@ export function setActiveServer(server) {
 }
 
 export async function addServer(urlOrObj, name = null, description = null, avatar = null, author_identities = null) {
-  try {
-    let payload = {}
-    if (typeof urlOrObj === 'object' && urlOrObj !== null) {
-      payload = { ...urlOrObj }
-      payload.url = normalizeUrl(payload.url)
-    } else {
-      payload = {
-        url: normalizeUrl(urlOrObj),
-        name,
-        description,
-        avatar,
-        author_identities
-      }
+  let payload = {}
+  if (typeof urlOrObj === 'object' && urlOrObj !== null) {
+    payload = { ...urlOrObj }
+    payload.url = normalizeUrl(payload.url)
+  } else {
+    payload = {
+      url: normalizeUrl(urlOrObj),
+      name,
+      description,
+      avatar,
+      author_identities
     }
+  }
+
+  try {
     const res = await fetch('/api/servers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -236,17 +273,44 @@ export async function addServer(urlOrObj, name = null, description = null, avata
       return created
     }
   } catch (err) {
-    console.error('Failed to add server', err)
+    console.debug('Backend /api/servers POST unavailable, adding locally', err)
   }
-  return null
+
+  // Fallback for static client mode
+  const cleanUrl = payload.url
+  const id = `srv-${Math.random().toString(36).substring(2, 10)}`
+  const fallbackName = payload.name || `Server ${state.servers.length + 1}`
+  const created = {
+    id,
+    name: fallbackName,
+    url: cleanUrl,
+    description: payload.description || `Server at ${cleanUrl}`,
+    avatar: payload.avatar || 'quantum-ring',
+    is_default: state.servers.length === 0,
+    created_at: new Date().toISOString(),
+    author_identities: payload.author_identities || {},
+    protocol_docs: {}
+  }
+  const existingIdx = state.servers.findIndex(s => normalizeUrl(s.url) === cleanUrl)
+  if (existingIdx >= 0) {
+    state.servers[existingIdx] = { ...state.servers[existingIdx], ...created }
+  } else {
+    state.servers.push(created)
+  }
+  saveStoredServers(state.servers)
+  if (!state.activeServer) {
+    setActiveServer(created)
+  }
+  return created
 }
 
 export async function updateServer(id, updates) {
+  const dataToSend = { ...updates }
+  if (dataToSend.url) {
+    dataToSend.url = normalizeUrl(dataToSend.url)
+  }
+
   try {
-    const dataToSend = { ...updates }
-    if (dataToSend.url) {
-      dataToSend.url = normalizeUrl(dataToSend.url)
-    }
     const res = await fetch(`/api/servers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -261,7 +325,18 @@ export async function updateServer(id, updates) {
       return updated
     }
   } catch (err) {
-    console.error('Failed to update server', err)
+    console.debug('Backend /api/servers PUT unavailable, updating locally', err)
+  }
+
+  // Fallback for static client mode
+  const idx = state.servers.findIndex(s => s.id === id)
+  if (idx >= 0) {
+    state.servers[idx] = { ...state.servers[idx], ...dataToSend }
+    saveStoredServers(state.servers)
+    if (state.activeServer?.id === id) {
+      setActiveServer(state.servers[idx])
+    }
+    return state.servers[idx]
   }
   return null
 }
@@ -277,7 +352,18 @@ export async function deleteServer(id) {
       return true
     }
   } catch (err) {
-    console.error('Failed to delete server', err)
+    console.debug('Backend /api/servers DELETE unavailable, deleting locally', err)
+  }
+
+  // Fallback for static client mode
+  const idx = state.servers.findIndex(s => s.id === id)
+  if (idx >= 0) {
+    state.servers.splice(idx, 1)
+    saveStoredServers(state.servers)
+    if (state.activeServer?.id === id) {
+      setActiveServer(state.servers[0] || null)
+    }
+    return true
   }
   return false
 }
@@ -289,9 +375,10 @@ export async function persistServersConfig() {
       return await res.json()
     }
   } catch (err) {
-    console.error('Failed to save config', err)
+    console.debug('Backend /api/servers/save unavailable, persisting locally', err)
   }
-  return null
+  saveStoredServers(state.servers)
+  return { status: 'saved_locally' }
 }
 
 // --- Report History Management (Scoped to Active Server) ---
