@@ -3,15 +3,31 @@
     <div class="max-w-7xl mx-auto">
       <!-- Top Bar Navigation -->
       <div class="flex items-center justify-between pb-4 mb-6 border-b border-gray-200">
-        <router-link
-          to="/dashboard"
-          class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-[#833dff] transition"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Dashboard
-        </router-link>
+        <div class="flex items-center gap-3">
+          <router-link
+            v-if="canAccessDashboard"
+            to="/dashboard"
+            class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-[#833dff] transition"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Dashboard
+          </router-link>
+
+          <router-link
+            to="/servers"
+            class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-[#833dff] transition"
+          >
+            <svg v-if="!canAccessDashboard" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+            {{ canAccessDashboard ? 'Servers' : 'Server Management' }}
+          </router-link>
+        </div>
 
         <div class="flex items-center gap-4">
           <a
@@ -106,7 +122,7 @@
 <script setup>
 import { computed } from 'vue'
 import { marked } from 'marked'
-import { getActiveServerUrl } from '../store.js'
+import { getActiveServerUrl, canAccessDashboard } from '../store.js'
 import { useDocs } from '../composables/useDocs.js'
 import DocsSidebar from '../components/docs/DocsSidebar.vue'
 import DocsBreadcrumb from '../components/docs/DocsBreadcrumb.vue'

@@ -34,12 +34,26 @@ def report():
 )
 @click.option("--host", default="localhost", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
-def server(directory: str, host: str, port: int):
+@click.option(
+    "--auth/--no-auth",
+    default=False,
+    help="Enable user authentication and role management.",
+)
+def server(directory: str, host: str, port: int, auth: bool):
     """Start the FastAPI backend server."""
     dir_path = Path(directory).resolve()
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
     set_report_root(dir_path, is_original=True)
+
+    if auth:
+        os.environ["QIBOCAL_AUTH_ENABLED"] = "1"
+        from qibocal_report import auth as auth_mod
+
+        auth_mod.set_auth_enabled(True)
+        initial_token = auth_mod.create_initial_admin_invite_if_needed()
+    else:
+        initial_token = None
 
     url = f"http://{host}:{port}"
     config.add_server(
@@ -50,11 +64,23 @@ def server(directory: str, host: str, port: int):
     )
 
     console = Console()
+    auth_lines = ""
+    if auth:
+        auth_lines = (
+            f"\n[bold cyan]🔒 Auth & Roles       :[/bold cyan] [green]Enabled[/green]"
+        )
+        if initial_token:
+            auth_lines += (
+                f"\n[bold yellow]🔑 Admin Invite Link  :[/bold yellow] "
+                f"{url}/#/invite?token={initial_token}"
+            )
+
     console.print(
         Panel.fit(
             f"[bold cyan]📁 Reports Directory :[/bold cyan] {dir_path}\n"
             f"[bold cyan]⚙️  FastAPI Server   :[/bold cyan] {url}\n"
-            f"[bold cyan]📖 REST API Docs     :[/bold cyan] {url}/api/docs/swagger\n\n"
+            f"[bold cyan]📖 REST API Docs     :[/bold cyan] {url}/api/docs/swagger"
+            f"{auth_lines}\n\n"
             "[dim]Press Ctrl+C to stop the server.[/dim]",
             title="[bold magenta]⚛️  Qibocal Report Server[/bold magenta]",
             border_style="magenta",
@@ -85,12 +111,33 @@ def server(directory: str, host: str, port: int):
     default=True,
     help="Enable auto-reload for backend server.",
 )
-def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool = True):
+@click.option(
+    "--auth/--no-auth",
+    default=False,
+    help="Enable user authentication and role management.",
+)
+def dev(
+    directory: str,
+    host: str,
+    port: int,
+    frontend_port: int,
+    reload: bool = True,
+    auth: bool = False,
+):
     """Serve Qibocal reports in developer mode with live Vite HMR."""
     dir_path = Path(directory).resolve()
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
     set_report_root(dir_path, is_original=True)
+
+    if auth:
+        os.environ["QIBOCAL_AUTH_ENABLED"] = "1"
+        from qibocal_report import auth as auth_mod
+
+        auth_mod.set_auth_enabled(True)
+        initial_token = auth_mod.create_initial_admin_invite_if_needed()
+    else:
+        initial_token = None
 
     # Locate frontend directory
     frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
@@ -139,12 +186,24 @@ def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool =
 
     console = Console()
     dev_title = "[bold magenta]⚛️  Qibocal Report (Developer Mode)[/bold magenta]"
+    auth_lines = ""
+    if auth:
+        auth_lines = (
+            f"\n[bold cyan]🔒 Auth & Roles       :[/bold cyan] [green]Enabled[/green]"
+        )
+        if initial_token:
+            auth_lines += (
+                f"\n[bold yellow]🔑 Admin Invite Link  :[/bold yellow] "
+                f"{frontend_url}/#/invite?token={initial_token}"
+            )
+
     panel_content = (
         f"[bold cyan]📁 Reports Directory :[/bold cyan] {dir_path}\n"
         f"[bold cyan]⚡ Vite Dev Frontend :[/bold cyan] {frontend_url}\n"
         f"[bold cyan]⚙️  Backend API       :[/bold cyan] {backend_url}\n"
         f"[bold cyan]📖 REST API Docs     :[/bold cyan] "
-        f"{backend_url}/api/docs/swagger\n\n"
+        f"{backend_url}/api/docs/swagger"
+        f"{auth_lines}\n\n"
         "[dim]Starting Vite development server with Hot Module Replacement...[/dim]\n"
         "[dim]Press Ctrl+C to stop both backend and frontend.[/dim]"
     )
@@ -189,9 +248,20 @@ def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool =
     default=True,
     help="Enable auto-reload for backend server.",
 )
+@click.option(
+    "--auth/--no-auth",
+    default=False,
+    help="Enable user authentication and role management.",
+)
 @click.pass_context
 def develop_alias(
-    ctx, directory: str, host: str, port: int, frontend_port: int, reload: bool
+    ctx,
+    directory: str,
+    host: str,
+    port: int,
+    frontend_port: int,
+    reload: bool,
+    auth: bool,
 ):
     """Backward-compatible alias for 'dev'."""
     ctx.forward(dev)

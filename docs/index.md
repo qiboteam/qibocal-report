@@ -51,6 +51,12 @@ Explore the documentation organized across the following sections:
 - **[Dashboard & Server Management](#/docs/user-guide/dashboard)**: Managing remote servers, smart filters, dual views, statistics, and bulk actions.
 - **[Reports, Protocols & Exports](#/docs/user-guide/reports)**: Interactive graphics, platform inspection, on-the-fly downloads, and PDF printing.
 
+### 🛡️ [Admin Guide](#/docs/admin-guide)
+
+- **[Server Administration & Security](#/docs/admin-guide)**: Starting the server with authentication (`--auth`), initial admin invite bootstrap, and administration dashboard.
+- **[Roles & Permissions Matrix](#/docs/admin-guide/roles)**: Detailed breakdown and comparison of Viewer, Editor, and Admin privileges.
+- **[Invitations & Team Onboarding](#/docs/admin-guide/invitations)**: Creating tokens, setting expiration policies, paste-box flows, and revocation.
+
 ### 🛠️ [Developer & Architecture](#/docs/developer/architecture)
 
 - **[System Architecture](#/docs/developer/architecture)**: FastAPI backend, Vue 3 SPA frontend, Pydantic v2 schemas, and execution modes.

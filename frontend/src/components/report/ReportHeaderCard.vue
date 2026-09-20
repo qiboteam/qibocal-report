@@ -44,6 +44,7 @@
           <template v-if="!isEditingAuthor">
             <strong class="text-gray-800">{{ report.author }}</strong>
             <button
+              v-if="!isViewer"
               @click="startEditAuthor"
               class="no-print text-gray-400 hover:text-[#833dff] transition cursor-pointer"
               title="Edit author"
@@ -145,6 +146,7 @@
       >
         <span>{{ l }}</span>
         <button
+          v-if="!isViewer"
           type="button"
           @click.stop="$emit('remove-tag', l)"
           class="no-print bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
@@ -160,6 +162,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { isViewer } from '../../store.js'
 
 const props = defineProps({
   report: { type: Object, required: true },

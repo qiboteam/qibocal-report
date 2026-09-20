@@ -91,10 +91,11 @@
 
             <!-- Regenerate button -->
             <button
-              @click="handleRegenerate"
-              :disabled="regenerating"
-              class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 hover:border-purple-300 text-gray-700 shadow-2xs flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
-              title="Delete cached plots and re-evaluate protocols"
+              @click="!isViewer && handleRegenerate()"
+              :disabled="regenerating || isViewer"
+              class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 text-gray-700 shadow-2xs flex items-center gap-1.5 transition"
+              :class="isViewer ? 'opacity-40 cursor-not-allowed' : 'hover:border-purple-300 cursor-pointer disabled:opacity-50'"
+              :title="isViewer ? 'Viewer role cannot regenerate plots' : 'Delete cached plots and re-evaluate protocols'"
             >
               <svg
                 class="w-3.5 h-3.5 text-[#833dff]"
@@ -162,7 +163,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { state, ensureServersLoaded, hasActiveSearchFilters } from '../store.js'
+import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'

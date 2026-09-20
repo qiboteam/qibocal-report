@@ -1,5 +1,6 @@
 """Pydantic models for qibocal-report."""
 
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -249,3 +250,79 @@ class ArchiveRestoreRequest(BaseModel):
 class ArchiveUpdateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
+
+
+class UserRole(str, Enum):
+    VIEWER = "viewer"
+    EDITOR = "editor"
+    ADMIN = "admin"
+
+
+class UserModel(BaseModel):
+    id: str
+    username: str
+    role: str
+    created_at: str
+
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserModel
+
+
+class RegisterRequest(BaseModel):
+    invite_token: str
+    username: str
+    password: str
+
+
+class InviteCreateRequest(BaseModel):
+    role: str = "viewer"
+    expires_in_hours: int | None = 168
+    max_uses: int | None = None
+
+
+class InviteModel(BaseModel):
+    token: str
+    role: str
+    expires_at: str | None = None
+    created_at: str
+    created_by: str = "admin"
+    used_count: int = 0
+    max_uses: int | None = None
+
+
+class InviteValidateResponse(BaseModel):
+    valid: bool
+    token: str
+    role: str | None = None
+    expires_at: str | None = None
+    server_name: str | None = None
+    detail: str | None = None
+
+
+class AuthStatusResponse(BaseModel):
+    auth_enabled: bool
+    server_name: str
+    has_users: bool = False
+
+
+class AdminConfigResponse(BaseModel):
+    auth_enabled: bool
+    server_name: str
+    root_dir: str
+    original_root_dir: str
+    reports_count: int
+    users_count: int
+    invites_count: int
+

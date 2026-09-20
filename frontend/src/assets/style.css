@@ -49,6 +49,31 @@ h6 {
   letter-spacing: -0.01em;
 }
 
+/* Seamless borderless text inputs & textareas */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="search"],
+input[type="number"],
+input[type="date"],
+input:not([type]),
+textarea {
+  border: 0 !important;
+  outline: none !important;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+input[type="search"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input:not([type]):focus,
+textarea:focus {
+  border: 0 !important;
+  outline: none !important;
+}
+
 /* Apple-style lightweight surfaces with no borders (Issue #2) */
 .bm-card {
   background: #ffffff;

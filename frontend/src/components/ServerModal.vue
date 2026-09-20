@@ -152,19 +152,19 @@
             <div
               v-for="(row, idx) in identityRows"
               :key="idx"
-              class="flex items-center gap-1.5 p-1.5 bg-gray-50/80 rounded-lg border border-gray-200 text-xs"
+              class="flex items-center gap-1.5 p-1.5 bg-gray-100/60 rounded-xl border-0 text-xs"
             >
               <input
                 v-model="row.canonical"
                 type="text"
                 placeholder="Canonical name (e.g. Alice)"
-                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs"
+                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs border-0 shadow-2xs"
               />
               <input
                 v-model="row.aliases"
                 type="text"
                 placeholder="Aliases (e.g. alice, a.smith)"
-                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono"
+                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono border-0 shadow-2xs"
               />
               <button
                 type="button"
@@ -196,7 +196,7 @@
             Configure custom protocol documentation URLs or paths for this server (masks default static index).
           </p>
 
-          <div v-if="protocolDocRows.length === 0" class="text-[11px] text-gray-400 italic bg-gray-50/60 p-2.5 rounded-lg border border-dashed border-gray-200 text-center">
+          <div v-if="protocolDocRows.length === 0" class="text-[11px] text-gray-400 italic bg-gray-50/60 p-2.5 rounded-lg border-0 text-center">
             No custom protocol docs configured
           </div>
 
@@ -204,19 +204,19 @@
             <div
               v-for="(row, idx) in protocolDocRows"
               :key="idx"
-              class="flex items-center gap-1.5 p-1.5 bg-gray-50/80 rounded-lg border border-gray-200 text-xs"
+              class="flex items-center gap-1.5 p-1.5 bg-gray-100/60 rounded-xl border-0 text-xs"
             >
               <input
                 v-model="row.protoId"
                 type="text"
                 placeholder="Protocol ID (e.g. rabi)"
-                class="w-1/3 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono"
+                class="w-1/3 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono border-0 shadow-2xs"
               />
               <input
                 v-model="row.docPath"
                 type="text"
                 placeholder="Relative path or full URL"
-                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono"
+                class="flex-1 px-2.5 py-1.5 bg-white rounded-lg text-xs font-mono border-0 shadow-2xs"
               />
               <button
                 type="button"

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import (
+    Depends,
     FastAPI,
     HTTPException,
     Query,
@@ -13,9 +14,10 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 
-from qibocal_report import config
+from qibocal_report import auth, config
 from qibocal_report.actions import execute_bulk_action, find_report_dirs
 from qibocal_report.archive import (
     create_archive,
@@ -36,11 +38,13 @@ from qibocal_report.docs import DOCS_NAVIGATION, resolve_docs_content
 from qibocal_report.generator import get_report_protocols, regenerate_report
 from qibocal_report.logger import log_error, log_info, setup_uvicorn_logging
 from qibocal_report.models import (
+    AdminConfigResponse,
     ArchiveCreateRequest,
     ArchiveMetadata,
     ArchiveReportIndexItem,
     ArchiveRestoreRequest,
     ArchiveUpdateRequest,
+    AuthStatusResponse,
     BulkActionRequest,
     BulkActionResponse,
     ChangeDirectoryRequest,
@@ -49,9 +53,15 @@ from qibocal_report.models import (
     DirectoryEntry,
     FilterStats,
     HealthResponse,
+    InviteCreateRequest,
+    InviteModel,
+    InviteValidateResponse,
+    LoginRequest,
+    LoginResponse,
     PaginatedReportsResponse,
     PlatformDataResponse,
     ProtocolDetail,
+    RegisterRequest,
     ReportDetail,
     ReportSummary,
     ServerCreate,
@@ -60,6 +70,9 @@ from qibocal_report.models import (
     ServerUpdate,
     SingleLabelRequest,
     UpdateAuthorRequest,
+    UserModel,
+    UserRole,
+    UserRoleUpdate,
 )
 from qibocal_report.scanner import (
     _parse_meta_json,
@@ -80,9 +93,84 @@ def _resolve_report_target_dir(report_id: str) -> Path:
     return resolve_report_dir(REPORT_ROOT_DIR, report_id)
 
 
+security = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict | None:
+    """Extract user from bearer token or return synthetic admin if auth is disabled."""
+    if not auth.is_auth_enabled():
+        return {
+            "id": "anonymous",
+            "username": "anonymous",
+            "role": UserRole.ADMIN.value,
+        }
+    if not credentials or not credentials.credentials:
+        return None
+    payload = auth.decode_access_token(credentials.credentials)
+    if not payload:
+        return None
+    user = auth.get_user_by_id(payload.get("sub"))
+    if not user:
+        return None
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+    }
+
+
+get_current_user_optional = get_current_user
+
+
+def require_authenticated(
+    user: dict | None = Depends(get_current_user),
+) -> dict:
+    """Ensure request is authenticated when auth is enabled."""
+    if not auth.is_auth_enabled():
+        return {
+            "id": "anonymous",
+            "username": "anonymous",
+            "role": UserRole.ADMIN.value,
+        }
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
+def require_role(allowed_roles: list[str]):
+    def dependency(user: dict = Depends(require_authenticated)) -> dict:
+        if not auth.is_auth_enabled():
+            return user
+        if user["role"] not in allowed_roles:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied: role '{user['role']}' cannot perform this action",
+            )
+        return user
+
+    return dependency
+
+
+require_viewer = require_role(
+    [UserRole.VIEWER.value, UserRole.EDITOR.value, UserRole.ADMIN.value]
+)
+require_editor = require_role([UserRole.EDITOR.value, UserRole.ADMIN.value])
+require_admin = require_role([UserRole.ADMIN.value])
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_uvicorn_logging()
+    if auth.is_auth_enabled():
+        token = auth.create_initial_admin_invite_if_needed()
+        if token:
+            log_info(f"Initial admin invitation token generated: {token}")
     yield
 
 
@@ -134,8 +222,18 @@ def get_original_root() -> Path:
 
 # --- Health Endpoint ---
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
-def health_check() -> HealthResponse:
+def health_check(
+    user: dict | None = Depends(get_current_user_optional),
+) -> HealthResponse:
     """Server health status and basic info."""
+    if auth.is_auth_enabled() and not user:
+        return HealthResponse(
+            status="ok",
+            server_name=SERVER_NAME,
+            reports_count=0,
+            root_dir="",
+            original_root_dir="",
+        )
     reports = scan_reports(REPORT_ROOT_DIR)
     return HealthResponse(
         status="ok",
@@ -146,15 +244,235 @@ def health_check() -> HealthResponse:
     )
 
 
+# --- Authentication Endpoints ---
+@app.get("/api/auth/status", response_model=AuthStatusResponse, tags=["Authentication"])
+def get_auth_status() -> AuthStatusResponse:
+    """Check whether server authentication is active."""
+    enabled = auth.is_auth_enabled()
+    has_users = bool(auth.load_auth_data().get("users"))
+    return AuthStatusResponse(
+        auth_enabled=enabled,
+        server_name=SERVER_NAME,
+        has_users=has_users,
+    )
+
+
+@app.post("/api/auth/login", response_model=LoginResponse, tags=["Authentication"])
+def login_user(req: LoginRequest) -> LoginResponse:
+    """Authenticate with username and password."""
+    if not auth.is_auth_enabled():
+        synthetic_user = {
+            "id": "admin",
+            "username": req.username or "admin",
+            "role": UserRole.ADMIN.value,
+            "created_at": "",
+        }
+        token = auth.create_access_token(synthetic_user)
+        return LoginResponse(
+            access_token=token,
+            token_type="bearer",
+            user=UserModel(**synthetic_user),
+        )
+    user = auth.authenticate_user(req.username, req.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = auth.create_access_token(user)
+    return LoginResponse(
+        access_token=token,
+        token_type="bearer",
+        user=UserModel(**user),
+    )
+
+
+@app.get("/api/auth/me", response_model=UserModel, tags=["Authentication"])
+def get_current_user_profile(user: dict = Depends(require_authenticated)) -> UserModel:
+    """Get current authenticated user profile."""
+    return UserModel(
+        id=user["id"],
+        username=user["username"],
+        role=user["role"],
+        created_at=user.get("created_at", ""),
+    )
+
+
+@app.get(
+    "/api/auth/invite/{token}",
+    response_model=InviteValidateResponse,
+    tags=["Authentication"],
+)
+def check_invitation(token: str) -> InviteValidateResponse:
+    """Validate an invitation token."""
+    valid, reason, inv = auth.validate_invite(token)
+    if not valid or not inv:
+        return InviteValidateResponse(
+            valid=False,
+            token=token,
+            detail=reason,
+            server_name=SERVER_NAME,
+        )
+    return InviteValidateResponse(
+        valid=True,
+        token=token,
+        role=inv.get("role"),
+        expires_at=inv.get("expires_at"),
+        server_name=SERVER_NAME,
+    )
+
+
+@app.post("/api/auth/register", response_model=LoginResponse, tags=["Authentication"])
+def register_user(req: RegisterRequest) -> LoginResponse:
+    """Self-register using a valid invitation link token."""
+    valid, reason, inv = auth.validate_invite(req.invite_token)
+    if not valid or not inv:
+        raise HTTPException(status_code=400, detail=reason)
+    try:
+        user = auth.create_user(
+            username=req.username,
+            password=req.password,
+            role=inv["role"],
+        )
+        auth.use_invite(req.invite_token)
+        token = auth.create_access_token(user)
+        return LoginResponse(
+            access_token=token,
+            token_type="bearer",
+            user=UserModel(**user),
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+# --- Admin Management Endpoints ---
+@app.get(
+    "/api/admin/users",
+    response_model=list[UserModel],
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],
+)
+def admin_list_users() -> list[UserModel]:
+    """List all registered users."""
+    users = auth.list_users()
+    return [UserModel(**u) for u in users]
+
+
+@app.put(
+    "/api/admin/users/{user_id}/role",
+    response_model=UserModel,
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],
+)
+def admin_update_user_role(user_id: str, req: UserRoleUpdate) -> UserModel:
+    """Update role for a user."""
+    try:
+        updated = auth.update_user_role(user_id, req.role)
+        return UserModel(**updated)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@app.delete(
+    "/api/admin/users/{user_id}",
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],
+)
+def admin_delete_user(user_id: str) -> dict[str, bool]:
+    """Delete a user account."""
+    try:
+        success = auth.delete_user(user_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"deleted": True}
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@app.get(
+    "/api/admin/invites",
+    response_model=list[InviteModel],
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],
+)
+def admin_list_invites() -> list[InviteModel]:
+    """List active invitation tokens."""
+    invites = auth.list_invites()
+    return [InviteModel(**i) for i in invites]
+
+
+@app.post(
+    "/api/admin/invites",
+    response_model=InviteModel,
+    tags=["Admin"],
+)
+def admin_create_invite(
+    req: InviteCreateRequest,
+    user: dict = Depends(require_admin),
+) -> InviteModel:
+    """Create a new invitation token."""
+    try:
+        inv = auth.create_invite(
+            role=req.role,
+            expires_in_hours=req.expires_in_hours,
+            max_uses=req.max_uses,
+            created_by=user.get("username", "admin"),
+        )
+        return InviteModel(**inv)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@app.delete(
+    "/api/admin/invites/{token}",
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],
+)
+def admin_delete_invite(token: str) -> dict[str, bool]:
+    """Revoke an invitation token."""
+    success = auth.delete_invite(token)
+    if not success:
+        raise HTTPException(status_code=404, detail="Invitation token not found")
+    return {"deleted": True}
+
+
+@app.get(
+    "/api/admin/config",
+    response_model=AdminConfigResponse,
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],
+)
+def admin_get_config() -> AdminConfigResponse:
+    """Get server configuration overview and stats."""
+    reports = scan_reports(REPORT_ROOT_DIR)
+    users = auth.list_users()
+    invites = auth.list_invites()
+    return AdminConfigResponse(
+        auth_enabled=auth.is_auth_enabled(),
+        server_name=SERVER_NAME,
+        root_dir=str(REPORT_ROOT_DIR),
+        original_root_dir=str(ORIGINAL_ROOT_DIR),
+        reports_count=len(reports),
+        users_count=len(users),
+        invites_count=len(invites),
+    )
+
+
 # --- Server Management Endpoints ---
 @app.get("/api/servers", response_model=list[ServerModel], tags=["Servers"])
-def list_servers() -> list[ServerModel]:
+def list_servers(
+    user: dict | None = Depends(get_current_user_optional),
+) -> list[ServerModel]:
     """List all registered servers."""
+    if auth.is_auth_enabled() and not user:
+        return []
     servers = config.load_servers()
     return [ServerModel(**s) for s in servers]
 
 
-@app.post("/api/servers", response_model=ServerModel, tags=["Servers"])
+@app.post(
+    "/api/servers",
+    response_model=ServerModel,
+    tags=["Servers"],
+    dependencies=[Depends(require_admin)],
+)
 def create_server(data: ServerCreate) -> ServerModel:
     """Register a new server URL. Name and avatar auto-generated if omitted."""
     new_server = config.add_server(
@@ -167,7 +485,12 @@ def create_server(data: ServerCreate) -> ServerModel:
     return ServerModel(**new_server)
 
 
-@app.put("/api/servers/{server_id}", response_model=ServerModel, tags=["Servers"])
+@app.put(
+    "/api/servers/{server_id}",
+    response_model=ServerModel,
+    tags=["Servers"],
+    dependencies=[Depends(require_admin)],
+)
 def update_server_endpoint(server_id: str, data: ServerUpdate) -> ServerModel:
     """Update a registered server's properties."""
     updated = config.update_server(server_id, data.model_dump(exclude_unset=True))
@@ -177,7 +500,11 @@ def update_server_endpoint(server_id: str, data: ServerUpdate) -> ServerModel:
     return ServerModel(**updated)
 
 
-@app.delete("/api/servers/{server_id}", tags=["Servers"])
+@app.delete(
+    "/api/servers/{server_id}",
+    tags=["Servers"],
+    dependencies=[Depends(require_admin)],
+)
 def delete_server_endpoint(server_id: str) -> dict[str, bool]:
     """Delete a registered server."""
     success = config.delete_server(server_id)
@@ -186,7 +513,11 @@ def delete_server_endpoint(server_id: str) -> dict[str, bool]:
     return {"deleted": True}
 
 
-@app.post("/api/servers/save", tags=["Servers"])
+@app.post(
+    "/api/servers/save",
+    tags=["Servers"],
+    dependencies=[Depends(require_admin)],
+)
 def save_servers_endpoint() -> dict[str, Any]:
     """Explicitly persist current servers to the configuration file."""
     servers = config.load_servers()
@@ -196,6 +527,7 @@ def save_servers_endpoint() -> dict[str, Any]:
         "count": len(servers),
         "path": str(config.get_config_file()),
     }
+
 
 
 # --- Server Directory Management Endpoints ---
@@ -235,6 +567,7 @@ def _count_reports_fast(path: Path) -> int:
     "/api/server/directory",
     response_model=ServerDirectoryInfo,
     tags=["Server Directory"],
+    dependencies=[Depends(require_viewer)],
 )
 def get_server_directory_info() -> ServerDirectoryInfo:
     """Get original root and currently active server directory information."""
@@ -251,6 +584,7 @@ def get_server_directory_info() -> ServerDirectoryInfo:
     "/api/server/directory/browse",
     response_model=DirectoryBrowseResponse,
     tags=["Server Directory"],
+    dependencies=[Depends(require_viewer)],
 )
 def browse_server_directory(
     path: str = "",
@@ -353,6 +687,7 @@ def browse_server_directory(
     "/api/server/directory",
     response_model=ServerDirectoryInfo,
     tags=["Server Directory"],
+    dependencies=[Depends(require_editor)],
 )
 def change_server_directory(req: ChangeDirectoryRequest) -> ServerDirectoryInfo:
     """Change report root directory (must be subfolder of spawned directory)."""
@@ -405,6 +740,7 @@ def change_server_directory(req: ChangeDirectoryRequest) -> ServerDirectoryInfo:
     "/api/reports",
     response_model=PaginatedReportsResponse | list[ReportSummary],
     tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
 )
 def get_reports(
     response: Response,
@@ -474,7 +810,12 @@ def get_reports(
     return filtered
 
 
-@app.get("/api/reports/stats", response_model=FilterStats, tags=["Reports"])
+@app.get(
+    "/api/reports/stats",
+    response_model=FilterStats,
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
 def get_filter_statistics(
     q: str | None = None,
     folder: str | None = None,
@@ -511,7 +852,10 @@ def get_filter_statistics(
 
 # --- Bulk & Single Report Actions ---
 @app.post(
-    "/api/reports/bulk-action", response_model=BulkActionResponse, tags=["Reports"]
+    "/api/reports/bulk-action",
+    response_model=BulkActionResponse,
+    tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
     """Execute bulk actions (delete, label, unlabel, author) across reports."""
@@ -522,11 +866,13 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
     "/api/reports/{report_id}/label/{label_name:path}",
     response_model=BulkActionResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 @app.delete(
     "/api/reports/{report_id}/tag/{label_name:path}",
     response_model=BulkActionResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 def remove_single_report_label(report_id: str, label_name: str) -> BulkActionResponse:
     """Remove a label or tag from a single report."""
@@ -540,11 +886,13 @@ def remove_single_report_label(report_id: str, label_name: str) -> BulkActionRes
     "/api/reports/{report_id}/author",
     response_model=BulkActionResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 @app.patch(
     "/api/reports/{report_id}/author",
     response_model=BulkActionResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 def update_single_report_author(
     report_id: str, body: UpdateAuthorRequest
@@ -560,11 +908,13 @@ def update_single_report_author(
     "/api/reports/{report_id}/label",
     response_model=BulkActionResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 @app.post(
     "/api/reports/{report_id}/tag",
     response_model=BulkActionResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 def label_single_report(
     report_id: str,
@@ -583,6 +933,7 @@ def label_single_report(
     "/api/reports/{report_id:path}",
     response_model=BulkActionResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 def delete_single_report(report_id: str) -> BulkActionResponse:
     """Delete a single report directory."""
@@ -595,6 +946,11 @@ def delete_single_report(report_id: str) -> BulkActionResponse:
 @app.websocket("/ws/reports/{report_id:path}")
 async def report_websocket_endpoint(websocket: WebSocket, report_id: str):
     """WebSocket endpoint for real-time report streaming and plot generation."""
+    if auth.is_auth_enabled():
+        token = websocket.query_params.get("token")
+        if not token or not auth.decode_access_token(token):
+            await websocket.close(code=1008)
+            return
     await handle_report_websocket(websocket, report_id, REPORT_ROOT_DIR)
 
 
@@ -603,6 +959,7 @@ async def report_websocket_endpoint(websocket: WebSocket, report_id: str):
     "/api/reports/{report_id:path}/protocols",
     response_model=list[ProtocolDetail],
     tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
 )
 def get_protocols_for_report(report_id: str) -> list[ProtocolDetail]:
     """Get all protocol outputs (HTML and Plotly figures) for a report."""
@@ -615,6 +972,7 @@ def get_protocols_for_report(report_id: str) -> list[ProtocolDetail]:
     "/api/reports/{report_id:path}/regenerate",
     response_model=list[ProtocolDetail],
     tags=["Reports"],
+    dependencies=[Depends(require_editor)],
 )
 def regenerate_report_plots(report_id: str) -> list[ProtocolDetail]:
     """Regenerate protocol plots by deleting cached report and re-evaluating."""
@@ -624,8 +982,16 @@ def regenerate_report_plots(report_id: str) -> list[ProtocolDetail]:
 
 
 # --- On-the-Fly Downloads ---
-@app.get("/api/reports/{report_id:path}/download/full", tags=["Reports"])
-@app.get("/api/reports/{report_id:path}/download", tags=["Reports"])
+@app.get(
+    "/api/reports/{report_id:path}/download/full",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
+@app.get(
+    "/api/reports/{report_id:path}/download",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
 def download_full_report_zip(report_id: str) -> StreamingResponse:
     """Download full protocol report folder compressed on the fly as a zip archive."""
     log_info(f"HTTP GET download full folder for '{report_id}'")
@@ -639,7 +1005,11 @@ def download_full_report_zip(report_id: str) -> StreamingResponse:
     )
 
 
-@app.get("/api/reports/{report_id:path}/download/new-platform", tags=["Reports"])
+@app.get(
+    "/api/reports/{report_id:path}/download/new-platform",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
 def download_new_platform_zip(report_id: str) -> StreamingResponse:
     """Download calibrated new_platform folder on the fly as a zip archive."""
     log_info(f"HTTP GET download new platform for '{report_id}'")
@@ -663,8 +1033,16 @@ def download_new_platform_zip(report_id: str) -> StreamingResponse:
     )
 
 
-@app.get("/api/reports/{report_id:path}/download/old-platform", tags=["Reports"])
-@app.get("/api/reports/{report_id:path}/download/platform", tags=["Reports"])
+@app.get(
+    "/api/reports/{report_id:path}/download/old-platform",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
+@app.get(
+    "/api/reports/{report_id:path}/download/platform",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
 def download_old_platform_zip(report_id: str) -> StreamingResponse:
     """Download initial platform folder on the fly as a zip archive."""
     log_info(f"HTTP GET download old platform for '{report_id}'")
@@ -688,9 +1066,15 @@ def download_old_platform_zip(report_id: str) -> StreamingResponse:
     )
 
 
-@app.get("/api/reports/{report_id:path}/download/data/{protocol_id}", tags=["Reports"])
 @app.get(
-    "/api/reports/{report_id:path}/download/protocol/{protocol_id}", tags=["Reports"]
+    "/api/reports/{report_id:path}/download/data/{protocol_id}",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
+@app.get(
+    "/api/reports/{report_id:path}/download/protocol/{protocol_id}",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
 )
 def download_protocol_data_zip(report_id: str, protocol_id: str) -> StreamingResponse:
     """Download data directory for a specific protocol on the fly as a zip archive."""
@@ -721,7 +1105,11 @@ def download_protocol_data_zip(report_id: str, protocol_id: str) -> StreamingRes
     )
 
 
-@app.get("/api/reports/{report_id:path}/meta.json", tags=["Reports"])
+@app.get(
+    "/api/reports/{report_id:path}/meta.json",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
 def get_report_meta_json(report_id: str) -> Response:
     """Access meta.json as plain inline JSON for browser rendering."""
     log_info(f"HTTP GET meta.json for '{report_id}'")
@@ -759,11 +1147,13 @@ def _read_platform_json_or_yaml(file_prefix: Path) -> Any | None:
     "/api/reports/{report_id:path}/platform-data",
     response_model=PlatformDataResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
 )
 @app.get(
     "/api/reports/{report_id:path}/platform/{platform_type}",
     response_model=PlatformDataResponse,
     tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
 )
 def get_report_platform_data(
     report_id: str,
@@ -802,6 +1192,7 @@ def get_report_platform_data(
 @app.get(
     "/api/reports/{report_id:path}/platform/{platform_type}/{file_name}",
     tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
 )
 def get_report_platform_raw_file(
     report_id: str, platform_type: str, file_name: str
@@ -827,7 +1218,12 @@ def get_report_platform_raw_file(
     )
 
 
-@app.get("/api/reports/{report_id:path}", response_model=ReportDetail, tags=["Reports"])
+@app.get(
+    "/api/reports/{report_id:path}",
+    response_model=ReportDetail,
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
 def get_single_report(report_id: str) -> ReportDetail:
     """Get metadata, platform snapshot, history, and protocols summary for a report."""
     detail = get_report_detail(REPORT_ROOT_DIR, report_id)
@@ -837,7 +1233,10 @@ def get_single_report(report_id: str) -> ReportDetail:
 
 
 # --- Documentation Endpoints ---
-@app.get("/api/docs-nav", tags=["Documentation"])
+@app.get(
+    "/api/docs-nav",
+    tags=["Documentation"],
+)
 def get_documentation_navigation() -> list[dict]:
     """Return the structured navigation tree for documentation."""
     return DOCS_NAVIGATION
@@ -854,7 +1253,12 @@ def get_documentation(doc_name: str) -> str:
 
 
 # --- Archive Management Endpoints (Issue #2) ---
-@app.get("/api/archives", response_model=list[ArchiveMetadata], tags=["Archives"])
+@app.get(
+    "/api/archives",
+    response_model=list[ArchiveMetadata],
+    tags=["Archives"],
+    dependencies=[Depends(require_viewer)],
+)
 def get_archives() -> list[ArchiveMetadata]:
     """List all available archives with metadata, ordered newest first."""
     storage = get_archive_storage_dir(REPORT_ROOT_DIR)
@@ -862,7 +1266,12 @@ def get_archives() -> list[ArchiveMetadata]:
     return [ArchiveMetadata(**a) for a in archives]
 
 
-@app.post("/api/archives", response_model=ArchiveMetadata, tags=["Archives"])
+@app.post(
+    "/api/archives",
+    response_model=ArchiveMetadata,
+    tags=["Archives"],
+    dependencies=[Depends(require_editor)],
+)
 def post_create_archive(req: ArchiveCreateRequest) -> ArchiveMetadata:
     """Create a new archive from a selection of reports."""
     try:
@@ -887,7 +1296,12 @@ def post_create_archive(req: ArchiveCreateRequest) -> ArchiveMetadata:
         raise HTTPException(status_code=404, detail=str(err))
 
 
-@app.get("/api/archives/{archive_id}", response_model=ArchiveMetadata, tags=["Archives"])
+@app.get(
+    "/api/archives/{archive_id}",
+    response_model=ArchiveMetadata,
+    tags=["Archives"],
+    dependencies=[Depends(require_viewer)],
+)
 def get_single_archive_metadata(archive_id: str) -> ArchiveMetadata:
     """Get metadata for a specific archive."""
     storage = get_archive_storage_dir(REPORT_ROOT_DIR)
@@ -901,6 +1315,7 @@ def get_single_archive_metadata(archive_id: str) -> ArchiveMetadata:
     "/api/archives/{archive_id}/index",
     response_model=list[ArchiveReportIndexItem],
     tags=["Archives"],
+    dependencies=[Depends(require_viewer)],
 )
 def get_single_archive_index(archive_id: str) -> list[ArchiveReportIndexItem]:
     """Get compact report index for peaking archive content without unzipping."""
@@ -913,7 +1328,11 @@ def get_single_archive_index(archive_id: str) -> list[ArchiveReportIndexItem]:
     return [ArchiveReportIndexItem(**item) for item in index_data]
 
 
-@app.get("/api/archives/{archive_id}/download", tags=["Archives"])
+@app.get(
+    "/api/archives/{archive_id}/download",
+    tags=["Archives"],
+    dependencies=[Depends(require_viewer)],
+)
 def download_archive_zip(archive_id: str) -> FileResponse:
     """Download the full zip file of an archive."""
     storage = get_archive_storage_dir(REPORT_ROOT_DIR)
@@ -934,7 +1353,11 @@ def download_archive_zip(archive_id: str) -> FileResponse:
     )
 
 
-@app.post("/api/archives/{archive_id}/restore", tags=["Archives"])
+@app.post(
+    "/api/archives/{archive_id}/restore",
+    tags=["Archives"],
+    dependencies=[Depends(require_editor)],
+)
 def post_restore_archive(
     archive_id: str, req: ArchiveRestoreRequest | None = None
 ) -> dict[str, Any]:
@@ -956,7 +1379,11 @@ def post_restore_archive(
         raise HTTPException(status_code=404, detail=str(err))
 
 
-@app.delete("/api/archives/{archive_id}", tags=["Archives"])
+@app.delete(
+    "/api/archives/{archive_id}",
+    tags=["Archives"],
+    dependencies=[Depends(require_editor)],
+)
 def delete_single_archive(archive_id: str) -> dict[str, Any]:
     """Delete an archive directory and its files."""
     storage = get_archive_storage_dir(REPORT_ROOT_DIR)
@@ -966,7 +1393,12 @@ def delete_single_archive(archive_id: str) -> dict[str, Any]:
     return {"success": True, "archive_id": archive_id}
 
 
-@app.patch("/api/archives/{archive_id}", response_model=ArchiveMetadata, tags=["Archives"])
+@app.patch(
+    "/api/archives/{archive_id}",
+    response_model=ArchiveMetadata,
+    tags=["Archives"],
+    dependencies=[Depends(require_editor)],
+)
 def patch_archive_metadata(
     archive_id: str, req: ArchiveUpdateRequest
 ) -> ArchiveMetadata:

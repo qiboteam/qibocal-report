@@ -151,3 +151,30 @@ def test_export_command_with_build(tmp_path):
         assert result.exit_code == 0
         assert mock_run.called
         assert (export_dest / ".nojekyll").is_file()
+
+
+def test_cli_server_registration_isolation(tmp_path):
+    """Test that CLI commands register servers in the isolated config directory and unregister cleanly."""
+    from qibocal_report import config
+
+    runner = CliRunner()
+    sample_dir = tmp_path / "isolated_sample"
+    sample_dir.mkdir()
+
+    with patch("qibocal_report.cli.uvicorn.run"):
+        result = runner.invoke(
+            main,
+            ["report", "server", str(sample_dir), "--port", "8999"],
+        )
+        assert result.exit_code == 0
+
+    # Verify server was registered in the isolated config
+    servers = config.load_servers()
+    registered = [s for s in servers if "8999" in s["url"]]
+    assert len(registered) == 1
+
+    # Verify unregistering removes it cleanly
+    assert config.delete_server(registered[0]["id"]) is True
+    post_delete_servers = config.load_servers()
+    assert not any(s["id"] == registered[0]["id"] for s in post_delete_servers)
+

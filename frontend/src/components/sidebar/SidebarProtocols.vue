@@ -110,10 +110,11 @@
     </button>
 
     <button
-      @click="$emit('regenerate')"
-      :disabled="regenerating"
-      class="w-9 h-9 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition disabled:opacity-50 cursor-pointer"
-      title="Regenerate Plots"
+      @click="!isViewer && $emit('regenerate')"
+      :disabled="regenerating || isViewer"
+      class="w-9 h-9 rounded-xl bg-white text-gray-700 border border-gray-200 shadow-2xs flex items-center justify-center transition"
+      :class="isViewer ? 'opacity-40 cursor-not-allowed' : 'hover:bg-purple-50 hover:text-[#833dff] hover:border-purple-300 disabled:opacity-50 cursor-pointer'"
+      :title="isViewer ? 'Viewer role cannot regenerate plots' : 'Regenerate Plots'"
     >
       <svg
         class="w-4 h-4 text-[#833dff]"
@@ -208,7 +209,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { getApiUrl, state } from '../../store.js'
+import { getApiUrl, state, isViewer } from '../../store.js'
 import { getProtocolDocUrl } from '../../utils/protocolDocs.js'
 
 const props = defineProps({

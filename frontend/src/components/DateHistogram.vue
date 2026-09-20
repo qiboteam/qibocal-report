@@ -151,7 +151,7 @@
           :min="minAvailableDate"
           :max="maxAvailableDate"
           @change="onManualStartChange"
-          class="w-full text-[10px] font-mono px-1.5 py-1 bg-white border border-gray-200 rounded focus:ring-1 focus:ring-[#833dff] focus:outline-none box-border"
+          class="w-full text-[10px] font-mono px-2 py-1 bg-white border-0 shadow-2xs rounded-lg focus:ring-1 focus:ring-[#833dff] focus:outline-none box-border"
         />
       </div>
       <div class="flex-1 min-w-0">
@@ -162,7 +162,7 @@
           :min="minAvailableDate"
           :max="maxAvailableDate"
           @change="onManualEndChange"
-          class="w-full text-[10px] font-mono px-1.5 py-1 bg-white border border-gray-200 rounded focus:ring-1 focus:ring-[#833dff] focus:outline-none box-border"
+          class="w-full text-[10px] font-mono px-2 py-1 bg-white border-0 shadow-2xs rounded-lg focus:ring-1 focus:ring-[#833dff] focus:outline-none box-border"
         />
       </div>
     </div>
