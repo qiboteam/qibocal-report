@@ -284,17 +284,18 @@
                   <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                   </svg>
-                  Invitation Link Generated
+                  Invitation Token Generated
                 </span>
                 <button
                   @click="copyInviteLink(latestCreatedInvite.token)"
                   class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-semibold text-xs transition cursor-pointer border-0 shadow-2xs"
                 >
-                  {{ copiedToken === latestCreatedInvite.token ? 'Copied!' : 'Copy Link' }}
+                  {{ copiedToken === latestCreatedInvite.token ? 'Copied!' : 'Copy Token' }}
                 </button>
               </div>
+              <p class="text-[10px] text-emerald-700 mb-1.5">Paste in servers management page:</p>
               <div class="font-mono text-[11px] bg-white/80 p-2 rounded-lg break-all text-emerald-800 border border-emerald-100">
-                {{ formatInviteUrl(latestCreatedInvite.token) }}
+                {{ formatInviteToken(latestCreatedInvite.token) }}
               </div>
             </div>
           </div>
@@ -570,41 +571,41 @@ function isPasswordResetExpired(reset) {
   return new Date(reset.expires_at) < new Date()
 }
 
-function formatInviteUrl(token) {
-  const base = getActiveServerUrl(state.activeServer) || window.location.origin
-  return `${base}/#/invite?token=${encodeURIComponent(token)}`
+function formatInviteToken(token) {
+  const serverUrl = getActiveServerUrl(state.activeServer) || window.location.origin
+  return `server=${encodeURIComponent(serverUrl)}&invite_token=${encodeURIComponent(token)}`
 }
 
-function formatPasswordResetUrl(token) {
-  const base = getActiveServerUrl(state.activeServer) || window.location.origin
-  return `${base}/#/invite?reset_token=${encodeURIComponent(token)}`
+function formatPasswordResetToken(token) {
+  const serverUrl = getActiveServerUrl(state.activeServer) || window.location.origin
+  return `server=${encodeURIComponent(serverUrl)}&reset_token=${encodeURIComponent(token)}`
 }
 
 async function copyInviteLink(token) {
-  const url = formatInviteUrl(token)
+  const text = formatInviteToken(token)
   try {
-    await navigator.clipboard.writeText(url)
+    await navigator.clipboard.writeText(text)
     copiedToken.value = token
-    toastMessage.value = 'Invitation link copied to clipboard.'
+    toastMessage.value = 'Invitation token copied to clipboard.'
     setTimeout(() => {
       if (copiedToken.value === token) copiedToken.value = null
     }, 3000)
   } catch {
-    toastMessage.value = `Link: ${url}`
+    toastMessage.value = `Token: ${text}`
   }
 }
 
 async function copyResetLink(token) {
-  const url = formatPasswordResetUrl(token)
+  const text = formatPasswordResetToken(token)
   try {
-    await navigator.clipboard.writeText(url)
+    await navigator.clipboard.writeText(text)
     copiedToken.value = token
-    toastMessage.value = 'Password reset link copied to clipboard.'
+    toastMessage.value = 'Password reset token copied to clipboard.'
     setTimeout(() => {
       if (copiedToken.value === token) copiedToken.value = null
     }, 3000)
   } catch {
-    toastMessage.value = `Link: ${url}`
+    toastMessage.value = `Token: ${text}`
   }
 }
 
@@ -687,20 +688,20 @@ async function handleGeneratePasswordReset(user) {
     const res = await apiCreatePasswordReset(user.id)
     if (res.ok) {
       const data = await res.json()
-      const resetUrl = formatPasswordResetUrl(data.token)
-      await navigator.clipboard.writeText(resetUrl)
+      const resetToken = formatPasswordResetToken(data.token)
+      await navigator.clipboard.writeText(resetToken)
       copiedUserInvite.value = user.id
       passwordResets.value.unshift(data)
-      toastMessage.value = `Password reset link copied for ${user.username}.`
+      toastMessage.value = `Password reset token copied for ${user.username}.`
       setTimeout(() => {
         copiedUserInvite.value = null
       }, 2000)
     } else {
       const err = await res.json().catch(() => ({}))
-      errorMessage.value = err.detail || 'Failed to generate password reset link.'
+      errorMessage.value = err.detail || 'Failed to generate password reset token.'
     }
   } catch (err) {
-    errorMessage.value = err.message || 'Could not generate password reset link.'
+    errorMessage.value = err.message || 'Could not generate password reset token.'
   } finally {
     generatingUserInvite.value = null
   }

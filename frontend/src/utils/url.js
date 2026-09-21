@@ -67,10 +67,31 @@ export function getActiveWsUrl(path, activeServer, token = null) {
  * - Plain server URLs
  */
 export function parseServerAndInvite(input) {
-  if (!input) return { url: '', inviteToken: null }
+  if (!input) return { url: '', inviteToken: null, resetToken: null }
   const str = input.trim()
   let inviteToken = null
+  let resetToken = null
   let serverUrl = str
+
+  // Try parsing as new token format: server=<url>&invite_token=<token> or server=<url>&reset_token=<token>
+  if (str.includes('server=') && (str.includes('invite_token=') || str.includes('reset_token='))) {
+    try {
+      const params = new URLSearchParams(str)
+      const serverParam = params.get('server')
+      if (serverParam) {
+        serverUrl = serverParam
+        inviteToken = params.get('invite_token')
+        resetToken = params.get('reset_token')
+      }
+      return {
+        url: normalizeUrl(serverUrl),
+        inviteToken,
+        resetToken
+      }
+    } catch {
+      // Fall through to legacy parsing
+    }
+  }
 
   try {
     let urlObj = null
@@ -86,17 +107,22 @@ export function parseServerAndInvite(input) {
         inviteToken = urlObj.searchParams.get('token')
       } else if (urlObj.searchParams.get('invite')) {
         inviteToken = urlObj.searchParams.get('invite')
+      } else if (urlObj.searchParams.get('invite_token')) {
+        inviteToken = urlObj.searchParams.get('invite_token')
+      } else if (urlObj.searchParams.get('reset_token')) {
+        resetToken = urlObj.searchParams.get('reset_token')
       }
 
       // 2. Search in hash query params (#/invite?token=...)
-      if (!inviteToken && urlObj.hash && urlObj.hash.includes('?')) {
+      if (!inviteToken && !resetToken && urlObj.hash && urlObj.hash.includes('?')) {
         const hashQuery = urlObj.hash.split('?')[1]
         const hashParams = new URLSearchParams(hashQuery)
-        inviteToken = hashParams.get('token') || hashParams.get('invite')
+        inviteToken = hashParams.get('token') || hashParams.get('invite') || hashParams.get('invite_token')
+        resetToken = resetToken || hashParams.get('reset_token')
       }
 
       // 3. Search in path (/invite/<token>)
-      if (!inviteToken && urlObj.pathname) {
+      if (!inviteToken && !resetToken && urlObj.pathname) {
         const parts = urlObj.pathname.split('/').filter(Boolean)
         const invIdx = parts.findIndex(p => p.toLowerCase() === 'invite')
         if (invIdx >= 0 && parts[invIdx + 1]) {
@@ -112,7 +138,8 @@ export function parseServerAndInvite(input) {
 
   return {
     url: normalizeUrl(serverUrl),
-    inviteToken
+    inviteToken,
+    resetToken
   }
 }
 
