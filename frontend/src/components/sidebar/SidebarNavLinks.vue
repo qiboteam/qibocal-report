@@ -88,10 +88,10 @@
     <!-- Server Admin Button (Admin only) -->
     <router-link
       v-if="isAdmin"
-      to="/server-admin"
+      to="/admin"
       class="rounded-xl text-xs font-semibold transition flex items-center"
       :class="[
-        $route.path === '/server-admin' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-700 hover:bg-gray-100',
+        $route.path === '/admin' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-700 hover:bg-gray-100',
         isCollapsed ? 'w-9 h-9 justify-center' : 'gap-3 px-3 py-2'
       ]"
       title="Server Administration"

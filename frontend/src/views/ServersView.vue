@@ -289,7 +289,7 @@ async function handleQuickAdd() {
 
 function navigateToAdmin(server) {
   if (server) setActiveServer(server)
-  router.push('/server-admin')
+  router.push('/admin')
 }
 
 async function selectAndNavigate(server) {

@@ -31,7 +31,7 @@ const routes = [
     }
   },
   { path: '/servers', name: 'servers', component: ServersView },
-  { path: '/server-admin/:serverId?', name: 'server-admin', component: ServerAdminView },
+  { path: '/admin/:serverId?', name: 'admin', component: ServerAdminView },
   { path: '/invite/:token?', name: 'invite', component: InviteRegisterView },
   { path: '/dashboard', name: 'dashboard', component: DashboardView },
   { path: '/archives', name: 'archives', component: ArchivesView },
@@ -55,8 +55,8 @@ export const router = createRouter({
 
 // Navigation Guard: Protect internal pages from unauthenticated access
 router.beforeEach(async (to, from, next) => {
-  // 1. Documentation, Server Management, Invite, and Server Admin routes are public
-  //    (server-admin still checks admin permission below, but allows navigation)
+  // 1. Documentation, Server Management, Invite, and Admin routes are public
+  //    (admin still checks admin permission in component, but allows navigation)
   if (
     to.name === 'docs' ||
     to.path.startsWith('/docs') ||
@@ -64,11 +64,11 @@ router.beforeEach(async (to, from, next) => {
     to.path === '/servers' ||
     to.name === 'invite' ||
     to.path.startsWith('/invite') ||
-    to.name === 'server-admin' ||
-    to.path.startsWith('/server-admin')
+    to.name === 'admin' ||
+    to.path.startsWith('/admin')
   ) {
-    // For server-admin, ensure we have an active server loaded
-    if ((to.name === 'server-admin' || to.path.startsWith('/server-admin')) && !state.activeServer) {
+    // For admin route, always ensure servers are loaded so activeServer is restored
+    if (to.name === 'admin' || to.path.startsWith('/admin')) {
       await fetchServers()
     }
     return next()
