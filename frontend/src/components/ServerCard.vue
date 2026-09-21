@@ -97,8 +97,21 @@
     <!-- Bottom row: status and quick action -->
     <div class="mt-3.5 pt-2.5 border-t border-gray-100/50 flex items-center justify-between text-xs">
       <div class="flex items-center gap-1.5">
-        <span class="w-1.5 h-1.5 rounded-full" :class="isOnline ? 'bg-emerald-500' : 'bg-gray-300'"></span>
-        <span class="text-[11px] text-gray-400 font-medium">{{ isOnline ? 'Online' : 'Checking...' }}</span>
+        <span class="w-1.5 h-1.5 rounded-full" :class="statusColor"></span>
+        <span class="text-[11px] text-gray-400 font-medium">{{ statusLabel }}</span>
+        <button
+          v-if="connectionStatus === 'disconnected' && !isChecking"
+          @click.stop="retryConnection"
+          class="text-[10px] font-medium text-blue-700 bg-blue-50 border border-blue-200/60 px-1.5 py-0.2 rounded ml-1 hover:bg-blue-100 transition-colors cursor-pointer border-0 bg-transparent text-blue-600 hover:text-blue-700"
+          title="Retry connection"
+        >
+          Retry
+        </button>
+        <span v-if="isChecking" class="text-[10px] text-gray-400 ml-1">
+          <svg class="w-3 h-3 inline animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </span>
         <span v-if="reportCount !== null && reportCount > 0" class="text-[10px] text-gray-500 bg-gray-100 font-mono px-1.5 py-0.2 rounded ml-1">
           {{ reportCount }} runs
         </span>
@@ -123,7 +136,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { renderAvatar } from './Avatars.js'
 import { normalizeUrl, getActiveAuthToken } from '../store.js'
 
@@ -135,10 +148,38 @@ const props = defineProps({
 const emit = defineEmits(['select', 'edit', 'delete', 'administer', 'authenticate'])
 
 const menuOpen = ref(false)
-const isOnline = ref(true)
+const connectionStatus = ref('unchecked') // 'unchecked', 'checking', 'online', 'disconnected'
 const reportCount = ref(null)
 const requiresAuth = ref(false)
 const isAuthenticatedOnServer = ref(false)
+const isChecking = ref(false)
+let checkHealthTimeout = null
+
+const statusLabel = computed(() => {
+  switch (connectionStatus.value) {
+    case 'online':
+      return 'Online'
+    case 'disconnected':
+      return 'Disconnected'
+    case 'checking':
+      return 'Checking...'
+    default:
+      return 'Not checked'
+  }
+})
+
+const statusColor = computed(() => {
+  switch (connectionStatus.value) {
+    case 'online':
+      return 'bg-emerald-500'
+    case 'disconnected':
+      return 'bg-red-400'
+    case 'checking':
+      return 'bg-yellow-400'
+    default:
+      return 'bg-gray-300'
+  }
+})
 
 function closeMenu(e) {
   if (menuOpen.value) menuOpen.value = false
@@ -146,18 +187,33 @@ function closeMenu(e) {
 
 onMounted(() => {
   window.addEventListener('click', closeMenu)
-  checkHealth()
 })
 
 watch(() => props.server?.url, () => {
-  checkHealth()
+  // Don't auto-check on URL change, wait for user interaction
 })
 
 onUnmounted(() => {
   window.removeEventListener('click', closeMenu)
+  if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
 })
 
 async function checkHealth() {
+  if (isChecking.value) return
+  
+  isChecking.value = true
+  connectionStatus.value = 'checking'
+  
+  if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
+  
+  // Set a timeout to mark as disconnected after 10 seconds
+  checkHealthTimeout = setTimeout(() => {
+    if (connectionStatus.value === 'checking') {
+      connectionStatus.value = 'disconnected'
+      isChecking.value = false
+    }
+  }, 10000)
+
   try {
     const normalized = normalizeUrl(props.server?.url)
     const targetUrl = normalized ? `${normalized}/api/health` : '/api/health'
@@ -168,12 +224,14 @@ async function checkHealth() {
       fetch(statusUrl, { signal: AbortSignal.timeout(5000) }).catch(() => null)
     ])
 
+    if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
+
     if (hRes && hRes.ok) {
       const data = await hRes.json()
-      isOnline.value = true
+      connectionStatus.value = 'online'
       reportCount.value = data.reports_count
     } else {
-      isOnline.value = false
+      connectionStatus.value = 'disconnected'
       reportCount.value = null
     }
 
@@ -187,31 +245,63 @@ async function checkHealth() {
       isAuthenticatedOnServer.value = true
     }
   } catch {
-    isOnline.value = false
+    if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
+    connectionStatus.value = 'disconnected'
     reportCount.value = null
+  } finally {
+    isChecking.value = false
   }
 }
 
+function retryConnection() {
+  checkHealth()
+}
+
 function handleClick() {
+  // If not yet checked or disconnected, try to connect first
+  if (connectionStatus.value === 'unchecked' || connectionStatus.value === 'disconnected') {
+    checkHealth()
+    return
+  }
+  
+  // If still checking, wait
+  if (connectionStatus.value === 'checking') {
+    return
+  }
+  
   if (requiresAuth.value && !isAuthenticatedOnServer.value) {
     emit('authenticate', props.server)
     return
   }
+  
   emit('select', props.server)
 }
 
 function onAdmin() {
   menuOpen.value = false
+  
+  // Administer requires a connection
+  if (connectionStatus.value === 'disconnected' || connectionStatus.value === 'unchecked') {
+    checkHealth()
+    return
+  }
+  
+  if (connectionStatus.value === 'checking') {
+    return
+  }
+  
   emit('administer', props.server)
 }
 
 function onEdit() {
   menuOpen.value = false
+  // Edit doesn't require connection
   emit('edit', props.server)
 }
 
 function onDelete() {
   menuOpen.value = false
+  // Delete doesn't require connection
   emit('delete', props.server)
 }
 </script>
