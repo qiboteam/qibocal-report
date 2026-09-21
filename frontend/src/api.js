@@ -17,7 +17,7 @@ export async function apiFetch(path, options = {}) {
     state.auth.token = null
     state.auth.user = null
     state.auth.errorMessage = 'Authentication required. Please sign in to access this instance.'
-    if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite')) {
+    if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite') && !window.location.hash.startsWith('#/admin')) {
       window.location.hash = '#/servers'
     }
   }

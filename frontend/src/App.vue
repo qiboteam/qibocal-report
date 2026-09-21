@@ -25,7 +25,9 @@ watch(
       route.name === 'servers' ||
       route.path === '/servers' ||
       route.name === 'invite' ||
-      route.path.startsWith('/invite')
+      route.path.startsWith('/invite') ||
+      route.name === 'admin' ||
+      route.path.startsWith('/admin')
     if (!isPublic) {
       if (!state.activeServer || state.servers.length === 0 || !state.servers.some(s => s.id === state.activeServer?.id)) {
         router.push('/servers')

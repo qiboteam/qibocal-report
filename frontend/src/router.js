@@ -55,26 +55,26 @@ export const router = createRouter({
 
 // Navigation Guard: Protect internal pages from unauthenticated access
 router.beforeEach(async (to, from, next) => {
-  // 1. Documentation, Server Management, Invite, and Admin routes are public
-  //    (admin still checks admin permission in component, but allows navigation)
+  // 1. Admin route is always allowed - never redirect away from it.
+  //    Component itself checks admin permission and shows access-denied UI.
+  if (to.name === 'admin' || to.path.startsWith('/admin')) {
+    await fetchServers()
+    return next()
+  }
+
+  // 2. Documentation, Server Management, and Invite routes are public
   if (
     to.name === 'docs' ||
     to.path.startsWith('/docs') ||
     to.name === 'servers' ||
     to.path === '/servers' ||
     to.name === 'invite' ||
-    to.path.startsWith('/invite') ||
-    to.name === 'admin' ||
-    to.path.startsWith('/admin')
+    to.path.startsWith('/invite')
   ) {
-    // For admin route, always ensure servers are loaded so activeServer is restored
-    if (to.name === 'admin' || to.path.startsWith('/admin')) {
-      await fetchServers()
-    }
     return next()
   }
 
-  // 2. Ensure servers are loaded
+  // 3. Ensure servers are loaded
   await fetchServers()
 
   // If no server is registered or active, user cannot view any internal server pages
@@ -87,12 +87,12 @@ router.beforeEach(async (to, from, next) => {
     return next({ name: 'servers' })
   }
 
-  // 3. Ensure auth status has been verified for active server
+  // 4. Ensure auth status has been verified for active server
   if (!state.auth?.checked) {
     await checkActiveServerAuth(state.activeServer)
   }
 
-  // 4. If authentication is enabled and user is not authenticated, block internal pages
+  // 5. If authentication is enabled and user is not authenticated, block internal pages
   if (state.auth?.enabled && (!state.auth?.token || !state.auth?.user)) {
     state.auth.errorMessage = 'Authentication required. Please sign in to access that page.'
     return next('/servers')
