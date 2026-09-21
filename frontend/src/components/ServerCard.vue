@@ -148,13 +148,38 @@ const props = defineProps({
 const emit = defineEmits(['select', 'edit', 'delete', 'administer', 'authenticate'])
 
 const menuOpen = ref(false)
-const connectionStatus = ref('unchecked') // 'unchecked', 'checking', 'online', 'disconnected'
 const reportCount = ref(null)
 const requiresAuth = ref(false)
 const isAuthenticatedOnServer = ref(false)
 const isChecking = ref(false)
 let checkHealthTimeout = null
 let pendingAction = null
+
+// Store connection status in localStorage
+function getStorageKey() {
+  return `server_connection_${props.server?.id || normalizeUrl(props.server?.url)}`
+}
+
+function getStoredStatus() {
+  try {
+    const key = getStorageKey()
+    const stored = localStorage.getItem(key)
+    return stored || 'unchecked'
+  } catch {
+    return 'unchecked'
+  }
+}
+
+function saveStatus(status) {
+  try {
+    const key = getStorageKey()
+    localStorage.setItem(key, status)
+  } catch {
+    // Silently fail if localStorage not available
+  }
+}
+
+const connectionStatus = ref(getStoredStatus())
 
 const statusLabel = computed(() => {
   switch (connectionStatus.value) {
@@ -211,6 +236,7 @@ async function checkHealth() {
   checkHealthTimeout = setTimeout(() => {
     if (connectionStatus.value === 'checking') {
       connectionStatus.value = 'disconnected'
+      saveStatus('disconnected')
       isChecking.value = false
       executePendingAction()
     }
@@ -231,9 +257,11 @@ async function checkHealth() {
     if (hRes && hRes.ok) {
       const data = await hRes.json()
       connectionStatus.value = 'online'
+      saveStatus('online')
       reportCount.value = data.reports_count
     } else {
       connectionStatus.value = 'disconnected'
+      saveStatus('disconnected')
       reportCount.value = null
     }
 
@@ -249,6 +277,7 @@ async function checkHealth() {
   } catch {
     if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
     connectionStatus.value = 'disconnected'
+    saveStatus('disconnected')
     reportCount.value = null
   } finally {
     isChecking.value = false

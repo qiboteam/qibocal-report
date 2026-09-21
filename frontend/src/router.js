@@ -67,6 +67,10 @@ router.beforeEach(async (to, from, next) => {
     to.name === 'server-admin' ||
     to.path.startsWith('/server-admin')
   ) {
+    // For server-admin, ensure we have an active server loaded
+    if ((to.name === 'server-admin' || to.path.startsWith('/server-admin')) && !state.activeServer) {
+      await fetchServers()
+    }
     return next()
   }
 
