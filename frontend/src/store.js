@@ -20,9 +20,26 @@ try {
   console.warn('Failed to parse saved history from localStorage', e)
 }
 
-// --- Search State Persistence (Session Storage) ---
+// --- Storage Keys ---
 const SEARCH_STATE_STORAGE_KEY = 'qibocal_report_search_state'
+const SERVERS_STORAGE_KEY = 'qibocal_report_servers'
 
+function loadStoredServers() {
+  try {
+    const raw = localStorage.getItem(SERVERS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse saved servers from localStorage', e)
+  }
+  return []
+}
+
+// --- Search State Persistence (Session Storage) ---
 function loadSavedSearchState() {
   try {
     const raw = sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY)
@@ -384,7 +401,7 @@ export async function apiFetch(path, options = {}) {
     state.auth.user = null
     setServerAuth(state.activeServer, null, null)
     state.auth.errorMessage = 'Authentication required. Please sign in to access this instance.'
-    if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite')) {
+    if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite') && !window.location.hash.startsWith('#/admin')) {
       window.location.hash = '#/servers'
     }
   }
@@ -392,20 +409,6 @@ export async function apiFetch(path, options = {}) {
 }
 
 // --- Server Management ---
-const SERVERS_STORAGE_KEY = 'qibocal_report_servers'
-
-function loadStoredServers() {
-  try {
-    const raw = localStorage.getItem(SERVERS_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
-    }
-  } catch (e) {
-    console.warn('Failed to parse saved servers from localStorage', e)
-  }
-  return []
-}
 
 export function saveStoredServers(servers) {
   try {
