@@ -140,6 +140,7 @@
                   <th class="py-3 px-4">Username</th>
                   <th class="py-3 px-4">Role</th>
                   <th class="py-3 px-4">Created</th>
+                  <th class="py-3 px-4">Reset Password</th>
                   <th class="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -147,16 +148,16 @@
                 <tr v-for="user in users" :key="user.id" class="hover:bg-purple-50/20 transition">
                   <td class="py-3.5 px-4">
                     <div class="flex items-center gap-2">
-                      <div class="w-7 h-7 rounded-lg bg-gray-100 text-gray-700 font-bold flex items-center justify-center text-xs">
+                      <div
+                        class="w-7 h-7 rounded-lg font-bold flex items-center justify-center text-xs"
+                        :class="user.id === state.auth?.user?.id ? 'bg-[#833dff]/10 text-[#833dff]' : 'bg-gray-100 text-gray-700'"
+                      >
                         {{ user.username.charAt(0).toUpperCase() }}
                       </div>
                       <div>
-                        <span class="font-semibold text-gray-900">{{ user.username }}</span>
-                        <span
-                          v-if="user.id === state.auth?.user?.id"
-                          class="ml-1.5 px-1.5 py-0.2 rounded text-[10px] bg-purple-100 text-[#833dff] font-medium"
-                        >
-                          You
+                        <span class="font-semibold text-gray-900">
+                          {{ user.username }}
+                          <span v-if="user.id === state.auth?.user?.id" class="text-gray-500 font-normal">(Me)</span>
                         </span>
                       </div>
                     </div>
@@ -166,7 +167,7 @@
                       :value="user.role"
                       @change="handleRoleChange(user, $event.target.value)"
                       :disabled="user.id === state.auth?.user?.id && user.role === 'admin'"
-                      class="px-2.5 py-1 rounded-lg border border-gray-200 text-xs font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-[#833dff]/20 focus:border-[#833dff] cursor-pointer"
+                      class="px-0 py-2 pl-2.5 rounded-lg text-xs font-semibold bg-[#f7f7f9] border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff]/20 cursor-pointer"
                       :class="roleBadgeTextClass(user.role)"
                     >
                       <option value="viewer">Viewer (Read-only)</option>
@@ -177,19 +178,31 @@
                   <td class="py-3.5 px-4 text-gray-500 font-mono text-[11px]">
                     {{ formatDateTime(user.created_at) }}
                   </td>
+                  <td class="py-3.5 px-4">
+                    <button
+                      v-if="user.id !== state.auth?.user?.id"
+                      @click="handleGeneratePasswordReset(user)"
+                      :disabled="generatingUserInvite === user.id"
+                      class="px-2.5 py-1 text-xs font-medium text-[#833dff] hover:bg-purple-50 rounded-lg transition border-0 bg-transparent cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Generate password reset link for this user"
+                    >
+                      <span v-if="generatingUserInvite === user.id" class="inline-block w-2.5 h-2.5 border-1.5 border-[#833dff] border-t-transparent rounded-full animate-spin mr-1"></span>
+                      {{ copiedUserInvite === user.id ? 'Copied!' : 'Reset Password' }}
+                    </button>
+                  </td>
                   <td class="py-3.5 px-4 text-right">
                     <button
+                      v-if="user.id !== state.auth?.user?.id"
                       @click="handleDeleteUser(user)"
-                      :disabled="user.id === state.auth?.user?.id"
-                      class="px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition border-0 bg-transparent cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                      :title="user.id === state.auth?.user?.id ? 'Cannot delete your own account' : 'Delete user account'"
+                      class="px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition border-0 bg-transparent cursor-pointer"
+                      title="Delete user account"
                     >
                       Delete
                     </button>
                   </td>
                 </tr>
                 <tr v-if="users.length === 0">
-                  <td colspan="4" class="py-6 text-center text-gray-400">
+                  <td colspan="5" class="py-6 text-center text-gray-400">
                     No users registered yet. Generate an invitation below to onboard team members.
                   </td>
                 </tr>
@@ -366,7 +379,77 @@
           </div>
         </div>
 
-        <!-- Section 3: Server Configuration & Details -->
+        <!-- Section 3: Password Reset Links Manager -->
+        <div class="bg-white rounded-2xl shadow-2xs border border-gray-100 overflow-hidden">
+          <div class="p-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Active Password Reset Links</h3>
+            <span class="text-xs text-gray-500 font-mono">{{ passwordResets.length }} links</span>
+          </div>
+
+          <!-- Password Resets Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-gray-50/70 border-b border-gray-100 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                <tr>
+                  <th class="py-3 px-4">Username</th>
+                  <th class="py-3 px-4">Token & Link</th>
+                  <th class="py-3 px-4">Expires</th>
+                  <th class="py-3 px-4">Created</th>
+                  <th class="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="reset in passwordResets" :key="reset.token" class="hover:bg-purple-50/20 transition">
+                  <td class="py-3.5 px-4">
+                    <span class="font-semibold text-gray-900">{{ reset.username }}</span>
+                  </td>
+                  <td class="py-3.5 px-4">
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-[11px] text-gray-800 font-medium" :title="reset.token">
+                        {{ reset.token.substring(0, 10) }}...
+                      </span>
+                      <button
+                        @click="copyResetLink(reset.token)"
+                        class="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-50 hover:bg-purple-100 text-[#833dff] transition border-0 cursor-pointer"
+                        title="Copy full password reset link"
+                      >
+                        {{ copiedToken === reset.token ? 'Copied!' : 'Copy' }}
+                      </button>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-4 text-[11px]">
+                    <span v-if="isPasswordResetExpired(reset)" class="text-red-600 font-semibold">
+                      Expired
+                    </span>
+                    <span v-else-if="reset.expires_at" class="text-gray-600 font-mono">
+                      {{ formatExpiry(reset.expires_at) }}
+                    </span>
+                    <span v-else class="text-gray-600">Never</span>
+                  </td>
+                  <td class="py-3.5 px-4 text-gray-500 font-mono text-[11px]">
+                    {{ formatDateTime(reset.created_at) }}
+                  </td>
+                  <td class="py-3.5 px-4 text-right">
+                    <button
+                      @click="handleRevokePasswordReset(reset)"
+                      class="px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg transition border-0 bg-transparent cursor-pointer"
+                      title="Revoke password reset link immediately"
+                    >
+                      Revoke
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="passwordResets.length === 0">
+                  <td colspan="5" class="py-6 text-center text-gray-400">
+                    No active password reset links.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 4: Server Configuration & Details -->
         <div class="bg-white rounded-2xl p-5 shadow-2xs border border-gray-100">
           <h2 class="text-sm font-bold text-gray-900 mb-3">Server Configuration</h2>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -405,7 +488,10 @@ import {
   apiGetAdminInvites,
   apiCreateInvite,
   apiDeleteInvite,
-  apiGetAdminConfig
+  apiGetAdminConfig,
+  apiGetAdminPasswordResets,
+  apiCreatePasswordReset,
+  apiDeletePasswordReset
 } from '../api.js'
 
 const loading = ref(false)
@@ -414,6 +500,7 @@ const errorMessage = ref('')
 
 const users = ref([])
 const invites = ref([])
+const passwordResets = ref([])
 const serverConfig = ref(null)
 
 const activeServer = computed(() => state.activeServer)
@@ -426,6 +513,8 @@ const newInvite = reactive({
 const creatingInvite = ref(false)
 const latestCreatedInvite = ref(null)
 const copiedToken = ref(null)
+const generatingUserInvite = ref(null)
+const copiedUserInvite = ref(null)
 
 function roleBadgeClass(role) {
   switch (role) {
@@ -476,9 +565,19 @@ function isInviteExpired(inv) {
   return new Date(inv.expires_at) < new Date()
 }
 
+function isPasswordResetExpired(reset) {
+  if (!reset.expires_at) return false
+  return new Date(reset.expires_at) < new Date()
+}
+
 function formatInviteUrl(token) {
   const base = getActiveServerUrl(state.activeServer) || window.location.origin
   return `${base}/#/invite?token=${encodeURIComponent(token)}`
+}
+
+function formatPasswordResetUrl(token) {
+  const base = getActiveServerUrl(state.activeServer) || window.location.origin
+  return `${base}/#/invite?reset_token=${encodeURIComponent(token)}`
 }
 
 async function copyInviteLink(token) {
@@ -487,6 +586,20 @@ async function copyInviteLink(token) {
     await navigator.clipboard.writeText(url)
     copiedToken.value = token
     toastMessage.value = 'Invitation link copied to clipboard.'
+    setTimeout(() => {
+      if (copiedToken.value === token) copiedToken.value = null
+    }, 3000)
+  } catch {
+    toastMessage.value = `Link: ${url}`
+  }
+}
+
+async function copyResetLink(token) {
+  const url = formatPasswordResetUrl(token)
+  try {
+    await navigator.clipboard.writeText(url)
+    copiedToken.value = token
+    toastMessage.value = 'Password reset link copied to clipboard.'
     setTimeout(() => {
       if (copiedToken.value === token) copiedToken.value = null
     }, 3000)
@@ -517,6 +630,17 @@ async function loadAll() {
 
     if (cRes.ok) {
       serverConfig.value = await cRes.json()
+    }
+
+    // Fetch password resets separately as it may not be available on older servers
+    try {
+      const pRes = await apiGetAdminPasswordResets()
+      if (pRes.ok) {
+        passwordResets.value = await pRes.json()
+      }
+    } catch (err) {
+      console.debug('Password resets endpoint not available', err)
+      passwordResets.value = []
     }
   } catch (err) {
     errorMessage.value = err.message || 'Failed to load administration data.'
@@ -553,6 +677,32 @@ async function handleDeleteUser(user) {
     }
   } catch (err) {
     errorMessage.value = err.message || 'Could not delete user.'
+  }
+}
+
+async function handleGeneratePasswordReset(user) {
+  generatingUserInvite.value = user.id
+  errorMessage.value = ''
+  try {
+    const res = await apiCreatePasswordReset(user.id)
+    if (res.ok) {
+      const data = await res.json()
+      const resetUrl = formatPasswordResetUrl(data.token)
+      await navigator.clipboard.writeText(resetUrl)
+      copiedUserInvite.value = user.id
+      passwordResets.value.unshift(data)
+      toastMessage.value = `Password reset link copied for ${user.username}.`
+      setTimeout(() => {
+        copiedUserInvite.value = null
+      }, 2000)
+    } else {
+      const err = await res.json().catch(() => ({}))
+      errorMessage.value = err.detail || 'Failed to generate password reset link.'
+    }
+  } catch (err) {
+    errorMessage.value = err.message || 'Could not generate password reset link.'
+  } finally {
+    generatingUserInvite.value = null
   }
 }
 
@@ -598,6 +748,22 @@ async function handleRevokeInvite(inv) {
     }
   } catch (err) {
     errorMessage.value = err.message || 'Could not revoke invite.'
+  }
+}
+
+async function handleRevokePasswordReset(reset) {
+  if (!confirm(`Revoke password reset link for "${reset.username}"?`)) return
+  try {
+    const res = await apiDeletePasswordReset(reset.token)
+    if (res.ok) {
+      passwordResets.value = passwordResets.value.filter(p => p.token !== reset.token)
+      toastMessage.value = 'Password reset link revoked.'
+    } else {
+      const err = await res.json().catch(() => ({}))
+      errorMessage.value = err.detail || 'Failed to revoke password reset link.'
+    }
+  } catch (err) {
+    errorMessage.value = err.message || 'Could not revoke password reset link.'
   }
 }
 

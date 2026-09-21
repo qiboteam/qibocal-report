@@ -74,7 +74,7 @@ function loadSavedSearchState() {
  * Global reactive application store.
  */
 export const state = reactive({
-  servers: [],
+  servers: loadStoredServers(),
   activeServer: null,
   history: initialHistory,
   currentReportId: null,
@@ -96,6 +96,21 @@ export const state = reactive({
     errorMessage: ''
   }
 })
+
+// Restore active server from localStorage
+if (state.servers.length > 0) {
+  const savedActiveId = localStorage.getItem('qibocal_active_server_id')
+  if (savedActiveId) {
+    const found = state.servers.find(s => s.id === savedActiveId)
+    if (found) {
+      state.activeServer = found
+    } else if (state.servers.length > 0) {
+      state.activeServer = state.servers[0]
+    }
+  } else if (state.servers.length > 0) {
+    state.activeServer = state.servers[0]
+  }
+}
 
 // --- Auth Storage & Helpers ---
 const AUTH_STORAGE_KEY = 'qibocal_report_auth'
@@ -415,7 +430,7 @@ export function fetchServers() {
         const res = await fetch('/api/servers', { headers })
         if (res.ok) {
           const data = await res.json()
-          if (Array.isArray(data)) {
+          if (Array.isArray(data) && data.length > 0) {
             state.servers = data
             saveStoredServers(data)
             loaded = true

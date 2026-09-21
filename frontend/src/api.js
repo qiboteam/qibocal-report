@@ -141,6 +141,24 @@ export async function apiDeleteInvite(token) {
   })
 }
 
+export async function apiGetAdminPasswordResets() {
+  return apiFetch('/api/admin/password-resets')
+}
+
+export async function apiCreatePasswordReset(userId) {
+  return apiFetch('/api/admin/password-resets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId })
+  })
+}
+
+export async function apiDeletePasswordReset(token) {
+  return apiFetch(`/api/admin/password-resets/${encodeURIComponent(token)}`, {
+    method: 'DELETE'
+  })
+}
+
 export async function apiGetAdminConfig() {
   return apiFetch('/api/admin/config')
 }

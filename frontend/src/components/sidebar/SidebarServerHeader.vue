@@ -70,14 +70,6 @@
 
           <div class="border-t border-gray-100 mt-1 pt-1">
             <router-link
-              v-if="isAdmin"
-              to="/server-admin"
-              @click="dropdownOpen = false"
-              class="px-3 py-1.5 text-gray-700 hover:text-[#833dff] hover:bg-purple-50 flex items-center gap-1.5 font-medium block"
-            >
-              Server Administration
-            </router-link>
-            <router-link
               to="/servers"
               @click="dropdownOpen = false"
               class="px-3 py-1.5 text-[#833dff] hover:bg-purple-50 flex items-center gap-1.5 font-medium block"
@@ -144,14 +136,6 @@
         </div>
 
         <div class="border-t border-gray-100 mt-1 pt-1">
-          <router-link
-            v-if="isAdmin"
-            to="/server-admin"
-            @click="dropdownOpen = false"
-            class="px-3 py-1.5 text-gray-700 hover:text-[#833dff] hover:bg-purple-50 flex items-center gap-1.5 font-medium block"
-          >
-            Server Administration
-          </router-link>
           <router-link
             to="/servers"
             @click="dropdownOpen = false"

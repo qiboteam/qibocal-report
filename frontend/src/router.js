@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import ServersView from './views/ServersView.vue'
 import DashboardView from './views/DashboardView.vue'
 import ReportView from './views/ReportView.vue'
@@ -14,19 +14,20 @@ const routes = [
   {
     path: '/',
     name: 'root',
-    redirect: async () => {
+    component: { template: '<div></div>' },
+    beforeEnter: async (to, from, next) => {
       await fetchServers()
       if (
         !state.activeServer ||
         state.servers.length === 0 ||
         !state.servers.some(s => s.id === state.activeServer?.id)
       ) {
-        return { name: 'servers' }
+        return next({ name: 'servers' })
       }
       if (state.auth?.enabled && (!state.auth?.token || !state.auth?.user)) {
-        return { name: 'servers' }
+        return next({ name: 'servers' })
       }
-      return { name: 'dashboard' }
+      return next({ name: 'dashboard' })
     }
   },
   { path: '/servers', name: 'servers', component: ServersView },
@@ -45,7 +46,7 @@ const routes = [
 ]
 
 export const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHistory(),
   routes,
   scrollBehavior() {
     return { top: 0 }
