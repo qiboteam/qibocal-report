@@ -373,6 +373,98 @@ def reset_user_password(username: str, new_password: str) -> dict:
     }
 
 
+def create_password_reset(user_id: str, created_by: str = "admin") -> dict:
+    """Generate a password reset token for a user."""
+    data = load_auth_data()
+    users = data.get("users", [])
+    
+    target_user = None
+    for u in users:
+        if u["id"] == user_id:
+            target_user = u
+            break
+    
+    if not target_user:
+        raise ValueError(f"User with ID '{user_id}' not found")
+    
+    token = secrets.token_urlsafe(24)
+    now = datetime.now(timezone.utc)
+    expires_at = (now + timedelta(hours=24)).isoformat()
+    
+    reset = {
+        "token": token,
+        "user_id": user_id,
+        "username": target_user["username"],
+        "expires_at": expires_at,
+        "created_at": now.isoformat(),
+        "created_by": created_by,
+        "uses_count": 0,
+    }
+    
+    data.setdefault("password_resets", []).append(reset)
+    save_auth_data(data)
+    return reset
+
+
+def list_password_resets() -> list[dict]:
+    """List all pending/valid password reset tokens."""
+    data = load_auth_data()
+    now = datetime.now(timezone.utc)
+    valid_resets = []
+    for reset in data.get("password_resets", []):
+        if reset.get("expires_at"):
+            try:
+                exp = datetime.fromisoformat(reset["expires_at"])
+                if now > exp:
+                    continue
+            except (ValueError, TypeError):
+                pass
+        valid_resets.append(reset)
+    return valid_resets
+
+
+def get_password_reset(token: str) -> dict | None:
+    """Find password reset by token."""
+    data = load_auth_data()
+    for reset in data.get("password_resets", []):
+        if reset["token"] == token:
+            return reset
+    return None
+
+
+def validate_password_reset(token: str) -> tuple[bool, dict | None]:
+    """Check if password reset token exists and has not expired."""
+    clean_token = token.strip()
+    if not clean_token:
+        return False, None
+    
+    reset = get_password_reset(clean_token)
+    if not reset:
+        return False, None
+    
+    if reset.get("expires_at"):
+        try:
+            exp = datetime.fromisoformat(reset["expires_at"])
+            if datetime.now(timezone.utc) > exp:
+                return False, None
+        except (ValueError, TypeError):
+            pass
+    
+    return True, reset
+
+
+def delete_password_reset(token: str) -> bool:
+    """Revoke/delete a password reset token."""
+    data = load_auth_data()
+    resets = data.get("password_resets", [])
+    initial_len = len(resets)
+    data["password_resets"] = [r for r in resets if r["token"] != token]
+    if len(data["password_resets"]) < initial_len:
+        save_auth_data(data)
+        return True
+    return False
+
+
 def create_invite(
     role: str = "viewer",
     expires_in_hours: int | None = 168,

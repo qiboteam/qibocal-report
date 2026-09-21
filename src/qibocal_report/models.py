@@ -314,6 +314,20 @@ class InviteValidateResponse(BaseModel):
     detail: str | None = None
 
 
+class PasswordResetCreateRequest(BaseModel):
+    user_id: str
+
+
+class PasswordResetModel(BaseModel):
+    token: str
+    username: str
+    user_id: str
+    expires_at: str | None = None
+    created_at: str
+    created_by: str = "admin"
+    uses_count: int = 0
+
+
 class AuthStatusResponse(BaseModel):
     auth_enabled: bool
     server_name: str

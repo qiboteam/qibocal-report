@@ -59,6 +59,8 @@ from qibocal_report.models import (
     LoginRequest,
     LoginResponse,
     PaginatedReportsResponse,
+    PasswordResetCreateRequest,
+    PasswordResetModel,
     PlatformDataResponse,
     ProtocolDetail,
     RegisterRequest,
@@ -440,6 +442,51 @@ def admin_delete_invite(token: str) -> dict[str, bool]:
     success = auth.delete_invite(token)
     if not success:
         raise HTTPException(status_code=404, detail="Invitation token not found")
+    return {"deleted": True}
+
+
+@app.get(
+    "/api/admin/password-resets",
+    response_model=list[PasswordResetModel],
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],
+)
+def admin_list_password_resets() -> list[PasswordResetModel]:
+    """List active password reset tokens."""
+    resets = auth.list_password_resets()
+    return [PasswordResetModel(**r) for r in resets]
+
+
+@app.post(
+    "/api/admin/password-resets",
+    response_model=PasswordResetModel,
+    tags=["Admin"],
+)
+def admin_create_password_reset(
+    req: PasswordResetCreateRequest,
+    user: dict = Depends(require_admin),
+) -> PasswordResetModel:
+    """Create a new password reset token for a user."""
+    try:
+        reset = auth.create_password_reset(
+            user_id=req.user_id,
+            created_by=user.get("username", "admin"),
+        )
+        return PasswordResetModel(**reset)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+
+@app.delete(
+    "/api/admin/password-resets/{token}",
+    tags=["Admin"],
+    dependencies=[Depends(require_admin)],
+)
+def admin_delete_password_reset(token: str) -> dict[str, bool]:
+    """Revoke a password reset token."""
+    success = auth.delete_password_reset(token)
+    if not success:
+        raise HTTPException(status_code=404, detail="Password reset token not found")
     return {"deleted": True}
 
 
