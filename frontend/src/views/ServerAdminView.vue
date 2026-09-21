@@ -573,12 +573,12 @@ function isPasswordResetExpired(reset) {
 
 function formatInviteToken(token) {
   const serverUrl = getActiveServerUrl(state.activeServer) || window.location.origin
-  return `server=${encodeURIComponent(serverUrl)}&invite_token=${encodeURIComponent(token)}`
+  return `server=${serverUrl}&invite_token=${token}`
 }
 
 function formatPasswordResetToken(token) {
   const serverUrl = getActiveServerUrl(state.activeServer) || window.location.origin
-  return `server=${encodeURIComponent(serverUrl)}&reset_token=${encodeURIComponent(token)}`
+  return `server=${serverUrl}&reset_token=${token}`
 }
 
 async function copyInviteLink(token) {

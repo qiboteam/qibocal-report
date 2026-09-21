@@ -74,14 +74,17 @@ export function parseServerAndInvite(input) {
   let serverUrl = str
 
   // Try parsing as new token format: server=<url>&invite_token=<token> or server=<url>&reset_token=<token>
+  // Don't use URLSearchParams for this since server URL is not encoded
   if (str.includes('server=') && (str.includes('invite_token=') || str.includes('reset_token='))) {
     try {
-      const params = new URLSearchParams(str)
-      const serverParam = params.get('server')
-      if (serverParam) {
-        serverUrl = serverParam
-        inviteToken = params.get('invite_token')
-        resetToken = params.get('reset_token')
+      const serverMatch = str.match(/server=([^&]+)/)
+      const inviteMatch = str.match(/invite_token=([^&]+)/)
+      const resetMatch = str.match(/reset_token=([^&]+)/)
+      
+      if (serverMatch && serverMatch[1]) {
+        serverUrl = serverMatch[1]
+        inviteToken = inviteMatch ? inviteMatch[1] : null
+        resetToken = resetMatch ? resetMatch[1] : null
       }
       return {
         url: normalizeUrl(serverUrl),

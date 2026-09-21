@@ -154,6 +154,7 @@ const requiresAuth = ref(false)
 const isAuthenticatedOnServer = ref(false)
 const isChecking = ref(false)
 let checkHealthTimeout = null
+let pendingAction = null
 
 const statusLabel = computed(() => {
   switch (connectionStatus.value) {
@@ -164,7 +165,7 @@ const statusLabel = computed(() => {
     case 'checking':
       return 'Checking...'
     default:
-      return 'Not checked'
+      return 'Disconnected'
   }
 })
 
@@ -211,6 +212,7 @@ async function checkHealth() {
     if (connectionStatus.value === 'checking') {
       connectionStatus.value = 'disconnected'
       isChecking.value = false
+      executePendingAction()
     }
   }, 10000)
 
@@ -250,6 +252,19 @@ async function checkHealth() {
     reportCount.value = null
   } finally {
     isChecking.value = false
+    executePendingAction()
+  }
+}
+
+function executePendingAction() {
+  if (!pendingAction) return
+  
+  const action = pendingAction
+  pendingAction = null
+  
+  // Only execute if we're now online
+  if (connectionStatus.value === 'online') {
+    action()
   }
 }
 
@@ -260,6 +275,13 @@ function retryConnection() {
 function handleClick() {
   // If not yet checked or disconnected, try to connect first
   if (connectionStatus.value === 'unchecked' || connectionStatus.value === 'disconnected') {
+    pendingAction = () => {
+      if (requiresAuth.value && !isAuthenticatedOnServer.value) {
+        emit('authenticate', props.server)
+      } else {
+        emit('select', props.server)
+      }
+    }
     checkHealth()
     return
   }
@@ -282,6 +304,9 @@ function onAdmin() {
   
   // Administer requires a connection
   if (connectionStatus.value === 'disconnected' || connectionStatus.value === 'unchecked') {
+    pendingAction = () => {
+      emit('administer', props.server)
+    }
     checkHealth()
     return
   }

@@ -55,14 +55,17 @@ export const router = createRouter({
 
 // Navigation Guard: Protect internal pages from unauthenticated access
 router.beforeEach(async (to, from, next) => {
-  // 1. Documentation, Server Management, and Invite routes are universally public
+  // 1. Documentation, Server Management, Invite, and Server Admin routes are public
+  //    (server-admin still checks admin permission below, but allows navigation)
   if (
     to.name === 'docs' ||
     to.path.startsWith('/docs') ||
     to.name === 'servers' ||
     to.path === '/servers' ||
     to.name === 'invite' ||
-    to.path.startsWith('/invite')
+    to.path.startsWith('/invite') ||
+    to.name === 'server-admin' ||
+    to.path.startsWith('/server-admin')
   ) {
     return next()
   }
@@ -89,12 +92,6 @@ router.beforeEach(async (to, from, next) => {
   if (state.auth?.enabled && (!state.auth?.token || !state.auth?.user)) {
     state.auth.errorMessage = 'Authentication required. Please sign in to access that page.'
     return next('/servers')
-  }
-
-  // 5. If navigating to Server Administration, require Admin role
-  if (to.name === 'server-admin' && state.auth?.enabled && state.auth?.user?.role !== 'admin') {
-    state.auth.errorMessage = 'Administrator role required to access Server Administration.'
-    return next('/dashboard')
   }
 
   return next()
