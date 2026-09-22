@@ -42,7 +42,7 @@
     >
       <!-- Section A/B: Search Filters or Protocols Summary -->
       <div
-        v-if="isSearchMode || isReportMode"
+        v-if="(isSearchMode || isReportMode)"
         class="overflow-y-auto overflow-x-hidden shrink-0 w-full box-border"
         :class="isCollapsed ? 'p-2 flex flex-col items-center flex-1 min-h-0' : 'p-3.5 min-w-0'"
         :style="!isCollapsed && historyOpen ? { height: `${middleSectionHeight}px` } : (!isCollapsed ? { flex: '1 1 0%' } : {})"
@@ -208,10 +208,11 @@ const currentReportId = computed(() => state.currentReportId)
 
 const isSearchMode = computed(() => route.path === '/dashboard')
 const isReportMode = computed(() => route.path.startsWith('/reports/'))
+const isArchivesMode = computed(() => route.path === '/archives')
 
 function switchServer(s) {
   setActiveServer(s)
-  if (route.path !== '/dashboard') {
+  if (route.path !== '/dashboard' && route.path !== '/archives') {
     router.push('/dashboard')
   }
 }

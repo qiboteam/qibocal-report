@@ -1,5 +1,11 @@
 <template>
-  <div class="min-h-screen bg-[#f7f7f7] py-10 px-4 sm:px-6 lg:px-8">
+  <div class="flex h-screen overflow-hidden bg-[#f7f7f7]">
+    <!-- Left Sidebar -->
+    <sidebar />
+
+    <!-- Main Content Panel -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+    <div class="py-10 px-4 sm:px-6 lg:px-8">
     <div class="max-w-5xl mx-auto">
       <!-- Top Utility Nav: Back to Dashboard -->
       <div class="flex items-center justify-between pb-6 mb-6 border-b border-gray-200/60">
@@ -446,6 +452,8 @@
       </div>
 
     </div>
+    </div>
+    </main>
   </div>
 </template>
 
@@ -454,6 +462,7 @@ import { ref, computed, onMounted } from 'vue'
 import { apiFetch, state, isViewer } from '../store.js'
 import { getApiUrl } from '../utils/url.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
+import Sidebar from '../components/Sidebar.vue'
 import ArchivePeakModal from '../components/modals/ArchivePeakModal.vue'
 
 const archives = ref([])
