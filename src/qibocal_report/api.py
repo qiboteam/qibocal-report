@@ -225,9 +225,12 @@ def get_original_root() -> Path:
 # --- Health Endpoint ---
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
 def health_check(
+    response: Response,
     user: dict | None = Depends(get_current_user_optional),
 ) -> HealthResponse:
     """Server health status and basic info."""
+    # Prevent browsers from serving a stale cached body on retries/reloads.
+    response.headers["Cache-Control"] = "no-store"
     if auth.is_auth_enabled() and not user:
         return HealthResponse(
             status="ok",
@@ -248,8 +251,10 @@ def health_check(
 
 # --- Authentication Endpoints ---
 @app.get("/api/auth/status", response_model=AuthStatusResponse, tags=["Authentication"])
-def get_auth_status() -> AuthStatusResponse:
+def get_auth_status(response: Response) -> AuthStatusResponse:
     """Check whether server authentication is active."""
+    # Prevent browsers from serving a stale cached body on retries/reloads.
+    response.headers["Cache-Control"] = "no-store"
     enabled = auth.is_auth_enabled()
     has_users = bool(auth.load_auth_data().get("users"))
     return AuthStatusResponse(

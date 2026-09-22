@@ -297,7 +297,7 @@ async function selectAndNavigate(server) {
   try {
     const normalized = normalizeUrl(server?.url)
     const healthUrl = normalized ? `${normalized}/api/health` : '/api/health'
-    const healthRes = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) })
+    const healthRes = await fetch(healthUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' })
     
     if (!healthRes.ok) {
       toastMessage.value = ''

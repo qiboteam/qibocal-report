@@ -248,8 +248,8 @@ async function checkHealth() {
     const statusUrl = normalized ? `${normalized}/api/auth/status` : '/api/auth/status'
 
     const [hRes, aRes] = await Promise.all([
-      fetch(targetUrl, { signal: AbortSignal.timeout(5000) }).catch(() => null),
-      fetch(statusUrl, { signal: AbortSignal.timeout(5000) }).catch(() => null)
+      fetch(targetUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null),
+      fetch(statusUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null)
     ])
 
     if (checkHealthTimeout) clearTimeout(checkHealthTimeout)

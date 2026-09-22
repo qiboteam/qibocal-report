@@ -61,7 +61,7 @@ export async function apiPersistServers() {
 export async function apiGetAuthStatus(server = state.activeServer) {
   const base = getActiveServerUrl(server)
   const url = base ? `${base}/api/auth/status` : '/api/auth/status'
-  return fetch(url)
+  return fetch(url, { cache: 'no-store' })
 }
 
 export async function apiLogin(username, password, server = state.activeServer) {
