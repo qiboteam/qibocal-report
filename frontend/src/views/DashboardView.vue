@@ -236,6 +236,7 @@
           @filter-protocol="onToggleProtocol"
           @filter-tag="onToggleLabel"
           @filter-author="onToggleAuthor"
+          @preview="openPreviewModal"
         />
 
         <!-- Horizontal Cards View -->
@@ -252,6 +253,7 @@
           @filter-protocol="onToggleProtocol"
           @filter-tag="onToggleLabel"
           @filter-author="onToggleAuthor"
+          @preview="openPreviewModal"
         />
 
         <!-- Pagination Controls -->
@@ -348,6 +350,13 @@
       @close="showFolderBrowser = false"
       @select="handleFolderSelect"
     />
+
+    <!-- Plot Preview Modal -->
+    <preview-modal
+      :show="showPreviewModal"
+      :report="previewReport"
+      @close="showPreviewModal = false"
+    />
   </div>
 </template>
 
@@ -372,6 +381,7 @@ import ArchiveModal from '../components/modals/ArchiveModal.vue'
 import DeleteConfirmModal from '../components/modals/DeleteConfirmModal.vue'
 import AuthorMappingModal from '../components/modals/AuthorMappingModal.vue'
 import DirectoryBrowserModal from '../components/modals/DirectoryBrowserModal.vue'
+import PreviewModal from '../components/modals/PreviewModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -385,6 +395,8 @@ const connectionError = ref(null)
 const showAuthorMappingModal = ref(false)
 const showFolderBrowser = ref(false)
 const selectingAll = ref(false)
+const showPreviewModal = ref(false)
+const previewReport = ref(null)
 
 async function onAuthorMappingSaved() {
   await refreshData()
@@ -652,6 +664,11 @@ function openReport(report, targetProtocol = null) {
   } else {
     router.push(`/reports/${report.id}`)
   }
+}
+
+function openPreviewModal(report) {
+  previewReport.value = report
+  showPreviewModal.value = true
 }
 
 function onOpenProtocol({ report, protocol }) {

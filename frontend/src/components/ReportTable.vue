@@ -68,6 +68,7 @@
           @filter-qubit="$emit('filter-qubit', $event)"
           @filter-protocol="$emit('filter-protocol', $event)"
           @filter-author="$emit('filter-author', $event)"
+          @preview="$emit('preview', $event)"
         />
       </tbody>
     </table>
@@ -94,7 +95,8 @@ defineEmits([
   'filter-platform',
   'filter-qubit',
   'filter-protocol',
-  'filter-author'
+  'filter-author',
+  'preview'
 ])
 
 const {

@@ -7,7 +7,7 @@ const DEFAULT_COLUMNS = [
   { key: 'protocols', label: 'Protocols', width: 260, minWidth: 120, resizable: true },
   { key: 'tags', label: 'Tags', width: 190, minWidth: 90, resizable: true },
   { key: 'author', label: 'Author', width: 120, minWidth: 70, resizable: true },
-  { key: 'date', label: 'Date', width: 130, minWidth: 80, resizable: true }
+  { key: 'date', label: 'Date', width: 175, minWidth: 120, resizable: true }
 ]
 
 const STORAGE_KEY = 'qibocal_report_table_columns_v1'
