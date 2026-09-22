@@ -29,8 +29,7 @@
       <!-- Body: plots-only preview -->
       <div class="flex-1 min-h-0 overflow-y-auto mt-4">
         <div v-if="loading" class="flex flex-col items-center justify-center h-64">
-          <div class="w-8 h-8 border-3 border-[#833dff] border-t-transparent rounded-full animate-spin"></div>
-          <p class="mt-3 text-xs text-gray-500 font-medium">Loading preview...</p>
+          <loading-spinner label="Loading preview..." />
         </div>
 
         <div v-else-if="error" class="p-8 text-center text-xs text-red-600">
@@ -65,6 +64,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { apiFetch } from '../../store.js'
+import LoadingSpinner from '../LoadingSpinner.vue'
 import PlotlyViewer from '../PlotlyViewer.vue'
 
 const props = defineProps({

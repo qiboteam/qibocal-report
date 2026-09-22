@@ -1,20 +1,36 @@
 <template>
   <div id="app" class="min-h-screen bg-[#f7f7f7] text-[#000000]">
-    <router-view />
+    <loading-spinner v-if="isNavigating" label="Loading..." />
+    <router-view v-show="!isNavigating" />
     <login-modal />
     <register-modal />
   </div>
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue'
+import { onMounted, watch, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { state, fetchServers } from './store.js'
 import LoginModal from './components/modals/LoginModal.vue'
 import RegisterModal from './components/modals/RegisterModal.vue'
+import LoadingSpinner from './components/LoadingSpinner.vue'
 
 const router = useRouter()
 const route = useRoute()
+const isNavigating = ref(false)
+
+router.beforeEach((to, from, next) => {
+  // Show spinner when navigating between different routes
+  if (to.path !== from.path) {
+    isNavigating.value = true
+  }
+  next()
+})
+
+router.afterEach(() => {
+  // Hide spinner after navigation completes
+  isNavigating.value = false
+})
 
 watch(
   () => [state.activeServer, state.servers.length, state.auth.enabled, state.auth.token, state.auth.user, route.path],

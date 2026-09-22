@@ -193,9 +193,8 @@
           v-if="loading"
           class="bg-white rounded-2xl p-12 text-center border border-gray-200 shadow-sm max-w-lg mx-auto my-8 flex flex-col items-center justify-center animate-fade-in"
         >
-          <div class="w-8 h-8 border-3 border-[#833dff] border-t-transparent rounded-full animate-spin mb-3"></div>
-          <h3 class="font-semibold text-sm text-gray-900">Loading calibration reports...</h3>
-          <p class="text-xs text-gray-500 mt-1">
+          <loading-spinner label="Loading calibration reports..." />
+          <p class="text-xs text-gray-500 mt-2">
             Querying <span class="font-medium text-gray-700">{{ activeServer?.name || 'server' }}</span>
             <span v-if="activeServer?.url" class="font-mono text-[11px] text-gray-400"> ({{ activeServer.url }})</span>
           </p>
@@ -367,6 +366,7 @@ import { state, addToHistory, apiFetch, ensureServersLoaded, resolveAuthor, pers
 import { useReportFilters } from '../composables/useReportFilters.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useBulkActions } from '../composables/useBulkActions.js'
+import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import ReportTable from '../components/ReportTable.vue'
 import ReportCards from '../components/ReportCards.vue'

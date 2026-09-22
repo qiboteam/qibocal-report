@@ -231,8 +231,7 @@
       <div class="p-4 sm:p-6 flex-1">
         <!-- Loading State -->
         <div v-if="loading" class="flex flex-col items-center justify-center h-64">
-          <div class="w-8 h-8 border-3 border-[#833dff] border-t-transparent rounded-full animate-spin"></div>
-          <p class="mt-3 text-xs text-gray-700 font-medium">Loading platform data...</p>
+          <loading-spinner label="Loading platform data..." />
         </div>
 
         <!-- Error State -->
@@ -390,6 +389,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import PlatformBoxNode from '../components/platform/PlatformBoxNode.vue'
 import PlatformLeafProperty from '../components/platform/PlatformLeafProperty.vue'

@@ -130,8 +130,7 @@
 
       <!-- Loading State -->
       <div v-if="loading" class="py-16 text-center text-xs text-gray-500 flex flex-col items-center justify-center gap-2">
-        <div class="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        Scanning archive storage...
+        <loading-spinner label="Scanning archive storage..." />
       </div>
 
       <!-- Empty State -->
@@ -454,6 +453,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { apiFetch, state, isViewer } from '../store.js'
 import { getApiUrl } from '../utils/url.js'
+import LoadingSpinner from '../components/LoadingSpinner.vue'
 import ArchivePeakModal from '../components/modals/ArchivePeakModal.vue'
 
 const archives = ref([])

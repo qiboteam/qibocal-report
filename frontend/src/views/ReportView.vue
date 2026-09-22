@@ -12,9 +12,8 @@
     <!-- Main Report Visualization Panel -->
     <main class="flex-1 overflow-y-auto p-4 sm:p-8 report-print-container">
       <div v-if="loading" class="flex flex-col items-center justify-center h-64">
-        <div class="w-8 h-8 border-3 border-[#833dff] border-t-transparent rounded-full animate-spin"></div>
-        <p class="mt-3 text-xs text-gray-700 font-medium">{{ loadingStatus }}</p>
-        <p class="mt-1 text-[11px] text-gray-400 font-mono">Server is preparing plots in the background...</p>
+        <loading-spinner label="Preparing your report..." />
+        <p class="mt-4 text-xs text-gray-400 font-mono">{{ loadingStatus }}</p>
       </div>
 
       <div v-else-if="error" class="bg-red-50 text-red-700 p-6 rounded-2xl border border-red-200 max-w-2xl mx-auto my-8">
@@ -165,6 +164,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
+import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
 import ProtocolCard from '../components/report/ProtocolCard.vue'
