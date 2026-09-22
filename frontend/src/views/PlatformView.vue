@@ -211,24 +211,53 @@
               </button>
             </div>
 
-            <!-- Copy JSON -->
-            <button
-              type="button"
-              @click="handleCopyActiveJson"
-              class="px-2.5 py-1 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs text-xs font-semibold inline-flex items-center gap-1 transition cursor-pointer"
-              title="Copy active JSON to clipboard"
-            >
-              <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              <span>{{ copyStatusText }}</span>
-            </button>
+            <!-- Copy / Open / Download JSON -->
+            <div class="inline-flex rounded-xl bg-white border border-gray-200 shadow-2xs overflow-hidden">
+              <!-- Copy Button -->
+              <button
+                type="button"
+                @click="handleCopyActiveJson"
+                class="px-2.5 py-1 text-gray-700 hover:text-[#833dff] hover:bg-purple-50 text-xs font-semibold inline-flex items-center gap-1 transition cursor-pointer"
+                title="Copy active JSON to clipboard"
+              >
+                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span>{{ copyStatusText }}</span>
+              </button>
+              <!-- Divider -->
+              <div class="w-px bg-gray-200"></div>
+              <!-- Open Button -->
+              <button
+                type="button"
+                @click="handleOpenActiveJson"
+                class="px-2.5 py-1 text-gray-700 hover:text-[#833dff] hover:bg-purple-50 text-xs font-semibold inline-flex items-center justify-center transition cursor-pointer"
+                title="Open active JSON in a new tab"
+              >
+                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5h5m0 0v5m0-5L10 14M19 14v4a1 1 0 01-1 1H6a1 1 0 01-1-1V6a1 1 0 011-1h4" />
+                </svg>
+              </button>
+              <!-- Divider -->
+              <div class="w-px bg-gray-200"></div>
+              <!-- Download Button -->
+              <button
+                type="button"
+                @click="handleDownloadActiveJson"
+                class="px-2.5 py-1 text-gray-700 hover:text-[#833dff] hover:bg-purple-50 text-xs font-semibold inline-flex items-center justify-center transition cursor-pointer"
+                title="Download active JSON file"
+              >
+                <svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Main Body / View Rendering Area -->
-      <div class="p-4 sm:p-6 flex-1">
+      <div class="p-4 sm:p-6 flex-1 flex flex-col min-w-0 overflow-hidden">
         <!-- Loading State -->
         <div v-if="loading" class="flex flex-col items-center justify-center h-64">
           <loading-spinner label="Loading platform data..." />
@@ -265,7 +294,7 @@
         </div>
 
         <!-- Active View Display -->
-        <div v-else class="max-w-7xl mx-auto space-y-4">
+        <div v-else class="w-full max-w-7xl mx-auto space-y-4 flex-1 flex flex-col min-w-0 overflow-y-auto">
           <!-- 1. Hierarchical Boxes View -->
           <div v-if="viewMode === 'boxes'" class="space-y-4">
             <template v-if="filteredTree?.branchEntries?.length || filteredTree?.leafEntries?.length">
@@ -374,11 +403,14 @@
             />
           </div>
 
-          <!-- 4. Raw JSON View -->
-          <div v-else-if="viewMode === 'raw'" class="relative">
-            <div class="p-4 bg-gray-900 text-purple-100 rounded-2xl font-mono text-xs overflow-x-auto shadow-inner max-h-[700px]">
-              <pre>{{ formattedJsonString }}</pre>
-            </div>
+          <!-- 4. Raw JSON View - Native Browser Rendering -->
+          <div v-else-if="viewMode === 'raw'" class="w-full">
+            <iframe
+              :key="jsonDocumentUrl"
+              :src="jsonDocumentUrl"
+              class="block w-full h-[calc(100vh-12rem)] min-h-[32rem] border-0 rounded-2xl bg-white"
+              title="Native JSON view"
+            />
           </div>
         </div>
       </div>
@@ -503,6 +535,44 @@ function handleCopyActiveJson() {
     copyStatusText.value = 'Copy JSON'
   }, 1200)
 }
+
+function handleOpenActiveJson() {
+  if (!jsonDocumentUrl.value) return
+  window.open(jsonDocumentUrl.value, '_blank', 'noopener,noreferrer')
+}
+
+function handleDownloadActiveJson() {
+  if (!formattedJsonString.value) return
+  const fileName = activeFile.value === 'parameters' ? 'parameters.json' : 'calibration.json'
+  const blob = new Blob([formattedJsonString.value], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+const jsonDocumentUrl = ref('')
+
+watch(
+  formattedJsonString,
+  (json, _, onCleanup) => {
+    if (!json) {
+      jsonDocumentUrl.value = ''
+      return
+    }
+
+    const url = URL.createObjectURL(
+      new Blob([json], { type: 'application/json;charset=utf-8' })
+    )
+    jsonDocumentUrl.value = url
+    onCleanup(() => URL.revokeObjectURL(url))
+  },
+  { immediate: true }
+)
 
 // Native Gate Pulse Sequences logic
 const pulseCategoryFilter = ref('all')
