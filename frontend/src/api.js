@@ -88,6 +88,12 @@ export async function apiGetInvite(token, server = state.activeServer) {
   return fetch(url)
 }
 
+export async function apiGetPasswordReset(token, server = state.activeServer) {
+  const base = getActiveServerUrl(server)
+  const url = base ? `${base}/api/auth/password-reset/${encodeURIComponent(token)}` : `/api/auth/password-reset/${encodeURIComponent(token)}`
+  return fetch(url)
+}
+
 export async function apiRegister(inviteToken, username, password, server = state.activeServer) {
   const base = getActiveServerUrl(server)
   const url = base ? `${base}/api/auth/register` : '/api/auth/register'

@@ -575,3 +575,64 @@ def test_regenerate_admin_invite_and_reclaim(auth_env):
     )
     assert res_old_login.status_code == 401
 
+
+def test_password_reset_endpoint(auth_env):
+    """Test that password reset tokens can be validated and show the target username."""
+    client = TestClient(app)
+
+    # Create a user first
+    auth.create_user("alice", "password123", UserRole.ADMIN.value)
+
+    # Create a password reset token for the user
+    user = auth.get_user_by_username("alice")
+    reset = auth.create_password_reset(user["id"], created_by="admin")
+    reset_token = reset["token"]
+
+    # Validate the password reset token via the new endpoint
+    res = client.get(f"/api/auth/password-reset/{reset_token}")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["valid"] is True
+    assert data["target_username"] == "alice"
+    assert data["role"] == "admin"
+    assert data["token"] == reset_token
+    assert data["expires_at"] is not None
+
+    # Invalid token should return invalid response
+    res_invalid = client.get("/api/auth/password-reset/invalid-token")
+    assert res_invalid.status_code == 200
+    data_invalid = res_invalid.json()
+    assert data_invalid["valid"] is False
+    assert "not found or has expired" in data_invalid["detail"]
+
+    # Register endpoint should work with password reset token
+    # (same as invite tokens with target_username)
+    res_register = client.post(
+        "/api/auth/register",
+        json={
+            "invite_token": reset_token,
+            "username": "alice",
+            "password": "newpassword123",
+        },
+    )
+    assert res_register.status_code == 200
+    register_data = res_register.json()
+    assert register_data["user"]["username"] == "alice"
+    assert "access_token" in register_data
+
+    # Password should be updated
+    res_login = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "newpassword123"},
+    )
+    assert res_login.status_code == 200
+    assert "access_token" in res_login.json()
+
+    # Old password should not work
+    res_old_login = client.post(
+        "/api/auth/login",
+        json={"username": "alice", "password": "password123"},
+    )
+    assert res_old_login.status_code == 401
+
+

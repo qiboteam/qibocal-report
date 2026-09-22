@@ -322,9 +322,56 @@ def check_invitation(token: str) -> InviteValidateResponse:
     )
 
 
+@app.get(
+    "/api/auth/password-reset/{token}",
+    response_model=InviteValidateResponse,
+    tags=["Authentication"],
+)
+def check_password_reset(token: str) -> InviteValidateResponse:
+    """Validate a password reset token."""
+    valid, reset = auth.validate_password_reset(token)
+    if not valid or not reset:
+        return InviteValidateResponse(
+            valid=False,
+            token=token,
+            detail="Password reset token not found or has expired",
+            server_name=SERVER_NAME,
+        )
+    return InviteValidateResponse(
+        valid=True,
+        token=token,
+        role="admin",
+        target_username=reset.get("username"),
+        expires_at=reset.get("expires_at"),
+        server_name=SERVER_NAME,
+    )
+
+
 @app.post("/api/auth/register", response_model=LoginResponse, tags=["Authentication"])
 def register_user(req: RegisterRequest) -> LoginResponse:
-    """Self-register or reclaim access using a valid invitation link token."""
+    """Self-register or reclaim access using a valid invitation or password reset token."""
+    # Try to validate as a password reset token first
+    valid_reset, reset = auth.validate_password_reset(req.invite_token)
+    if valid_reset and reset:
+        try:
+            target_username = reset.get("username")
+            if req.username.strip().lower() != target_username.strip().lower():
+                raise ValueError(
+                    f"This password reset token is specifically for '{target_username}'"
+                )
+            user = auth.reset_user_password(target_username, req.password)
+            # Mark the password reset as used
+            auth.delete_password_reset(req.invite_token)
+            token = auth.create_access_token(user)
+            return LoginResponse(
+                access_token=token,
+                token_type="bearer",
+                user=UserModel(**user),
+            )
+        except ValueError as err:
+            raise HTTPException(status_code=400, detail=str(err))
+
+    # Fall back to invite token validation
     valid, reason, inv = auth.validate_invite(req.invite_token)
     if not valid or not inv:
         raise HTTPException(status_code=400, detail=reason)

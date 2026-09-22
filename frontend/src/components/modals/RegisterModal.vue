@@ -14,7 +14,7 @@
             </svg>
           </div>
           <h2 class="text-sm font-semibold text-gray-900">
-            {{ inviteData?.target_username ? 'Restore Administrator Access' : 'Accept Invitation & Register' }}
+            {{ isPasswordReset ? 'Reset Password' : (inviteData?.target_username ? 'Restore Administrator Access' : 'Accept Invitation & Register') }}
           </h2>
         </div>
         <button
@@ -29,12 +29,12 @@
       <!-- Invite Validation Loading -->
       <div v-if="validating" class="py-6 text-center text-xs text-gray-500">
         <div class="w-6 h-6 border-2 border-[#833dff] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-        Verifying invitation token...
+        Verifying token...
       </div>
 
       <!-- Invalid Invite Banner -->
       <div v-else-if="inviteError" class="mt-4 p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200">
-        <div class="font-semibold mb-0.5">Invalid Invitation</div>
+        <div class="font-semibold mb-0.5">Invalid Token</div>
         <div>{{ inviteError }}</div>
         <div class="mt-3">
           <button
@@ -163,12 +163,13 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { state, registerWithInvite } from '../../store.js'
-import { apiGetInvite } from '../../api.js'
+import { apiGetInvite, apiGetPasswordReset } from '../../api.js'
 
 const router = useRouter()
 const validating = ref(false)
 const inviteError = ref('')
 const inviteData = ref(null)
+const isPasswordReset = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
 
@@ -199,12 +200,29 @@ async function validateToken(token, server = state.activeServer) {
   validating.value = true
   inviteError.value = ''
   inviteData.value = null
+  isPasswordReset.value = false
   try {
-    const res = await apiGetInvite(token, server)
+    // Try to validate as a password reset token first
+    let res = await apiGetPasswordReset(token, server)
     if (res.ok) {
       const data = await res.json()
       if (data.valid) {
         inviteData.value = data
+        isPasswordReset.value = true
+        if (data.target_username) {
+          form.username = data.target_username
+        }
+        return
+      }
+    }
+
+    // Fall back to invite token validation
+    res = await apiGetInvite(token, server)
+    if (res.ok) {
+      const data = await res.json()
+      if (data.valid) {
+        inviteData.value = data
+        isPasswordReset.value = false
         if (data.target_username) {
           form.username = data.target_username
         }

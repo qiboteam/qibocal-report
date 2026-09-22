@@ -272,15 +272,13 @@ async function handleQuickAdd() {
         serverUrl: targetServer.url
       }
       state.auth.showRegisterModal = true
-      toastMessage.value = `Server '${targetServer.name}' connected. Fill in your credentials below.`
     } else if (parsed.resetToken) {
       state.auth.registerData = {
-        resetToken: parsed.resetToken,
+        token: parsed.resetToken,
         server: targetServer,
         serverUrl: targetServer.url
       }
       state.auth.showRegisterModal = true
-      toastMessage.value = `Server '${targetServer.name}' connected. Enter your new password below.`
     } else {
       toastMessage.value = `Server '${targetServer.name}' connected.`
     }
