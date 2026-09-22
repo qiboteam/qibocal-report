@@ -1,14 +1,17 @@
 """Command Line Interface for qibocal (Issue #9, #10, #11)."""
 
+import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
-from pathlib import Path
+import sys
 
 import click
-import uvicorn
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
+import uvicorn
 
 from qibocal_report import config
 from qibocal_report.api import set_report_root
@@ -34,12 +37,26 @@ def report():
 )
 @click.option("--host", default="localhost", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
-def server(directory: str, host: str, port: int):
+@click.option(
+    "--auth/--no-auth",
+    default=False,
+    help="Enable user authentication and role management.",
+)
+def server(directory: str, host: str, port: int, auth: bool):
     """Start the FastAPI backend server."""
     dir_path = Path(directory).resolve()
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
     set_report_root(dir_path, is_original=True)
+
+    if auth:
+        os.environ["QIBOCAL_AUTH_ENABLED"] = "1"
+        from qibocal_report import auth as auth_mod
+
+        auth_mod.set_auth_enabled(True)
+        initial_token = auth_mod.create_initial_admin_invite_if_needed()
+    else:
+        initial_token = None
 
     url = f"http://{host}:{port}"
     config.add_server(
@@ -50,11 +67,23 @@ def server(directory: str, host: str, port: int):
     )
 
     console = Console()
+    auth_lines = ""
+    if auth:
+        auth_lines = (
+            f"\n[bold cyan]🔒 Auth & Roles       :[/bold cyan] [green]Enabled[/green]"
+        )
+        if initial_token:
+            auth_lines += (
+                f"\n[bold yellow]🔑 Admin Invite Link  :[/bold yellow] "
+                f"{url}/#/invite?token={initial_token}"
+            )
+
     console.print(
         Panel.fit(
             f"[bold cyan]📁 Reports Directory :[/bold cyan] {dir_path}\n"
             f"[bold cyan]⚙️  FastAPI Server   :[/bold cyan] {url}\n"
-            f"[bold cyan]📖 REST API Docs     :[/bold cyan] {url}/api/docs/swagger\n\n"
+            f"[bold cyan]📖 REST API Docs     :[/bold cyan] {url}/api/docs/swagger"
+            f"{auth_lines}\n\n"
             "[dim]Press Ctrl+C to stop the server.[/dim]",
             title="[bold magenta]⚛️  Qibocal Report Server[/bold magenta]",
             border_style="magenta",
@@ -85,12 +114,33 @@ def server(directory: str, host: str, port: int):
     default=True,
     help="Enable auto-reload for backend server.",
 )
-def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool = True):
+@click.option(
+    "--auth/--no-auth",
+    default=False,
+    help="Enable user authentication and role management.",
+)
+def dev(
+    directory: str,
+    host: str,
+    port: int,
+    frontend_port: int,
+    reload: bool = True,
+    auth: bool = False,
+):
     """Serve Qibocal reports in developer mode with live Vite HMR."""
     dir_path = Path(directory).resolve()
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
     set_report_root(dir_path, is_original=True)
+
+    if auth:
+        os.environ["QIBOCAL_AUTH_ENABLED"] = "1"
+        from qibocal_report import auth as auth_mod
+
+        auth_mod.set_auth_enabled(True)
+        initial_token = auth_mod.create_initial_admin_invite_if_needed()
+    else:
+        initial_token = None
 
     # Locate frontend directory
     frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
@@ -139,12 +189,24 @@ def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool =
 
     console = Console()
     dev_title = "[bold magenta]⚛️  Qibocal Report (Developer Mode)[/bold magenta]"
+    auth_lines = ""
+    if auth:
+        auth_lines = (
+            f"\n[bold cyan]🔒 Auth & Roles       :[/bold cyan] [green]Enabled[/green]"
+        )
+        if initial_token:
+            auth_lines += (
+                f"\n[bold yellow]🔑 Admin Invite Link  :[/bold yellow] "
+                f"{frontend_url}/#/invite?token={initial_token}"
+            )
+
     panel_content = (
         f"[bold cyan]📁 Reports Directory :[/bold cyan] {dir_path}\n"
         f"[bold cyan]⚡ Vite Dev Frontend :[/bold cyan] {frontend_url}\n"
         f"[bold cyan]⚙️  Backend API       :[/bold cyan] {backend_url}\n"
         f"[bold cyan]📖 REST API Docs     :[/bold cyan] "
-        f"{backend_url}/api/docs/swagger\n\n"
+        f"{backend_url}/api/docs/swagger"
+        f"{auth_lines}\n\n"
         "[dim]Starting Vite development server with Hot Module Replacement...[/dim]\n"
         "[dim]Press Ctrl+C to stop both backend and frontend.[/dim]"
     )
@@ -189,9 +251,20 @@ def dev(directory: str, host: str, port: int, frontend_port: int, reload: bool =
     default=True,
     help="Enable auto-reload for backend server.",
 )
+@click.option(
+    "--auth/--no-auth",
+    default=False,
+    help="Enable user authentication and role management.",
+)
 @click.pass_context
 def develop_alias(
-    ctx, directory: str, host: str, port: int, frontend_port: int, reload: bool
+    ctx,
+    directory: str,
+    host: str,
+    port: int,
+    frontend_port: int,
+    reload: bool,
+    auth: bool,
 ):
     """Backward-compatible alias for 'dev'."""
     ctx.forward(dev)
@@ -325,3 +398,366 @@ def export_static(output_dir: str, build: bool, base_path: str):
             border_style="magenta",
         )
     )
+
+
+# --- Administrator and Invite Link Management ---
+@report.group(name="admin")
+def admin_group():
+    """Manage server administrators and invitation links."""
+
+
+@admin_group.command(name="list")
+@click.option(
+    "--all",
+    "show_all",
+    is_flag=True,
+    default=False,
+    help="List all registered users, including non-administrators.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output administrators in JSON format.",
+)
+def admin_list(show_all: bool, output_json: bool):
+    """List registered server administrators."""
+    from qibocal_report import auth as auth_mod
+
+    users = auth_mod.list_users() if show_all else auth_mod.list_admins()
+    if output_json:
+        click.echo(json.dumps(users, indent=2))
+        return
+
+    console = Console()
+    if not users:
+        label = "users" if show_all else "administrators"
+        console.print(
+            f"[yellow]No registered {label} found in authentication database.[/yellow]"
+        )
+        console.print(
+            "[dim]Hint: Start the server with --auth to generate an initial admin invite link.[/dim]"
+        )
+        return
+
+    title = "Registered Users" if show_all else "Registered Administrators"
+    table = Table(title=f"⚛️  {title}", border_style="magenta")
+    table.add_column("#", justify="right", style="dim", width=4)
+    table.add_column("Username", style="bold cyan")
+    table.add_column("Role", style="bold")
+    table.add_column("User ID", style="dim")
+    table.add_column("Created At", style="green")
+
+    for idx, u in enumerate(users, start=1):
+        role = u.get("role", "")
+        role_styled = (
+            f"[bold magenta]{role}[/bold magenta]"
+            if role == "admin"
+            else f"[bold blue]{role}[/bold blue]"
+            if role == "editor"
+            else f"[dim]{role}[/dim]"
+        )
+        created = u.get("created_at", "")
+        if created and "T" in created:
+            created = created.replace("T", " ")[:19]
+        table.add_row(
+            str(idx), u.get("username", ""), role_styled, u.get("id", ""), created
+        )
+
+    console.print(table)
+
+
+@admin_group.command(name="invite")
+@click.argument("username", required=False, default=None)
+@click.option(
+    "-u",
+    "--username",
+    "opt_username",
+    default=None,
+    help="Administrator username for which to regenerate the invite link.",
+)
+@click.option(
+    "--server-url",
+    default=None,
+    help="Explicit base URL of the report server (e.g. http://localhost:8000).",
+)
+@click.option(
+    "--host",
+    default=None,
+    help="Server host to use when constructing the invite link.",
+)
+@click.option(
+    "--port",
+    default=None,
+    type=int,
+    help="Server port to use when constructing the invite link.",
+)
+@click.option(
+    "-e",
+    "--expires-in-hours",
+    default=168,
+    type=int,
+    help="Invite link validity in hours (default: 168 = 7 days, 0 for never expires).",
+)
+@click.option(
+    "--interactive/--no-interactive",
+    default=None,
+    help="Force interactive or non-interactive administrator selection.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output generated invitation details in JSON format.",
+)
+def admin_invite(
+    username: str | None,
+    opt_username: str | None,
+    server_url: str | None,
+    host: str | None,
+    port: int | None,
+    expires_in_hours: int,
+    interactive: bool | None,
+    output_json: bool,
+):
+    """Regenerate an invitation link for a server administrator."""
+    from qibocal_report import auth as auth_mod
+    from qibocal_report import config
+
+    console = Console()
+    target_username = (username or opt_username or "").strip()
+    admins = auth_mod.list_admins()
+    all_users = auth_mod.list_users()
+
+    is_tty = sys.stdin.isatty() if hasattr(sys.stdin, "isatty") else False
+    should_interact = (interactive is True) or (
+        interactive is None and is_tty and not target_username
+    )
+
+    if not target_username:
+        if not all_users and not admins:
+            # Fresh instance without any users registered yet
+            if not output_json:
+                console.print(
+                    "[yellow]No registered administrators found in the database.[/yellow]\n"
+                    "[dim]Generating an initial administrator invitation token...[/dim]"
+                )
+            chosen_username = None
+        elif should_interact:
+            if not admins:
+                existing_names = ", ".join(u["username"] for u in all_users) or "None"
+                raise click.ClickException(
+                    f"No administrators exist in the database. Existing users are: {existing_names}"
+                )
+            if len(admins) == 1:
+                chosen_username = admins[0]["username"]
+                if not output_json:
+                    console.print(
+                        f"[cyan]Found 1 administrator:[/cyan] [bold]{chosen_username}[/bold]"
+                    )
+            else:
+                if not output_json:
+                    console.print("[bold cyan]Available Administrators:[/bold cyan]")
+                    for idx, a in enumerate(admins, start=1):
+                        console.print(
+                            f"  [bold magenta][{idx}][/bold magenta] {a['username']} [dim](ID: {a['id']})[/dim]"
+                        )
+                choice = click.prompt(
+                    f"Select administrator [1-{len(admins)}] or enter username",
+                    default="1",
+                ).strip()
+                if choice.isdigit() and 1 <= int(choice) <= len(admins):
+                    chosen_username = admins[int(choice) - 1]["username"]
+                else:
+                    match = next(
+                        (
+                            a["username"]
+                            for a in admins
+                            if a["username"].lower() == choice.lower()
+                        ),
+                        None,
+                    )
+                    if match:
+                        chosen_username = match
+                    else:
+                        raise click.ClickException(
+                            f"Invalid administrator selection '{choice}'."
+                        )
+        else:
+            # Non-interactive and no username passed
+            if len(admins) == 1:
+                chosen_username = admins[0]["username"]
+            elif not admins and not all_users:
+                chosen_username = None
+            else:
+                available = ", ".join(a["username"] for a in admins)
+                raise click.ClickException(
+                    f"Missing administrator username. Please specify a username or run interactively.\n"
+                    f"Available administrators: {available}"
+                )
+    else:
+        # target_username was explicitly given
+        user_match = next(
+            (
+                u
+                for u in all_users
+                if u["username"].lower() == target_username.lower()
+            ),
+            None,
+        )
+        if not user_match:
+            available = ", ".join(a["username"] for a in admins) or "None"
+            raise click.ClickException(
+                f"Administrator user '{target_username}' not found. Available administrators: {available}"
+            )
+        if user_match.get("role") != "admin":
+            raise click.ClickException(
+                f"User '{user_match['username']}' has role '{user_match['role']}', not 'admin'."
+            )
+        chosen_username = user_match["username"]
+
+    # Generate or regenerate the invite token
+    try:
+        invite_data = auth_mod.regenerate_admin_invite(
+            username=chosen_username,
+            expires_in_hours=expires_in_hours if expires_in_hours > 0 else None,
+        )
+    except ValueError as err:
+        raise click.ClickException(str(err))
+
+    # Resolve server base URL
+    if server_url:
+        base_url = server_url.rstrip("/")
+    else:
+        if host is not None or port is not None:
+            h = host or "localhost"
+            p = port or 8000
+            base_url = f"http://{h}:{p}"
+        else:
+            servers = config.load_servers()
+            if servers and servers[0].get("url"):
+                base_url = servers[0]["url"].rstrip("/")
+            else:
+                base_url = "http://localhost:8000"
+
+    invite_url = f"{base_url}/#/invite?token={invite_data['token']}"
+    expires_str = invite_data.get("expires_at") or "Never"
+
+    if output_json:
+        result = {
+            "username": chosen_username,
+            "role": invite_data["role"],
+            "token": invite_data["token"],
+            "invite_url": invite_url,
+            "expires_at": invite_data.get("expires_at"),
+            "server_url": base_url,
+        }
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    admin_display = (
+        f"[bold green]{chosen_username}[/bold green]"
+        if chosen_username
+        else "[bold yellow]Initial Admin (Unregistered)[/bold yellow]"
+    )
+    panel_content = (
+        f"[bold cyan]👤 Administrator  :[/bold cyan] {admin_display}\n"
+        f"[bold cyan]🔒 Assigned Role  :[/bold cyan] [bold magenta]admin[/bold magenta]\n"
+        f"[bold cyan]⏰ Validity       :[/bold cyan] {expires_str}\n"
+        f"[bold cyan]🌐 Server Endpoint:[/bold cyan] {base_url}\n\n"
+        f"[bold yellow]🔑 Invite Link    :[/bold yellow]\n"
+        f"[underline bold]{invite_url}[/underline bold]\n\n"
+        "[dim]To restore access:\n"
+        "  1. Open the invite link directly in your browser, or\n"
+        "  2. Paste it into the connect bar in Server Management (#/servers).[/dim]"
+    )
+    console.print(
+        Panel.fit(
+            panel_content,
+            title="[bold magenta]⚛️  Qibocal Admin Invite Link[/bold magenta]",
+            border_style="magenta",
+        )
+    )
+
+
+@report.command(name="invite")
+@click.argument("username", required=False, default=None)
+@click.option(
+    "-u",
+    "--username",
+    "opt_username",
+    default=None,
+    help="Administrator username for which to regenerate the invite link.",
+)
+@click.option(
+    "--server-url",
+    default=None,
+    help="Explicit base URL of the report server (e.g. http://localhost:8000).",
+)
+@click.option(
+    "--host",
+    default=None,
+    help="Server host to use when constructing the invite link.",
+)
+@click.option(
+    "--port",
+    default=None,
+    type=int,
+    help="Server port to use when constructing the invite link.",
+)
+@click.option(
+    "-e",
+    "--expires-in-hours",
+    default=168,
+    type=int,
+    help="Invite link validity in hours (default: 168 = 7 days, 0 for never expires).",
+)
+@click.option(
+    "--interactive/--no-interactive",
+    default=None,
+    help="Force interactive or non-interactive administrator selection.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output generated invitation details in JSON format.",
+)
+@click.pass_context
+def invite_shortcut(
+    ctx,
+    username: str | None,
+    opt_username: str | None,
+    server_url: str | None,
+    host: str | None,
+    port: int | None,
+    expires_in_hours: int,
+    interactive: bool | None,
+    output_json: bool,
+):
+    """Regenerate an invitation link for a server administrator."""
+    ctx.forward(admin_invite)
+
+
+@report.command(name="admin-list", hidden=True)
+@click.option(
+    "--all",
+    "show_all",
+    is_flag=True,
+    default=False,
+    help="List all registered users, including non-administrators.",
+)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output administrators in JSON format.",
+)
+@click.pass_context
+def admin_list_shortcut(ctx, show_all: bool, output_json: bool):
+    """Backward-compatible alias for 'admin list'."""
+    ctx.forward(admin_list)

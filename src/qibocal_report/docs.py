@@ -53,6 +53,39 @@ DOCS_NAVIGATION = [
         ],
     },
     {
+        "section": "Admin Guide",
+        "path": "admin-guide",
+        "items": [
+            {
+                "id": "admin-guide/index",
+                "path": "admin-guide",
+                "title": "Server Administration & Security",
+                "description": (
+                    "Enabling authentication (--auth), initial bootstrap, and"
+                    " server administration"
+                ),
+            },
+            {
+                "id": "admin-guide/roles",
+                "path": "admin-guide/roles",
+                "title": "Roles & Permissions Matrix",
+                "description": (
+                    "Viewer, Editor, and Admin capabilities, restrictions, and"
+                    " enforcement"
+                ),
+            },
+            {
+                "id": "admin-guide/invitations",
+                "path": "admin-guide/invitations",
+                "title": "Invitations & Team Onboarding",
+                "description": (
+                    "Generating tokens, expiration policies, paste-box flows, and"
+                    " revocation"
+                ),
+            },
+        ],
+    },
+    {
         "section": "Developer & Architecture",
         "path": "developer",
         "items": [

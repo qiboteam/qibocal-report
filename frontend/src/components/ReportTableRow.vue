@@ -87,6 +87,7 @@
         >
           <span class="truncate">{{ tag }}</span>
           <button
+            v-if="!isViewer"
             type="button"
             @click.stop="$emit('remove-tag', { report, tag })"
             class="bg-transparent hover:bg-transparent p-0 border-0 outline-none hover:text-red-600 font-bold transition text-[11px] leading-none opacity-60 hover:opacity-100 cursor-pointer shrink-0 ml-0.5"
@@ -121,6 +122,7 @@
           {{ resolveAuthor(report.author, state.activeServer) || report.author }}
         </span>
         <button
+          v-if="!isViewer"
           @click.stop="$emit('edit-author', report)"
           class="opacity-0 group-hover/author:opacity-100 text-gray-400 hover:text-[#833dff] transition cursor-pointer shrink-0"
           title="Edit author"
@@ -141,7 +143,7 @@
 </template>
 
 <script setup>
-import { state, resolveAuthor } from '../store.js'
+import { state, resolveAuthor, isViewer } from '../store.js'
 
 defineProps({
   report: { type: Object, required: true },

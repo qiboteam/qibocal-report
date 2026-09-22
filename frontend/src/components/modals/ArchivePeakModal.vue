@@ -225,8 +225,11 @@
           <!-- Restore Selected -->
           <button
             v-if="selectedIds.length > 0"
-            @click="$emit('restore-selected', selectedIds)"
-            class="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition cursor-pointer flex items-center gap-1.5"
+            @click="!isViewer && $emit('restore-selected', selectedIds)"
+            :disabled="isViewer"
+            class="px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 transition flex items-center gap-1.5"
+            :class="isViewer ? 'opacity-40 cursor-not-allowed' : 'hover:bg-indigo-100 cursor-pointer'"
+            :title="isViewer ? 'Viewer role cannot modify reports' : 'Restore selected reports'"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -236,8 +239,11 @@
 
           <!-- Restore All -->
           <button
-            @click="$emit('restore-all')"
-            class="px-4 py-1.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition cursor-pointer flex items-center gap-1.5"
+            @click="!isViewer && $emit('restore-all')"
+            :disabled="isViewer"
+            class="px-4 py-1.5 text-xs font-semibold rounded-xl bg-indigo-600 text-white shadow-sm transition flex items-center gap-1.5"
+            :class="isViewer ? 'opacity-40 cursor-not-allowed' : 'hover:bg-indigo-700 cursor-pointer'"
+            :title="isViewer ? 'Viewer role cannot modify reports' : 'Restore all reports'"
           >
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -252,7 +258,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { apiFetch } from '../../store.js'
+import { apiFetch, isViewer } from '../../store.js'
 
 const props = defineProps({
   show: { type: Boolean, default: false },

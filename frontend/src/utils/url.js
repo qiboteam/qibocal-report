@@ -38,10 +38,15 @@ export function getApiUrl(path, activeServer) {
 }
 
 /**
- * Resolves a WebSocket URL for the given path against the active server.
+ * Resolves a WebSocket URL for the given path against the active server,
+ * optionally including an authentication token.
  */
-export function getActiveWsUrl(path, activeServer) {
-  const cleanPath = path.startsWith('/') ? path : `/${path}`
+export function getActiveWsUrl(path, activeServer, token = null) {
+  let cleanPath = path.startsWith('/') ? path : `/${path}`
+  if (token) {
+    const separator = cleanPath.includes('?') ? '&' : '?'
+    cleanPath = `${cleanPath}${separator}token=${encodeURIComponent(token)}`
+  }
   const serverUrl = getActiveServerUrl(activeServer)
   if (serverUrl) {
     const wsBase = serverUrl.replace(/^http:\/\//i, 'ws://').replace(/^https:\/\//i, 'wss://')
@@ -52,3 +57,92 @@ export function getActiveWsUrl(path, activeServer) {
   const host = (typeof window !== 'undefined' && window.location?.host) || '127.0.0.1:8000'
   return `${wsProto}//${host}${cleanPath}`
 }
+
+/**
+ * Parses user input to extract server base URL and any invite token.
+ * Supports:
+ * - http://127.0.0.1:8000/#/invite?token=xyz
+ * - http://127.0.0.1:8000/?invite=xyz
+ * - http://127.0.0.1:8000/invite/xyz
+ * - Plain server URLs
+ */
+export function parseServerAndInvite(input) {
+  if (!input) return { url: '', inviteToken: null, resetToken: null }
+  const str = input.trim()
+  let inviteToken = null
+  let resetToken = null
+  let serverUrl = str
+
+  // Try parsing as new token format: server=<url>&invite_token=<token> or server=<url>&reset_token=<token>
+  // Don't use URLSearchParams for this since server URL is not encoded
+  if (str.includes('server=') && (str.includes('invite_token=') || str.includes('reset_token='))) {
+    try {
+      const serverMatch = str.match(/server=([^&]+)/)
+      const inviteMatch = str.match(/invite_token=([^&]+)/)
+      const resetMatch = str.match(/reset_token=([^&]+)/)
+      
+      if (serverMatch && serverMatch[1]) {
+        serverUrl = serverMatch[1]
+        inviteToken = inviteMatch ? inviteMatch[1] : null
+        resetToken = resetMatch ? resetMatch[1] : null
+      }
+      return {
+        url: normalizeUrl(serverUrl),
+        inviteToken,
+        resetToken
+      }
+    } catch {
+      // Fall through to legacy parsing
+    }
+  }
+
+  try {
+    let urlObj = null
+    if (str.startsWith('http://') || str.startsWith('https://')) {
+      urlObj = new URL(str)
+    } else if (str.includes('/') || str.includes(':')) {
+      urlObj = new URL(`http://${str}`)
+    }
+
+    if (urlObj) {
+      // 1. Search in query params
+      if (urlObj.searchParams.get('token')) {
+        inviteToken = urlObj.searchParams.get('token')
+      } else if (urlObj.searchParams.get('invite')) {
+        inviteToken = urlObj.searchParams.get('invite')
+      } else if (urlObj.searchParams.get('invite_token')) {
+        inviteToken = urlObj.searchParams.get('invite_token')
+      } else if (urlObj.searchParams.get('reset_token')) {
+        resetToken = urlObj.searchParams.get('reset_token')
+      }
+
+      // 2. Search in hash query params (#/invite?token=...)
+      if (!inviteToken && !resetToken && urlObj.hash && urlObj.hash.includes('?')) {
+        const hashQuery = urlObj.hash.split('?')[1]
+        const hashParams = new URLSearchParams(hashQuery)
+        inviteToken = hashParams.get('token') || hashParams.get('invite') || hashParams.get('invite_token')
+        resetToken = resetToken || hashParams.get('reset_token')
+      }
+
+      // 3. Search in path (/invite/<token>)
+      if (!inviteToken && !resetToken && urlObj.pathname) {
+        const parts = urlObj.pathname.split('/').filter(Boolean)
+        const invIdx = parts.findIndex(p => p.toLowerCase() === 'invite')
+        if (invIdx >= 0 && parts[invIdx + 1]) {
+          inviteToken = parts[invIdx + 1]
+        }
+      }
+
+      serverUrl = `${urlObj.protocol}//${urlObj.host}`
+    }
+  } catch {
+    // If not a standard URL, fallback
+  }
+
+  return {
+    url: normalizeUrl(serverUrl),
+    inviteToken,
+    resetToken
+  }
+}
+

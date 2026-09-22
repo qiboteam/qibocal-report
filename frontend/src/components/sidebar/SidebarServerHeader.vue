@@ -12,7 +12,12 @@
         >
           <div class="flex items-center gap-2 truncate">
             <div class="w-6 h-6 rounded-md bg-white p-0.5 shrink-0 shadow-xs" v-html="renderAvatar(activeServer?.avatar || 'quantum-ring')"></div>
-            <span class="text-xs font-bold text-gray-800 truncate">{{ activeServer?.name || 'Select Server' }}</span>
+            <div class="truncate">
+              <span class="text-xs font-bold text-gray-800 truncate block">{{ activeServer?.name || 'Select Server' }}</span>
+              <span v-if="state.auth?.enabled && state.auth?.user" class="text-[10px] text-gray-400 font-medium truncate block">
+                {{ state.auth.user.username }} ({{ state.auth.user.role }})
+              </span>
+            </div>
           </div>
           <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -38,6 +43,31 @@
             </div>
             <span v-if="s.id === activeServer?.id" class="w-1.5 h-1.5 rounded-full bg-[#833dff] shrink-0"></span>
           </div>
+
+          <!-- Auth status in expanded mode -->
+          <div v-if="state.auth?.enabled" class="border-t border-gray-100 mt-1 pt-1.5 px-3 py-1 bg-gray-50/60">
+            <div v-if="state.auth?.user" class="flex items-center justify-between">
+              <div class="truncate">
+                <div class="text-[11px] font-semibold text-gray-800 truncate">{{ state.auth.user.username }}</div>
+                <div class="text-[10px] uppercase font-bold text-[#833dff]">{{ state.auth.user.role }}</div>
+              </div>
+              <button
+                @click="handleLogout"
+                class="text-[11px] text-red-600 hover:text-red-800 font-medium cursor-pointer border-0 bg-transparent"
+              >
+                Sign out
+              </button>
+            </div>
+            <div v-else>
+              <button
+                @click="openLogin"
+                class="w-full py-1 text-center font-semibold text-xs text-[#833dff] hover:bg-purple-50 rounded-lg cursor-pointer border-0 bg-transparent"
+              >
+                Sign In to Server
+              </button>
+            </div>
+          </div>
+
           <div class="border-t border-gray-100 mt-1 pt-1">
             <router-link
               to="/servers"
@@ -80,6 +110,31 @@
           </div>
           <span v-if="s.id === activeServer?.id" class="w-1.5 h-1.5 rounded-full bg-[#833dff] shrink-0"></span>
         </div>
+
+        <!-- Auth status in collapsed mode -->
+        <div v-if="state.auth?.enabled" class="border-t border-gray-100 mt-1 pt-1.5 px-3 py-1 bg-gray-50/60">
+          <div v-if="state.auth?.user" class="flex items-center justify-between">
+            <div class="truncate">
+              <div class="text-[11px] font-semibold text-gray-800 truncate">{{ state.auth.user.username }}</div>
+              <div class="text-[10px] uppercase font-bold text-[#833dff]">{{ state.auth.user.role }}</div>
+            </div>
+            <button
+              @click="handleLogout"
+              class="text-[11px] text-red-600 hover:text-red-800 font-medium cursor-pointer border-0 bg-transparent"
+            >
+              Sign out
+            </button>
+          </div>
+          <div v-else>
+            <button
+              @click="openLogin"
+              class="w-full py-1 text-center font-semibold text-xs text-[#833dff] hover:bg-purple-50 rounded-lg cursor-pointer border-0 bg-transparent"
+            >
+              Sign In to Server
+            </button>
+          </div>
+        </div>
+
         <div class="border-t border-gray-100 mt-1 pt-1">
           <router-link
             to="/servers"
@@ -109,7 +164,11 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { renderAvatar } from '../Avatars.js'
+import { state, logoutActiveServer, isAdmin } from '../../store.js'
+
+const router = useRouter()
 
 defineProps({
   servers: { type: Array, default: () => [] },
@@ -123,5 +182,16 @@ const dropdownOpen = ref(false)
 function onSelect(server) {
   dropdownOpen.value = false
   emit('select-server', server)
+}
+
+function openLogin() {
+  dropdownOpen.value = false
+  state.auth.showLoginModal = true
+}
+
+function handleLogout() {
+  dropdownOpen.value = false
+  logoutActiveServer()
+  router.push('/servers')
 }
 </script>

@@ -20,9 +20,26 @@ try {
   console.warn('Failed to parse saved history from localStorage', e)
 }
 
-// --- Search State Persistence (Session Storage) ---
+// --- Storage Keys ---
 const SEARCH_STATE_STORAGE_KEY = 'qibocal_report_search_state'
+const SERVERS_STORAGE_KEY = 'qibocal_report_servers'
 
+function loadStoredServers() {
+  try {
+    const raw = localStorage.getItem(SERVERS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        return parsed
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse saved servers from localStorage', e)
+  }
+  return []
+}
+
+// --- Search State Persistence (Session Storage) ---
 function loadSavedSearchState() {
   try {
     const raw = sessionStorage.getItem(SEARCH_STATE_STORAGE_KEY)
@@ -74,7 +91,7 @@ function loadSavedSearchState() {
  * Global reactive application store.
  */
 export const state = reactive({
-  servers: [],
+  servers: loadStoredServers(),
   activeServer: null,
   history: initialHistory,
   currentReportId: null,
@@ -84,8 +101,228 @@ export const state = reactive({
   error: null,
   serverDataVersion: 0,
   pendingFilter: null,
-  searchState: loadSavedSearchState()
+  searchState: loadSavedSearchState(),
+  auth: {
+    enabled: false,
+    checked: false,
+    token: null,
+    user: null,
+    showLoginModal: false,
+    showRegisterModal: false,
+    registerData: null,
+    errorMessage: ''
+  }
 })
+
+// Restore active server from localStorage
+if (state.servers.length > 0) {
+  const savedActiveId = localStorage.getItem('qibocal_active_server_id')
+  if (savedActiveId) {
+    const found = state.servers.find(s => s.id === savedActiveId)
+    if (found) {
+      state.activeServer = found
+    } else if (state.servers.length > 0) {
+      state.activeServer = state.servers[0]
+    }
+  } else if (state.servers.length > 0) {
+    state.activeServer = state.servers[0]
+  }
+}
+
+// --- Auth Storage & Helpers ---
+const AUTH_STORAGE_KEY = 'qibocal_report_auth'
+
+function loadStoredAuth() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (typeof parsed === 'object' && parsed !== null) return parsed
+    }
+  } catch (e) {
+    console.warn('Failed to parse auth from localStorage', e)
+  }
+  return {}
+}
+
+function saveStoredAuth(authMap) {
+  try {
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authMap))
+  } catch (e) {
+    console.warn('Failed to save auth to localStorage', e)
+  }
+}
+
+export function getServerAuthKey(server = state.activeServer) {
+  if (!server) return 'local'
+  if (server.id) return server.id
+  return normalizeUrl(server.url) || 'local'
+}
+
+export function getActiveAuthToken(server = state.activeServer) {
+  const key = getServerAuthKey(server)
+  const map = loadStoredAuth()
+  return map[key]?.token || state.auth?.token || null
+}
+
+export function getActiveUser(server = state.activeServer) {
+  const key = getServerAuthKey(server)
+  const map = loadStoredAuth()
+  return map[key]?.user || state.auth?.user || null
+}
+
+export function getAuthHeader(server = state.activeServer) {
+  const token = getActiveAuthToken(server)
+  if (token) {
+    return { Authorization: `Bearer ${token}` }
+  }
+  return {}
+}
+
+export function setServerAuth(server, token, user) {
+  const key = getServerAuthKey(server)
+  const map = loadStoredAuth()
+  if (token && user) {
+    map[key] = { token, user }
+  } else {
+    delete map[key]
+  }
+  saveStoredAuth(map)
+
+  if (!server || server.id === state.activeServer?.id) {
+    state.auth.token = token
+    state.auth.user = user
+  }
+}
+
+// --- Role Computed Getters ---
+export const isViewer = computed(() => {
+  return Boolean(state.auth?.enabled && state.auth?.user?.role === 'viewer')
+})
+
+export const canEdit = computed(() => {
+  if (!state.auth?.enabled) return true
+  const role = state.auth?.user?.role
+  return role === 'editor' || role === 'admin'
+})
+
+export const isAdmin = computed(() => {
+  if (!state.auth?.enabled) return true
+  return state.auth?.user?.role === 'admin'
+})
+
+export const isAuthenticated = computed(() => {
+  if (!state.auth?.enabled) return true
+  return Boolean(state.auth?.token && state.auth?.user)
+})
+
+export const canAccessDashboard = computed(() => {
+  if (!state.activeServer || state.servers.length === 0) return false
+  if (!state.servers.some(s => s.id === state.activeServer?.id)) return false
+  if (state.auth?.enabled && (!state.auth?.token || !state.auth?.user)) return false
+  return true
+})
+
+export async function checkActiveServerAuth(targetServer = state.activeServer) {
+  if (!targetServer) return
+  const serverUrl = getActiveServerUrl(targetServer)
+  const statusUrl = serverUrl ? `${serverUrl}/api/auth/status` : '/api/auth/status'
+
+  try {
+    const res = await fetch(statusUrl, { signal: AbortSignal.timeout(4000) })
+    if (res.ok) {
+      const data = await res.json()
+      state.auth.enabled = Boolean(data.auth_enabled)
+      state.auth.checked = true
+
+      if (state.auth.enabled) {
+        const token = getActiveAuthToken(targetServer)
+        if (token) {
+          const meUrl = serverUrl ? `${serverUrl}/api/auth/me` : '/api/auth/me'
+          const meRes = await fetch(meUrl, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(4000)
+          })
+          if (meRes.ok) {
+            const meData = await meRes.json()
+            state.auth.user = meData
+            state.auth.token = token
+            setServerAuth(targetServer, token, meData)
+            return
+          } else {
+            setServerAuth(targetServer, null, null)
+          }
+        }
+        state.auth.token = null
+        state.auth.user = null
+      } else {
+        state.auth.token = null
+        state.auth.user = { id: 'admin', username: 'local-admin', role: 'admin' }
+      }
+      return
+    }
+  } catch (e) {
+    console.debug('Failed to check auth status for server', e)
+  }
+
+  state.auth.enabled = false
+  state.auth.checked = true
+  state.auth.token = null
+  state.auth.user = { id: 'admin', username: 'local-admin', role: 'admin' }
+}
+
+export async function loginActiveServer(username, password) {
+  const server = state.activeServer
+  const serverUrl = getActiveServerUrl(server)
+  const loginUrl = serverUrl ? `${serverUrl}/api/auth/login` : '/api/auth/login'
+
+  const res = await fetch(loginUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Login failed')
+  }
+
+  const data = await res.json()
+  setServerAuth(server, data.access_token, data.user)
+  notifyServerDataChanged()
+  return data
+}
+
+export function logoutActiveServer() {
+  const server = state.activeServer
+  setServerAuth(server, null, null)
+  notifyServerDataChanged()
+}
+
+export async function registerWithInvite(inviteToken, username, password, targetServer = state.activeServer) {
+  const serverUrl = getActiveServerUrl(targetServer)
+  const regUrl = serverUrl ? `${serverUrl}/api/auth/register` : '/api/auth/register'
+
+  const res = await fetch(regUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      invite_token: inviteToken,
+      username,
+      password
+    })
+  })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Registration failed')
+  }
+
+  const data = await res.json()
+  setServerAuth(targetServer, data.access_token, data.user)
+  notifyServerDataChanged()
+  return data
+}
 
 export function persistSearchState() {
   try {
@@ -147,31 +384,33 @@ export function getApiUrl(path) {
 }
 
 export function getActiveWsUrl(path) {
-  return utilsGetActiveWsUrl(path, state.activeServer)
+  const token = getActiveAuthToken(state.activeServer)
+  return utilsGetActiveWsUrl(path, state.activeServer, token)
 }
 
 export async function apiFetch(path, options = {}) {
   const url = getApiUrl(path)
-  return fetch(url, options)
+  const headers = new Headers(options.headers || {})
+  const token = getActiveAuthToken()
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+  const res = await fetch(url, { ...options, headers })
+  if (res.status === 401 && state.auth?.enabled) {
+    state.auth.token = null
+    state.auth.user = null
+    setServerAuth(state.activeServer, null, null)
+    state.auth.errorMessage = 'Authentication required. Please sign in to access this instance.'
+    if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite') && !window.location.hash.startsWith('#/admin')) {
+      window.location.hash = '#/servers'
+    }
+  }
+  return res
 }
 
 // --- Server Management ---
-const SERVERS_STORAGE_KEY = 'qibocal_report_servers'
 
-function loadStoredServers() {
-  try {
-    const raw = localStorage.getItem(SERVERS_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed
-    }
-  } catch (e) {
-    console.warn('Failed to parse saved servers from localStorage', e)
-  }
-  return []
-}
-
-function saveStoredServers(servers) {
+export function saveStoredServers(servers) {
   try {
     localStorage.setItem(SERVERS_STORAGE_KEY, JSON.stringify(servers))
   } catch (e) {
@@ -186,10 +425,15 @@ export function fetchServers() {
     serversPromise = (async () => {
       let loaded = false
       try {
-        const res = await fetch('/api/servers')
+        const headers = {}
+        const token = getActiveAuthToken()
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`
+        }
+        const res = await fetch('/api/servers', { headers })
         if (res.ok) {
           const data = await res.json()
-          if (Array.isArray(data)) {
+          if (Array.isArray(data) && data.length > 0) {
             state.servers = data
             saveStoredServers(data)
             loaded = true
@@ -203,23 +447,29 @@ export function fetchServers() {
 
       if (!loaded) {
         const stored = loadStoredServers()
-        if (stored.length > 0) {
-          state.servers = stored
-        }
+        state.servers = stored
       }
 
-      const savedActiveId = localStorage.getItem('qibocal_active_server_id')
-      const found = state.servers.find(s => s.id === savedActiveId)
-      if (found) {
-        state.activeServer = found
-      } else if (!state.activeServer && state.servers.length > 0) {
-        state.activeServer = state.servers[0]
-      } else if (state.activeServer) {
-        const current = state.servers.find(s => s.id === state.activeServer.id)
-        if (current) state.activeServer = current
-      }
-      if (state.activeServer?.id) {
-        localStorage.setItem('qibocal_active_server_id', state.activeServer.id)
+      if (state.servers.length === 0) {
+        setActiveServer(null)
+      } else {
+        const savedActiveId = localStorage.getItem('qibocal_active_server_id')
+        const found = state.servers.find(s => s.id === savedActiveId)
+        if (found) {
+          state.activeServer = found
+        } else if (!state.activeServer && state.servers.length > 0) {
+          state.activeServer = state.servers[0]
+        } else if (state.activeServer) {
+          const current = state.servers.find(s => s.id === state.activeServer.id)
+          if (current) state.activeServer = current
+          else state.activeServer = state.servers[0] || null
+        }
+        if (state.activeServer?.id) {
+          localStorage.setItem('qibocal_active_server_id', state.activeServer.id)
+          checkActiveServerAuth(state.activeServer)
+        } else {
+          setActiveServer(null)
+        }
       }
     })()
   }
@@ -227,7 +477,7 @@ export function fetchServers() {
 }
 
 export async function ensureServersLoaded() {
-  if (state.activeServer && state.servers.length > 0) {
+  if (state.activeServer && state.servers.length > 0 && state.servers.some(s => s.id === state.activeServer?.id)) {
     return state.activeServer
   }
   await fetchServers()
@@ -237,6 +487,10 @@ export async function ensureServersLoaded() {
 export function setActiveServer(server) {
   if (!server) {
     state.activeServer = null
+    state.auth.enabled = false
+    state.auth.checked = false
+    state.auth.token = null
+    state.auth.user = null
     localStorage.removeItem('qibocal_active_server_id')
     return
   }
@@ -244,6 +498,7 @@ export function setActiveServer(server) {
   if (server.id) {
     localStorage.setItem('qibocal_active_server_id', server.id)
   }
+  checkActiveServerAuth(state.activeServer)
 }
 
 export async function addServer(urlOrObj, name = null, description = null, avatar = null, author_identities = null) {
@@ -262,9 +517,12 @@ export async function addServer(urlOrObj, name = null, description = null, avata
   }
 
   try {
+    const headers = { 'Content-Type': 'application/json' }
+    const token = getActiveAuthToken()
+    if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch('/api/servers', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload)
     })
     if (res.ok) {
@@ -311,9 +569,12 @@ export async function updateServer(id, updates) {
   }
 
   try {
+    const headers = { 'Content-Type': 'application/json' }
+    const token = getActiveAuthToken()
+    if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(`/api/servers/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(dataToSend)
     })
     if (res.ok) {
@@ -343,10 +604,19 @@ export async function updateServer(id, updates) {
 
 export async function deleteServer(id) {
   try {
-    const res = await fetch(`/api/servers/${id}`, { method: 'DELETE' })
+    const headers = {}
+    const token = getActiveAuthToken()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch(`/api/servers/${id}`, { method: 'DELETE', headers })
     if (res.ok) {
-      await fetchServers()
-      if (state.activeServer?.id === id) {
+      const idx = state.servers.findIndex(s => s.id === id)
+      if (idx >= 0) {
+        state.servers.splice(idx, 1)
+      }
+      saveStoredServers(state.servers)
+      if (state.servers.length === 0) {
+        setActiveServer(null)
+      } else if (state.activeServer?.id === id) {
         setActiveServer(state.servers[0] || null)
       }
       return true
@@ -360,7 +630,9 @@ export async function deleteServer(id) {
   if (idx >= 0) {
     state.servers.splice(idx, 1)
     saveStoredServers(state.servers)
-    if (state.activeServer?.id === id) {
+    if (state.servers.length === 0) {
+      setActiveServer(null)
+    } else if (state.activeServer?.id === id) {
       setActiveServer(state.servers[0] || null)
     }
     return true
@@ -370,7 +642,10 @@ export async function deleteServer(id) {
 
 export async function persistServersConfig() {
   try {
-    const res = await fetch('/api/servers/save', { method: 'POST' })
+    const headers = {}
+    const token = getActiveAuthToken()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const res = await fetch('/api/servers/save', { method: 'POST', headers })
     if (res.ok) {
       return await res.json()
     }

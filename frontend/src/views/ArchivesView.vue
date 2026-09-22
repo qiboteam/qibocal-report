@@ -185,6 +185,7 @@
                   {{ arc.name }}
                 </h3>
                 <button
+                  v-if="!isViewer"
                   @click="openEditModal(arc)"
                   class="text-gray-400 hover:text-indigo-600 p-1 rounded-lg hover:bg-gray-100 transition cursor-pointer"
                   title="Edit name or description"
@@ -272,9 +273,11 @@
 
               <!-- Restore to Active Reports -->
               <button
-                @click="openRestoreModal(arc)"
-                class="px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                title="Extract reports back into active directory"
+                @click="!isViewer && openRestoreModal(arc)"
+                :disabled="isViewer"
+                class="px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 text-emerald-700 transition flex items-center gap-1.5 shadow-2xs"
+                :class="isViewer ? 'opacity-40 cursor-not-allowed' : 'hover:bg-emerald-100 cursor-pointer'"
+                :title="isViewer ? 'Viewer role cannot modify reports' : 'Extract reports back into active directory'"
               >
                 <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -284,9 +287,11 @@
 
               <!-- Delete Archive -->
               <button
-                @click="openDeleteModal(arc)"
-                class="p-1.5 text-xs font-semibold rounded-xl hover:bg-red-50 text-red-500 hover:text-red-700 transition cursor-pointer"
-                title="Delete archive permanently"
+                @click="!isViewer && openDeleteModal(arc)"
+                :disabled="isViewer"
+                class="p-1.5 text-xs font-semibold rounded-xl text-red-500 transition"
+                :class="isViewer ? 'opacity-40 cursor-not-allowed' : 'hover:bg-red-50 hover:text-red-700 cursor-pointer'"
+                :title="isViewer ? 'Viewer role cannot modify reports' : 'Delete archive permanently'"
               >
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -447,7 +452,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { apiFetch, state } from '../store.js'
+import { apiFetch, state, isViewer } from '../store.js'
 import { getApiUrl } from '../utils/url.js'
 import ArchivePeakModal from '../components/modals/ArchivePeakModal.vue'
 

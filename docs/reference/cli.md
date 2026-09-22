@@ -93,6 +93,62 @@ qibocal report export [OUTPUT_DIR] [OPTIONS]
 
 ---
 
+### `qibocal report admin list`
+
+Lists registered administrators (or all users) stored in the local authentication database.
+
+```bash
+qibocal report admin list [OPTIONS]
+```
+
+#### Options
+- `--all`: List all registered accounts (including Editors and Viewers). Default: `False`.
+- `--json`: Output user details in machine-readable JSON format. Default: `False`.
+- `--help`: Show help message and exit.
+
+#### Aliases
+- `qibocal report admin-list` (backward-compatible alias).
+
+---
+
+### `qibocal report admin invite`
+
+Regenerates a secure invitation link for a server administrator. Useful if an administrator deleted the server from their web client interface, lost their session, or needs to recover their account.
+
+```bash
+qibocal report admin invite [USERNAME] [OPTIONS]
+```
+
+#### Arguments
+- `USERNAME`: Username of the administrator. If omitted in an interactive terminal, the command displays available administrators and prompts for interactive selection.
+
+#### Options
+- `-u, --username TEXT`: Administrator username (alternative to positional argument).
+- `--server-url TEXT`: Explicit base URL of the report server (e.g. `http://localhost:8000`). Default: first registered server URL or `http://localhost:8000`.
+- `--host TEXT`: Server host used to build the invite URL if `--server-url` is not provided.
+- `--port INTEGER`: Server port used to build the invite URL if `--server-url` is not provided.
+- `-e, --expires-in-hours INTEGER`: Validity in hours (default: `168` = 7 days, `0` for never expires).
+- `--interactive / --no-interactive`: Force interactive or non-interactive administrator selection.
+- `--json`: Output invite details and link in machine-readable JSON format.
+- `--help`: Show help message and exit.
+
+#### Aliases
+- `qibocal report invite [USERNAME]` (direct shortcut).
+
+#### Example
+```bash
+# Interactive selection:
+qibocal report admin invite
+
+# Non-interactive generation for specific admin:
+qibocal report admin invite alice_admin --server-url http://192.168.1.100:8000
+
+# JSON output for automation:
+qibocal report admin invite alice_admin --json
+```
+
+---
+
 ## ⚙️ Environment Variables
 
 | Variable | Description | Default |
