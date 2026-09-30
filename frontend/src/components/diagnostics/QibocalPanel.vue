@@ -40,11 +40,11 @@
           class="icon-button install-button"
           @click="install"
         >
-          <Loader2 v-if="installing" :size="22" class="animate-spin" aria-hidden="true" />
-          <PackagePlus v-else :size="22" aria-hidden="true" />
+          <Loader2 v-if="installing" :size="20" class="animate-spin" aria-hidden="true" />
+          <PackagePlus v-else :size="20" aria-hidden="true" />
         </button>
         <button type="button" :disabled="loading || installing" aria-label="Reload versions" title="Reload versions" class="icon-button" @click="refreshOptions">
-          <RefreshCw :size="22" :class="{ 'animate-spin': loading }" aria-hidden="true" />
+          <RefreshCw :size="20" :class="{ 'animate-spin': loading }" aria-hidden="true" />
         </button>
       </div>
       <p class="installation-note">
@@ -107,7 +107,7 @@ watch(
 .pypi-logo { width: 20px; height: 20px; object-fit: contain; }
 .installation-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 8px; border: 1px solid #555; border-radius: 6px; color: #c8a8ff; cursor: pointer; }
-.icon-button svg { flex-shrink: 0; }
+.icon-button svg { width: 20px; height: 20px; flex-shrink: 0; }
 .icon-button:hover:not(:disabled) { background: #343434; }
 .install-button { background: #833dff; border-color: #833dff; color: #fff; }
 .install-button:hover:not(:disabled) { background: #9457ff; }
