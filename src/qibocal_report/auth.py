@@ -31,14 +31,15 @@ def set_auth_enabled(val: bool | None) -> None:
     _AUTH_ENABLED = val
 
 
-def get_auth_file() -> Path:
+def get_auth_file(*, create: bool = True) -> Path:
     """Return path to auth.json file."""
     custom = os.environ.get("QIBOCAL_AUTH_FILE")
     if custom:
         p = Path(custom)
-        p.parent.mkdir(parents=True, exist_ok=True)
+        if create:
+            p.parent.mkdir(parents=True, exist_ok=True)
         return p
-    return config.get_config_dir() / "auth.json"
+    return config.get_config_dir(create=create) / "auth.json"
 
 
 def load_auth_data() -> dict:

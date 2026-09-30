@@ -46,20 +46,21 @@ def generate_docker_name() -> str:
     return f"{random.choice(ADJECTIVES)}-{random.choice(SCIENTISTS)}"
 
 
-def get_config_dir() -> Path:
-    """Return the configuration directory."""
+def get_config_dir(*, create: bool = True) -> Path:
+    """Return the configuration directory, optionally creating it."""
     custom_dir = os.environ.get("QIBOCAL_REPORT_CONFIG_DIR")
     if custom_dir:
         path = Path(custom_dir)
     else:
         path = Path.home() / ".config" / "qibocal-report"
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def get_config_file() -> Path:
+def get_config_file(*, create: bool = True) -> Path:
     """Return path to servers.json."""
-    return get_config_dir() / "servers.json"
+    return get_config_dir(create=create) / "servers.json"
 
 
 def get_default_servers() -> list[dict[str, Any]]:

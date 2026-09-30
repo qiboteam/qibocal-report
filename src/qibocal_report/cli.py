@@ -24,6 +24,64 @@ def main():
     """Qibocal: Quantum calibration and characterization framework."""
 
 
+@main.group(name="config")
+def config_group():
+    """Locate and clean local server configurations."""
+
+
+@config_group.command(name="path")
+def config_path():
+    """Print the configuration directory as a plain-text absolute path."""
+    click.echo(config.get_config_dir(create=False).resolve())
+
+
+@config_group.command(name="clean")
+@click.option(
+    "-f", "--force", is_flag=True, help="Remove configurations without prompting."
+)
+def config_clean(force: bool):
+    """Erase registered servers and authentication data, asking for confirmation."""
+    from qibocal_report import auth
+
+    config_dir = config.get_config_dir(create=False)
+    paths = dict.fromkeys(
+        path.parent.resolve() / path.name
+        for path in (
+            config.get_config_file(create=False),
+            config_dir / "auth.json",
+            auth.get_auth_file(create=False),
+        )
+    )
+    existing = [path for path in paths if path.exists() or path.is_symlink()]
+    if not existing:
+        click.echo("No configuration files to remove.", err=True)
+        return
+
+    for path in existing:
+        if path.is_dir() and not path.is_symlink():
+            raise click.ClickException(
+                f"Refusing to remove configuration directory '{path}'."
+            )
+
+    if not force:
+        click.echo(
+            "This erases registered servers, users, invitations, and signing keys:",
+            err=True,
+        )
+        for path in existing:
+            click.echo(f"  {path}", err=True)
+        click.confirm(
+            "Remove these configuration files?", default=False, abort=True, err=True
+        )
+
+    for path in existing:
+        try:
+            path.unlink()
+        except OSError as exc:
+            raise click.ClickException(f"Could not remove '{path}': {exc}") from exc
+        click.echo(f"Removed {path}", err=True)
+
+
 @main.group(name="report")
 def report():
     """Manage and serve Qibocal calibration reports."""

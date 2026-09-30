@@ -1,6 +1,7 @@
 # Reference: Command Line Interface (CLI)
 
-`qibocal-report` provides command line entry points under the `qibocal report` command group.
+`qibocal-report` provides report commands under `qibocal report` and local
+configuration management under `qibocal config`.
 
 ```bash
 qibocal report [OPTIONS] COMMAND [ARGS]...
@@ -9,6 +10,41 @@ qibocal report [OPTIONS] COMMAND [ARGS]...
 ---
 
 ## 💻 Commands
+
+### `qibocal config path`
+
+Prints the absolute server configuration directory, normally
+`~/.config/qibocal-report/`, as a single plain-text line with no labels or formatting.
+The command respects `QIBOCAL_REPORT_CONFIG_DIR` and does not create the directory.
+
+```bash
+qibocal config path
+qibocal config path | xargs -I{} ls '{}'
+```
+
+### `qibocal config clean`
+
+Erases the local `servers.json` and `auth.json` configuration files, including
+registered servers, users, invitations, password-reset links, and the signing key.
+If `QIBOCAL_AUTH_FILE` points to a separate authentication file, that file is also
+removed. Report data, unrelated files, configuration directories, and browser
+local storage are not removed. Symbolic links are unlinked without deleting their
+targets.
+
+By default, the command lists the files and asks for confirmation, defaulting to
+**No**. Stop running servers before cleaning to prevent them from recreating
+configuration files.
+
+```bash
+qibocal config clean
+qibocal config clean -f
+```
+
+#### Options
+- `-f, --force`: Remove configuration files without interactive confirmation.
+- `--help`: Show help message and exit.
+
+---
 
 ### `qibocal report server`
 
@@ -155,4 +191,6 @@ qibocal report admin invite alice_admin --json
 | :--- | :--- | :--- |
 | `QIBOCAL_REPORT_DIR` | Absolute path to the calibration directory scanned for reports. | Set by CLI argument |
 | `QIBOCAL_FRONTEND_URL` | Used by developer mode to proxy requests to the Vite dev server. | Unset |
+| `QIBOCAL_REPORT_CONFIG_DIR` | Directory containing server configurations and the default authentication database. | `~/.config/qibocal-report/` |
+| `QIBOCAL_AUTH_FILE` | Custom authentication database path; also removed by `qibocal config clean`. | `auth.json` in the configuration directory |
 | `HOME` | Determines configuration folder path (`~/.config/qibocal-report/`). | User home |

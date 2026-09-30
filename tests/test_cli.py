@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from qibocal_report.cli import main
@@ -10,6 +11,167 @@ def test_cli_help():
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
     assert "report" in result.output
+    assert "config" in result.output
+
+
+def test_config_help():
+    result = CliRunner().invoke(main, ["config", "--help"])
+    assert result.exit_code == 0
+    assert "path" in result.output
+    assert "clean" in result.output
+
+
+def test_config_path(tmp_path, monkeypatch):
+    config_dir = tmp_path / "missing-config"
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    result = CliRunner().invoke(main, ["config", "path"])
+    assert result.exit_code == 0
+    assert result.stdout == f"{config_dir}\n"
+    assert result.stderr == ""
+    assert not config_dir.exists()
+
+
+def test_config_path_default(tmp_path, monkeypatch):
+    monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
+    with patch("qibocal_report.config.Path.home", return_value=tmp_path):
+        result = CliRunner().invoke(main, ["config", "path"])
+    assert result.exit_code == 0
+    assert result.stdout == f"{tmp_path / '.config' / 'qibocal-report'}\n"
+    assert not (tmp_path / ".config").exists()
+
+
+def test_config_path_relative(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", "relative-config")
+    result = CliRunner().invoke(main, ["config", "path"])
+    assert result.exit_code == 0
+    assert result.stdout == f"{tmp_path / 'relative-config'}\n"
+    assert not (tmp_path / "relative-config").exists()
+
+
+@pytest.mark.parametrize(
+    ("args", "answer", "removed"),
+    [
+        ([], "y\n", True),
+        ([], "n\n", False),
+        ([], "\n", False),
+        ([], "", False),
+        (["-f"], "", True),
+        (["--force"], "", True),
+    ],
+)
+def test_config_clean(tmp_path, monkeypatch, args, answer, removed):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    for name in ("servers.json", "auth.json", "unrelated.txt"):
+        (config_dir / name).write_text("{}", encoding="utf-8")
+    reports = config_dir / "reports"
+    reports.mkdir()
+    (reports / "report.json").write_text("{}", encoding="utf-8")
+
+    result = CliRunner().invoke(main, ["config", "clean", *args], input=answer)
+    assert result.exit_code == (0 if removed else 1)
+    assert (config_dir / "servers.json").exists() is not removed
+    assert (config_dir / "auth.json").exists() is not removed
+    assert (config_dir / "unrelated.txt").exists()
+    assert (reports / "report.json").exists()
+    assert ("Remove these configuration files?" in result.stderr) is (not args)
+    if not args:
+        assert "users, invitations, and signing keys" in result.stderr
+        assert str(config_dir / "servers.json") in result.stderr
+        assert str(config_dir / "auth.json") in result.stderr
+
+
+def test_config_clean_custom_auth_file(tmp_path, monkeypatch):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    custom_auth = tmp_path / "custom-auth.json"
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("QIBOCAL_AUTH_FILE", str(custom_auth))
+    (config_dir / "auth.json").write_text("{}", encoding="utf-8")
+    custom_auth.write_text("{}", encoding="utf-8")
+
+    result = CliRunner().invoke(main, ["config", "clean"], input="y\n")
+    assert result.exit_code == 0
+    assert str(custom_auth) in result.stderr
+    assert not custom_auth.exists()
+    assert not (config_dir / "auth.json").exists()
+
+
+def test_config_clean_missing_files(tmp_path, monkeypatch):
+    config_dir = tmp_path / "missing-config"
+    auth_file = tmp_path / "missing-auth" / "auth.json"
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("QIBOCAL_AUTH_FILE", str(auth_file))
+    result = CliRunner().invoke(main, ["config", "clean"])
+    assert result.exit_code == 0
+    assert "No configuration files to remove." in result.stderr
+    assert not config_dir.exists()
+    assert not auth_file.parent.exists()
+
+
+@pytest.mark.parametrize("dangling", [False, True])
+def test_config_clean_symlink(tmp_path, monkeypatch, dangling):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    outside = tmp_path / "outside.json"
+    if not dangling:
+        outside.write_text("{}", encoding="utf-8")
+    link = config_dir / "servers.json"
+    link.symlink_to(outside)
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    result = CliRunner().invoke(main, ["config", "clean", "-f"])
+    assert result.exit_code == 0
+    assert not link.is_symlink()
+    if dangling:
+        assert not outside.exists()
+    else:
+        assert outside.read_text(encoding="utf-8") == "{}"
+
+
+def test_config_clean_deduplicates_custom_auth_path(tmp_path, monkeypatch):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "auth.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv(
+        "QIBOCAL_AUTH_FILE", str(config_dir / "unused" / ".." / "auth.json")
+    )
+    result = CliRunner().invoke(main, ["config", "clean", "-f"])
+    assert result.exit_code == 0
+    assert result.stderr.count("Removed ") == 1
+    assert not (config_dir / "auth.json").exists()
+
+
+def test_config_clean_refuses_directory(tmp_path, monkeypatch):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "servers.json").write_text("{}", encoding="utf-8")
+    (config_dir / "auth.json").mkdir()
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    result = CliRunner().invoke(main, ["config", "clean", "-f"])
+    assert result.exit_code == 1
+    assert "Refusing to remove configuration directory" in result.stderr
+    assert (config_dir / "servers.json").exists()
+    assert (config_dir / "auth.json").is_dir()
+
+
+def test_config_clean_reports_removal_error(tmp_path, monkeypatch):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "servers.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    with patch("qibocal_report.cli.Path.unlink", side_effect=PermissionError("Denied")):
+        result = CliRunner().invoke(main, ["config", "clean", "-f"])
+    assert result.exit_code == 1
+    assert "Could not remove" in result.stderr
+    assert "Denied" in result.stderr
+    assert (config_dir / "servers.json").exists()
 
 
 def test_report_help():
@@ -348,5 +510,3 @@ def test_admin_invite_empty_instance(tmp_path, monkeypatch):
     assert data["username"] is None
     assert data["role"] == "admin"
     assert "/#/invite?token=" in data["invite_url"]
-
-
