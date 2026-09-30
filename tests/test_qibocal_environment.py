@@ -66,7 +66,15 @@ def credentials():
     return result
 
 
-def mock_metadata(monkeypatch, *, version="0.2.7", source="pypi", commit="12345"):
+def mock_metadata(
+    monkeypatch,
+    *,
+    version="0.2.7",
+    source="pypi",
+    commit="12345",
+    revision=None,
+    origin_path=None,
+):
     if version is None:
         mock = Mock(side_effect=metadata.PackageNotFoundError("qibocal"))
     else:
@@ -75,18 +83,30 @@ def mock_metadata(monkeypatch, *, version="0.2.7", source="pypi", commit="12345"
             origin = json.dumps(
                 {
                     "url": "https://github.com/qiboteam/qibocal.git",
-                    "vcs_info": {"vcs": "git", "commit_id": commit},
+                    "vcs_info": {
+                        "vcs": "git",
+                        "commit_id": commit,
+                        "requested_revision": revision,
+                    },
                 }
             )
         elif source == "local":
             origin = json.dumps({"url": "file:///local/qibocal"})
         elif source == "invalid":
             origin = "{"
-        mock = Mock(
-            return_value=SimpleNamespace(
-                version=version, read_text=Mock(return_value=origin)
-            )
+        distribution = SimpleNamespace(
+            version=version, read_text=Mock(return_value=origin)
         )
+        if origin_path is not None:
+            origin_path.write_text(origin, encoding="utf-8")
+            distribution.files = [
+                metadata.PackagePath("qibocal.dist-info/direct_url.json")
+            ]
+            distribution.locate_file = Mock(return_value=origin_path)
+            distribution.read_text = Mock(
+                side_effect=lambda name: origin_path.read_text(encoding="utf-8")
+            )
+        mock = Mock(return_value=distribution)
     monkeypatch.setattr(environment.metadata, "distribution", mock)
     return mock
 
@@ -179,7 +199,30 @@ def test_status_reads_only_package_metadata(
         "installed": version is not None,
         "version": version,
         "source": expected_source,
+        "git_branch": None,
     }
+
+
+@pytest.mark.parametrize(
+    ("revision", "branch"),
+    [
+        ("spectroscopy_pca", "spectroscopy_pca"),
+        ("refs/heads/feature/branch", "feature/branch"),
+        ("refs/heads/abcdef0", "abcdef0"),
+        ("a" * 40, None),
+        ("abcdef0", None),
+        (None, None),
+        (42, None),
+    ],
+)
+def test_git_status_reads_branch_from_metadata_without_network(
+    monkeypatch, client, credentials, revision, branch
+):
+    mock_metadata(monkeypatch, source="git", revision=revision)
+    response = client.get("/api/qibocal", headers=credentials["viewer"])
+    assert response.status_code == 200
+    assert response.json()["git_branch"] == branch
+    httpx.get.assert_not_called()
 
 
 @pytest.mark.parametrize("role", ["viewer", "editor", None])
@@ -442,10 +485,11 @@ def test_github_errors_are_explicit_and_preserve_the_default_git_option(
     "path", ["/api/admin/qibocal/install", "/api/admin/qibocal/install/stream"]
 )
 def test_git_branch_is_validated_and_installed_at_its_verified_commit(
-    monkeypatch, client, credentials, path
+    monkeypatch, client, credentials, path, tmp_path
 ):
     sha = "a" * 40
-    mock_metadata(monkeypatch, source="git", commit=sha)
+    origin_path = tmp_path / "direct_url.json"
+    mock_metadata(monkeypatch, source="git", commit=sha, origin_path=origin_path)
     request = Mock(
         return_value=httpx.Response(
             200,
@@ -461,14 +505,51 @@ def test_git_branch_is_validated_and_installed_at_its_verified_commit(
         path, headers=credentials["admin"], json={"option": "git:feature/branch"}
     )
     assert response.status_code == 200
-    if path.endswith("/stream"):
-        assert json.loads(response.text.splitlines()[-1])["type"] == "complete"
-    else:
-        assert response.json()["source"] == "git"
-    assert installer.call_args.args[0][-1] == f"{environment.GIT_URL}@{sha}"
     request.assert_called_once_with(
         f"{environment.GITHUB_REPO_URL}/branches/feature%2Fbranch", timeout=10.0
     )
+    if path.endswith("/stream"):
+        complete = json.loads(response.text.splitlines()[-1])
+        assert complete["type"] == "complete"
+        assert complete["status"]["git_branch"] == "feature/branch"
+    else:
+        assert response.json()["source"] == "git"
+        assert response.json()["git_branch"] == "feature/branch"
+    assert json.loads(origin_path.read_text())["vcs_info"] == {
+        "vcs": "git",
+        "commit_id": sha,
+        "requested_revision": "refs/heads/feature/branch",
+    }
+    assert (
+        client.get("/api/qibocal", headers=credentials["viewer"]).json()["git_branch"]
+        == "feature/branch"
+    )
+    assert (
+        client.get("/api/admin/qibocal/options", headers=credentials["admin"]).json()[
+            "git_branch"
+        ]
+        == "feature/branch"
+    )
+    assert installer.call_args.args[0][-1] == f"{environment.GIT_URL}@{sha}"
+
+
+@pytest.mark.parametrize("missing_file", [False, True])
+def test_branch_metadata_write_failures_are_explicit(monkeypatch, missing_file):
+    distribution = mock_metadata(monkeypatch, source="git").return_value
+    distribution.files = (
+        []
+        if missing_file
+        else [metadata.PackagePath("qibocal.dist-info/direct_url.json")]
+    )
+    distribution.locate_file = Mock(
+        return_value=Mock(write_text=Mock(side_effect=OSError("read-only environment")))
+    )
+    with pytest.raises(
+        environment.EnvironmentOperationError,
+        match="Could not preserve the installed Qibocal Git branch",
+    ) as caught:
+        environment._record_git_branch("spectroscopy_pca")
+    assert caught.value.status_code == 500
 
 
 @pytest.mark.parametrize(
@@ -595,7 +676,12 @@ def test_admin_install_uses_fixed_target_and_server_python(
     )
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
-    assert response.json() == {"installed": True, "version": "0.2.7", "source": source}
+    assert response.json() == {
+        "installed": True,
+        "version": "0.2.7",
+        "source": source,
+        "git_branch": None,
+    }
     args, kwargs = run.call_args
     command = args[0]
     assert command[:4] == [sys.executable, "-m", "pip", "install"]
@@ -903,7 +989,12 @@ def test_streaming_install_protocol_success(monkeypatch, client, credentials, so
     events = [json.loads(line) for line in response.text.splitlines()]
     assert events[-1] == {
         "type": "complete",
-        "status": {"installed": True, "version": "0.2.7", "source": source},
+        "status": {
+            "installed": True,
+            "version": "0.2.7",
+            "source": source,
+            "git_branch": None,
+        },
     }
     assert all(set(event) == {"type", "text"} for event in events[:-1])
     assert all(event["type"] == "output" for event in events[:-1])

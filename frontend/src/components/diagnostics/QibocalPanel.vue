@@ -3,7 +3,9 @@
     <div class="qibocal-settings">
       <p class="mb-2 text-xs">
         Current version: <strong>{{ environment ? environment.installed ? environment.version : 'Not installed' : statusError ? 'Unavailable' : 'Loading...' }}</strong>
-        <span v-if="environment?.source === 'git'"> (Git)</span>
+        <span v-if="environment?.source === 'git'">
+          (Git: <a v-if="environment.git_branch" :href="installedBranchUrl" target="_blank" rel="noopener noreferrer" class="installed-branch">{{ environment.git_branch }}</a><span v-else>branch unknown</span>)
+        </span>
       </p>
       <p v-if="loading" role="status" class="text-xs mb-3">Fetching recent Qibocal versions...</p>
       <p id="qibocal-source-label" class="source-heading">Installation source</p>
@@ -119,6 +121,7 @@ const { loading, installing, stopping, environment, options, selected, gitBranch
 const pypiOptions = computed(() => options.value.filter(option => option.source === 'pypi'))
 const gitOption = computed(() => options.value.find(option => option.source === 'git'))
 const gitLabel = computed(() => `${gitOption.value?.label || 'Official Qibocal Git repository'}: ${gitBranch.value || 'default branch'}`)
+const installedBranchUrl = computed(() => `https://github.com/qiboteam/qibocal/tree/${encodeURIComponent(environment.value?.git_branch || '')}`)
 
 async function selectSource(event, index) {
   if (loading.value || installing.value || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
@@ -142,6 +145,8 @@ watch(
 <style scoped>
 .qibocal-panel { display: flex; flex: 1; min-height: 0; overflow: auto; }
 .qibocal-settings { width: 340px; flex-shrink: 0; padding: 16px; overflow-y: auto; }
+.installed-branch { color: #c8a8ff; text-decoration: underline; overflow-wrap: anywhere; }
+.installed-branch:hover { color: #e1d0ff; }
 .source-heading { margin: 0 0 8px; font-size: 11px; font-weight: 600; }
 .version-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .version-button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 5px 8px; border: 1px solid #555; border-radius: 6px; background: #292929; color: #ddd; font-size: 11px; cursor: pointer; }

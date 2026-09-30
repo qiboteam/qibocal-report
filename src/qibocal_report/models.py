@@ -69,6 +69,7 @@ class QibocalStatus(BaseModel):
     installed: bool
     version: str | None = None
     source: Literal["pypi", "git"] | None = None
+    git_branch: str | None = None
 
 
 class QibocalOption(BaseModel):

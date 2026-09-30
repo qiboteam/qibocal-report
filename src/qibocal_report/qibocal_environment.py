@@ -96,7 +96,46 @@ def _read_status(expected_git_commit: str | None = None) -> QibocalStatus:
                 "The installer finished, but Qibocal metadata does not match "
                 "the requested Git branch commit.",
             )
-    return QibocalStatus(installed=True, version=version, source=source)
+    branch = None
+    if source == "git":
+        revision = origin["vcs_info"].get("requested_revision")
+        if (
+            isinstance(revision, str)
+            and revision
+            and not re.fullmatch(r"[0-9a-fA-F]{7,40}", revision)
+        ):
+            branch = revision.removeprefix("refs/heads/")
+    return QibocalStatus(
+        installed=True, version=version, source=source, git_branch=branch
+    )
+
+
+def _record_git_branch(branch: str) -> None:
+    """Retain the selected branch when the installer target is a pinned commit."""
+    try:
+        distribution = metadata.distribution("qibocal")
+        origin_file = next(
+            (
+                file
+                for file in distribution.files or []
+                if file.name == "direct_url.json"
+                and file.parent.name.endswith(".dist-info")
+            ),
+            None,
+        )
+        if origin_file is None:
+            raise ValueError("the package origin metadata file is missing")
+        origin = json.loads(distribution.read_text("direct_url.json"))
+        if not isinstance(origin, dict) or not isinstance(origin.get("vcs_info"), dict):
+            raise TypeError("the package origin metadata is invalid")
+        origin["vcs_info"]["requested_revision"] = f"refs/heads/{branch}"
+        distribution.locate_file(origin_file).write_text(
+            json.dumps(origin, indent=2) + "\n", encoding="utf-8"
+        )
+    except (metadata.PackageNotFoundError, OSError, ValueError, TypeError) as error:
+        raise EnvironmentOperationError(
+            500, f"Could not preserve the installed Qibocal Git branch: {error}"
+        ) from error
 
 
 def get_qibocal_status() -> QibocalStatus:
@@ -525,6 +564,10 @@ def install_qibocal(
                 "The installer finished, but Qibocal metadata does not match "
                 "the requested installation.",
             )
+        if option.startswith("git:"):
+            branch = option.removeprefix("git:")
+            _record_git_branch(branch)
+            status.git_branch = branch
         return status
     finally:
         if environment_acquired:

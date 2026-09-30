@@ -328,6 +328,39 @@ test('Qibocal administration and plot-generation feedback', async t => {
       }
     })
 
+    await t.test('the installed Git branch links to GitHub in a new tab, independently of picker selection', async () => {
+      setRole('admin')
+      diagnostics.expanded = false
+      try {
+        for (const branch of ['spectroscopy_pca', 'feature/branch', null]) {
+          const current = { installed: true, version: '0.2.8.dev1', source: 'git', git_branch: branch }
+          mock.method(globalThis, 'fetch', async url => Response.json(url.endsWith('/options')
+            ? { ...choices, ...current, git_branches: ['main'], git_default_branch: 'main' }
+            : current))
+          const html = await renderToString(createSSRApp({
+            ...QibocalPanel,
+            async setup(props, context) {
+              const controls = QibocalPanel.setup(props, context)
+              await controls.refreshOptions()
+              return controls
+            }
+          }))
+          assert.match(html, /Current version:.*0\.2\.8\.dev1/)
+          if (branch) {
+            assert.ok(html.includes(`href="https://github.com/qiboteam/qibocal/tree/${encodeURIComponent(branch)}"`))
+            assert.match(html, /target="_blank" rel="noopener noreferrer"/)
+            assert.ok(html.includes(`>${branch}</a>`))
+          } else {
+            assert.match(html, /branch unknown/)
+            assert.equal(html.includes('class="installed-branch"'), false)
+          }
+          mock.restoreAll()
+        }
+      } finally {
+        mock.restoreAll()
+      }
+    })
+
     await t.test('Git installation submits the chosen branch and rejects names outside the offered list', async () => {
       setRole('admin')
       const installed = mock.fn()
@@ -337,7 +370,7 @@ test('Qibocal administration and plot-generation feedback', async t => {
           ...choices, git_branches: ['main', '0.1', 'feature/branch'], git_default_branch: 'main'
         })
         assert.deepEqual(JSON.parse(request.body), { option: 'git:feature/branch' })
-        return installationResponse({ installed: true, version: '0.2.8.dev1', source: 'git' })
+        return installationResponse({ installed: true, version: '0.2.8.dev1', source: 'git', git_branch: 'feature/branch' })
       })
       try {
         const environment = await setupComposable(() => useQibocalEnvironment(installed))
@@ -351,6 +384,7 @@ test('Qibocal administration and plot-generation feedback', async t => {
         environment.gitBranch.value = 'feature/branch'
         await environment.install()
         assert.equal(installed.mock.callCount(), 1)
+        assert.equal(environment.environment.value.git_branch, 'feature/branch')
       } finally {
         mock.restoreAll()
       }

@@ -86,7 +86,12 @@ The full-width **Git** button below them uses the official
 [Git repository](https://github.com/qiboteam/qibocal). Its dropdown arrow lets
 you choose any available branch; the repository's default branch is selected
 initially. A branch installation is pinned to the commit verified by GitHub.
-The current server version is shown in the tab. If PyPI is unavailable, the
+The current server version is shown in the tab. Git installations also show
+the installed branch as a link to its GitHub page, opening in a new tab.
+The branch name is preserved for installations made through the branch picker.
+Older installations whose metadata only records a commit show **branch unknown**;
+reinstall the desired branch to retain its name.
+If PyPI is unavailable, the
 error is displayed and the Git option remains available. Select a version using
 the highlighted buttons (PyPI versions show their logo), then use **Install**
 (the package-plus icon) to install or switch. **Refresh** (the circular-arrows
