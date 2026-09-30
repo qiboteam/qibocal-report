@@ -271,7 +271,9 @@ test('Qibocal administration and plot-generation feedback', async t => {
       assert.match(html, /Install \/ Switch version/)
       assert.match(html, /for all users/)
       assert.match(html, /Qibocal installation output/)
-      assert.equal(html.includes('<select'), false)
+      assert.equal((html.match(/<select/g) || []).length, 1)
+      assert.match(html, /aria-label="Qibocal Git branch"/)
+      assert.match(html, /class="git-source/)
       assert.equal((html.match(/role="radio"/g) || []).length, 2)
       assert.equal((html.match(/aria-checked="true"/g) || []).length, 1)
       assert.match(html, /alt="Qibocal 0\.2\.5 \(PyPI\)"/)
@@ -286,6 +288,69 @@ test('Qibocal administration and plot-generation feedback', async t => {
       assert.equal(html.includes('keep this dialog open'), false)
       diagnostics.expanded = false
       mock.restoreAll()
+    })
+
+    await t.test('the picker shows six PyPI versions and a separate Git branch row', async () => {
+      setRole('admin')
+      const extended = {
+        ...choices,
+        options: [
+          ...['0.2.9', '0.2.8', '0.2.7', '0.2.6', '0.2.5', '0.1.7'].map(version => ({
+            id: `pypi:${version}`, label: `Qibocal ${version} (PyPI)`, source: 'pypi', version
+          })),
+          choices.options[1]
+        ],
+        git_branches: ['main', '0.1', 'feature/branch'],
+        git_default_branch: 'main',
+        github_error: null
+      }
+      mock.method(globalThis, 'fetch', async url => Response.json(url.endsWith('/options') ? extended : { installed: false }))
+      try {
+        const html = await renderToString(createSSRApp({
+          ...QibocalPanel,
+          async setup(props, context) {
+            const controls = QibocalPanel.setup(props, context)
+            await controls.refreshOptions()
+            return controls
+          }
+        }))
+        assert.equal((html.match(/class="pypi-logo"/g) || []).length, 6)
+        assert.equal((html.match(/role="radio"/g) || []).length, 7)
+        assert.match(html, /<span[^>]*>0\.1\.7<\/span>/)
+        assert.match(html, /Git: main/)
+        assert.match(html, /<option value="feature\/branch"/)
+        assert.match(html, /<option value="0\.1"/)
+      } finally {
+        mock.restoreAll()
+      }
+    })
+
+    await t.test('Git installation submits the chosen branch and rejects names outside the offered list', async () => {
+      setRole('admin')
+      const installed = mock.fn()
+      const fetch = mock.method(globalThis, 'fetch', async (url, request) => {
+        if (url.endsWith('/api/qibocal')) return Response.json({ installed: false })
+        if (url.endsWith('/options')) return Response.json({
+          ...choices, git_branches: ['main', '0.1', 'feature/branch'], git_default_branch: 'main'
+        })
+        assert.deepEqual(JSON.parse(request.body), { option: 'git:feature/branch' })
+        return installationResponse({ installed: true, version: '0.2.8.dev1', source: 'git' })
+      })
+      try {
+        const environment = await setupComposable(() => useQibocalEnvironment(installed))
+        await environment.refreshOptions()
+        assert.equal(environment.gitBranch.value, 'main')
+        environment.selected.value = 'git'
+        environment.gitBranch.value = 'not-listed'
+        await environment.install()
+        assert.equal(fetch.mock.calls.some(call => call.arguments[0].endsWith('/install/stream')), false)
+        assert.match(environment.error.value, /available Qibocal Git branches/)
+        environment.gitBranch.value = 'feature/branch'
+        await environment.install()
+        assert.equal(installed.mock.callCount(), 1)
+      } finally {
+        mock.restoreAll()
+      }
     })
 
     await t.test('version buttons support radio-style keyboard selection and lock while installing', async () => {

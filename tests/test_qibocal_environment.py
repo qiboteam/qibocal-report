@@ -24,6 +24,7 @@ from qibocal_report.models import ProtocolDetail, QibocalInstallRequest, Qibocal
 
 _REAL_SUBPROCESS_RUN = subprocess.run
 _REAL_SUBPROCESS_POPEN = subprocess.Popen
+_REAL_GITHUB_BRANCHES = environment._github_branches
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +45,9 @@ def isolate_environment(monkeypatch):
     monkeypatch.setattr(
         httpx, "get", Mock(side_effect=AssertionError("Unexpected external request"))
     )
+    monkeypatch.setattr(
+        environment, "_github_branches", lambda: (["main", "0.1"], "main", None)
+    )
 
 
 @pytest.fixture
@@ -60,7 +64,7 @@ def credentials():
     return result
 
 
-def mock_metadata(monkeypatch, *, version="0.2.7", source="pypi"):
+def mock_metadata(monkeypatch, *, version="0.2.7", source="pypi", commit="12345"):
     if version is None:
         mock = Mock(side_effect=metadata.PackageNotFoundError("qibocal"))
     else:
@@ -69,7 +73,7 @@ def mock_metadata(monkeypatch, *, version="0.2.7", source="pypi"):
             origin = json.dumps(
                 {
                     "url": "https://github.com/qiboteam/qibocal.git",
-                    "vcs_info": {"vcs": "git", "commit_id": "12345"},
+                    "vcs_info": {"vcs": "git", "commit_id": commit},
                 }
             )
         elif source == "local":
@@ -288,6 +292,239 @@ def test_options_sort_filter_and_limit_versions(monkeypatch, client, credentials
         "version": None,
     }
     request.assert_called_once_with(environment.PYPI_URL, timeout=10.0)
+
+
+@pytest.mark.parametrize(
+    ("releases", "expected"),
+    [
+        (
+            ["0.2.9", "0.2.8", "0.2.7", "0.2.6", "0.2.5", "0.1.3", "0.1.2"],
+            ["0.2.9", "0.2.8", "0.2.7", "0.2.6", "0.2.5", "0.1.3"],
+        ),
+        (
+            ["2.3.5", "2.3.4", "2.3.3", "2.3.2", "2.3.1", "1.9.2", "1.9.1"],
+            ["2.3.5", "2.3.4", "2.3.3", "2.3.2", "2.3.1", "1.9.2"],
+        ),
+        (["0.2.1", "0.1.3"], ["0.2.1", "0.1.3"]),
+        (["0.2.1"], ["0.2.1"]),
+        ([], []),
+    ],
+)
+def test_options_include_previous_release_line_without_duplicates(
+    monkeypatch, releases, expected
+):
+    mock_pypi(monkeypatch, {version: [{}] for version in releases} or {"invalid": []})
+    options, error = environment._pypi_options()
+    assert error is None
+    assert [option.version for option in options] == expected
+
+
+def test_previous_release_line_filters_incompatible_and_yanked_versions(monkeypatch):
+    releases = {f"0.2.{patch}": [{}] for patch in range(5, 10)}
+    releases.update(
+        {
+            "0.1.9": [{"yanked": True}],
+            "0.1.8": [{"requires_python": ">=99"}],
+            "0.1.7": [{}],
+            "0.1.10rc1": [{}],
+        }
+    )
+    mock_pypi(monkeypatch, releases)
+    options, error = environment._pypi_options()
+    assert error is None
+    assert len(options) == 6
+    assert options[-1].id == "pypi:0.1.7"
+
+
+def test_previous_release_line_can_be_installed(monkeypatch, client, credentials):
+    mock_metadata(monkeypatch, version="0.1.7")
+    mock_pypi(
+        monkeypatch,
+        {
+            version: [{}]
+            for version in ["0.2.9", "0.2.8", "0.2.7", "0.2.6", "0.2.5", "0.1.7"]
+        },
+    )
+    installer = mock_installer(monkeypatch)
+    response = client.post(
+        "/api/admin/qibocal/install",
+        headers=credentials["admin"],
+        json={"option": "pypi:0.1.7"},
+    )
+    assert response.status_code == 200
+    assert installer.call_args.args[0][-1] == "qibocal==0.1.7"
+
+
+def test_github_branches_are_paginated_default_first_and_exposed_in_options(
+    monkeypatch, client, credentials
+):
+    mock_metadata(monkeypatch)
+    names = [f"feature/{index:03d}" for index in range(100)]
+
+    def get(url, **kwargs):
+        if url == environment.PYPI_URL:
+            data = {"releases": {"0.2.7": [{}]}}
+        elif url == environment.GITHUB_REPO_URL:
+            data = {"default_branch": "main"}
+        else:
+            assert url == f"{environment.GITHUB_REPO_URL}/branches"
+            assert kwargs["params"]["per_page"] == 100
+            page = kwargs["params"]["page"]
+            data = (
+                [{"name": name} for name in names]
+                if page == 1
+                else [{"name": "main"}, {"name": "0.1"}]
+            )
+        return httpx.Response(200, json=data, request=httpx.Request("GET", url))
+
+    request = Mock(side_effect=get)
+    monkeypatch.setattr(httpx, "get", request)
+    monkeypatch.setattr(environment, "_github_branches", _REAL_GITHUB_BRANCHES)
+    response = client.get("/api/admin/qibocal/options", headers=credentials["admin"])
+    assert response.status_code == 200
+    data = response.json()
+    assert data["git_default_branch"] == "main"
+    assert data["github_error"] is None
+    assert data["git_branches"] == ["main", "0.1", *names]
+    assert request.call_count == 4
+
+
+@pytest.mark.parametrize(
+    "failure", ["network", "http", "json", "schema", "missing-default"]
+)
+def test_github_errors_are_explicit_and_preserve_the_default_git_option(
+    monkeypatch, failure
+):
+    if failure == "network":
+        get = Mock(side_effect=httpx.ConnectError("offline"))
+    elif failure == "http":
+        get = Mock(
+            return_value=httpx.Response(
+                403, request=httpx.Request("GET", environment.GITHUB_REPO_URL)
+            )
+        )
+    elif failure == "json":
+        get = Mock(
+            return_value=httpx.Response(
+                200,
+                text="invalid",
+                request=httpx.Request("GET", environment.GITHUB_REPO_URL),
+            )
+        )
+    else:
+        responses = [
+            httpx.Response(
+                200,
+                json={"default_branch": "main"},
+                request=httpx.Request("GET", environment.GITHUB_REPO_URL),
+            ),
+            httpx.Response(
+                200,
+                json={} if failure == "schema" else [{"name": "another"}],
+                request=httpx.Request("GET", f"{environment.GITHUB_REPO_URL}/branches"),
+            ),
+        ]
+        get = Mock(side_effect=responses)
+    monkeypatch.setattr(httpx, "get", get)
+    branches, default, error = _REAL_GITHUB_BRANCHES()
+    assert branches == [] and default is None
+    assert error.startswith("Could not fetch Qibocal branches from GitHub:")
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/admin/qibocal/install", "/api/admin/qibocal/install/stream"]
+)
+def test_git_branch_is_validated_and_installed_at_its_verified_commit(
+    monkeypatch, client, credentials, path
+):
+    sha = "a" * 40
+    mock_metadata(monkeypatch, source="git", commit=sha)
+    request = Mock(
+        return_value=httpx.Response(
+            200,
+            json={"name": "feature/branch", "commit": {"sha": sha}},
+            request=httpx.Request(
+                "GET", f"{environment.GITHUB_REPO_URL}/branches/feature%2Fbranch"
+            ),
+        )
+    )
+    monkeypatch.setattr(httpx, "get", request)
+    installer = mock_installer(monkeypatch)
+    response = client.post(
+        path, headers=credentials["admin"], json={"option": "git:feature/branch"}
+    )
+    assert response.status_code == 200
+    if path.endswith("/stream"):
+        assert json.loads(response.text.splitlines()[-1])["type"] == "complete"
+    else:
+        assert response.json()["source"] == "git"
+    assert installer.call_args.args[0][-1] == f"{environment.GIT_URL}@{sha}"
+    request.assert_called_once_with(
+        f"{environment.GITHUB_REPO_URL}/branches/feature%2Fbranch", timeout=10.0
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "data", "expected"),
+    [
+        (404, {}, 400),
+        (403, {}, 502),
+        (200, {"name": "another", "commit": {"sha": "a" * 40}}, 502),
+        (200, {"name": "main", "commit": {"sha": "--upload-pack=evil"}}, 502),
+        (200, {"name": "main", "commit": "invalid"}, 502),
+        (200, {}, 502),
+    ],
+)
+def test_git_branch_rejections_never_start_the_installer(
+    monkeypatch, client, credentials, status, data, expected
+):
+    monkeypatch.setattr(
+        httpx,
+        "get",
+        Mock(
+            return_value=httpx.Response(
+                status,
+                json=data,
+                request=httpx.Request(
+                    "GET", f"{environment.GITHUB_REPO_URL}/branches/main"
+                ),
+            )
+        ),
+    )
+    response = client.post(
+        "/api/admin/qibocal/install/stream",
+        headers=credentials["admin"],
+        json={"option": "git:main"},
+    )
+    assert response.status_code == expected
+    subprocess.Popen.assert_not_called()
+
+
+def test_git_branch_commit_must_match_installed_metadata(
+    monkeypatch, client, credentials
+):
+    mock_metadata(monkeypatch, source="git", commit="b" * 40)
+    monkeypatch.setattr(
+        httpx,
+        "get",
+        Mock(
+            return_value=httpx.Response(
+                200,
+                json={"name": "main", "commit": {"sha": "a" * 40}},
+                request=httpx.Request(
+                    "GET", f"{environment.GITHUB_REPO_URL}/branches/main"
+                ),
+            )
+        ),
+    )
+    mock_installer(monkeypatch)
+    response = client.post(
+        "/api/admin/qibocal/install",
+        headers=credentials["admin"],
+        json={"option": "git:main"},
+    )
+    assert response.status_code == 500
+    assert "Git branch commit" in response.json()["detail"]
 
 
 @pytest.mark.parametrize("failure", ["network", "http", "json", "schema"])

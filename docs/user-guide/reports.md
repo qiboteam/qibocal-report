@@ -79,14 +79,21 @@ for the current server process, not a persistent archive.
 
 The **Qibocal** tab contains version management. Missing-package warnings
 direct administrators to drag open the footer and select this tab. The button grid
-offers a few recent compatible stable PyPI releases and the latest default
-branch of the official [Git repository](https://github.com/qiboteam/qibocal).
+offers five recent compatible stable PyPI releases, plus the latest compatible
+release from the previous major line (the previous minor line for 0.x, such as
+0.1.x alongside 0.2.x).
+The full-width **Git** button below them uses the official
+[Git repository](https://github.com/qiboteam/qibocal). Its dropdown arrow lets
+you choose any available branch; the repository's default branch is selected
+initially. A branch installation is pinned to the commit verified by GitHub.
 The current server version is shown in the tab. If PyPI is unavailable, the
 error is displayed and the Git option remains available. Select a version using
 the highlighted buttons (PyPI versions show their logo), then use **Install**
 (the package-plus icon) to install or switch. **Refresh** (the circular-arrows
 icon) reloads available versions.
 Full source names and action labels are available as tooltips and accessible text.
+If GitHub cannot list branches, the error is shown and installation from the
+default Git branch remains available.
 
 **Install / Switch version** (the package-plus icon) changes Qibocal and its dependencies in the server's
 Python environment for all users, then regenerates the current report's cached

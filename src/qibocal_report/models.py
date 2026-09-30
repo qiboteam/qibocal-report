@@ -81,6 +81,9 @@ class QibocalOption(BaseModel):
 class QibocalOptions(QibocalStatus):
     options: list[QibocalOption] = Field(default_factory=list)
     pypi_error: str | None = None
+    git_branches: list[str] = Field(default_factory=list)
+    git_default_branch: str | None = None
+    github_error: str | None = None
 
 
 class QibocalInstallRequest(BaseModel):

@@ -129,9 +129,12 @@ role is **admin**. The synthetic administrator on an authentication-disabled
 server cannot access environment administration.
 
 Returns the same installed status plus up to five recent stable, non-yanked
-PyPI releases compatible with the server's Python version, followed by the
-fixed official Git repository option. Versions are ordered by Python package
-version semantics, not alphabetically. Responses use `Cache-Control: no-store`.
+PyPI releases compatible with the server's Python version, plus the latest
+compatible release from the previous major line if not already included.
+For 0.x releases, the previous minor line is used instead (for example,
+0.1.x alongside 0.2.x). The fixed official Git repository option follows.
+Versions are ordered by Python package version semantics, not alphabetically.
+Responses use `Cache-Control: no-store`.
 
 ```json
 {
@@ -152,7 +155,10 @@ version semantics, not alphabetically. Responses use `Cache-Control: no-store`.
       "version": null
     }
   ],
-  "pypi_error": null
+  "pypi_error": null,
+  "git_branches": ["main", "0.1", "feature/branch"],
+  "git_default_branch": "main",
+  "github_error": null
 }
 ```
 
@@ -160,15 +166,26 @@ Releases come from `https://pypi.org/pypi/qibocal/json`. If PyPI is unavailable
 or returns invalid data, `pypi_error` explicitly describes the failure and the
 Git option remains available.
 
+Branches are fetched from the official `qiboteam/qibocal` GitHub repository,
+including all pages of the branch listing. The default branch comes first,
+followed by the other branches alphabetically. If GitHub is unavailable or
+rate-limits the server, `github_error` describes the failure, branch choices
+are empty, and the default `"git"` option remains available.
+
 ### `POST /api/admin/qibocal/install`
 Uses the same strict administrator authorization as the options endpoint.
 
-- **Body**: `{"option": "pypi:0.2.7"}` or `{"option": "git"}`.
+- **Body**: `{"option": "pypi:0.2.7"}`, `{"option": "git"}`, or
+  `{"option": "git:feature/branch"}`.
 - PyPI selections are revalidated against the server's recent compatible
   options, then installed as an exact `qibocal==<version>` pin.
 - `"git"` always installs `git+https://github.com/qiboteam/qibocal.git`; arbitrary
   URLs, package names, versions outside the offered choices, and installer
   arguments are rejected.
+- `"git:<branch>"` resolves the named branch through the official repository's
+  GitHub API and pins installation to its verified commit SHA. Arbitrary Git
+  refs and installer arguments are never interpolated into the command.
+  Installed package metadata must confirm that commit before success.
 - Installation upgrades/reinstalls Qibocal using the server's `sys.executable`
   through pip, or `uv pip --python <sys.executable>` when pip is unavailable.
   The installer has a ten-minute timeout.
@@ -180,7 +197,7 @@ Uses the same strict administrator authorization as the options endpoint.
 
 Errors return a descriptive `detail`: **400** for an invalid selection,
 **401/403** for insufficient authentication/permissions, **409** for concurrent
-installation or a busy generation environment, **502** for PyPI validation or
+installation or a busy generation environment, **502** for PyPI/GitHub validation or
 installer failure, **503** for an unavailable installer, **504** for installation
 timeout, and **500** if installed metadata cannot confirm the requested result.
 

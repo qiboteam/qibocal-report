@@ -9,7 +9,7 @@
       <p id="qibocal-source-label" class="source-heading">Installation source</p>
       <div role="radiogroup" aria-labelledby="qibocal-source-label" class="version-grid">
         <button
-          v-for="(option, index) in options"
+          v-for="(option, index) in pypiOptions"
           :key="option.id"
           :ref="element => versionButtons[index] = element"
           type="button"
@@ -25,11 +25,41 @@
           @keydown="selectSource($event, index)"
         >
           <span class="source-icon">
-            <img v-if="option.source === 'pypi'" :src="pypiLogo" :alt="option.label" class="pypi-logo" />
-            <GitBranch v-else :size="12" aria-hidden="true" />
+            <img :src="pypiLogo" :alt="option.label" class="pypi-logo" />
           </span>
-          <span>{{ option.source === 'pypi' ? option.version : 'Latest Git' }}</span>
+          <span>{{ option.version }}</span>
         </button>
+        <div v-if="gitOption" class="git-source" :class="{ selected: selected === 'git' }">
+          <button
+            :ref="element => versionButtons[pypiOptions.length] = element"
+            type="button"
+            role="radio"
+            :aria-checked="selected === 'git'"
+            :aria-label="gitLabel"
+            :title="gitLabel"
+            :tabindex="selected === 'git' ? 0 : -1"
+            :disabled="loading || installing"
+            class="version-button git-button"
+            @click="selected = 'git'"
+            @keydown="selectSource($event, pypiOptions.length)"
+          >
+            <span class="source-icon"><GitBranch :size="12" aria-hidden="true" /></span>
+            <span class="git-label">Git: {{ gitBranch || 'default branch' }}</span>
+          </button>
+          <div class="branch-picker" :class="{ disabled: loading || installing || !gitBranches.length }">
+            <ChevronDown :size="12" aria-hidden="true" />
+            <select
+              v-model="gitBranch"
+              aria-label="Qibocal Git branch"
+              title="Choose an official Qibocal Git branch"
+              :disabled="loading || installing || !gitBranches.length"
+              @focus="selected = 'git'"
+              @change="selected = 'git'"
+            >
+              <option v-for="branch in gitBranches" :key="branch" :value="branch">{{ branch }}</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="installation-actions">
         <button
@@ -52,8 +82,9 @@
       <p class="installation-note">
         Changes the server's Python environment for all users. The open report or preview is regenerated after installation; other cached reports are unchanged.
       </p>
-      <p v-if="selected === 'git'" class="installation-note">Latest default branch of https://github.com/qiboteam/qibocal</p>
+      <p v-if="selected === 'git'" class="installation-note">Official Qibocal repository: {{ gitBranch || 'default branch' }} (https://github.com/qiboteam/qibocal)</p>
       <p v-if="pypiError" role="alert" class="text-xs text-amber-300 mt-3">{{ pypiError }} Git remains available.</p>
+      <p v-if="githubError" role="alert" class="text-xs text-amber-300 mt-3">{{ githubError }} The default Git branch remains available.</p>
       <p v-if="error || statusError" role="alert" class="text-xs text-red-300 mt-3 whitespace-pre-wrap">{{ error || statusError }}</p>
       <p v-if="success" role="status" class="text-xs text-green-300 mt-3">{{ success }}</p>
     </div>
@@ -65,8 +96,8 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
-import { GitBranch, Loader2, PackagePlus, RefreshCw } from 'lucide-vue-next'
+import { computed, ref, watch, nextTick } from 'vue'
+import { ChevronDown, GitBranch, Loader2, PackagePlus, RefreshCw } from 'lucide-vue-next'
 import { state, canManageQibocal } from '../../store.js'
 import { diagnostics } from '../../composables/useDiagnostics.js'
 import { useQibocalEnvironment } from '../../composables/useQibocalEnvironment.js'
@@ -75,8 +106,11 @@ import pypiLogo from '../../assets/pypi.svg'
 
 const versionButtons = ref([])
 
-const { loading, installing, environment, options, selected, error, pypiError, statusError, installOutput, success, refreshOptions, install } =
+const { loading, installing, environment, options, selected, gitBranches, gitBranch, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install } =
   useQibocalEnvironment(() => { diagnostics.qibocalRevision++ })
+const pypiOptions = computed(() => options.value.filter(option => option.source === 'pypi'))
+const gitOption = computed(() => options.value.find(option => option.source === 'git'))
+const gitLabel = computed(() => `${gitOption.value?.label || 'Official Qibocal Git repository'}: ${gitBranch.value || 'default branch'}`)
 
 async function selectSource(event, index) {
   if (loading.value || installing.value || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
@@ -105,6 +139,17 @@ watch(
 .version-button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 5px 8px; border: 1px solid #555; border-radius: 6px; background: #292929; color: #ddd; font-size: 11px; cursor: pointer; }
 .version-button:hover:not(:disabled) { border-color: #a878ff; }
 .version-button.selected { border-color: #a878ff; background: #53367b; color: #fff; }
+.git-source { grid-column: 1 / -1; display: flex; align-items: stretch; min-width: 0; border: 1px solid #555; border-radius: 6px; background: #292929; }
+.git-source.selected { border-color: #a878ff; background: #53367b; }
+.git-button { flex: 1; min-width: 0; justify-content: flex-start; border: 0; background: transparent; }
+.git-source.selected .git-button { color: #fff; }
+.git-button svg, .branch-picker svg { width: 12px; height: 12px; flex-shrink: 0; }
+.git-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branch-picker { position: relative; display: flex; align-items: center; justify-content: center; width: 32px; flex-shrink: 0; border-left: 1px solid #555; }
+.branch-picker.disabled { opacity: 0.5; }
+.branch-picker select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.branch-picker select:disabled { cursor: not-allowed; }
+.branch-picker:focus-within { outline: 2px solid #a878ff; outline-offset: -2px; border-radius: 0 5px 5px 0; }
 .source-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; }
 .pypi-logo { width: 20px; height: 20px; object-fit: contain; }
 .installation-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding-top: 12px; border-top: 1px solid #444; }

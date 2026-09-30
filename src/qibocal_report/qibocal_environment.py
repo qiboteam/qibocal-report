@@ -4,6 +4,7 @@ import codecs
 import json
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -15,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as ReaderTimeoutError
 from contextlib import contextmanager
 from importlib import metadata, util
+from urllib.parse import quote
 
 import httpx
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -25,6 +27,7 @@ from qibocal_report.models import QibocalOption, QibocalOptions, QibocalStatus
 
 PYPI_URL = "https://pypi.org/pypi/qibocal/json"
 GIT_URL = "git+https://github.com/qiboteam/qibocal.git"
+GITHUB_REPO_URL = "https://api.github.com/repos/qiboteam/qibocal"
 INSTALL_TIMEOUT = 600
 GENERATION_TIMEOUT = 300
 _INSTALL_LOCK = threading.Lock()
@@ -53,7 +56,7 @@ def generation_environment():
         _ENVIRONMENT_LOCK.release()
 
 
-def _read_status() -> QibocalStatus:
+def _read_status(expected_git_commit: str | None = None) -> QibocalStatus:
     try:
         distribution = metadata.distribution("qibocal")
         version = distribution.version or None
@@ -66,6 +69,7 @@ def _read_status() -> QibocalStatus:
         ) from error
 
     source = "pypi"
+    origin = None
     if direct_url:
         try:
             origin = json.loads(direct_url)
@@ -78,6 +82,18 @@ def _read_status() -> QibocalStatus:
             )
         except (ValueError, TypeError):
             source = None
+    if expected_git_commit is not None:
+        vcs_info = origin.get("vcs_info") if isinstance(origin, dict) else None
+        if (
+            source != "git"
+            or not isinstance(vcs_info, dict)
+            or vcs_info.get("commit_id") != expected_git_commit
+        ):
+            raise EnvironmentOperationError(
+                500,
+                "The installer finished, but Qibocal metadata does not match "
+                "the requested Git branch commit.",
+            )
     return QibocalStatus(installed=True, version=version, source=source)
 
 
@@ -119,6 +135,24 @@ def _pypi_options() -> tuple[list[QibocalOption], str | None]:
                 _compatible_file(file, python_version) for file in files
             ):
                 versions.add(version)
+        ordered = sorted(versions, reverse=True)
+        selected = ordered[:5]
+        if ordered:
+            latest = ordered[0]
+            previous = next(
+                (
+                    version
+                    for version in ordered
+                    if (
+                        version.major == latest.major - 1
+                        if latest.major
+                        else version.major == 0 and version.minor == latest.minor - 1
+                    )
+                ),
+                None,
+            )
+            if previous is not None and previous not in selected:
+                selected.append(previous)
         return [
             QibocalOption(
                 id=f"pypi:{version}",
@@ -126,26 +160,106 @@ def _pypi_options() -> tuple[list[QibocalOption], str | None]:
                 source="pypi",
                 version=str(version),
             )
-            for version in sorted(versions, reverse=True)[:5]
+            for version in selected
         ], None
     except (httpx.HTTPError, ValueError, TypeError) as error:
         return [], f"Could not fetch Qibocal versions from PyPI: {error}"
 
 
+def _github_branches() -> tuple[list[str], str | None, str | None]:
+    try:
+        response = httpx.get(GITHUB_REPO_URL, timeout=10.0)
+        response.raise_for_status()
+        repository = response.json()
+        default = (
+            repository.get("default_branch") if isinstance(repository, dict) else None
+        )
+        if not isinstance(default, str) or not default:
+            raise TypeError("GitHub returned an invalid default branch")
+        branches: set[str] = set()
+        for page in range(1, 101):
+            response = httpx.get(
+                f"{GITHUB_REPO_URL}/branches",
+                params={"per_page": 100, "page": page},
+                timeout=10.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if not isinstance(data, list) or any(
+                not isinstance(item, dict)
+                or not isinstance(item.get("name"), str)
+                or not item["name"]
+                for item in data
+            ):
+                raise TypeError("GitHub returned an invalid branch listing")
+            branches.update(item["name"] for item in data)
+            if len(data) < 100:
+                break
+        else:
+            raise ValueError("GitHub's branch listing exceeded 100 pages")
+        if default not in branches:
+            raise ValueError(
+                "GitHub's default branch is missing from the branch listing"
+            )
+        return [default, *sorted(branches - {default}, key=str.casefold)], default, None
+    except (httpx.HTTPError, ValueError, TypeError) as error:
+        return [], None, f"Could not fetch Qibocal branches from GitHub: {error}"
+
+
 def get_qibocal_options() -> QibocalOptions:
     status = get_qibocal_status()
     options, error = _pypi_options()
+    branches, default, github_error = _github_branches()
     options.append(
         QibocalOption(
             id="git", label="Git repository (latest)", source="git", version=None
         )
     )
-    return QibocalOptions(**status.model_dump(), options=options, pypi_error=error)
+    return QibocalOptions(
+        **status.model_dump(),
+        options=options,
+        pypi_error=error,
+        git_branches=branches,
+        git_default_branch=default,
+        github_error=github_error,
+    )
+
+
+def _git_branch_target(branch: str) -> str:
+    if not branch or len(branch) > 196:
+        raise EnvironmentOperationError(400, "Invalid Qibocal Git branch.")
+    try:
+        response = httpx.get(
+            f"{GITHUB_REPO_URL}/branches/{quote(branch, safe='')}", timeout=10.0
+        )
+        if response.status_code == 404:
+            raise EnvironmentOperationError(
+                400, "Choose a branch available in the official Qibocal repository."
+            )
+        response.raise_for_status()
+        data = response.json()
+        commit = data.get("commit") if isinstance(data, dict) else None
+        sha = commit.get("sha") if isinstance(commit, dict) else None
+        if (
+            not isinstance(data, dict)
+            or data.get("name") != branch
+            or not isinstance(sha, str)
+            or re.fullmatch(r"[0-9a-f]{40}", sha) is None
+        ):
+            raise ValueError("GitHub returned invalid branch metadata")
+        # Pin GitHub's verified commit, never interpolate an arbitrary Git ref.
+        return f"{GIT_URL}@{sha}"
+    except (httpx.HTTPError, ValueError, TypeError) as error:
+        raise EnvironmentOperationError(
+            502, f"Could not validate the Qibocal Git branch with GitHub: {error}"
+        ) from error
 
 
 def _installation_target(option: str) -> tuple[str, str, str | None]:
     if option == "git":
         return GIT_URL, "git", None
+    if option.startswith("git:"):
+        return _git_branch_target(option.removeprefix("git:")), "git", None
     if not option.startswith("pypi:"):
         raise EnvironmentOperationError(400, "Invalid Qibocal installation option.")
     try:
@@ -330,7 +444,11 @@ def install_qibocal(
                 502,
                 f"Qibocal installation failed (exit {returncode}): {output}",
             )
-        status = _read_status()
+        status = _read_status(
+            expected_git_commit=target.removeprefix(f"{GIT_URL}@")
+            if option.startswith("git:")
+            else None
+        )
         if not status.installed or not status.version:
             raise EnvironmentOperationError(
                 500, "The installer finished, but Qibocal package metadata is missing."

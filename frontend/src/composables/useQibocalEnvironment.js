@@ -15,6 +15,9 @@ export function useQibocalEnvironment(onInstalled) {
   const environment = ref(null)
   const options = ref([])
   const selected = ref('')
+  const gitBranches = ref([])
+  const gitBranch = ref('')
+  const githubError = ref('')
   const error = ref('')
   const pypiError = ref('')
   const statusError = ref('')
@@ -48,6 +51,9 @@ export function useQibocalEnvironment(onInstalled) {
     pypiError.value = ''
     options.value = []
     selected.value = ''
+    gitBranches.value = []
+    gitBranch.value = ''
+    githubError.value = ''
     try {
       const data = await readResponse(await apiGetQibocalOptions(server))
       if (!isCurrent(version, server)) return
@@ -56,6 +62,9 @@ export function useQibocalEnvironment(onInstalled) {
       options.value = data.options
       selected.value = data.options[0]?.id || ''
       pypiError.value = data.pypi_error || ''
+      gitBranches.value = data.git_branches || []
+      gitBranch.value = data.git_default_branch || gitBranches.value[0] || ''
+      githubError.value = data.github_error || ''
     } catch (err) {
       if (isCurrent(version, server)) error.value = err.message
     } finally {
@@ -67,12 +76,17 @@ export function useQibocalEnvironment(onInstalled) {
     if (!canManageQibocal.value || loading.value || installing.value || !options.value.some(option => option.id === selected.value)) return
     const version = requestVersion
     const server = state.activeServer
+    if (selected.value === 'git' && gitBranch.value && !gitBranches.value.includes(gitBranch.value)) {
+      error.value = 'Choose one of the available Qibocal Git branches.'
+      return
+    }
+    const option = selected.value === 'git' && gitBranch.value ? `git:${gitBranch.value}` : selected.value
     installing.value = true
     error.value = ''
     success.value = ''
     installOutput.value = ''
     try {
-      const data = await readInstallationStream(await apiInstallQibocal(selected.value, server), text => {
+      const data = await readInstallationStream(await apiInstallQibocal(option, server), text => {
         if (isCurrent(version, server)) installOutput.value = (installOutput.value + text).slice(-300_000)
       })
       if (!isCurrent(version, server)) return
@@ -105,6 +119,9 @@ export function useQibocalEnvironment(onInstalled) {
       options.value = []
       selected.value = ''
       pypiError.value = ''
+      gitBranches.value = []
+      gitBranch.value = ''
+      githubError.value = ''
       installOutput.value = ''
       success.value = ''
       if (canManageQibocal.value) refreshStatus()
@@ -117,5 +134,5 @@ export function useQibocalEnvironment(onInstalled) {
     requestVersion++
   })
 
-  return { loading, installing, environment, options, selected, error, pypiError, statusError, installOutput, success, refreshOptions, install }
+  return { loading, installing, environment, options, selected, gitBranches, gitBranch, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install }
 }
