@@ -1,0 +1,36 @@
+<!-- Simplified PyPI logo, preserving the colors and cube layout of https://pypi.org/static/images/logo-small.0e0855d0.svg -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65.812 58">
+  <title>PyPI</title>
+  <defs>
+    <g id="cube" stroke="#ccc" stroke-width=".073" stroke-linejoin="bevel">
+      <path fill="var(--top, #f7f7f4)" d="M0 1.177 3.184 2.336 6.416 1.159 3.231 0Z"/>
+      <path fill="var(--right, #fff)" d="m3.184 2.336 3.232-1.177v3.743l-3.232 1.177Z"/>
+      <path fill="var(--left, #efeeea)" d="m0 1.177 3.184 1.159v3.743L0 4.919Z"/>
+    </g>
+  </defs>
+  <use href="#cube" transform="translate(9.472 18.826)scale(2.927)"/>
+  <use href="#cube" transform="translate(18.835 11.165)scale(2.927)"/>
+  <use href="#cube" transform="translate(.109 33.296)scale(2.927)"/>
+  <use href="#cube" transform="translate(9.472 36.701)scale(2.927)"/>
+  <use href="#cube" transform="translate(9.472 25.635)scale(2.927)"/>
+  <use href="#cube" transform="translate(46.925 29.891)scale(2.927)"/>
+  <use href="#cube" transform="translate(37.559 33.294)scale(2.927)" style="--right:#ffd242"/>
+  <g fill="#fff" transform="translate(-1683.66 -513.275)scale(.65177)">
+    <circle cx="2835.218" cy="1823.899" r="2.967" transform="scale(.9397 1)skewY(-18.882)"/>
+  </g>
+  <use href="#cube" transform="translate(28.199 36.701)scale(2.927)" style="--right:#ffd242"/>
+  <use href="#cube" transform="translate(18.835 40.106)scale(2.927)"/>
+  <use href="#cube" transform="translate(46.925 18.826)scale(2.927)" style="--right:#ffd242"/>
+  <use href="#cube" transform="translate(46.925 7.76)scale(2.927)" style="--top:#ffc91d;--right:#ffd242"/>
+  <use href="#cube" transform="translate(37.562 22.23)scale(2.927)" style="--right:#ffd242"/>
+  <use href="#cube" transform="translate(37.562 11.165)scale(2.927)" style="--right:#3775a9"/>
+  <use href="#cube" transform="translate(37.562 .099)scale(2.927)" style="--top:#2f6491;--right:#3775a9"/>
+  <use href="#cube" transform="translate(28.199 25.635)scale(2.927)" style="--right:#ffd242"/>
+  <use href="#cube" transform="translate(28.199 14.57)scale(2.927)" style="--right:#3775a9"/>
+  <use href="#cube" transform="translate(18.835 29.04)scale(2.927)" style="--right:#3775a9;--left:#2f6491"/>
+  <use href="#cube" transform="translate(18.835 17.974)scale(2.927)" style="--top:#2f6491;--right:#3775a9;--left:#2f6491"/>
+  <use href="#cube" transform="translate(28.195 3.503)scale(2.927)" style="--top:#2f6491;--right:#3775a9;--left:#2f6491"/>
+  <g fill="#fff" transform="translate(-1683.66 -513.275)scale(.65177)">
+    <circle cx="2816.017" cy="1772.922" r="2.967" transform="scale(.9397 1)skewY(-18.882)"/>
+  </g>
+</svg>

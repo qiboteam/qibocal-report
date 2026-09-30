@@ -1,7 +1,10 @@
 <template>
-  <div id="app" class="min-h-screen bg-[#f7f7f7] text-[#000000]">
-    <loading-spinner v-if="isNavigating" label="Loading..." />
-    <router-view v-show="!isNavigating" />
+  <div id="app" class="bg-[#f7f7f7] text-[#000000]" :style="{ '--diagnostics-height': `${footerHeight}px` }">
+    <div class="app-page">
+      <loading-spinner v-if="isNavigating" label="Loading..." />
+      <router-view v-show="!isNavigating" />
+    </div>
+    <admin-footer @height="footerHeight = $event" />
     <login-modal />
     <register-modal />
   </div>
@@ -14,10 +17,12 @@ import { state, fetchServers } from './store.js'
 import LoginModal from './components/modals/LoginModal.vue'
 import RegisterModal from './components/modals/RegisterModal.vue'
 import LoadingSpinner from './components/LoadingSpinner.vue'
+import AdminFooter from './components/diagnostics/AdminFooter.vue'
 
 const router = useRouter()
 const route = useRoute()
 const isNavigating = ref(false)
+const footerHeight = ref(0)
 
 router.beforeEach((to, from, next) => {
   // Show spinner when navigating between different routes

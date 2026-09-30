@@ -67,19 +67,37 @@ Both the dashboard plot preview and the full report explicitly show generation
 errors, including when Qibocal is not installed on the report server.
 Pre-cached plots remain viewable without Qibocal.
 
-On an authentication-enabled server, signed-in administrators can use
-**Install Qibocal** or **Switch Qibocal Version** in either view. The picker
+On an authentication-enabled server, signed-in administrators have a thin
+grey handle with a small central accent marker at the very bottom of every
+page. It starts fully collapsed.
+Drag it upward to open the diagnostics footer, drag it to adjust the height,
+and drag it back down to collapse. Clicking does not toggle the footer, and
+there are no separate size or close controls. The **Server logs** tab shows
+recent server output in full terminal color and follows live output. Uncheck
+**Follow output** to read earlier messages. Logs are a bounded, in-memory history
+for the current server process, not a persistent archive.
+
+The **Qibocal** tab contains version management. Missing-package warnings
+direct administrators to drag open the footer and select this tab. The button grid
 offers a few recent compatible stable PyPI releases and the latest default
 branch of the official [Git repository](https://github.com/qiboteam/qibocal).
-The current server version is shown in the picker. If PyPI is unavailable, the
-error is displayed and the Git option remains available.
+The current server version is shown in the tab. If PyPI is unavailable, the
+error is displayed and the Git option remains available. Select a version using
+the highlighted buttons (PyPI versions show their logo), then use the package-plus
+icon to install or switch. The circular-arrows icon refreshes available versions.
+Full source names and action labels are available as tooltips and accessible text.
 
-**Install and Regenerate** changes Qibocal and its dependencies in the server's
+**Install / Switch version** (the package-plus icon) changes Qibocal and its dependencies in the server's
 Python environment for all users, then regenerates the current report's cached
 plots. Other reports' cached plots are not changed; use **Regenerate Plots** to
 refresh them when needed. Future plot generation uses the installed version
 without a server restart. Viewers, editors, and open (unauthenticated) servers
-cannot install or switch versions through the application.
+cannot access the diagnostics footer or install or switch versions through the
+application. Installation progress is streamed into the tab as colored pip
+(or uv) output, including failures. You can collapse the footer or navigate
+within the application without interrupting installation. Closing the browser
+also does not stop the server-side installer; check server logs before retrying
+after a lost connection.
 
 ---
 

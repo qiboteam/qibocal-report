@@ -2,9 +2,10 @@
   <div
     v-if="show"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+    style="bottom: var(--diagnostics-height, 0px)"
     @click.self="close"
   >
-    <div class="bg-white rounded-2xl max-w-5xl w-full p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[90vh]">
+    <div class="bg-white rounded-2xl max-w-5xl w-full p-6 shadow-2xl border border-gray-100 flex flex-col" style="max-height: calc(var(--app-height, 100vh) * 0.9)">
       <!-- Header -->
       <div class="flex items-center justify-between pb-4 border-b border-gray-100 shrink-0">
         <div class="flex items-center gap-2.5 min-w-0">
@@ -19,9 +20,7 @@
           </h2>
         </div>
         <div class="flex items-center gap-2 shrink-0">
-          <qibocal-controls :missing="qibocalMissing" :busy="loading" @installed="loadPreview(true)" @installing="installing = $event" />
           <button
-            :disabled="installing"
             @click="close"
             aria-label="Close preview"
             class="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 text-lg transition cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -70,10 +69,10 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { state } from '../../store.js'
 import { apiFetch } from '../../api.js'
-import { getPlotGenerationErrors, isQibocalMissing } from '../../utils/plotGeneration.js'
+import { getPlotGenerationErrors } from '../../utils/plotGeneration.js'
+import { diagnostics } from '../../composables/useDiagnostics.js'
 import LoadingSpinner from '../LoadingSpinner.vue'
 import PlotlyViewer from '../PlotlyViewer.vue'
-import QibocalControls from '../report/QibocalControls.vue'
 import PlotGenerationErrors from '../report/PlotGenerationErrors.vue'
 
 const props = defineProps({
@@ -84,16 +83,14 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const loading = ref(false)
-const installing = ref(false)
 const error = ref(null)
 const protocols = ref([])
 const protocolGroups = computed(() => protocols.value.filter(proto => proto.figures?.length))
 const generationErrors = computed(() => getPlotGenerationErrors(protocols.value))
-const qibocalMissing = computed(() => isQibocalMissing(protocols.value))
 let requestVersion = 0
 
 function close() {
-  if (!installing.value) emit('close')
+  emit('close')
 }
 
 function extractProtocolType(name = '') {
@@ -139,6 +136,10 @@ watch(
   },
   { immediate: true }
 )
+
+watch(() => diagnostics.qibocalRevision, () => {
+  if (props.show) loadPreview(true)
+})
 
 onUnmounted(() => { requestVersion++ })
 </script>

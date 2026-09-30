@@ -153,10 +153,17 @@ export async function apiGetQibocalOptions(server = state.activeServer) {
 }
 
 export async function apiInstallQibocal(option, server = state.activeServer) {
-  return apiFetch('/api/admin/qibocal/install', {
+  return apiFetch('/api/admin/qibocal/install/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ option })
+  }, server)
+}
+
+export async function apiGetServerLogs(after, server = state.activeServer, signal) {
+  return apiFetch(`/api/admin/logs?after=${encodeURIComponent(after)}`, {
+    cache: 'no-store',
+    signal
   }, server)
 }
 

@@ -409,7 +409,8 @@
             <iframe
               :key="jsonDocumentUrl"
               :src="jsonDocumentUrl"
-              class="block w-full h-[calc(100vh-12rem)] min-h-[32rem] border-0 rounded-2xl bg-white"
+              class="block w-full min-h-[32rem] border-0 rounded-2xl bg-white"
+              style="height: calc(var(--app-height, 100vh) - 12rem)"
               title="Native JSON view"
             />
           </div>

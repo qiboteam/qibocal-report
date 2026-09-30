@@ -3,7 +3,7 @@ import { test, mock } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { createSSRApp, h, ref } from 'vue'
+import { createSSRApp, createRenderer, h, ref, nextTick, ssrContextKey } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
@@ -37,7 +37,10 @@ test('Qibocal administration and plot-generation feedback', async t => {
     const { useQibocalEnvironment } = await vite.ssrLoadModule('/src/composables/useQibocalEnvironment.js')
     const { useReportDetail } = await vite.ssrLoadModule('/src/composables/useReportDetail.js')
     const { default: PreviewModal } = await vite.ssrLoadModule('/src/components/modals/PreviewModal.vue')
-    const { default: QibocalControls } = await vite.ssrLoadModule('/src/components/report/QibocalControls.vue')
+    const { default: AdminFooter } = await vite.ssrLoadModule('/src/components/diagnostics/AdminFooter.vue')
+    const { default: QibocalPanel } = await vite.ssrLoadModule('/src/components/diagnostics/QibocalPanel.vue')
+    const { default: AnsiOutput } = await vite.ssrLoadModule('/src/components/diagnostics/AnsiOutput.vue')
+    const { diagnostics } = await vite.ssrLoadModule('/src/composables/useDiagnostics.js')
     const { default: ReportView } = await vite.ssrLoadModule('/src/views/ReportView.vue')
     const { getPlotGenerationErrors, isQibocalMissing } = await vite.ssrLoadModule('/src/utils/plotGeneration.js')
     const first = { id: 'first', name: 'First', url: 'http://first.example' }
@@ -55,6 +58,10 @@ test('Qibocal administration and plot-generation feedback', async t => {
       ],
       pypi_error: null
     }
+    const installationResponse = status => new Response(
+      `${JSON.stringify({ type: 'output', text: '\x1b[32mInstalling qibocal\x1b[0m\n' })}\n${JSON.stringify({ type: 'complete', status })}\n`,
+      { headers: { 'Content-Type': 'application/x-ndjson' } }
+    )
 
     function setRole(role, enabled = true, checked = true) {
       store.state.activeServer = first
@@ -75,6 +82,27 @@ test('Qibocal administration and plot-generation feedback', async t => {
       return result
     }
 
+    function mountComposable(factory, plugins = []) {
+      let result
+      const renderer = createRenderer({
+        createComment: text => ({ text }),
+        insert: (node, parent) => { parent.node = node },
+        remove: () => {},
+        parentNode: () => null,
+        nextSibling: () => null
+      })
+      const app = renderer.createApp({
+        setup() {
+          result = factory()
+          return () => null
+        }
+      })
+      app.provide(ssrContextKey, { modules: new Set() })
+      for (const plugin of plugins) app.use(plugin)
+      app.mount({})
+      return { result, unmount: () => app.unmount() }
+    }
+
     await t.test('only a verified signed-in administrator can change the environment', async () => {
       for (const [role, enabled, checked, expected] of [
         ['admin', true, true, true],
@@ -87,8 +115,17 @@ test('Qibocal administration and plot-generation feedback', async t => {
         setRole(role, enabled, checked)
         assert.equal(store.canManageQibocal.value, expected)
         mock.method(globalThis, 'fetch', async () => Response.json({ installed: false }))
-        const html = await renderToString(createSSRApp(QibocalControls, { missing: true }))
-        assert.equal(html.includes('Install Qibocal'), expected)
+        diagnostics.expanded = false
+        const html = await renderToString(createSSRApp(AdminFooter))
+        assert.equal(html.includes('Administrator diagnostics'), expected)
+        if (expected) {
+          assert.match(html, /height:8px/)
+          assert.match(html, /aria-valuenow="8"/)
+          assert.match(html, /Server logs/)
+          assert.match(html, /role="tab"/)
+          assert.equal(html.includes('type="range"'), false)
+          assert.equal(html.includes('Collapse diagnostics panel'), false)
+        }
         mock.restoreAll()
       }
     })
@@ -127,7 +164,7 @@ test('Qibocal administration and plot-generation feedback', async t => {
       }, { show: true, report: { id: 'run' } }))
       assert.match(html, /Working plot/)
       assert.match(html, /Qibocal is not installed/)
-      assert.match(html, /Install Qibocal/)
+      assert.match(html, /Drag the bottom diagnostics handle upward/)
       mock.restoreAll()
     })
 
@@ -163,29 +200,30 @@ test('Qibocal administration and plot-generation feedback', async t => {
         app.use(router)
         const html = await renderToString(app)
         assert.match(html, /Qibocal is not installed on this server/)
-        assert.equal(html.includes('Install Qibocal'), role === 'admin')
+        assert.equal(html.includes('Drag the bottom diagnostics handle upward'), role === 'admin')
         mock.restoreAll()
       }
     })
 
-    await t.test('picker shows recent versions and Git and regenerates after installing a selected version', async () => {
+    await t.test('footer picker streams output and signals confirmed installation without closing the panel', async () => {
       setRole('admin')
       const installed = mock.fn()
       mock.method(globalThis, 'fetch', async (url, options) => {
         if (url.endsWith('/api/qibocal')) return Response.json({ installed: true, version: '0.2.4', source: 'pypi' })
         if (url.endsWith('/options')) return Response.json(choices)
-        assert.equal(url, `${first.url}/api/admin/qibocal/install`)
+        assert.equal(url, `${first.url}/api/admin/qibocal/install/stream`)
         assert.equal(options.headers.get('Authorization'), 'Bearer admin-session')
         assert.deepEqual(JSON.parse(options.body), { option: 'pypi:0.2.5' })
-        return Response.json({ installed: true, version: '0.2.5', source: 'pypi' })
+        return installationResponse({ installed: true, version: '0.2.5', source: 'pypi' })
       })
       const environment = await setupComposable(() => useQibocalEnvironment(installed))
-      await environment.open()
+      await environment.refreshOptions()
       assert.deepEqual(environment.options.value.map(option => option.id), ['pypi:0.2.5', 'git'])
       assert.equal(environment.selected.value, 'pypi:0.2.5')
       await environment.install()
-      assert.equal(environment.show.value, false)
       assert.equal(environment.environment.value.version, '0.2.5')
+      assert.match(environment.installOutput.value, /Installing qibocal/)
+      assert.match(environment.success.value, /0\.2\.5 installed successfully/)
       assert.equal(installed.mock.callCount(), 1)
       assert.equal(environment.installing.value, false)
       mock.restoreAll()
@@ -203,40 +241,73 @@ test('Qibocal administration and plot-generation feedback', async t => {
         return Response.json({ detail: 'Server environment is read-only.' }, { status: 500 })
       })
       const environment = await setupComposable(() => useQibocalEnvironment(installed))
-      await environment.open()
+      await environment.refreshOptions()
       assert.equal(environment.pypiError.value, 'PyPI is unavailable.')
       assert.equal(environment.selected.value, 'git')
       await environment.install()
-      assert.equal(environment.show.value, true)
       assert.equal(environment.error.value, 'Server environment is read-only.')
       assert.equal(installed.mock.callCount(), 0)
       mock.restoreAll()
     })
 
-    await t.test('the switch-version dialog displays the current version and both installation sources', async () => {
+    await t.test('the Qibocal tab displays the current version, sources and a persistent installer console', async () => {
       setRole('admin')
       mock.method(globalThis, 'fetch', async url => Response.json(url.endsWith('/options')
         ? { ...choices, installed: true, version: '0.2.4', source: 'pypi' }
         : { installed: true, version: '0.2.4', source: 'pypi' }))
-      const context = {}
+      diagnostics.expanded = true
+      diagnostics.tab = 'qibocal'
       const html = await renderToString(createSSRApp({
-        ...QibocalControls,
+        ...QibocalPanel,
         async setup(props, setupContext) {
-          const controls = QibocalControls.setup(props, setupContext)
-          await controls.open()
+          const controls = QibocalPanel.setup(props, setupContext)
+          await controls.refreshOptions()
           return controls
         }
-      }), context)
-      assert.match(html, /Switch Qibocal Version/)
-      assert.match(context.teleports.body, /Current version:.*0\.2\.4/)
-      assert.match(context.teleports.body, /Qibocal 0\.2\.5 \(PyPI\)/)
-      assert.match(context.teleports.body, /Git repository \(latest\)/)
-      assert.match(context.teleports.body, /Install and Regenerate/)
-      assert.match(context.teleports.body, /for all users/)
+      }))
+      assert.match(html, /Current version:.*0\.2\.4/)
+      assert.match(html, /Qibocal 0\.2\.5 \(PyPI\)/)
+      assert.match(html, /Git repository \(latest\)/)
+      assert.match(html, /Install \/ Switch version/)
+      assert.match(html, /for all users/)
+      assert.match(html, /Qibocal installation output/)
+      assert.equal(html.includes('<select'), false)
+      assert.equal((html.match(/role="radio"/g) || []).length, 2)
+      assert.equal((html.match(/aria-checked="true"/g) || []).length, 1)
+      assert.match(html, /alt="Qibocal 0\.2\.5 \(PyPI\)"/)
+      assert.match(html, /<span[^>]*>0\.2\.5<\/span>/)
+      assert.match(html, /aria-label="Reload versions"/)
+      assert.match(html, /title="Install \/ Switch version"/)
+      assert.equal(html.includes('>Reload versions<'), false)
+      assert.equal(html.includes('>Install / Switch version<'), false)
+      assert.ok(html.indexOf('for all users') > html.indexOf('title="Install / Switch version"'))
+      assert.equal(html.includes('keep this dialog open'), false)
+      diagnostics.expanded = false
       mock.restoreAll()
     })
 
-    await t.test('installation cannot be duplicated or dismissed while pending, and old server results are ignored', async () => {
+    await t.test('version buttons support radio-style keyboard selection and lock while installing', async () => {
+      setRole('admin')
+      diagnostics.expanded = false
+      mock.method(globalThis, 'fetch', async url => Response.json(url.endsWith('/options') ? choices : { installed: false }))
+      try {
+        const controls = await setupComposable(() => QibocalPanel.setup({}, { emit() {}, expose() {} }))
+        await controls.refreshOptions()
+        const event = key => ({ key, preventDefault() {} })
+        await controls.selectSource(event('ArrowRight'), 0)
+        assert.equal(controls.selected.value, 'git')
+        await controls.selectSource(event('Home'), 1)
+        assert.equal(controls.selected.value, 'pypi:0.2.5')
+        controls.installing.value = true
+        await controls.selectSource(event('End'), 0)
+        assert.equal(controls.selected.value, 'pypi:0.2.5')
+      } finally {
+        diagnostics.installing = false
+        mock.restoreAll()
+      }
+    })
+
+    await t.test('installation can be collapsed without duplication, and old server results are ignored', async () => {
       setRole('admin')
       let finishInstall
       const installed = mock.fn()
@@ -246,18 +317,139 @@ test('Qibocal administration and plot-generation feedback', async t => {
         return new Promise(resolve => { finishInstall = resolve })
       })
       const environment = await setupComposable(() => useQibocalEnvironment(installed))
-      await environment.open()
+      await environment.refreshOptions()
+      diagnostics.expanded = true
       const pending = environment.install()
       await environment.install()
-      environment.close()
-      assert.equal(environment.show.value, true)
-      assert.equal(fetch.mock.calls.filter(call => call.arguments[0].endsWith('/install')).length, 1)
+      diagnostics.expanded = false
+      assert.equal(diagnostics.expanded, false)
+      assert.equal(environment.installing.value, true)
+      assert.equal(fetch.mock.calls.filter(call => call.arguments[0].endsWith('/install/stream')).length, 1)
       store.state.activeServer = second
-      finishInstall(Response.json({ installed: true, version: '0.2.5', source: 'pypi' }))
+      finishInstall(installationResponse({ installed: true, version: '0.2.5', source: 'pypi' }))
       await pending
       assert.equal(installed.mock.callCount(), 0)
       assert.equal(environment.environment.value.installed, false)
       mock.restoreAll()
+    })
+
+    await t.test('dragging opens, resizes and collapses the footer; clicking never toggles it', async () => {
+      setRole('admin')
+      diagnostics.expanded = false
+      const footer = await setupComposable(() => AdminFooter.setup({}, { emit() {}, expose() {} }))
+      let captured = false
+      const handle = {
+        setPointerCapture() { captured = true },
+        hasPointerCapture() { return captured },
+        releasePointerCapture() { captured = false }
+      }
+      const event = y => ({
+        button: 0, isPrimary: true, pointerId: 1, clientY: y,
+        currentTarget: handle, preventDefault() {}
+      })
+      footer.startResize(event(800))
+      footer.finishResize(event(800))
+      assert.equal(diagnostics.expanded, false)
+      assert.equal(footer.displayedHeight.value, 8)
+      footer.startResize(event(800))
+      footer.resize(event(500))
+      footer.finishResize(event(500))
+      assert.equal(diagnostics.expanded, true)
+      assert.equal(footer.displayedHeight.value, 308)
+      footer.startResize(event(500))
+      footer.finishResize(event(500))
+      assert.equal(diagnostics.expanded, true)
+      assert.equal(footer.displayedHeight.value, 308)
+      footer.startResize(event(500))
+      footer.resize(event(450))
+      footer.finishResize(event(450))
+      assert.equal(footer.displayedHeight.value, 358)
+      footer.startResize(event(450))
+      footer.resize(event(800))
+      footer.finishResize(event(800))
+      assert.equal(diagnostics.expanded, false)
+      assert.equal(footer.displayedHeight.value, 8)
+      assert.equal(captured, false)
+    })
+
+    await t.test('live progress survives normal navigation and collapsing and still signals successful installation', async () => {
+      setRole('admin')
+      store.state.servers = [first]
+      let controller
+      const installed = mock.fn()
+      mock.method(globalThis, 'fetch', async url => {
+        if (url.endsWith('/api/auth/status')) return Response.json({ auth_enabled: true })
+        if (url.endsWith('/api/auth/me')) return Response.json({ id: 'admin', username: 'admin', role: 'admin' })
+        if (url.endsWith('/api/qibocal')) return Response.json({ installed: false })
+        if (url.endsWith('/options')) return Response.json(choices)
+        return new Response(new ReadableStream({ start(value) { controller = value } }))
+      })
+      const { result: environment, unmount } = mountComposable(() => useQibocalEnvironment(installed))
+      try {
+        await environment.refreshOptions()
+        diagnostics.expanded = true
+        const pending = environment.install()
+        await nextTick()
+        controller.enqueue(new TextEncoder().encode('{"type":"output","text":"Downloading qibocal\\n"}\n'))
+        await new Promise(resolve => setImmediate(resolve))
+        assert.match(environment.installOutput.value, /Downloading qibocal/)
+        assert.equal(environment.installing.value, true)
+        await store.fetchServers()
+        assert.match(environment.installOutput.value, /Downloading qibocal/)
+        assert.equal(environment.installing.value, true)
+        diagnostics.expanded = false
+        controller.enqueue(new TextEncoder().encode('{"type":"complete","status":{"installed":true,"version":"0.2.5","source":"pypi"}}\n'))
+        controller.close()
+        await pending
+        assert.equal(environment.environment.value.version, '0.2.5')
+        assert.equal(environment.installing.value, false)
+        assert.equal(installed.mock.callCount(), 1)
+      } finally {
+        unmount()
+        mock.restoreAll()
+      }
+    })
+
+    await t.test('revoking the admin session clears installer output and ignores a late completion', async () => {
+      setRole('admin')
+      let controller
+      const installed = mock.fn()
+      mock.method(globalThis, 'fetch', async url => {
+        if (url.endsWith('/api/qibocal')) return Response.json({ installed: false })
+        if (url.endsWith('/options')) return Response.json(choices)
+        return new Response(new ReadableStream({ start(value) { controller = value } }))
+      })
+      const { result: environment, unmount } = mountComposable(() => useQibocalEnvironment(installed))
+      try {
+        await environment.refreshOptions()
+        const pending = environment.install()
+        await nextTick()
+        controller.enqueue(new TextEncoder().encode('{"type":"output","text":"Installing\\n"}\n'))
+        await new Promise(resolve => setImmediate(resolve))
+        assert.equal(environment.installOutput.value, 'Installing\n')
+        store.setServerAuth(first, null, null)
+        assert.equal(environment.installOutput.value, '')
+        assert.equal(environment.environment.value, null)
+        controller.enqueue(new TextEncoder().encode('{"type":"complete","status":{"installed":true,"version":"0.2.5","source":"pypi"}}\n'))
+        controller.close()
+        await pending
+        assert.equal(installed.mock.callCount(), 0)
+        assert.equal(environment.environment.value, null)
+      } finally {
+        unmount()
+        mock.restoreAll()
+      }
+    })
+
+    await t.test('terminal colors are rendered as safe text, not executable server-provided HTML', async () => {
+      const html = await renderToString(createSSRApp(AnsiOutput, {
+        text: '\x1b[31m<script>alert("log")</script>\x1b[0m',
+        label: 'Server logs'
+      }))
+      assert.match(html, /color:#f48771/)
+      assert.match(html, /&lt;script&gt;/)
+      assert.equal(html.includes('<script>'), false)
+      assert.match(html, /Follow output/)
     })
 
     await t.test('preview regenerates after installation and ignores stale preview responses', async () => {
@@ -301,6 +493,47 @@ test('Qibocal administration and plot-generation feedback', async t => {
       assert.equal(report.statusBanner.value.includes('successfully'), false)
       assert.equal(report.report.value.has_cached_report, false)
       mock.restoreAll()
+    })
+
+    await t.test('installation completion during report loading queues regeneration until the report is ready', async () => {
+      setRole('admin')
+      store.state.servers = [first]
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [{ path: '/reports/:id', component: { render: () => null } }]
+      })
+      await router.push('/reports/run')
+      const previousWebSocket = globalThis.WebSocket
+      let socket
+      globalThis.WebSocket = class {
+        constructor() { socket = this }
+        close() {}
+      }
+      const fetch = mock.method(globalThis, 'fetch', async url => {
+        assert.equal(url, `${first.url}/api/reports/run/regenerate`)
+        return Response.json([missing])
+      })
+      const { result: report, unmount } = mountComposable(
+        () => ReportView.setup({}, { emit() {}, expose() {} }),
+        [router]
+      )
+      try {
+        await new Promise(resolve => setImmediate(resolve))
+        socket.onmessage({ data: JSON.stringify({ type: 'metadata', report: { id: 'run', targets: [0], platform: 'test' } }) })
+        diagnostics.qibocalRevision++
+        await nextTick()
+        assert.equal(report.loading.value, true)
+        assert.equal(fetch.mock.callCount(), 0)
+        socket.onmessage({ data: JSON.stringify({ type: 'ready', protocols: [missing] }) })
+        await new Promise(resolve => setImmediate(resolve))
+        assert.equal(fetch.mock.callCount(), 1)
+        assert.equal(report.pendingInstallationRegeneration.value, false)
+      } finally {
+        unmount()
+        if (previousWebSocket === undefined) delete globalThis.WebSocket
+        else globalThis.WebSocket = previousWebSocket
+        mock.restoreAll()
+      }
     })
   } finally {
     await vite.close()

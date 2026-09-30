@@ -57,7 +57,6 @@
 
           <!-- Actions: Print to PDF & Regenerate plots -->
           <div class="flex items-center flex-wrap gap-2">
-            <qibocal-controls :missing="qibocalMissing" :busy="regenerating" @installed="handleRegenerate" />
             <!-- Qibocal Docs link -->
             <a
               href="https://qibo.science/qibocal/stable/protocols/"
@@ -166,14 +165,14 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer } from '../store.js'
+import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canManageQibocal } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
 import ProtocolCard from '../components/report/ProtocolCard.vue'
 import ProtocolDocsModal from '../components/modals/ProtocolDocsModal.vue'
-import QibocalControls from '../components/report/QibocalControls.vue'
+import { diagnostics } from '../composables/useDiagnostics.js'
 import PlotGenerationErrors from '../components/report/PlotGenerationErrors.vue'
 import { isQibocalMissing } from '../utils/plotGeneration.js'
 
@@ -209,6 +208,35 @@ const {
 } = useReportDetail(reportId)
 
 const qibocalMissing = computed(() => isQibocalMissing(protocols.value))
+const pendingInstallationRegeneration = ref(false)
+
+watch(() => diagnostics.qibocalRevision, () => {
+  pendingInstallationRegeneration.value = true
+})
+
+watch(
+  [pendingInstallationRegeneration, loading, regenerating, report],
+  () => {
+    if (pendingInstallationRegeneration.value && canManageQibocal.value && report.value && !loading.value && !regenerating.value) {
+      pendingInstallationRegeneration.value = false
+      handleRegenerate()
+    }
+  }
+)
+
+watch(
+  [
+    reportId,
+    () => state.activeServer?.id,
+    () => state.activeServer?.url,
+    () => state.auth.token,
+    () => state.auth.user?.id,
+    () => state.auth.user?.role,
+    canManageQibocal
+  ],
+  () => { pendingInstallationRegeneration.value = false },
+  { flush: 'sync' }
+)
 
 function scrollToProtocol(protoId) {
   if (!protoId) return

@@ -1,6 +1,7 @@
 <template>
   <div
     v-if="selectedCount > 0"
+    style="bottom: calc(var(--diagnostics-height, 0px) + 1.5rem)"
     class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-white text-gray-800 px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md flex items-center gap-4 border border-[#833dff]/40 animate-fade-in"
   >
     <div class="flex items-center gap-2 pr-3 border-r border-purple-100">
