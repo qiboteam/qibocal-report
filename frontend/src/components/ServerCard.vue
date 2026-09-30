@@ -16,6 +16,31 @@
 
           <div class="min-w-0">
             <div class="flex items-center gap-1.5">
+              <svg
+                v-if="requiresAuth"
+                class="w-3.5 h-3.5 text-gray-400 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                role="img"
+                :aria-label="isAuthenticatedOnServer ? 'Signed in' : 'Authentication required'"
+              >
+                <title>{{ isAuthenticatedOnServer ? 'Signed in' : 'Authentication required' }}</title>
+                <path
+                  v-if="isAuthenticatedOnServer"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M10 11V7a4 4 0 00-8 0v2M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"
+                />
+                <path
+                  v-else
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
               <h3 class="font-medium text-sm text-gray-900 truncate leading-snug">{{ server.name }}</h3>
               <span
                 v-if="isActive"
@@ -57,6 +82,7 @@
             class="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-lg py-1 z-30 animate-fade-in"
           >
             <button
+              v-if="requiresAuth"
               @click="onAdmin"
               class="border-0 w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 hover:text-[#833dff] flex items-center gap-2 bg-transparent"
             >
@@ -148,7 +174,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { renderAvatar } from './Avatars.js'
-import { state, normalizeUrl, getActiveAuthToken } from '../store.js'
+import { state, normalizeUrl, getActiveAuthToken, getActiveUser } from '../store.js'
 
 const props = defineProps({
   server: { type: Object, required: true },
@@ -159,13 +185,11 @@ const emit = defineEmits(['select', 'edit', 'delete', 'administer', 'logout'])
 
 const menuOpen = ref(false)
 const reportCount = ref(null)
-const checkedRequiresAuth = ref(false)
-const requiresAuth = computed(() => props.isActive && state.auth.checked
-  ? state.auth.enabled
-  : checkedRequiresAuth.value)
-const isAuthenticatedOnServer = computed(() => Boolean(getActiveAuthToken(props.server)))
+const requiresAuth = ref(props.isActive && state.auth.checked ? state.auth.enabled : false)
+const isAuthenticatedOnServer = computed(() => Boolean(getActiveAuthToken(props.server) && getActiveUser(props.server)))
 const isChecking = ref(false)
 let checkHealthTimeout = null
+let healthCheckVersion = 0
 let pendingAction = null
 
 // Store connection status in localStorage
@@ -226,19 +250,35 @@ function closeMenu(e) {
 
 onMounted(() => {
   window.addEventListener('click', closeMenu)
+  checkHealth()
 })
 
 watch(() => props.server?.url, () => {
-  // Don't auto-check on URL change, wait for user interaction
+  healthCheckVersion++
+  isChecking.value = false
+  requiresAuth.value = false
+  reportCount.value = null
+  checkHealth()
 })
 
+watch(
+  () => [props.isActive, state.auth.checked, state.auth.enabled],
+  ([active, checked, enabled]) => {
+    if (active && checked) requiresAuth.value = enabled
+  }
+)
+
 onUnmounted(() => {
+  healthCheckVersion++
+  pendingAction = null
   window.removeEventListener('click', closeMenu)
   if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
 })
 
 async function checkHealth() {
   if (isChecking.value) return
+  const version = ++healthCheckVersion
+  const isCurrent = () => version === healthCheckVersion
   
   isChecking.value = true
   connectionStatus.value = 'checking'
@@ -247,7 +287,7 @@ async function checkHealth() {
   
   // Set a timeout to mark as disconnected after 10 seconds
   checkHealthTimeout = setTimeout(() => {
-    if (connectionStatus.value === 'checking') {
+    if (isCurrent() && connectionStatus.value === 'checking') {
       connectionStatus.value = 'disconnected'
       saveStatus('disconnected')
       isChecking.value = false
@@ -264,11 +304,13 @@ async function checkHealth() {
       fetch(targetUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null),
       fetch(statusUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null)
     ])
+    const data = hRes?.ok ? await hRes.json() : null
+    const authData = aRes?.ok ? await aRes.json() : null
 
+    if (!isCurrent()) return
     if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
 
     if (hRes && hRes.ok) {
-      const data = await hRes.json()
       connectionStatus.value = 'online'
       saveStatus('online')
       reportCount.value = data.reports_count
@@ -279,17 +321,19 @@ async function checkHealth() {
     }
 
     if (aRes && aRes.ok) {
-      const authData = await aRes.json()
-      checkedRequiresAuth.value = Boolean(authData.auth_enabled)
+      requiresAuth.value = Boolean(authData.auth_enabled)
     }
   } catch {
+    if (!isCurrent()) return
     if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
     connectionStatus.value = 'disconnected'
     saveStatus('disconnected')
     reportCount.value = null
   } finally {
-    isChecking.value = false
-    executePendingAction()
+    if (isCurrent()) {
+      isChecking.value = false
+      executePendingAction()
+    }
   }
 }
 
@@ -321,6 +365,7 @@ function handleClick() {
   
   // If still checking, wait
   if (connectionStatus.value === 'checking') {
+    pendingAction = () => emit('select', props.server)
     return
   }
   
@@ -338,7 +383,7 @@ function onAdmin() {
   // Administer requires a connection
   if (connectionStatus.value === 'disconnected' || connectionStatus.value === 'unchecked') {
     pendingAction = () => {
-      emit('administer', props.server)
+      if (requiresAuth.value) emit('administer', props.server)
     }
     checkHealth()
     return

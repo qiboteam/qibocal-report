@@ -11,6 +11,7 @@ Access the server registry via the **Servers** tab (`/#/servers`) in the top nav
 - **Connect New Servers**: Paste the URL of any running `qibocal report server` instance into the input bar and press Enter.
 - **Docker-Style Memorable Names**: Each server is automatically assigned a readable name (e.g. `zen-bohr`, `calm-feynman`) and an abstract geometric avatar.
 - **Customization**: Use the three-dots menu on any server card to update its name, description, avatar, or target address.
+- **Authentication Status**: Auth-enabled servers display a lock to the left of their name: closed when signed out, open when signed in. Open/no-auth servers have no lock and no **Administer** entry in their three-dots menu.
 - **Default Server**: Set any server as the default active instance so the dashboard automatically opens to it.
 - **Persistent Configuration**: Click **Save to Configuration** to persist your server list to `~/.config/qibocal-report/servers.json`.
 
