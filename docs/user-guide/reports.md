@@ -106,6 +106,10 @@ application. Installation progress is streamed into the tab as colored pip
 within the application without interrupting installation. Closing the browser
 also does not stop the server-side installer; check server logs before retrying
 after a lost connection.
+The **Follow output** control is at the right of the installer output heading.
+During installation, the small red cross beside it stops the server-side
+installer after a confirmation prompt. Interrupting installation may leave
+packages partially installed; reinstall Qibocal before generating plots if needed.
 
 ---
 

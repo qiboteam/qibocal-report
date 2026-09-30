@@ -271,6 +271,9 @@ test('Qibocal administration and plot-generation feedback', async t => {
       assert.match(html, /Install \/ Switch version/)
       assert.match(html, /for all users/)
       assert.match(html, /Qibocal installation output/)
+      assert.match(html, /class="with-heading terminal-heading"/)
+      assert.ok(html.indexOf('Installer output') < html.indexOf('Follow output'))
+      assert.equal(html.includes('Stop Qibocal installation'), false)
       assert.equal((html.match(/<select/g) || []).length, 1)
       assert.match(html, /aria-label="Qibocal Git branch"/)
       assert.match(html, /class="git-source/)
@@ -398,6 +401,93 @@ test('Qibocal administration and plot-generation feedback', async t => {
       assert.equal(installed.mock.callCount(), 0)
       assert.equal(environment.environment.value.installed, false)
       mock.restoreAll()
+    })
+
+    await t.test('stopping installation requires confirmation and waits for the interrupted stream', async () => {
+      setRole('admin')
+      let controller
+      const installed = mock.fn()
+      const fetch = mock.method(globalThis, 'fetch', async (url, request) => {
+        if (url.endsWith('/api/qibocal')) return Response.json({ installed: false })
+        if (url.endsWith('/options')) return Response.json(choices)
+        if (url.endsWith('/stop')) {
+          assert.equal(request.method, 'POST')
+          return Response.json({ detail: 'Qibocal installation stop requested.' })
+        }
+        return new Response(new ReadableStream({ start(value) { controller = value } }))
+      })
+      globalThis.confirm = () => false
+      const confirmation = mock.method(globalThis, 'confirm', () => false)
+      const { result: environment, unmount } = mountComposable(() => useQibocalEnvironment(installed))
+      try {
+        await environment.refreshOptions()
+        const pending = environment.install()
+        await nextTick()
+        await environment.stopInstallation()
+        assert.equal(confirmation.mock.callCount(), 1)
+        assert.equal(fetch.mock.calls.some(call => call.arguments[0].endsWith('/stop')), false)
+        confirmation.mock.mockImplementation(() => true)
+        await environment.stopInstallation()
+        await environment.stopInstallation()
+        assert.equal(fetch.mock.calls.filter(call => call.arguments[0].endsWith('/stop')).length, 1)
+        assert.equal(environment.stopping.value, true)
+        assert.equal(environment.installing.value, true)
+        controller.enqueue(new TextEncoder().encode('{"type":"error","detail":"KeyboardInterrupt"}\n'))
+        controller.close()
+        await pending
+        assert.equal(environment.error.value, 'KeyboardInterrupt')
+        assert.equal(environment.installing.value, false)
+        assert.equal(environment.stopping.value, false)
+        assert.equal(installed.mock.callCount(), 0)
+      } finally {
+        unmount()
+        mock.restoreAll()
+        delete globalThis.confirm
+      }
+    })
+
+    await t.test('stop request failures remain visible and allow retrying', async () => {
+      setRole('admin')
+      mock.method(globalThis, 'fetch', async url => url.endsWith('/stop')
+        ? Response.json({ detail: 'Could not stop installation.' }, { status: 503 })
+        : Response.json({ installed: false }))
+      globalThis.confirm = () => true
+      const { result: environment, unmount } = mountComposable(() => useQibocalEnvironment())
+      try {
+        environment.installing.value = true
+        await environment.stopInstallation()
+        assert.equal(environment.error.value, 'Could not stop installation.')
+        assert.equal(environment.stopping.value, false)
+        assert.equal(environment.installing.value, true)
+      } finally {
+        unmount()
+        mock.restoreAll()
+        delete globalThis.confirm
+      }
+    })
+
+    await t.test('the live output header places follow and the tiny stop control next to the title', async () => {
+      setRole('admin')
+      diagnostics.expanded = false
+      mock.method(globalThis, 'fetch', async () => Response.json({ installed: false }))
+      try {
+        const html = await renderToString(createSSRApp({
+          ...QibocalPanel,
+          setup(props, context) {
+            const controls = QibocalPanel.setup(props, context)
+            controls.installing.value = true
+            return controls
+          }
+        }))
+        assert.match(html, /Installing Qibocal - live installer output/)
+        assert.match(html, /class="stop-button"/)
+        assert.match(html, /aria-label="Stop Qibocal installation"/)
+        assert.ok(html.indexOf('live installer output') < html.indexOf('Follow output'))
+        assert.ok(html.indexOf('Follow output') < html.indexOf('class="stop-button"'))
+      } finally {
+        diagnostics.installing = false
+        mock.restoreAll()
+      }
     })
 
     await t.test('dragging opens, resizes and collapses the footer; clicking never toggles it', async () => {

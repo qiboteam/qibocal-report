@@ -4,6 +4,7 @@ import asyncio
 import builtins
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -32,6 +33,7 @@ def isolate_environment(monkeypatch):
     monkeypatch.setattr(auth, "_AUTH_ENABLED", True)
     monkeypatch.setattr(environment, "_INSTALL_LOCK", threading.Lock())
     monkeypatch.setattr(environment, "_ENVIRONMENT_LOCK", threading.Lock())
+    monkeypatch.setattr(environment, "_INSTALL_CANCEL", None)
     monkeypatch.setattr(
         subprocess,
         "run",
@@ -188,6 +190,7 @@ def test_environment_administration_requires_real_admin(client, credentials, rol
         ("post", "/api/admin/qibocal/install", {"json": {"option": "git"}}),
         ("get", "/api/admin/logs", {}),
         ("post", "/api/admin/qibocal/install/stream", {"json": {"option": "git"}}),
+        ("post", "/api/admin/qibocal/install/stop", {}),
     ):
         response = getattr(client, method)(path, headers=headers, **kwargs)
         assert response.status_code == (401 if role is None else 403)
@@ -221,6 +224,10 @@ def test_open_server_cannot_administer_environment(
         client.post(
             "/api/admin/qibocal/install/stream", json={"option": "git"}, headers=headers
         ).status_code
+        == 403
+    )
+    assert (
+        client.post("/api/admin/qibocal/install/stop", headers=headers).status_code
         == 403
     )
     subprocess.run.assert_not_called()
@@ -919,7 +926,12 @@ def test_streaming_body_validation_precedes_installation(client, credentials, bo
 
 
 @pytest.mark.parametrize(
-    "path", ["/api/admin/logs", "/api/admin/qibocal/install/stream"]
+    "path",
+    [
+        "/api/admin/logs",
+        "/api/admin/qibocal/install/stream",
+        "/api/admin/qibocal/install/stop",
+    ],
 )
 def test_diagnostics_reject_invalid_bearer(client, path):
     headers = {"Authorization": "Bearer invalid"}
@@ -969,13 +981,93 @@ def test_install_generation_wait_timeout_releases_install_lock(
     monkeypatch, client, credentials, path
 ):
     mock_installer(monkeypatch)
-    lock = Mock(acquire=Mock(return_value=False))
+    lock = threading.Lock()
+    lock.acquire()
     monkeypatch.setattr(environment, "_ENVIRONMENT_LOCK", lock)
+    monkeypatch.setattr(environment, "GENERATION_TIMEOUT", -29.98)
     response = client.post(path, headers=credentials["admin"], json={"option": "git"})
     assert response.status_code == 409
     assert "plot generation is still running" in response.json()["detail"]
-    lock.acquire.assert_called_once_with(timeout=environment.GENERATION_TIMEOUT + 30)
-    lock.release.assert_not_called()
+    assert lock.locked()
+    lock.release()
+    assert not environment._INSTALL_LOCK.locked()
+    subprocess.Popen.assert_not_called()
+
+
+def test_stop_without_active_installation(client, credentials):
+    response = client.post(
+        "/api/admin/qibocal/install/stop", headers=credentials["admin"]
+    )
+    assert response.status_code == 409
+    assert "No Qibocal installation" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("closed_output", [False, True])
+@pytest.mark.parametrize("ignore_interrupt", [False, True])
+def test_stop_kills_installer_and_releases_locks(
+    monkeypatch, client, credentials, closed_output, ignore_interrupt
+):
+    ready = threading.Event()
+    script = "import os, signal, time; "
+    if ignore_interrupt:
+        script += "signal.signal(signal.SIGINT, signal.SIG_IGN); "
+    script += "print('ready', flush=True); "
+    if closed_output:
+        script += "os.close(1); os.close(2); "
+    script += "time.sleep(60)"
+    installer = mock_script_installer(monkeypatch, script)
+
+    def progress(text):
+        if "ready" in text:
+            ready.set()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        pending = executor.submit(environment.install_qibocal, "git", progress)
+        assert ready.wait(5)
+        response = client.post(
+            "/api/admin/qibocal/install/stop", headers=credentials["admin"]
+        )
+        assert response.status_code == 200
+        with pytest.raises(
+            environment.EnvironmentOperationError, match="KeyboardInterrupt"
+        ):
+            pending.result(timeout=5)
+
+    process = installer.processes[0]
+    assert process.poll() is not None
+    if os.name == "posix":
+        assert process.returncode == -(
+            signal.SIGKILL if ignore_interrupt else signal.SIGINT
+        )
+    assert process.stdout.closed
+    assert not environment._INSTALL_LOCK.locked()
+    assert not environment._ENVIRONMENT_LOCK.locked()
+    assert environment._INSTALL_CANCEL is None
+    assert not any(
+        thread.name.startswith("qibocal-output") for thread in threading.enumerate()
+    )
+    mock_metadata(monkeypatch, source="git")
+    mock_installer(monkeypatch)
+    assert environment.install_qibocal("git").installed
+
+
+def test_stop_while_waiting_for_generation_never_starts_installer(monkeypatch):
+    waiting = threading.Event()
+    monkeypatch.setattr(
+        environment,
+        "_installer_command",
+        lambda target: waiting.set() or ["unused"],
+    )
+    with environment.generation_environment():
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            pending = executor.submit(environment.install_qibocal, "git")
+            assert waiting.wait(5)
+            environment.stop_qibocal_installation()
+            with pytest.raises(
+                environment.EnvironmentOperationError, match="KeyboardInterrupt"
+            ):
+                pending.result(timeout=5)
+        assert environment._ENVIRONMENT_LOCK.locked()
     assert not environment._INSTALL_LOCK.locked()
     subprocess.Popen.assert_not_called()
 

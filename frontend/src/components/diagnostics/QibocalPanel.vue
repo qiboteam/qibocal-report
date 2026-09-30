@@ -89,15 +89,23 @@
       <p v-if="success" role="status" class="text-xs text-green-300 mt-3">{{ success }}</p>
     </div>
     <div class="installation-output">
-      <p class="output-heading" role="status">{{ installing ? 'Installing Qibocal - live installer output' : 'Installer output' }}</p>
-      <ansi-output :text="installOutput" :active="diagnostics.expanded && diagnostics.tab === 'qibocal'" label="Qibocal installation output" placeholder="Installer progress will appear here when you install or switch versions." />
+      <ansi-output :text="installOutput" :active="diagnostics.expanded && diagnostics.tab === 'qibocal'" label="Qibocal installation output" placeholder="Installer progress will appear here when you install or switch versions.">
+        <template #heading>
+          <p class="output-heading" role="status">{{ installing ? 'Installing Qibocal - live installer output' : 'Installer output' }}</p>
+        </template>
+        <template #actions>
+          <button v-if="installing" type="button" :disabled="stopping" class="stop-button" aria-label="Stop Qibocal installation" :title="stopping ? 'Stopping installation...' : 'Stop Qibocal installation'" @click="stopInstallation">
+            <X :size="12" aria-hidden="true" />
+          </button>
+        </template>
+      </ansi-output>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
-import { ChevronDown, GitBranch, Loader2, PackagePlus, RefreshCw } from 'lucide-vue-next'
+import { ChevronDown, GitBranch, Loader2, PackagePlus, RefreshCw, X } from 'lucide-vue-next'
 import { state, canManageQibocal } from '../../store.js'
 import { diagnostics } from '../../composables/useDiagnostics.js'
 import { useQibocalEnvironment } from '../../composables/useQibocalEnvironment.js'
@@ -106,7 +114,7 @@ import pypiLogo from '../../assets/pypi.svg'
 
 const versionButtons = ref([])
 
-const { loading, installing, environment, options, selected, gitBranches, gitBranch, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install } =
+const { loading, installing, stopping, environment, options, selected, gitBranches, gitBranch, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install, stopInstallation } =
   useQibocalEnvironment(() => { diagnostics.qibocalRevision++ })
 const pypiOptions = computed(() => options.value.filter(option => option.source === 'pypi'))
 const gitOption = computed(() => options.value.find(option => option.source === 'git'))
@@ -161,7 +169,10 @@ watch(
 .version-button:disabled, .icon-button:disabled { opacity: 0.5; cursor: not-allowed; }
 .installation-note { margin: 8px 0 0; color: #999; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
 .installation-output { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; border-left: 1px solid #444; }
-.output-heading { margin: 0; padding: 10px 12px 0; font-size: 12px; color: #ccc; }
+.output-heading { margin: 0; font-size: 12px; color: #ccc; }
+.stop-button { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 1px solid #ef6666; border-radius: 3px; background: #722c2c; color: #ffb3b3; cursor: pointer; }
+.stop-button:hover:not(:disabled) { background: #963636; }
+.stop-button:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (max-width: 640px) {
   .qibocal-panel { flex-direction: column; }
   .qibocal-settings { width: 100%; max-height: 45%; }

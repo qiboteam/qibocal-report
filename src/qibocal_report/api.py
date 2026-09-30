@@ -427,6 +427,19 @@ async def qibocal_install_stream(
     )
 
 
+@app.post("/api/admin/qibocal/install/stop", tags=["Qibocal"])
+def qibocal_install_stop(
+    response: Response,
+    _user: dict = Depends(require_environment_admin),
+) -> dict[str, str]:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        qibocal_environment.stop_qibocal_installation()
+    except qibocal_environment.EnvironmentOperationError as error:
+        raise HTTPException(error.status_code, error.detail) from error
+    return {"detail": "Qibocal installation stop requested."}
+
+
 # --- Health Endpoint ---
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
 def health_check(

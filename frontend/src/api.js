@@ -160,6 +160,10 @@ export async function apiInstallQibocal(option, server = state.activeServer) {
   }, server)
 }
 
+export async function apiStopQibocalInstallation(server = state.activeServer) {
+  return apiFetch('/api/admin/qibocal/install/stop', { method: 'POST' }, server)
+}
+
 export async function apiGetServerLogs(after, server = state.activeServer, signal) {
   return apiFetch(`/api/admin/logs?after=${encodeURIComponent(after)}`, {
     cache: 'no-store',

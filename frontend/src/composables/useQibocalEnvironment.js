@@ -1,6 +1,6 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { state, canManageQibocal } from '../store.js'
-import { apiGetQibocal, apiGetQibocalOptions, apiInstallQibocal } from '../api.js'
+import { apiGetQibocal, apiGetQibocalOptions, apiInstallQibocal, apiStopQibocalInstallation } from '../api.js'
 import { readInstallationStream } from '../utils/installationStream.js'
 
 async function readResponse(response) {
@@ -12,6 +12,7 @@ async function readResponse(response) {
 export function useQibocalEnvironment(onInstalled) {
   const loading = ref(false)
   const installing = ref(false)
+  const stopping = ref(false)
   const environment = ref(null)
   const options = ref([])
   const selected = ref('')
@@ -96,7 +97,26 @@ export function useQibocalEnvironment(onInstalled) {
     } catch (err) {
       if (isCurrent(version, server)) error.value = err.message
     } finally {
-      if (isCurrent(version, server)) installing.value = false
+      if (isCurrent(version, server)) {
+        installing.value = false
+        stopping.value = false
+      }
+    }
+  }
+
+  async function stopInstallation() {
+    if (!canManageQibocal.value || !installing.value || stopping.value) return
+    if (!confirm('Stop the current Qibocal installation? Interrupting package installation may leave the server environment incomplete.')) return
+    const version = requestVersion
+    const server = state.activeServer
+    stopping.value = true
+    try {
+      await readResponse(await apiStopQibocalInstallation(server))
+    } catch (err) {
+      if (isCurrent(version, server)) {
+        error.value = err.message
+        stopping.value = false
+      }
     }
   }
 
@@ -113,6 +133,7 @@ export function useQibocalEnvironment(onInstalled) {
       requestVersion++
       loading.value = false
       installing.value = false
+      stopping.value = false
       environment.value = null
       error.value = ''
       statusError.value = ''
@@ -134,5 +155,5 @@ export function useQibocalEnvironment(onInstalled) {
     requestVersion++
   })
 
-  return { loading, installing, environment, options, selected, gitBranches, gitBranch, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install }
+  return { loading, installing, stopping, environment, options, selected, gitBranches, gitBranch, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install, stopInstallation }
 }
