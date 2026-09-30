@@ -1,11 +1,18 @@
 """Inspect and administer Qibocal in the running server's Python environment."""
 
+import codecs
 import json
+import os
 import platform
 import shutil
+import signal
 import subprocess
 import sys
 import threading
+import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as ReaderTimeoutError
 from contextlib import contextmanager
 from importlib import metadata, util
 
@@ -13,6 +20,7 @@ import httpx
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
+from qibocal_report.logger import log_output
 from qibocal_report.models import QibocalOption, QibocalOptions, QibocalStatus
 
 PYPI_URL = "https://pypi.org/pypi/qibocal/json"
@@ -21,6 +29,8 @@ INSTALL_TIMEOUT = 600
 GENERATION_TIMEOUT = 300
 _INSTALL_LOCK = threading.Lock()
 _ENVIRONMENT_LOCK = threading.Lock()
+INSTALL_OUTPUT_CHUNK_BYTES = 4096
+INSTALL_FAILURE_TAIL = 2000
 
 
 class EnvironmentOperationError(Exception):
@@ -196,8 +206,99 @@ def _installer_command(target: str) -> list[str]:
     )
 
 
-def install_qibocal(option: str) -> QibocalStatus:
-    """Install only a server-validated release or the fixed official Git repository."""
+def _kill_installer(process: subprocess.Popen) -> None:
+    if os.name == "posix":
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    elif process.poll() is None:
+        process.kill()
+
+
+def _run_installer(
+    command: list[str], progress: Callable[[str], None]
+) -> tuple[int, str]:
+    env = os.environ.copy()
+    env.update(
+        PYTHONUNBUFFERED="1",
+        FORCE_COLOR="1",
+        CLICOLOR_FORCE="1",
+        UV_COLOR="always",
+        PIP_PROGRESS_BAR="off",
+    )
+    env.pop("NO_COLOR", None)
+    env.pop("ANSI_COLORS_DISABLED", None)
+    try:
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+            env=env,
+            start_new_session=os.name == "posix",
+        )
+    except OSError as error:
+        raise EnvironmentOperationError(
+            503, f"Could not start the Qibocal package installer: {error}"
+        ) from error
+
+    completed = False
+    tail = ""
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    deadline = time.monotonic() + INSTALL_TIMEOUT
+    reader: ThreadPoolExecutor | None = None
+
+    def emit(text: str) -> None:
+        nonlocal tail
+        if text:
+            tail = (tail + text)[-INSTALL_FAILURE_TAIL:]
+            progress(text)
+
+    try:
+        if process.stdout is None:
+            raise RuntimeError("The Qibocal installer output pipe is missing.")
+        reader = ThreadPoolExecutor(max_workers=1, thread_name_prefix="qibocal-output")
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(command, INSTALL_TIMEOUT)
+            # At most one bounded read is outstanding; a pipe read cannot prevent
+            # the installer worker from enforcing its deadline.
+            pending = reader.submit(process.stdout.read, INSTALL_OUTPUT_CHUNK_BYTES)
+            try:
+                chunk = pending.result(timeout=remaining)
+            except ReaderTimeoutError as error:
+                raise subprocess.TimeoutExpired(command, INSTALL_TIMEOUT) from error
+            if not chunk:
+                break
+            emit(decoder.decode(chunk))
+        emit(decoder.decode(b"", final=True))
+        returncode = process.wait(timeout=max(0, deadline - time.monotonic()))
+        completed = True
+        return returncode, tail
+    except subprocess.TimeoutExpired as error:
+        raise EnvironmentOperationError(
+            504, f"Qibocal installation timed out after {INSTALL_TIMEOUT} seconds."
+        ) from error
+    finally:
+        try:
+            if not completed:
+                _kill_installer(process)
+            process.wait()
+        finally:
+            try:
+                if process.stdout is not None:
+                    process.stdout.close()
+            finally:
+                if reader is not None:
+                    reader.shutdown(wait=True, cancel_futures=True)
+
+
+def install_qibocal(
+    option: str, progress: Callable[[str], None] | None = None
+) -> QibocalStatus:
+    """Install a validated official target, optionally reporting live ANSI output."""
     if not _INSTALL_LOCK.acquire(blocking=False):
         raise EnvironmentOperationError(
             409, "A Qibocal installation is already in progress."
@@ -213,28 +314,21 @@ def install_qibocal(option: str) -> QibocalStatus:
             raise EnvironmentOperationError(
                 409, "Qibocal plot generation is still running; try installation again."
             )
-        try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=INSTALL_TIMEOUT,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as error:
-            raise EnvironmentOperationError(
-                504, f"Qibocal installation timed out after {INSTALL_TIMEOUT} seconds."
-            ) from error
-        except OSError as error:
-            raise EnvironmentOperationError(
-                503, f"Could not start the Qibocal package installer: {error}"
-            ) from error
-        if result.returncode:
-            output = (result.stderr or result.stdout or "No installer output.").strip()
+
+        def emit(text: str) -> None:
+            log_output(text)
+            if progress is not None:
+                progress(text)
+
+        # The first event follows validation and lock acquisition, so streaming
+        # callers can still return ordinary HTTP errors for rejected requests.
+        emit(f"\x1b[36mInstalling {target}...\x1b[0m\n")
+        returncode, tail = _run_installer(command, emit)
+        if returncode:
+            output = tail.strip() or "No installer output."
             raise EnvironmentOperationError(
                 502,
-                f"Qibocal installation failed (exit {result.returncode}): "
-                f"{output[-2000:]}",
+                f"Qibocal installation failed (exit {returncode}): {output}",
             )
         status = _read_status()
         if not status.installed or not status.version:

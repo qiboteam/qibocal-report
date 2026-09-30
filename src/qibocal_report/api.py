@@ -1,6 +1,10 @@
-from contextlib import asynccontextmanager
+import asyncio
 import json
+import logging
 import os
+import threading
+from collections import deque
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -36,7 +40,12 @@ from qibocal_report.archive import (
 )
 from qibocal_report.docs import DOCS_NAVIGATION, resolve_docs_content
 from qibocal_report.generator import get_report_protocols, regenerate_report
-from qibocal_report.logger import log_error, log_info, setup_uvicorn_logging
+from qibocal_report.logger import (
+    log_error,
+    log_history,
+    log_info,
+    setup_uvicorn_logging,
+)
 from qibocal_report.models import (
     AdminConfigResponse,
     ArchiveCreateRequest,
@@ -92,6 +101,103 @@ from qibocal_report.websocket import handle_report_websocket
 # Backward-compatible internal aliases
 _find_report_dirs = find_report_dirs
 _zip_directory = zip_directory
+
+_INSTALL_TASKS: set[asyncio.Task[QibocalStatus]] = set()
+_INSTALL_LOGGER = logging.getLogger(__name__)
+INSTALL_STREAM_BUFFER_ENTRIES = 128
+INSTALL_STREAM_POLL_INTERVAL = 0.025
+
+
+class _InstallationOutput:
+    """A bounded thread-to-async bridge that never holds up the installer."""
+
+    def __init__(self):
+        self._entries: deque[str] = deque(maxlen=INSTALL_STREAM_BUFFER_ENTRIES)
+        self._lock = threading.Lock()
+        self._started = False
+        self._connected = True
+        self._dropped = False
+
+    @property
+    def started(self) -> bool:
+        with self._lock:
+            return self._started
+
+    def append(self, text: str) -> None:
+        with self._lock:
+            self._started = True
+            if not self._connected:
+                return
+            if len(self._entries) == self._entries.maxlen:
+                self._dropped = True
+            if len(text) > qibocal_environment.INSTALL_OUTPUT_CHUNK_BYTES:
+                self._dropped = True
+                text = text[-qibocal_environment.INSTALL_OUTPUT_CHUNK_BYTES :]
+            self._entries.append(text)
+
+    def drain(self) -> list[str]:
+        with self._lock:
+            entries = list(self._entries)
+            self._entries.clear()
+            if self._dropped:
+                entries.insert(
+                    0,
+                    "\x1b[33mEarlier installer output omitted (slow client).\x1b[0m\n",
+                )
+                self._dropped = False
+            return entries
+
+    def disconnect(self) -> None:
+        with self._lock:
+            self._connected = False
+            self._entries.clear()
+            self._dropped = False
+
+
+def _installation_finished(task: asyncio.Task[QibocalStatus]) -> None:
+    _INSTALL_TASKS.discard(task)
+    if task.cancelled():
+        _INSTALL_LOGGER.error("Qibocal installation monitoring was cancelled.")
+        return
+    error = task.exception()
+    if isinstance(error, qibocal_environment.EnvironmentOperationError):
+        _INSTALL_LOGGER.warning("%s", error.detail)
+    elif error is not None:
+        _INSTALL_LOGGER.error("Unexpected Qibocal installation failure", exc_info=error)
+
+
+async def _installation_events(
+    task: asyncio.Task[QibocalStatus], output: _InstallationOutput
+):
+    try:
+        while True:
+            for text in output.drain():
+                yield json.dumps({"type": "output", "text": text}) + "\n"
+            if task.done():
+                # Completion may race the first drain; keep all remaining chunks
+                # ahead of the single terminal event.
+                for text in output.drain():
+                    yield json.dumps({"type": "output", "text": text}) + "\n"
+                error = task.exception()
+                if error is None:
+                    event = {
+                        "type": "complete",
+                        "status": task.result().model_dump(),
+                    }
+                else:
+                    event = {
+                        "type": "error",
+                        "detail": error.detail
+                        if isinstance(
+                            error, qibocal_environment.EnvironmentOperationError
+                        )
+                        else f"Unexpected Qibocal installation failure: {error}",
+                    }
+                yield json.dumps(event) + "\n"
+                return
+            await asyncio.sleep(INSTALL_STREAM_POLL_INTERVAL)
+    finally:
+        output.disconnect()
 
 
 def _resolve_report_target_dir(report_id: str) -> Path:
@@ -194,7 +300,13 @@ async def lifespan(app: FastAPI):
         token = auth.create_initial_admin_invite_if_needed()
         if token:
             log_info(f"Initial admin invitation token generated: {token}")
-    yield
+    try:
+        yield
+    finally:
+        # Worker threads keep the environment lock after a client disconnects.
+        # Graceful shutdown waits for their bounded installation timeout.
+        if _INSTALL_TASKS:
+            await asyncio.gather(*tuple(_INSTALL_TASKS), return_exceptions=True)
 
 
 app = FastAPI(
@@ -266,6 +378,16 @@ def qibocal_options(
         raise HTTPException(error.status_code, error.detail) from error
 
 
+@app.get("/api/admin/logs", tags=["Diagnostics"])
+def admin_logs(
+    response: Response,
+    _user: Annotated[dict, Depends(require_environment_admin)],
+    after: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    return log_history.snapshot(after)
+
+
 @app.post("/api/admin/qibocal/install", response_model=QibocalStatus, tags=["Qibocal"])
 def qibocal_install(
     body: QibocalInstallRequest, response: Response,
@@ -276,6 +398,33 @@ def qibocal_install(
         return qibocal_environment.install_qibocal(body.option)
     except qibocal_environment.EnvironmentOperationError as error:
         raise HTTPException(error.status_code, error.detail) from error
+
+
+@app.post("/api/admin/qibocal/install/stream", tags=["Qibocal"])
+async def qibocal_install_stream(
+    body: QibocalInstallRequest,
+    _user: Annotated[dict, Depends(require_environment_admin)],
+) -> StreamingResponse:
+    output = _InstallationOutput()
+    task = asyncio.create_task(
+        asyncio.to_thread(
+            qibocal_environment.install_qibocal, body.option, output.append
+        )
+    )
+    _INSTALL_TASKS.add(task)
+    task.add_done_callback(_installation_finished)
+    while not output.started and not task.done():
+        await asyncio.sleep(INSTALL_STREAM_POLL_INTERVAL)
+    if not output.started:
+        error = task.exception()
+        if isinstance(error, qibocal_environment.EnvironmentOperationError):
+            raise HTTPException(error.status_code, error.detail) from error
+        task.result()
+    return StreamingResponse(
+        _installation_events(task, output),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
 
 
 # --- Health Endpoint ---

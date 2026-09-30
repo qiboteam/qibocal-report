@@ -1,7 +1,9 @@
 """Environment administration and fresh-process plot generation tests."""
 
+import asyncio
 import builtins
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -15,12 +17,13 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from qibocal_report import auth, generation_worker, generator
+from qibocal_report import api, auth, generation_worker, generator, logger
 from qibocal_report import qibocal_environment as environment
 from qibocal_report.api import app
-from qibocal_report.models import ProtocolDetail, QibocalStatus
+from qibocal_report.models import ProtocolDetail, QibocalInstallRequest, QibocalStatus
 
 _REAL_SUBPROCESS_RUN = subprocess.run
+_REAL_SUBPROCESS_POPEN = subprocess.Popen
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +34,11 @@ def isolate_environment(monkeypatch):
     monkeypatch.setattr(
         subprocess,
         "run",
+        Mock(side_effect=AssertionError("Real installs are forbidden")),
+    )
+    monkeypatch.setattr(
+        subprocess,
+        "Popen",
         Mock(side_effect=AssertionError("Real installs are forbidden")),
     )
     monkeypatch.setattr(
@@ -90,14 +98,51 @@ def mock_pypi(monkeypatch, releases=None):
 
 def mock_installer(monkeypatch, *, returncode=0, stderr="", side_effect=None):
     monkeypatch.setattr(environment.util, "find_spec", Mock(return_value=object()))
-    mock = Mock(
-        return_value=subprocess.CompletedProcess(
-            [], returncode, "installer log", stderr
-        ),
-        side_effect=side_effect,
-    )
-    monkeypatch.setattr(subprocess, "run", mock)
+    processes = []
+    if isinstance(side_effect, subprocess.TimeoutExpired):
+        monkeypatch.setattr(environment, "INSTALL_TIMEOUT", 0.05)
+
+    def start(command, **kwargs):
+        if isinstance(side_effect, subprocess.TimeoutExpired):
+            script = "import time; time.sleep(60)"
+        else:
+            result = subprocess.CompletedProcess(
+                command, returncode, "installer log", stderr
+            )
+            if callable(side_effect):
+                result = side_effect(command, **kwargs)
+            elif side_effect is not None:
+                raise side_effect
+            script = (
+                f"import sys; sys.stdout.write({result.stdout!r}); "
+                f"sys.stderr.write({result.stderr!r}); sys.exit({result.returncode})"
+            )
+        process = _REAL_SUBPROCESS_POPEN([sys.executable, "-c", script], **kwargs)
+        processes.append(process)
+        return process
+
+    mock = Mock(side_effect=start)
+    mock.processes = processes
+    monkeypatch.setattr(subprocess, "Popen", mock)
     return mock
+
+
+def mock_script_installer(monkeypatch, script, *, stdin=None):
+    """Run only a harmless test script, never the requested package command."""
+    monkeypatch.setattr(environment.util, "find_spec", Mock(return_value=object()))
+    processes = []
+
+    def start(command, **kwargs):
+        process = _REAL_SUBPROCESS_POPEN(
+            [sys.executable, "-c", script], stdin=stdin, **kwargs
+        )
+        processes.append(process)
+        return process
+
+    installer = Mock(side_effect=start)
+    installer.processes = processes
+    monkeypatch.setattr(subprocess, "Popen", installer)
+    return installer
 
 
 @pytest.mark.parametrize(
@@ -137,11 +182,14 @@ def test_environment_administration_requires_real_admin(client, credentials, rol
     for method, path, kwargs in (
         ("get", "/api/admin/qibocal/options", {}),
         ("post", "/api/admin/qibocal/install", {"json": {"option": "git"}}),
+        ("get", "/api/admin/logs", {}),
+        ("post", "/api/admin/qibocal/install/stream", {"json": {"option": "git"}}),
     ):
         response = getattr(client, method)(path, headers=headers, **kwargs)
         assert response.status_code == (401 if role is None else 403)
         assert response.json()["detail"]
     subprocess.run.assert_not_called()
+    subprocess.Popen.assert_not_called()
     httpx.get.assert_not_called()
 
 
@@ -158,20 +206,29 @@ def test_open_server_cannot_administer_environment(
     mock_metadata(monkeypatch, version=None)
     assert client.get("/api/qibocal").json()["installed"] is False
     assert client.get("/api/admin/qibocal/options", headers=headers).status_code == 403
+    assert client.get("/api/admin/logs", headers=headers).status_code == 403
     assert (
         client.post(
             "/api/admin/qibocal/install", json={"option": "git"}, headers=headers
         ).status_code
         == 403
     )
+    assert (
+        client.post(
+            "/api/admin/qibocal/install/stream", json={"option": "git"}, headers=headers
+        ).status_code
+        == 403
+    )
     subprocess.run.assert_not_called()
+    subprocess.Popen.assert_not_called()
 
 
-def test_current_user_role_not_stale_token_role(client):
+@pytest.mark.parametrize("path", ["/api/admin/qibocal/options", "/api/admin/logs"])
+def test_current_user_role_not_stale_token_role(client, path):
     user = auth.create_user("former-admin", "password123", "viewer")
     forged_role_token = auth.create_access_token({**user, "role": "admin"})
     response = client.get(
-        "/api/admin/qibocal/options",
+        path,
         headers={"Authorization": f"Bearer {forged_role_token}"},
     )
     assert response.status_code == 403
@@ -300,7 +357,11 @@ def test_admin_install_uses_fixed_target_and_server_python(
     assert command[:4] == [sys.executable, "-m", "pip", "install"]
     assert "--upgrade" in command and "--force-reinstall" in command
     assert command[-1] == (environment.GIT_URL if source == "git" else "qibocal==0.2.7")
-    assert kwargs["timeout"] == environment.INSTALL_TIMEOUT
+    assert kwargs["stdout"] == subprocess.PIPE
+    assert kwargs["stderr"] == subprocess.STDOUT
+    assert kwargs["env"]["PYTHONUNBUFFERED"] == "1"
+    assert kwargs["env"]["FORCE_COLOR"] == "1"
+    assert kwargs["env"]["UV_COLOR"] == "always"
     assert kwargs.get("shell", False) is False
 
 
@@ -323,6 +384,9 @@ def test_uv_fallback_targets_server_python(monkeypatch, client, credentials):
 
 
 @pytest.mark.parametrize(
+    "path", ["/api/admin/qibocal/install", "/api/admin/qibocal/install/stream"]
+)
+@pytest.mark.parametrize(
     "option",
     [
         "https://example.com/qibocal.whl",
@@ -335,7 +399,9 @@ def test_uv_fallback_targets_server_python(monkeypatch, client, credentials):
         "pypi:1.1.0",
     ],
 )
-def test_install_rejects_unvalidated_targets(monkeypatch, client, credentials, option):
+def test_install_rejects_unvalidated_targets(
+    monkeypatch, client, credentials, option, path
+):
     mock_pypi(
         monkeypatch,
         {
@@ -346,27 +412,32 @@ def test_install_rejects_unvalidated_targets(monkeypatch, client, credentials, o
         },
     )
     response = client.post(
-        "/api/admin/qibocal/install",
+        path,
         headers=credentials["admin"],
         json={"option": option},
     )
     assert response.status_code == 400
     assert response.json()["detail"]
     subprocess.run.assert_not_called()
+    subprocess.Popen.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "path", ["/api/admin/qibocal/install", "/api/admin/qibocal/install/stream"]
+)
 def test_pypi_install_requires_successful_server_validation(
-    monkeypatch, client, credentials
+    monkeypatch, client, credentials, path
 ):
     monkeypatch.setattr(httpx, "get", Mock(side_effect=httpx.ConnectError("offline")))
     response = client.post(
-        "/api/admin/qibocal/install",
+        path,
         headers=credentials["admin"],
         json={"option": "pypi:0.2.7"},
     )
     assert response.status_code == 502
     assert "offline" in response.json()["detail"]
     subprocess.run.assert_not_called()
+    subprocess.Popen.assert_not_called()
 
 
 def test_git_install_does_not_depend_on_pypi(monkeypatch, client, credentials):
@@ -406,19 +477,24 @@ def test_metadata_read_failures_have_specific_details(monkeypatch, client, crede
     )
 
 
-def test_missing_installer_is_explicit(monkeypatch, client, credentials):
+@pytest.mark.parametrize(
+    "path", ["/api/admin/qibocal/install", "/api/admin/qibocal/install/stream"]
+)
+def test_missing_installer_is_explicit(monkeypatch, client, credentials, path):
     monkeypatch.setattr(environment.util, "find_spec", Mock(return_value=None))
     monkeypatch.setattr(environment.shutil, "which", Mock(return_value=None))
     response = client.post(
-        "/api/admin/qibocal/install",
+        path,
         headers=credentials["admin"],
         json={"option": "git"},
     )
     assert response.status_code == 503
     assert "No package installer" in response.json()["detail"]
     subprocess.run.assert_not_called()
+    subprocess.Popen.assert_not_called()
 
 
+@pytest.mark.parametrize("streaming", [False, True])
 @pytest.mark.parametrize(
     ("failure", "status", "message"),
     [
@@ -432,7 +508,7 @@ def test_missing_installer_is_explicit(monkeypatch, client, credentials):
     ],
 )
 def test_install_failures_and_lock_cleanup(
-    monkeypatch, client, credentials, failure, status, message
+    monkeypatch, client, credentials, failure, status, message, streaming
 ):
     mock_pypi(monkeypatch)
     mock_metadata(
@@ -453,19 +529,30 @@ def test_install_failures_and_lock_cleanup(
         if failure == "start"
         else None
     )
-    mock_installer(
+    installer = mock_installer(
         monkeypatch,
         returncode=1 if failure == "exit" else 0,
         stderr="dependency conflict",
         side_effect=side_effect,
     )
     response = client.post(
-        "/api/admin/qibocal/install",
+        "/api/admin/qibocal/install" + ("/stream" if streaming else ""),
         headers=credentials["admin"],
         json={"option": "pypi:0.2.7"},
     )
-    assert response.status_code == status
-    assert message in response.json()["detail"]
+    if streaming:
+        assert response.status_code == 200
+        events = [json.loads(line) for line in response.text.splitlines()]
+        assert events[0]["type"] == "output"
+        assert events[-1]["type"] == "error"
+        assert message in events[-1]["detail"]
+        assert sum(event["type"] != "output" for event in events) == 1
+    else:
+        assert response.status_code == status
+        assert message in response.json()["detail"]
+    for process in installer.processes:
+        assert process.poll() is not None
+        assert process.stdout.closed
     assert environment._INSTALL_LOCK.acquire(blocking=False)
     environment._INSTALL_LOCK.release()
     assert environment._ENVIRONMENT_LOCK.acquire(blocking=False)
@@ -481,23 +568,25 @@ def test_concurrent_install_conflicts_and_generation_waits(
     release_installation = threading.Event()
     generation_started = threading.Event()
 
-    def run(command, **kwargs):
-        if command[1:3] == ["-m", "pip"]:
-            installation_started.set()
-            assert release_installation.wait(5)
-        else:
-            generation_started.set()
-            Path(command[-1]).write_text(
-                json.dumps(
-                    {
-                        "protocols": [{"id": "rabi", "name": "Rabi", "figures": []}],
-                        "error": None,
-                        "error_code": None,
-                    }
-                )
-            )
+    def install(command, **kwargs):
+        installation_started.set()
+        assert release_installation.wait(5)
         return subprocess.CompletedProcess(command, 0, "", "")
 
+    def run(command, **kwargs):
+        generation_started.set()
+        Path(command[-1]).write_text(
+            json.dumps(
+                {
+                    "protocols": [{"id": "rabi", "name": "Rabi", "figures": []}],
+                    "error": None,
+                    "error_code": None,
+                }
+            )
+        )
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    mock_installer(monkeypatch, side_effect=install)
     monkeypatch.setattr(subprocess, "run", run)
     with ThreadPoolExecutor(max_workers=2) as executor:
         install = executor.submit(
@@ -551,6 +640,390 @@ def test_install_waits_for_active_generation(monkeypatch):
             assert waiting_for_environment.wait(5)
             assert not installer_called.wait(0.1)
         assert install.result(timeout=5).installed is True
+
+
+@pytest.mark.parametrize("source", ["pypi", "git"])
+def test_streaming_install_protocol_success(monkeypatch, client, credentials, source):
+    mock_metadata(monkeypatch, source=source)
+    mock_pypi(monkeypatch)
+    mock_installer(monkeypatch, stderr="\x1b[31mcolored stderr\x1b[0m\n")
+    response = client.post(
+        "/api/admin/qibocal/install/stream",
+        headers=credentials["admin"],
+        json={"option": "git" if source == "git" else "pypi:0.2.7"},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/x-ndjson"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-accel-buffering"] == "no"
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert events[-1] == {
+        "type": "complete",
+        "status": {"installed": True, "version": "0.2.7", "source": source},
+    }
+    assert all(set(event) == {"type", "text"} for event in events[:-1])
+    assert all(event["type"] == "output" for event in events[:-1])
+    text = "".join(event["text"] for event in events[:-1])
+    assert "installer log" in text
+    assert "\x1b[31mcolored stderr\x1b[0m" in text
+    assert not api._INSTALL_TASKS
+
+
+@pytest.mark.parametrize(
+    "body", [{}, {"option": ""}, {"option": 7}, {"option": "x" * 201}]
+)
+def test_streaming_body_validation_precedes_installation(client, credentials, body):
+    response = client.post(
+        "/api/admin/qibocal/install/stream", headers=credentials["admin"], json=body
+    )
+    assert response.status_code == 422
+    assert response.headers["content-type"] == "application/json"
+    subprocess.Popen.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/admin/logs", "/api/admin/qibocal/install/stream"]
+)
+def test_diagnostics_reject_invalid_bearer(client, path):
+    headers = {"Authorization": "Bearer invalid"}
+    if path.endswith("/logs"):
+        response = client.get(path, headers=headers)
+    else:
+        response = client.post(path, headers=headers, json={"option": "git"})
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    subprocess.Popen.assert_not_called()
+
+
+def test_streaming_uses_current_role_not_token_role(client):
+    user = auth.create_user("demoted-stream-admin", "password123", "viewer")
+    token = auth.create_access_token({**user, "role": "admin"})
+    response = client.post(
+        "/api/admin/qibocal/install/stream",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"option": "git"},
+    )
+    assert response.status_code == 403
+    subprocess.Popen.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/admin/qibocal/install", "/api/admin/qibocal/install/stream"]
+)
+def test_install_busy_rejection_is_normal_http(monkeypatch, client, credentials, path):
+    environment._INSTALL_LOCK.acquire()
+    try:
+        response = client.post(
+            path, headers=credentials["admin"], json={"option": "git"}
+        )
+        assert response.status_code == 409
+        assert response.headers["content-type"] == "application/json"
+        assert "already in progress" in response.json()["detail"]
+    finally:
+        environment._INSTALL_LOCK.release()
+    subprocess.Popen.assert_not_called()
+    httpx.get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/admin/qibocal/install", "/api/admin/qibocal/install/stream"]
+)
+def test_install_generation_wait_timeout_releases_install_lock(
+    monkeypatch, client, credentials, path
+):
+    mock_installer(monkeypatch)
+    lock = Mock(acquire=Mock(return_value=False))
+    monkeypatch.setattr(environment, "_ENVIRONMENT_LOCK", lock)
+    response = client.post(path, headers=credentials["admin"], json={"option": "git"})
+    assert response.status_code == 409
+    assert "plot generation is still running" in response.json()["detail"]
+    lock.acquire.assert_called_once_with(timeout=environment.GENERATION_TIMEOUT + 30)
+    lock.release.assert_not_called()
+    assert not environment._INSTALL_LOCK.locked()
+    subprocess.Popen.assert_not_called()
+
+
+def test_installer_output_is_incremental_colored_and_utf8_safe(monkeypatch):
+    mock_metadata(monkeypatch, source="git")
+    script = (
+        "import sys; "
+        "sys.stdout.buffer.write(b'\\x1b[32mfirst \\xc3'); sys.stdout.flush(); "
+        "sys.stdin.buffer.read(1); "
+        "sys.stdout.buffer.write(b'\\xa9\\x1b[0m\\n'); sys.stdout.flush(); "
+        "sys.stderr.write('merged stderr\\n'); sys.stderr.flush()"
+    )
+    installer = mock_script_installer(monkeypatch, script, stdin=subprocess.PIPE)
+    chunks = []
+    incremental = False
+
+    def progress(text):
+        nonlocal incremental
+        chunks.append(text)
+        if "first " in text:
+            process = installer.processes[0]
+            assert process.poll() is None
+            incremental = True
+            process.stdin.write(b"x")
+            process.stdin.close()
+
+    assert environment.install_qibocal("git", progress).installed
+    assert incremental
+    combined = "".join(chunks)
+    assert "\x1b[32mfirst \u00e9\x1b[0m\n" in combined
+    assert "merged stderr" in combined
+    assert "\ufffd" not in combined
+    assert installer.processes[0].stdout.closed
+    assert installer.call_args.kwargs["start_new_session"] == (os.name == "posix")
+
+
+def test_install_failure_keeps_only_bounded_output_tail(monkeypatch):
+    script = "import sys; sys.stdout.write('x' * 100000 + 'failure tail'); sys.exit(1)"
+    mock_script_installer(monkeypatch, script)
+    chunk_sizes = []
+    with pytest.raises(environment.EnvironmentOperationError) as caught:
+        environment.install_qibocal("git", lambda text: chunk_sizes.append(len(text)))
+    error = caught.value
+    assert error.status_code == 502
+    prefix = "Qibocal installation failed (exit 1): "
+    assert error.detail.startswith(prefix)
+    assert len(error.detail.removeprefix(prefix)) == environment.INSTALL_FAILURE_TAIL
+    assert error.detail.endswith("failure tail")
+    assert max(chunk_sizes) <= environment.INSTALL_OUTPUT_CHUNK_BYTES
+    assert not environment._INSTALL_LOCK.locked()
+    assert not environment._ENVIRONMENT_LOCK.locked()
+
+
+@pytest.mark.parametrize("closed_output", [False, True])
+def test_installer_timeout_kills_reaps_and_closes_pipe(monkeypatch, closed_output):
+    script = "import os, time; "
+    if closed_output:
+        script += "os.close(1); os.close(2); "
+    script += "time.sleep(60)"
+    installer = mock_script_installer(monkeypatch, script)
+    monkeypatch.setattr(environment, "INSTALL_TIMEOUT", 0.05)
+    with pytest.raises(
+        environment.EnvironmentOperationError, match="timed out"
+    ) as caught:
+        environment.install_qibocal("git")
+    assert caught.value.status_code == 504
+    process = installer.processes[0]
+    assert process.poll() is not None
+    assert process.stdout.closed
+    assert not environment._INSTALL_LOCK.locked()
+    assert not environment._ENVIRONMENT_LOCK.locked()
+    assert not any(
+        thread.name.startswith("qibocal-output") for thread in threading.enumerate()
+    )
+
+
+def test_unexpected_progress_error_propagates_with_process_and_lock_cleanup(
+    monkeypatch,
+):
+    installer = mock_script_installer(
+        monkeypatch,
+        "import time; print('ready', flush=True); time.sleep(60)",
+    )
+
+    def progress(text):
+        if "ready" in text:
+            raise RuntimeError("broken progress consumer")
+
+    with pytest.raises(RuntimeError, match="broken progress consumer"):
+        environment.install_qibocal("git", progress)
+    process = installer.processes[0]
+    assert process.poll() is not None
+    assert process.stdout.closed
+    assert not environment._INSTALL_LOCK.locked()
+    assert not environment._ENVIRONMENT_LOCK.locked()
+
+
+def test_pipe_reader_error_propagates_with_process_and_lock_cleanup(monkeypatch):
+    installer = mock_script_installer(monkeypatch, "import time; time.sleep(60)")
+    start = installer.side_effect
+
+    def broken_output(command, **kwargs):
+        process = start(command, **kwargs)
+        monkeypatch.setattr(
+            process.stdout, "read", Mock(side_effect=OSError("broken output pipe"))
+        )
+        return process
+
+    installer.side_effect = broken_output
+    with pytest.raises(OSError, match="broken output pipe"):
+        environment.install_qibocal("git")
+    process = installer.processes[0]
+    assert process.poll() is not None
+    assert process.stdout.closed
+    assert not environment._INSTALL_LOCK.locked()
+    assert not environment._ENVIRONMENT_LOCK.locked()
+
+
+def test_unexpected_stream_error_is_logged_and_reported(
+    monkeypatch, client, credentials, caplog
+):
+    mock_installer(monkeypatch)
+    monkeypatch.setattr(
+        environment.metadata,
+        "distribution",
+        Mock(side_effect=RuntimeError("bad metadata")),
+    )
+    response = client.post(
+        "/api/admin/qibocal/install/stream",
+        headers=credentials["admin"],
+        json={"option": "git"},
+    )
+    assert response.status_code == 200
+    events = [json.loads(line) for line in response.text.splitlines()]
+    assert events[-1] == {
+        "type": "error",
+        "detail": "Unexpected Qibocal installation failure: bad metadata",
+    }
+    assert "Unexpected Qibocal installation failure" in caplog.text
+    assert "RuntimeError: bad metadata" in caplog.text
+    assert not environment._INSTALL_LOCK.locked()
+    assert not environment._ENVIRONMENT_LOCK.locked()
+
+
+def test_unexpected_preflight_failure_is_not_hidden(monkeypatch, credentials, caplog):
+    monkeypatch.setattr(
+        environment,
+        "_installer_command",
+        Mock(side_effect=RuntimeError("bad preflight")),
+    )
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.post(
+            "/api/admin/qibocal/install/stream",
+            headers=credentials["admin"],
+            json={"option": "git"},
+        )
+    assert response.status_code == 500
+    assert "application/x-ndjson" not in response.headers["content-type"]
+    assert "RuntimeError: bad preflight" in caplog.text
+    assert not environment._INSTALL_LOCK.locked()
+    assert not environment._ENVIRONMENT_LOCK.locked()
+    subprocess.Popen.assert_not_called()
+
+
+def test_stream_output_buffer_is_bounded_and_nonblocking():
+    output = api._InstallationOutput()
+    for index in range(1000):
+        output.append(str(index))
+    entries = output.drain()
+    assert len(entries) == api.INSTALL_STREAM_BUFFER_ENTRIES + 1
+    assert "Earlier installer output omitted" in entries[0]
+    assert entries[1:] == [
+        str(index) for index in range(1000 - api.INSTALL_STREAM_BUFFER_ENTRIES, 1000)
+    ]
+    output.append("x" * (environment.INSTALL_OUTPUT_CHUNK_BYTES * 2))
+    assert len(output.drain()[-1]) == environment.INSTALL_OUTPUT_CHUNK_BYTES
+    output.disconnect()
+    for _ in range(1000):
+        output.append("disconnected")
+    assert output.drain() == []
+
+
+@pytest.mark.asyncio
+async def test_stream_delivers_output_while_worker_and_event_loop_remain_live(
+    monkeypatch,
+):
+    mock_metadata(monkeypatch, source="git")
+    installer = mock_script_installer(
+        monkeypatch,
+        "import sys; print('early output', flush=True); "
+        "sys.stdin.buffer.read(1); print('late output', flush=True)",
+        stdin=subprocess.PIPE,
+    )
+    response = await asyncio.wait_for(
+        api.qibocal_install_stream(QibocalInstallRequest(option="git"), _user={}), 3
+    )
+    iterator = response.body_iterator
+    texts = []
+    try:
+        while not any("early output" in text for text in texts):
+            event = json.loads(await asyncio.wait_for(anext(iterator), 3))
+            assert event["type"] == "output"
+            texts.append(event["text"])
+        assert environment._ENVIRONMENT_LOCK.locked()
+        assert len(api._INSTALL_TASKS) == 1
+        assert not next(iter(api._INSTALL_TASKS)).done()
+        await asyncio.wait_for(asyncio.sleep(0.01), 1)
+    finally:
+        process = installer.processes[0]
+        process.stdin.write(b"x")
+        process.stdin.close()
+    events = [json.loads(line) async for line in iterator]
+    assert "late output" in "".join(event.get("text", "") for event in events)
+    assert events[-1]["type"] == "complete"
+    assert not api._INSTALL_TASKS
+
+
+@pytest.mark.parametrize("returncode", [0, 1])
+@pytest.mark.asyncio
+async def test_disconnect_keeps_install_running_and_shutdown_waits(
+    monkeypatch, returncode, caplog, client, credentials
+):
+    history = logger.LogHistory()
+    monkeypatch.setattr(logger, "log_history", history)
+    monkeypatch.setattr(api, "log_history", history)
+    mock_metadata(monkeypatch, source="git")
+    monkeypatch.setattr(auth, "create_initial_admin_invite_if_needed", lambda: None)
+    installer = mock_script_installer(
+        monkeypatch,
+        "import sys; print('waiting', flush=True); "
+        "sys.stdin.buffer.read(1); print('\\x1b[32mfinished\\x1b[0m', flush=True); "
+        f"sys.exit({returncode})",
+        stdin=subprocess.PIPE,
+    )
+    manager = api.lifespan(app)
+    await manager.__aenter__()
+    response = await asyncio.wait_for(
+        api.qibocal_install_stream(QibocalInstallRequest(option="git"), _user={}), 3
+    )
+    disconnected = asyncio.Event()
+
+    async def send(message):
+        if message["type"] == "http.response.body" and b"waiting" in message["body"]:
+            disconnected.set()
+
+    async def receive():
+        await disconnected.wait()
+        return {"type": "http.disconnect"}
+
+    await asyncio.wait_for(
+        response({"type": "http", "asgi": {"spec_version": "2.3"}}, receive, send), 3
+    )
+    task = next(iter(api._INSTALL_TASKS))
+    disconnected_cursor = history.snapshot()["cursor"]
+    assert not task.cancelled() and not task.done()
+    assert environment._INSTALL_LOCK.locked()
+    assert environment._ENVIRONMENT_LOCK.locked()
+    shutdown = asyncio.create_task(manager.__aexit__(None, None, None))
+    try:
+        await asyncio.sleep(0.05)
+        assert not shutdown.done()
+    finally:
+        process = installer.processes[0]
+        process.stdin.write(b"x")
+        process.stdin.close()
+    await asyncio.wait_for(shutdown, 3)
+    assert task.done() and not task.cancelled()
+    if returncode:
+        assert isinstance(task.exception(), environment.EnvironmentOperationError)
+        assert "installation failed" in caplog.text
+    else:
+        assert task.result().installed
+    assert process.stdout.closed
+    assert not environment._INSTALL_LOCK.locked()
+    assert not environment._ENVIRONMENT_LOCK.locked()
+    assert not api._INSTALL_TASKS
+    logs = client.get(
+        f"/api/admin/logs?after={disconnected_cursor}", headers=credentials["admin"]
+    )
+    assert logs.status_code == 200
+    assert any(
+        "\x1b[32mfinished\x1b[0m" in entry["text"] for entry in logs.json()["entries"]
+    )
+    assert logs.json()["cursor"] > disconnected_cursor
 
 
 def test_generation_uses_result_file_not_qibocal_logs(monkeypatch, tmp_path):
@@ -770,6 +1243,7 @@ def test_fresh_worker_uses_changed_version_not_stale_parent_module(
     stale.__version__ = "stale"
     monkeypatch.setitem(sys.modules, "qibocal", stale)
     monkeypatch.setattr(subprocess, "run", _REAL_SUBPROCESS_RUN)
+    monkeypatch.setattr(subprocess, "Popen", _REAL_SUBPROCESS_POPEN)
     monkeypatch.setenv("PYTHONPATH", str(package.parent))
     for version in ("1.0", "2.0.1"):
         (package / "__init__.py").write_text(f"__version__ = '{version}'\n")

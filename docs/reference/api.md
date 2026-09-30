@@ -8,6 +8,19 @@ Interactive Swagger documentation is available at **`/api/docs/swagger`**, and t
 
 ## 🩺 Health & Server Diagnostics
 
+### `GET /api/admin/logs?after=0`
+Requires authentication to be enabled and a signed-in administrator (the same
+strict authorization as Qibocal environment administration). Returns bounded
+in-memory server log history with ANSI color escapes preserved:
+
+```json
+{"entries": [{"id": 1, "text": "\u001b[32mServer ready\u001b[0m\n"}], "cursor": 1}
+```
+
+Pass the last `cursor` as `after` to read newer entries. Logs include Rich
+application messages and Python/uvicorn logging, and disappear on server
+restart. Responses use `Cache-Control: no-store`.
+
 ### `GET /api/health`
 Returns system status, active server identifier, report count, and scanned root directory.
 
@@ -180,6 +193,24 @@ and user on that server; other processes using the same environment can also be
 affected. Run the report server in a dedicated virtual environment rather than
 a shared or system-wide Python environment. Administrator authorization limits
 who can request installation but does not isolate dependency changes.
+
+### `POST /api/admin/qibocal/install/stream`
+Accepts the same body and strict administrator authorization as `/install`,
+but responds with `application/x-ndjson` for live installer progress. Each
+newline-delimited JSON event is one of:
+
+```json
+{"type": "output", "text": "Collecting qibocal...\n"}
+{"type": "complete", "status": {"installed": true, "version": "0.2.7", "source": "pypi"}}
+{"type": "error", "detail": "Qibocal installation failed..."}
+```
+
+Output preserves ANSI colors. Authentication and request validation failures
+use normal HTTP error responses; installation failures after streaming begins
+use an `error` event. Do not treat HTTP 200 or an interrupted stream as successful
+installation: wait for `complete`. Disconnecting does not interrupt the
+server-side installation. The diagnostics footer uses this endpoint and
+regenerates the open report or preview only after confirmed success.
 
 ---
 
