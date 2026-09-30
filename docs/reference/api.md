@@ -25,6 +25,10 @@ Returns system status, active server identifier, report count, and scanned root 
 
 ## 🌐 Server Registry Management
 
+These endpoints manage the backend's configuration file, independently of the
+browser-local registry displayed on `/servers`. The client does not synchronize
+its server list with these endpoints.
+
 ### `GET /api/servers`
 List all registered local and remote report servers.
 
@@ -39,7 +43,8 @@ Update an existing server's metadata, display name, avatar, or default status.
 Remove a server from the local registry.
 
 ### `POST /api/servers/save`
-Persist the in-memory server list to `~/.config/qibocal-report/servers.json`.
+Explicitly save the backend registry to `~/.config/qibocal-report/servers.json`.
+Registry mutations already save this file automatically.
 
 ---
 

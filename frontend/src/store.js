@@ -1,4 +1,5 @@
-import { reactive, computed } from 'vue'
+import { reactive, computed, watch } from 'vue'
+import { CLIENT_LAYOUT_KEYS, parseClientServer, parseClientState } from './utils/clientState.js'
 import {
   normalizeUrl as utilsNormalizeUrl,
   getActiveServerUrl as utilsGetActiveServerUrl,
@@ -37,6 +38,15 @@ function loadStoredServers() {
     console.error('Failed to parse saved servers from localStorage', e)
   }
   return []
+}
+
+function loadSidebarPreference() {
+  try {
+    return localStorage.getItem('qibocal_report_sidebar_collapsed') === 'true'
+  } catch (error) {
+    console.warn('Failed to load sidebar preference', error)
+    return false
+  }
 }
 
 // --- Search State Persistence (Session Storage) ---
@@ -96,7 +106,7 @@ export const state = reactive({
   history: initialHistory,
   currentReportId: null,
   currentReportData: null,
-  sidebarCollapsed: false,
+  sidebarCollapsed: loadSidebarPreference(),
   loading: false,
   error: null,
   serverDataVersion: 0,
@@ -111,6 +121,14 @@ export const state = reactive({
     showRegisterModal: false,
     registerData: null,
     errorMessage: ''
+  }
+})
+
+watch(() => state.sidebarCollapsed, value => {
+  try {
+    localStorage.setItem('qibocal_report_sidebar_collapsed', String(value))
+  } catch (error) {
+    console.warn('Failed to save sidebar preference', error)
   }
 })
 
@@ -155,6 +173,7 @@ function saveStoredAuth(authMap) {
 
 const serverAuth = reactive(loadStoredAuth())
 let authCheckVersion = 0
+let clientStateVersion = 0
 let pendingAuthCheck = null
 
 export function getServerAuthKey(server = state.activeServer) {
@@ -289,6 +308,7 @@ async function verifyServerAuth(targetServer, version) {
 }
 
 export async function loginActiveServer(username, password) {
+  const version = clientStateVersion
   const server = state.activeServer
   const serverUrl = getActiveServerUrl(server)
   const loginUrl = serverUrl ? `${serverUrl}/api/auth/login` : '/api/auth/login'
@@ -305,6 +325,7 @@ export async function loginActiveServer(username, password) {
   }
 
   const data = await res.json()
+  if (version !== clientStateVersion) throw new Error('Client state changed. Please sign in again.')
   if (getServerAuthKey(server) === getServerAuthKey(state.activeServer)) authCheckVersion++
   setServerAuth(server, data.access_token, data.user)
   state.auth.errorMessage = ''
@@ -323,6 +344,7 @@ export function logoutActiveServer(server = state.activeServer) {
 }
 
 export async function registerWithInvite(inviteToken, username, password, targetServer = state.activeServer) {
+  const version = clientStateVersion
   const serverUrl = getActiveServerUrl(targetServer)
   const regUrl = serverUrl ? `${serverUrl}/api/auth/register` : '/api/auth/register'
 
@@ -342,6 +364,7 @@ export async function registerWithInvite(inviteToken, username, password, target
   }
 
   const data = await res.json()
+  if (version !== clientStateVersion) throw new Error('Client state changed. Please sign in again.')
   if (getServerAuthKey(targetServer) === getServerAuthKey(state.activeServer)) authCheckVersion++
   setServerAuth(targetServer, data.access_token, data.user)
   notifyServerDataChanged()
@@ -435,69 +458,19 @@ export async function apiFetch(path, options = {}) {
 // --- Server Management ---
 
 export function saveStoredServers(servers) {
-  try {
-    localStorage.setItem(SERVERS_STORAGE_KEY, JSON.stringify(servers))
-  } catch (e) {
-    console.warn('Failed to save servers to localStorage', e)
-  }
+  localStorage.setItem(SERVERS_STORAGE_KEY, JSON.stringify(servers))
 }
 
-let serversPromise = null
-
-export function fetchServers() {
-  if (!serversPromise) {
-    serversPromise = (async () => {
-      let loaded = false
-      try {
-        const headers = {}
-        const token = getActiveAuthToken()
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`
-        }
-        const res = await fetch('/api/servers', { headers })
-        if (res.ok) {
-          const data = await res.json()
-          if (Array.isArray(data) && data.length > 0) {
-            state.servers = data
-            saveStoredServers(data)
-            loaded = true
-          }
-        }
-      } catch (err) {
-        console.debug('Backend /api/servers not available, using stored servers', err)
-      }
-
-      if (!loaded) {
-        const stored = loadStoredServers()
-        state.servers = stored
-      }
-
-      if (state.servers.length === 0) {
-        setActiveServer(null)
-      } else {
-        const savedActiveId = localStorage.getItem('qibocal_active_server_id')
-        const found = state.servers.find(s => s.id === savedActiveId)
-        if (found) {
-          state.activeServer = found
-        } else if (!state.activeServer && state.servers.length > 0) {
-          state.activeServer = state.servers[0]
-        } else if (state.activeServer) {
-          const current = state.servers.find(s => s.id === state.activeServer.id)
-          if (current) state.activeServer = current
-          else state.activeServer = state.servers[0] || null
-        }
-        if (state.activeServer?.id) {
-          localStorage.setItem('qibocal_active_server_id', state.activeServer.id)
-          await checkActiveServerAuth(state.activeServer)
-        } else {
-          setActiveServer(null)
-        }
-      }
-    })().finally(() => {
-      serversPromise = null
-    })
+export async function fetchServers() {
+  const server = state.servers.find(s => s.id === state.activeServer?.id) || state.servers[0]
+  if (!server) {
+    setActiveServer(null)
+  } else if (state.activeServer?.id !== server.id) {
+    await setActiveServer(server)
+  } else {
+    await checkActiveServerAuth(state.activeServer)
   }
-  return serversPromise
+  return state.servers
 }
 
 export async function ensureServersLoaded() {
@@ -549,29 +522,12 @@ export async function addServer(urlOrObj, name = null, description = null, avata
     }
   }
 
-  try {
-    const headers = { 'Content-Type': 'application/json' }
-    const token = getActiveAuthToken()
-    if (token) headers['Authorization'] = `Bearer ${token}`
-    const res = await fetch('/api/servers', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload)
-    })
-    if (res.ok) {
-      const created = await res.json()
-      await fetchServers()
-      return created
-    }
-  } catch (err) {
-    console.debug('Backend /api/servers POST unavailable, adding locally', err)
-  }
-
-  // Fallback for static client mode
   const cleanUrl = payload.url
+  const existing = state.servers.find(s => normalizeUrl(s.url) === cleanUrl)
+  if (existing) return existing
   const id = `srv-${Math.random().toString(36).substring(2, 10)}`
   const fallbackName = payload.name || `Server ${state.servers.length + 1}`
-  const created = {
+  const created = parseClientServer({
     id,
     name: fallbackName,
     url: cleanUrl,
@@ -580,15 +536,11 @@ export async function addServer(urlOrObj, name = null, description = null, avata
     is_default: state.servers.length === 0,
     created_at: new Date().toISOString(),
     author_identities: payload.author_identities || {},
-    protocol_docs: {}
-  }
-  const existingIdx = state.servers.findIndex(s => normalizeUrl(s.url) === cleanUrl)
-  if (existingIdx >= 0) {
-    state.servers[existingIdx] = { ...state.servers[existingIdx], ...created }
-  } else {
-    state.servers.push(created)
-  }
-  saveStoredServers(state.servers)
+    protocol_docs: payload.protocol_docs || {}
+  })
+  const servers = [...state.servers, created]
+  saveStoredServers(servers)
+  state.servers = servers
   if (!state.activeServer) {
     setActiveServer(created)
   }
@@ -601,68 +553,38 @@ export async function updateServer(id, updates) {
     dataToSend.url = normalizeUrl(dataToSend.url)
   }
 
-  try {
-    const headers = { 'Content-Type': 'application/json' }
-    const token = getActiveAuthToken()
-    if (token) headers['Authorization'] = `Bearer ${token}`
-    const res = await fetch(`/api/servers/${id}`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(dataToSend)
-    })
-    if (res.ok) {
-      const updated = await res.json()
-      await fetchServers()
-      if (state.activeServer?.id === id) {
-        setActiveServer(updated)
-      }
-      return updated
-    }
-  } catch (err) {
-    console.debug('Backend /api/servers PUT unavailable, updating locally', err)
-  }
-
-  // Fallback for static client mode
   const idx = state.servers.findIndex(s => s.id === id)
   if (idx >= 0) {
-    state.servers[idx] = { ...state.servers[idx], ...dataToSend }
-    saveStoredServers(state.servers)
-    if (state.activeServer?.id === id) {
-      setActiveServer(state.servers[idx])
+    const previousUrl = normalizeUrl(state.servers[idx].url)
+    const updated = parseClientServer({ ...state.servers[idx], ...dataToSend, id })
+    if (state.servers.some(server => server.id !== id && normalizeUrl(server.url) === updated.url)) {
+      throw new Error('A server with this address is already registered.')
     }
-    return state.servers[idx]
+    const servers = [...state.servers]
+    servers[idx] = updated
+    saveStoredServers(servers)
+    state.servers = servers
+    if (normalizeUrl(updated.url) !== previousUrl) {
+      setServerAuth(updated, null, null)
+      localStorage.removeItem(`server_connection_${id}`)
+    }
+    if (state.activeServer?.id === id) {
+      setActiveServer(updated)
+    }
+    return updated
   }
   return null
 }
 
 export async function deleteServer(id) {
-  try {
-    const headers = {}
-    const token = getActiveAuthToken()
-    if (token) headers['Authorization'] = `Bearer ${token}`
-    const res = await fetch(`/api/servers/${id}`, { method: 'DELETE', headers })
-    if (res.ok) {
-      const idx = state.servers.findIndex(s => s.id === id)
-      if (idx >= 0) {
-        state.servers.splice(idx, 1)
-      }
-      saveStoredServers(state.servers)
-      if (state.servers.length === 0) {
-        setActiveServer(null)
-      } else if (state.activeServer?.id === id) {
-        setActiveServer(state.servers[0] || null)
-      }
-      return true
-    }
-  } catch (err) {
-    console.debug('Backend /api/servers DELETE unavailable, deleting locally', err)
-  }
-
-  // Fallback for static client mode
   const idx = state.servers.findIndex(s => s.id === id)
   if (idx >= 0) {
-    state.servers.splice(idx, 1)
-    saveStoredServers(state.servers)
+    const removed = state.servers[idx]
+    const servers = state.servers.filter(s => s.id !== id)
+    saveStoredServers(servers)
+    state.servers = servers
+    setServerAuth(removed, null, null)
+    localStorage.removeItem(`server_connection_${id}`)
     if (state.servers.length === 0) {
       setActiveServer(null)
     } else if (state.activeServer?.id === id) {
@@ -673,20 +595,68 @@ export async function deleteServer(id) {
   return false
 }
 
-export async function persistServersConfig() {
+export function exportClientState() {
+  return parseClientState({
+    format: 'qibocal-report-client',
+    version: 1,
+    servers: state.servers,
+    activeServerId: state.activeServer?.id || null,
+    history: state.history,
+    searchState: state.searchState,
+    sidebarCollapsed: state.sidebarCollapsed,
+    layout: Object.fromEntries(CLIENT_LAYOUT_KEYS.map(key => [key, localStorage.getItem(key)]))
+  })
+}
+
+export function importClientState(data) {
+  const saved = parseClientState(data)
+  const active = saved.servers.find(server => server.id === saved.activeServerId) || null
+  const changes = [
+    [localStorage, SERVERS_STORAGE_KEY, JSON.stringify(saved.servers)],
+    [localStorage, 'qibocal_active_server_id', saved.activeServerId],
+    [localStorage, 'qibocal_report_history', JSON.stringify(saved.history)],
+    [localStorage, 'qibocal_report_sidebar_collapsed', String(saved.sidebarCollapsed)],
+    [sessionStorage, SEARCH_STATE_STORAGE_KEY, JSON.stringify(saved.searchState)],
+    [localStorage, AUTH_STORAGE_KEY, null],
+    ...CLIENT_LAYOUT_KEYS.map(key => [localStorage, key, saved.layout[key] ?? null]),
+    ...[...new Set([...state.servers, ...saved.servers].map(server => server.id))]
+      .map(id => [localStorage, `server_connection_${id}`, null])
+  ]
+  const previous = changes.map(([storage, key]) => storage.getItem(key))
+  let applied = 0
   try {
-    const headers = {}
-    const token = getActiveAuthToken()
-    if (token) headers['Authorization'] = `Bearer ${token}`
-    const res = await fetch('/api/servers/save', { method: 'POST', headers })
-    if (res.ok) {
-      return await res.json()
+    for (const [storage, key, value] of changes) {
+      if (value === null) storage.removeItem(key)
+      else storage.setItem(key, value)
+      applied++
     }
-  } catch (err) {
-    console.debug('Backend /api/servers/save unavailable, persisting locally', err)
+  } catch (error) {
+    for (let index = applied - 1; index >= 0; index--) {
+      const [storage, key] = changes[index]
+      if (previous[index] === null) storage.removeItem(key)
+      else storage.setItem(key, previous[index])
+    }
+    throw error
   }
-  saveStoredServers(state.servers)
-  return { status: 'saved_locally' }
+
+  authCheckVersion++
+  clientStateVersion++
+  for (const key of Object.keys(serverAuth)) delete serverAuth[key]
+  state.servers = saved.servers
+  state.activeServer = active
+  state.history = saved.history
+  state.searchState = saved.searchState
+  state.sidebarCollapsed = saved.sidebarCollapsed
+  Object.assign(state.auth, {
+    enabled: Boolean(active), checked: false, token: null, user: null,
+    showLoginModal: false, showRegisterModal: false, registerData: null, errorMessage: ''
+  })
+  state.currentReportId = null
+  state.currentReportData = null
+  state.pendingFilter = null
+  state.loading = false
+  state.error = null
+  notifyServerDataChanged()
 }
 
 // --- Report History Management (Scoped to Active Server) ---

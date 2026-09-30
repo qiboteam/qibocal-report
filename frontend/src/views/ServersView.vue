@@ -149,6 +149,33 @@
         </p>
       </div>
 
+      <div class="flex items-center justify-end gap-2 mt-4">
+        <button
+          type="button"
+          @click="saveClientState"
+          aria-label="Save client state"
+          title="Save client state to a JSON file (sign-in sessions excluded)"
+          class="p-2 rounded-xl bg-white border border-gray-200 text-gray-500 hover:text-[#833dff] transition"
+        >
+          <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v4a1 1 0 001 1h14a1 1 0 001-1v-4M12 3v12m-5-5l5 5 5-5" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          @click="stateFileInput.click()"
+          :disabled="loadingClientState"
+          :aria-label="loadingClientState ? 'Loading client state' : 'Load client state'"
+          title="Load client state from a JSON file and replace this browser's settings"
+          class="p-2 rounded-xl bg-white border border-gray-200 text-gray-500 hover:text-[#833dff] transition disabled:opacity-50"
+        >
+          <svg class="w-4 h-4" aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v4a1 1 0 001 1h14a1 1 0 001-1v-4M12 15V3m-5 5l5-5 5 5" />
+          </svg>
+        </button>
+        <input ref="stateFileInput" type="file" accept=".json,application/json" class="hidden" @change="loadClientState" />
+      </div>
+
       <!-- Refined Edit Modal -->
       <server-modal
         v-if="modalOpen"
@@ -172,12 +199,13 @@ import {
   deleteServer,
   setActiveServer,
   canAccessDashboard,
-  isAdmin,
   isAuthenticated,
   logoutActiveServer,
   saveStoredServers,
-  persistServersConfig
+  exportClientState,
+  importClientState
 } from '../store.js'
+import { parseClientState } from '../utils/clientState.js'
 import { parseServerAndInvite, normalizeUrl } from '../utils/url.js'
 import ServerCard from '../components/ServerCard.vue'
 import ServerModal from '../components/ServerModal.vue'
@@ -187,6 +215,50 @@ const newServerUrl = ref('')
 const modalOpen = ref(false)
 const editingServer = ref(null)
 const toastMessage = ref('')
+const stateFileInput = ref(null)
+const loadingClientState = ref(false)
+
+function showError(error) {
+  toastMessage.value = ''
+  state.auth.errorMessage = error.message || 'Unable to save client settings.'
+}
+
+function saveClientState() {
+  let url
+  try {
+    const data = JSON.stringify(exportClientState(), null, 2)
+    url = URL.createObjectURL(new Blob([data], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'qibocal-report-client.json'
+    link.click()
+    state.auth.errorMessage = ''
+    toastMessage.value = 'Client state saved without sign-in sessions.'
+  } catch (error) {
+    showError(error)
+  } finally {
+    if (url) URL.revokeObjectURL(url)
+  }
+}
+
+async function loadClientState(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  loadingClientState.value = true
+  try {
+    const saved = parseClientState(JSON.parse(await file.text()))
+    if (!confirm('Replace this browser\'s client settings with the saved state? Current sign-in sessions will be cleared.')) return
+    importClientState(saved)
+    modalOpen.value = false
+    editingServer.value = null
+    toastMessage.value = 'Client state loaded. Sign in again to authenticated servers.'
+  } catch (error) {
+    showError(error)
+  } finally {
+    event.target.value = ''
+    loadingClientState.value = false
+  }
+}
 
 const draggedIndex = ref(null)
 const dropTargetIndex = ref(null)
@@ -225,13 +297,11 @@ async function onDrop(e, targetIndex) {
     const temp = updated[rawFrom]
     updated[rawFrom] = updated[targetIndex]
     updated[targetIndex] = temp
-    state.servers = updated
-
-    saveStoredServers(state.servers)
     try {
-      await persistServersConfig()
+      saveStoredServers(updated)
+      state.servers = updated
     } catch (err) {
-      console.debug('Failed to persist swapped servers order', err)
+      showError(err)
     }
   }
 
@@ -251,37 +321,41 @@ function handleDirectoryChanged({ server, dirInfo }) {
 }
 
 async function handleQuickAdd() {
-  const input = newServerUrl.value.trim()
-  if (!input) return
+  try {
+    const input = newServerUrl.value.trim()
+    if (!input) return
 
-  const parsed = parseServerAndInvite(input)
-  const targetUrl = parsed.url || input
+    const parsed = parseServerAndInvite(input)
+    const targetUrl = parsed.url || input
 
-  let targetServer = state.servers.find(s => normalizeUrl(s.url) === normalizeUrl(targetUrl))
-  if (!targetServer) {
-    targetServer = await addServer(targetUrl)
-  }
-
-  newServerUrl.value = ''
-  if (targetServer) {
-    setActiveServer(targetServer)
-    if (parsed.inviteToken) {
-      state.auth.registerData = {
-        token: parsed.inviteToken,
-        server: targetServer,
-        serverUrl: targetServer.url
-      }
-      state.auth.showRegisterModal = true
-    } else if (parsed.resetToken) {
-      state.auth.registerData = {
-        token: parsed.resetToken,
-        server: targetServer,
-        serverUrl: targetServer.url
-      }
-      state.auth.showRegisterModal = true
-    } else {
-      toastMessage.value = `Server '${targetServer.name}' connected.`
+    let targetServer = state.servers.find(s => normalizeUrl(s.url) === normalizeUrl(targetUrl))
+    if (!targetServer) {
+      targetServer = await addServer(targetUrl)
     }
+
+    newServerUrl.value = ''
+    if (targetServer) {
+      setActiveServer(targetServer)
+      if (parsed.inviteToken) {
+        state.auth.registerData = {
+          token: parsed.inviteToken,
+          server: targetServer,
+          serverUrl: targetServer.url
+        }
+        state.auth.showRegisterModal = true
+      } else if (parsed.resetToken) {
+        state.auth.registerData = {
+          token: parsed.resetToken,
+          server: targetServer,
+          serverUrl: targetServer.url
+        }
+        state.auth.showRegisterModal = true
+      } else {
+        toastMessage.value = `Server '${targetServer.name}' connected.`
+      }
+    }
+  } catch (error) {
+    showError(error)
   }
 }
 
@@ -329,26 +403,33 @@ function openEditModal(server) {
 }
 
 async function saveModalServer(updatedData) {
-  if (updatedData.id) {
-    const updated = await updateServer(updatedData.id, updatedData)
-    if (updated && state.activeServer?.id === updated.id) {
-      setActiveServer(updated)
+  try {
+    if (updatedData.id) {
+      const updated = await updateServer(updatedData.id, updatedData)
+      if (!updated) throw new Error('Server is no longer registered.')
+      toastMessage.value = `Server updated.`
+    } else {
+      const created = await addServer(updatedData)
+      if (created) {
+        setActiveServer(created)
+        toastMessage.value = `Server registered.`
+      }
     }
-    toastMessage.value = `Server updated.`
-  } else {
-    const created = await addServer(updatedData)
-    if (created) {
-      setActiveServer(created)
-      toastMessage.value = `Server registered.`
-    }
+    modalOpen.value = false
+  } catch (error) {
+    showError(error)
   }
-  modalOpen.value = false
 }
 
 async function handleDelete(server) {
   if (confirm(`Remove server "${server.name}"?`)) {
-    await deleteServer(server.id)
-    toastMessage.value = `Server removed.`
+    try {
+      if (!await deleteServer(server.id)) throw new Error('Server is no longer registered.')
+      state.auth.errorMessage = ''
+      toastMessage.value = `Server removed from this browser.`
+    } catch (error) {
+      showError(error)
+    }
   }
 }
 </script>

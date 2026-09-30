@@ -14,7 +14,7 @@ function setupStorage() {
     setItem: (key, value) => storage.set(key, String(value)),
     removeItem: key => storage.delete(key)
   }
-  globalThis.sessionStorage = { getItem: () => null, setItem: () => {} }
+  globalThis.sessionStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} }
   return storage
 }
 
@@ -189,6 +189,7 @@ test('a status response for an old server URL cannot overwrite the refreshed car
     if (url.endsWith('/api/health')) return Response.json({ reports_count: 2 })
     return Response.json({ auth_enabled: url.startsWith('http://old.example') })
   })
+
   const vite = await createTestServer()
 
   try {
@@ -216,5 +217,89 @@ test('a status response for an old server URL cannot overwrite the refreshed car
   } finally {
     await vite.close()
     mock.restoreAll()
+  }
+})
+
+test('server management saves and loads a client-state file with confirmation and visible errors', async () => {
+  const storage = setupStorage()
+  const originalConfirm = globalThis.confirm
+  const originalDocument = globalThis.document
+  globalThis.confirm = mock.fn(() => true)
+  const vite = await createTestServer()
+
+  try {
+    const store = await vite.ssrLoadModule('/src/store.js')
+    const { default: ServersView } = await vite.ssrLoadModule('/src/views/ServersView.vue')
+    const server = { id: 'first', name: 'First', url: 'http://first.example' }
+    store.state.servers = [server]
+    store.state.activeServer = server
+    store.setServerAuth(server, 'private-session', { id: 'user', username: 'user', role: 'admin' })
+    let page
+    const app = createSSRApp({
+      ...ServersView,
+      setup(props, context) {
+        page = ServersView.setup(props, context)
+        return page
+      }
+    })
+    app.provide(routerKey, { push() {} })
+    app.component('router-link', {
+      setup(props, { slots }) { return () => h('a', slots.default?.()) }
+    })
+    const html = await renderToString(app)
+    assert.ok(html.includes('aria-label="Save client state"'))
+    assert.ok(html.includes('aria-label="Load client state"'))
+    assert.ok(html.indexOf('aria-label="Save client state"') > html.indexOf('Registered Instances'))
+    assert.equal(html.includes('Servers and settings are saved in this browser.'), false)
+    assert.ok(html.includes('type="file"'))
+
+    let blob
+    const link = { click: mock.fn() }
+    globalThis.document = { createElement: () => link }
+    mock.method(URL, 'createObjectURL', value => { blob = value; return 'blob:client-state' })
+    const revoke = mock.method(URL, 'revokeObjectURL', () => {})
+    page.saveClientState()
+    const contents = await blob.text()
+    assert.equal(contents.includes('private-session'), false)
+    assert.equal(link.download, 'qibocal-report-client.json')
+    assert.equal(link.href, 'blob:client-state')
+    assert.equal(link.click.mock.callCount(), 1)
+    assert.equal(revoke.mock.calls[0].arguments[0], 'blob:client-state')
+
+    store.state.servers = []
+    const target = { files: [{ text: async () => contents }], value: 'selected-file' }
+    await page.loadClientState({ target })
+    assert.equal(store.state.servers[0].id, server.id)
+    assert.equal(store.getActiveAuthToken(server), null)
+    assert.equal(target.value, '')
+    assert.equal(page.loadingClientState.value, false)
+    assert.match(page.toastMessage.value, /Client state loaded/)
+    assert.deepEqual(JSON.parse(storage.get('qibocal_report_servers')).map(s => s.id), [server.id])
+
+    const saved = store.exportClientState()
+    globalThis.confirm = mock.fn(() => false)
+    const cancelled = { files: [{ text: async () => JSON.stringify({ ...saved, servers: [], activeServerId: null }) }], value: 'selected-file' }
+    await page.loadClientState({ target: cancelled })
+    assert.deepEqual(store.exportClientState(), saved)
+    assert.equal(cancelled.value, '')
+
+    await page.loadClientState({ target: { files: [{ text: async () => '{}' }], value: 'invalid' } })
+    assert.match(store.state.auth.errorMessage, /Invalid client state/)
+    assert.equal(page.toastMessage.value, '')
+    assert.deepEqual(store.exportClientState(), saved)
+
+    globalThis.confirm = mock.fn(() => true)
+    mock.method(localStorage, 'setItem', () => { throw new Error('Storage full') })
+    await page.handleDelete(server)
+    assert.equal(store.state.servers.length, 1)
+    assert.equal(store.state.auth.errorMessage, 'Storage full')
+    assert.equal(page.toastMessage.value, '')
+  } finally {
+    await vite.close()
+    mock.restoreAll()
+    if (originalConfirm === undefined) delete globalThis.confirm
+    else globalThis.confirm = originalConfirm
+    if (originalDocument === undefined) delete globalThis.document
+    else globalThis.document = originalDocument
   }
 })

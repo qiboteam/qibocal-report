@@ -24,37 +24,6 @@ export async function apiFetch(path, options = {}) {
 }
 
 /**
- * Server management API endpoints.
- */
-export async function apiGetServers() {
-  return fetch('/api/servers')
-}
-
-export async function apiCreateServer(payload) {
-  return apiFetch('/api/servers', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-}
-
-export async function apiUpdateServer(id, payload) {
-  return apiFetch(`/api/servers/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  })
-}
-
-export async function apiDeleteServer(id) {
-  return apiFetch(`/api/servers/${id}`, { method: 'DELETE' })
-}
-
-export async function apiPersistServers() {
-  return apiFetch('/api/servers/save', { method: 'POST' })
-}
-
-/**
  * Authentication & Role Management endpoints.
  */
 export async function apiGetAuthStatus(server = state.activeServer) {
