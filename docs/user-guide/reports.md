@@ -83,8 +83,9 @@ offers a few recent compatible stable PyPI releases and the latest default
 branch of the official [Git repository](https://github.com/qiboteam/qibocal).
 The current server version is shown in the tab. If PyPI is unavailable, the
 error is displayed and the Git option remains available. Select a version using
-the highlighted buttons (PyPI versions show their logo), then use the package-plus
-icon to install or switch. The circular-arrows icon refreshes available versions.
+the highlighted buttons (PyPI versions show their logo), then use **Install**
+(the package-plus icon) to install or switch. **Refresh** (the circular-arrows
+icon) reloads available versions.
 Full source names and action labels are available as tooltips and accessible text.
 
 **Install / Switch version** (the package-plus icon) changes Qibocal and its dependencies in the server's

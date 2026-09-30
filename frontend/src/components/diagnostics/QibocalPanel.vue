@@ -42,9 +42,11 @@
         >
           <Loader2 v-if="installing" :size="20" class="animate-spin" aria-hidden="true" />
           <PackagePlus v-else :size="20" aria-hidden="true" />
+          <span>{{ installing ? 'Installing...' : 'Install' }}</span>
         </button>
         <button type="button" :disabled="loading || installing" aria-label="Reload versions" title="Reload versions" class="icon-button" @click="refreshOptions">
           <RefreshCw :size="20" :class="{ 'animate-spin': loading }" aria-hidden="true" />
+          <span>Refresh</span>
         </button>
       </div>
       <p class="installation-note">
@@ -105,8 +107,8 @@ watch(
 .version-button.selected { border-color: #a878ff; background: #53367b; color: #fff; }
 .source-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; }
 .pypi-logo { width: 20px; height: 20px; object-fit: contain; }
-.installation-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
-.icon-button { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 8px; border: 1px solid #555; border-radius: 6px; color: #c8a8ff; cursor: pointer; }
+.installation-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding-top: 12px; border-top: 1px solid #444; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 40px; height: 40px; padding: 8px 12px; border: 1px solid #555; border-radius: 6px; color: #c8a8ff; font-size: 11px; cursor: pointer; }
 .icon-button svg { width: 20px; height: 20px; flex-shrink: 0; }
 .icon-button:hover:not(:disabled) { background: #343434; }
 .install-button { background: #833dff; border-color: #833dff; color: #fff; }

@@ -278,6 +278,8 @@ test('Qibocal administration and plot-generation feedback', async t => {
       assert.match(html, /<span[^>]*>0\.2\.5<\/span>/)
       assert.match(html, /aria-label="Reload versions"/)
       assert.match(html, /title="Install \/ Switch version"/)
+      assert.match(html, /<span[^>]*>Install<\/span>/)
+      assert.match(html, /<span[^>]*>Refresh<\/span>/)
       assert.equal(html.includes('>Reload versions<'), false)
       assert.equal(html.includes('>Install / Switch version<'), false)
       assert.ok(html.indexOf('for all users') > html.indexOf('title="Install / Switch version"'))
