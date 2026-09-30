@@ -1,7 +1,10 @@
 """Unit and integration tests for user roles, authentication, and permissions (Issue #4)."""
 
+import io
 import json
 from pathlib import Path
+from urllib.parse import quote
+import zipfile
 import pytest
 from fastapi.testclient import TestClient
 
@@ -31,6 +34,76 @@ def auth_env(tmp_path, monkeypatch):
 
     auth.set_auth_enabled(None)
     monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_download_authentication_and_cross_origin_filenames(auth_env, enabled):
+    auth.set_auth_enabled(enabled)
+    viewer = auth.create_user("download_viewer", "password", UserRole.VIEWER.value)
+    token = auth.create_access_token(viewer)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Origin": "https://report-client.example",
+    }
+    report_id = "21:47:29_[3]_pi-pulse"
+    protocol_id = next((auth_env / report_id / "data").iterdir()).name
+    prefix = f"/api/reports/{quote(report_id, safe='')}"
+
+    archive_dir = auth_env / ".archive" / "download-test"
+    archive_dir.mkdir(parents=True)
+    (archive_dir / "metadata.json").write_text(
+        json.dumps({"name": "Calibration \u03b1", "zip_filename": "calibration.zip"}),
+        encoding="utf-8",
+    )
+    with zipfile.ZipFile(archive_dir / "calibration.zip", "w") as archive:
+        archive.writestr("meta.json", "{}")
+
+    paths = [
+        f"{prefix}/download/full",
+        f"{prefix}/download/new-platform",
+        f"{prefix}/download/old-platform",
+        f"{prefix}/download/data/{quote(protocol_id, safe='')}",
+        f"{prefix}/meta.json",
+        "/api/archives/download-test/download",
+    ]
+    with TestClient(app) as client:
+        for path in paths:
+            anonymous = client.get(path)
+            assert anonymous.status_code == (401 if enabled else 200)
+            if enabled:
+                assert anonymous.json() == {"detail": "Authentication required"}
+                assert anonymous.headers["WWW-Authenticate"] == "Bearer"
+
+            response = client.get(path, headers=headers)
+            assert response.status_code == 200
+            assert response.headers["Access-Control-Expose-Headers"] == "Content-Disposition"
+            if path.endswith("/meta.json"):
+                assert response.headers["Content-Type"] == "application/json"
+                assert response.headers["Content-Disposition"] == "inline"
+                assert "platform" in response.json()
+            else:
+                assert response.headers["Content-Type"] == "application/zip"
+                assert "attachment;" in response.headers["Content-Disposition"]
+                with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                    assert archive.namelist()
+                    assert archive.testzip() is None
+                if path == "/api/archives/download-test/download":
+                    assert "filename*=utf-8''Calibration%20%CE%B1.zip" in response.headers[
+                        "Content-Disposition"
+                    ]
+                else:
+                    assert 'filename="21-47-29_' in response.headers["Content-Disposition"]
+
+        preflight = client.options(
+            f"{prefix}/download/full",
+            headers={
+                "Origin": headers["Origin"],
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization",
+            },
+        )
+        assert preflight.status_code == 200
+        assert "authorization" in preflight.headers["Access-Control-Allow-Headers"].lower()
 
 
 def test_password_hashing():
@@ -634,5 +707,3 @@ def test_password_reset_endpoint(auth_env):
         json={"username": "alice", "password": "password123"},
     )
     assert res_old_login.status_code == 401
-
-

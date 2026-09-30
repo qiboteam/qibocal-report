@@ -54,10 +54,10 @@
         </a>
 
         <!-- Protocol Data Download Button -->
-        <a
+        <api-file-button
           v-if="reportId"
-          :href="downloadDataUrl"
-          download
+          :path="downloadDataPath"
+          :filename="downloadDataFilename"
           class="no-print px-2 py-1 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer text-xs font-medium shrink-0"
           :title="`Download ${proto.name} data (.zip)`"
         >
@@ -65,7 +65,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           <span class="text-[11px] font-semibold">Data</span>
-        </a>
+        </api-file-button>
       </div>
     </div>
 
@@ -105,9 +105,11 @@
 
 <script setup>
 import { computed } from 'vue'
-import { getApiUrl, state } from '../../store.js'
+import { state } from '../../store.js'
 import { getProtocolDocUrl, hasSpecificDoc } from '../../utils/protocolDocs.js'
 import { copyToClipboard } from '../../utils/clipboard.js'
+import { getReportDownloadFilename } from '../../utils/apiFiles.js'
+import ApiFileButton from '../ApiFileButton.vue'
 import PlotlyViewer from '../PlotlyViewer.vue'
 
 const props = defineProps({
@@ -124,12 +126,16 @@ const isSpecificDoc = computed(() => {
   return hasSpecificDoc(props.proto?.id, props.proto?.name, state.activeServer)
 })
 
-const downloadDataUrl = computed(() => {
-  if (!props.reportId || !props.proto?.id) return '#'
+const downloadDataPath = computed(() => {
+  if (!props.reportId || !props.proto?.id) return ''
   const encRepId = encodeURIComponent(props.reportId)
   const encProtoId = encodeURIComponent(props.proto.id)
-  return getApiUrl(`/api/reports/${encRepId}/download/data/${encProtoId}`)
+  return `/api/reports/${encRepId}/download/data/${encProtoId}`
 })
+
+const downloadDataFilename = computed(() => props.proto?.id
+  ? getReportDownloadFilename(props.reportId, `_${props.proto.id.replaceAll(':', '-')}`)
+  : '')
 
 function handleTableClick(event) {
   const target = event.target

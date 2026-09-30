@@ -459,8 +459,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { apiFetch, state, isViewer } from '../store.js'
-import { getApiUrl } from '../utils/url.js'
+import { apiFetch, isViewer } from '../store.js'
+import { downloadApiFile } from '../utils/apiFiles.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import ArchivePeakModal from '../components/modals/ArchivePeakModal.vue'
@@ -586,16 +586,16 @@ function openPeakModal(arc) {
   showPeakModal.value = true
 }
 
-function downloadArchive(arc) {
+async function downloadArchive(arc) {
+  errorMessage.value = ''
+  toastMessage.value = ''
   const path = `/api/archives/${encodeURIComponent(arc.id)}/download`
-  const downloadUrl = getApiUrl(path, state.activeServer)
-  const a = document.createElement('a')
-  a.href = downloadUrl
-  a.download = `${arc.name || arc.id}.zip`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  showToast(`Downloading "${arc.name}.zip"...`)
+  try {
+    const filename = await downloadApiFile(path, `${arc.name || arc.id}.zip`)
+    showToast(`Downloading "${filename}"...`)
+  } catch (err) {
+    errorMessage.value = err.message
+  }
 }
 
 function openEditModal(arc) {

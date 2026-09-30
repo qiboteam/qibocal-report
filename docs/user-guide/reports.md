@@ -46,6 +46,11 @@ The sidebar includes instant download actions generated dynamically on the fly:
 | **Old Platform (.zip)** *(Plain chip)* | Initial pre-calibration hardware parameters used at the start of the experiment. | `GET /api/reports/{id}/download/old-platform` |
 | **Meta.json (`{}`)** | View raw execution metadata inline in a new browser tab. | `GET /api/reports/{id}/meta.json` |
 
+On authentication-enabled servers, these actions use your sign-in session,
+including for remote instances. Protocol-data, platform, and archive downloads
+use the same authenticated requests. If your browser blocks the metadata tab,
+allow pop-ups for the report application and try again.
+
 ---
 
 ## 🔄 On-The-Fly Regeneration

@@ -60,8 +60,9 @@
             </div>
 
             <!-- Download Platform Zip -->
-            <a
-              :href="downloadZipUrl"
+            <api-file-button
+              :path="downloadZipPath"
+              :filename="getReportDownloadFilename(reportId, `_${activePlatformType}_platform`)"
               class="px-2.5 py-1 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer"
               title="Download platform directory as zip"
             >
@@ -69,7 +70,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
               <span>Download Zip</span>
-            </a>
+            </api-file-button>
           </div>
         </div>
 
@@ -427,7 +428,9 @@ import PlatformBoxNode from '../components/platform/PlatformBoxNode.vue'
 import PlatformLeafProperty from '../components/platform/PlatformLeafProperty.vue'
 import PlatformGraphView from '../components/platform/PlatformGraphView.vue'
 import PlatformPulseSequence from '../components/platform/PlatformPulseSequence.vue'
-import { getApiUrl } from '../store.js'
+import { apiFetch } from '../api.js'
+import { getReportDownloadFilename } from '../utils/apiFiles.js'
+import ApiFileButton from '../components/ApiFileButton.vue'
 import { buildTreeNode, filterTree, isPulseSequence } from '../utils/platformTree.js'
 import { copyToClipboard } from '../utils/clipboard.js'
 
@@ -449,10 +452,11 @@ const loading = ref(true)
 const error = ref(null)
 const platformData = ref(null)
 
-const downloadZipUrl = computed(() => {
+const downloadZipPath = computed(() => {
+  if (!reportId.value) return ''
   const encId = encodeURIComponent(reportId.value)
   const endpoint = activePlatformType.value === 'old' ? 'download/old-platform' : 'download/new-platform'
-  return getApiUrl(`/api/reports/${encId}/${endpoint}`)
+  return `/api/reports/${encId}/${endpoint}`
 })
 
 async function loadPlatformData() {
@@ -460,8 +464,7 @@ async function loadPlatformData() {
   error.value = null
   try {
     const encId = encodeURIComponent(reportId.value)
-    const url = getApiUrl(`/api/reports/${encId}/platform/${activePlatformType.value}`)
-    const res = await fetch(url)
+    const res = await apiFetch(`/api/reports/${encId}/platform/${activePlatformType.value}`)
     if (!res.ok) {
       throw new Error(`Failed to load platform data (${res.status} ${res.statusText})`)
     }
