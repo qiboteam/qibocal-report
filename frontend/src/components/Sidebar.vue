@@ -210,8 +210,16 @@ const isSearchMode = computed(() => route.path === '/dashboard')
 const isReportMode = computed(() => route.path.startsWith('/reports/'))
 const isArchivesMode = computed(() => route.path === '/archives')
 
-function switchServer(s) {
-  setActiveServer(s)
+async function switchServer(s) {
+  if (!await setActiveServer(s)) {
+    router.push('/servers')
+    return
+  }
+  if (state.auth.enabled && (!state.auth.token || !state.auth.user)) {
+    state.auth.showLoginModal = true
+    router.push('/servers')
+    return
+  }
   if (route.path !== '/dashboard' && route.path !== '/archives') {
     router.push('/dashboard')
   }

@@ -153,6 +153,10 @@ function saveStoredAuth(authMap) {
   }
 }
 
+const serverAuth = reactive(loadStoredAuth())
+let authCheckVersion = 0
+let pendingAuthCheck = null
+
 export function getServerAuthKey(server = state.activeServer) {
   if (!server) return 'local'
   if (server.id) return server.id
@@ -161,14 +165,12 @@ export function getServerAuthKey(server = state.activeServer) {
 
 export function getActiveAuthToken(server = state.activeServer) {
   const key = getServerAuthKey(server)
-  const map = loadStoredAuth()
-  return map[key]?.token || state.auth?.token || null
+  return serverAuth[key]?.token || null
 }
 
 export function getActiveUser(server = state.activeServer) {
   const key = getServerAuthKey(server)
-  const map = loadStoredAuth()
-  return map[key]?.user || state.auth?.user || null
+  return serverAuth[key]?.user || null
 }
 
 export function getAuthHeader(server = state.activeServer) {
@@ -181,15 +183,14 @@ export function getAuthHeader(server = state.activeServer) {
 
 export function setServerAuth(server, token, user) {
   const key = getServerAuthKey(server)
-  const map = loadStoredAuth()
   if (token && user) {
-    map[key] = { token, user }
+    serverAuth[key] = { token, user }
   } else {
-    delete map[key]
+    delete serverAuth[key]
   }
-  saveStoredAuth(map)
+  saveStoredAuth(serverAuth)
 
-  if (!server || server.id === state.activeServer?.id) {
+  if (key === getServerAuthKey(state.activeServer)) {
     state.auth.token = token
     state.auth.user = user
   }
@@ -223,52 +224,68 @@ export const canAccessDashboard = computed(() => {
   return true
 })
 
-export async function checkActiveServerAuth(targetServer = state.activeServer) {
-  if (!targetServer) return
+export function checkActiveServerAuth(targetServer = state.activeServer) {
+  if (!targetServer) return Promise.resolve(false)
+  const key = getServerAuthKey(targetServer)
+  if (pendingAuthCheck?.key === key && pendingAuthCheck.version === authCheckVersion) {
+    return pendingAuthCheck.promise
+  }
+  const version = ++authCheckVersion
+  const promise = verifyServerAuth(targetServer, version)
+  pendingAuthCheck = { key, version, promise }
+  promise.finally(() => {
+    if (pendingAuthCheck?.promise === promise) pendingAuthCheck = null
+  })
+  return promise
+}
+
+async function verifyServerAuth(targetServer, version) {
+  const isCurrent = () => version === authCheckVersion &&
+    getServerAuthKey(targetServer) === getServerAuthKey(state.activeServer)
   const serverUrl = getActiveServerUrl(targetServer)
   const statusUrl = serverUrl ? `${serverUrl}/api/auth/status` : '/api/auth/status'
 
   try {
-    const res = await fetch(statusUrl, { signal: AbortSignal.timeout(4000) })
-    if (res.ok) {
-      const data = await res.json()
-      state.auth.enabled = Boolean(data.auth_enabled)
-      state.auth.checked = true
-
-      if (state.auth.enabled) {
-        const token = getActiveAuthToken(targetServer)
-        if (token) {
-          const meUrl = serverUrl ? `${serverUrl}/api/auth/me` : '/api/auth/me'
-          const meRes = await fetch(meUrl, {
-            headers: { Authorization: `Bearer ${token}` },
-            signal: AbortSignal.timeout(4000)
-          })
-          if (meRes.ok) {
-            const meData = await meRes.json()
-            state.auth.user = meData
-            state.auth.token = token
-            setServerAuth(targetServer, token, meData)
-            return
-          } else {
-            setServerAuth(targetServer, null, null)
-          }
+    const res = await fetch(statusUrl, { signal: AbortSignal.timeout(4000), cache: 'no-store' })
+    if (!res.ok) throw new Error(`Authentication status request failed (${res.status})`)
+    const data = await res.json()
+    let token = null
+    let user = null
+    if (data.auth_enabled) {
+      token = getActiveAuthToken(targetServer)
+      if (token) {
+        const meUrl = serverUrl ? `${serverUrl}/api/auth/me` : '/api/auth/me'
+        const meRes = await fetch(meUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(4000),
+          cache: 'no-store'
+        })
+        if (meRes.ok) {
+          user = await meRes.json()
+        } else if (meRes.status === 401) {
+          token = null
+        } else {
+          throw new Error(`Session validation failed (${meRes.status})`)
         }
-        state.auth.token = null
-        state.auth.user = null
-      } else {
-        state.auth.token = null
-        state.auth.user = { id: 'admin', username: 'local-admin', role: 'admin' }
       }
-      return
     }
+    if (!isCurrent()) return false
+    setServerAuth(targetServer, token, user)
+    state.auth.enabled = Boolean(data.auth_enabled)
+    state.auth.checked = true
+    state.auth.user = data.auth_enabled ? user : { id: 'admin', username: 'local-admin', role: 'admin' }
+    state.auth.errorMessage = ''
+    return true
   } catch (e) {
-    console.debug('Failed to check auth status for server', e)
+    if (!isCurrent()) return false
+    console.warn('Failed to check auth status for server', e)
+    state.auth.enabled = true
+    state.auth.checked = false
+    state.auth.token = null
+    state.auth.user = null
+    state.auth.errorMessage = `Cannot verify authentication for "${targetServer.name}": ${e.message}`
+    return false
   }
-
-  state.auth.enabled = false
-  state.auth.checked = true
-  state.auth.token = null
-  state.auth.user = { id: 'admin', username: 'local-admin', role: 'admin' }
 }
 
 export async function loginActiveServer(username, password) {
@@ -288,13 +305,19 @@ export async function loginActiveServer(username, password) {
   }
 
   const data = await res.json()
+  if (getServerAuthKey(server) === getServerAuthKey(state.activeServer)) authCheckVersion++
   setServerAuth(server, data.access_token, data.user)
+  state.auth.errorMessage = ''
   notifyServerDataChanged()
   return data
 }
 
-export function logoutActiveServer() {
-  const server = state.activeServer
+export function logoutActiveServer(server = state.activeServer) {
+  if (getServerAuthKey(server) === getServerAuthKey(state.activeServer)) {
+    authCheckVersion++
+    state.auth.showLoginModal = false
+    state.auth.errorMessage = ''
+  }
   setServerAuth(server, null, null)
   notifyServerDataChanged()
 }
@@ -319,6 +342,7 @@ export async function registerWithInvite(inviteToken, username, password, target
   }
 
   const data = await res.json()
+  if (getServerAuthKey(targetServer) === getServerAuthKey(state.activeServer)) authCheckVersion++
   setServerAuth(targetServer, data.access_token, data.user)
   notifyServerDataChanged()
   return data
@@ -375,8 +399,8 @@ export function normalizeUrl(url) {
   return utilsNormalizeUrl(url)
 }
 
-export function getActiveServerUrl() {
-  return utilsGetActiveServerUrl(state.activeServer)
+export function getActiveServerUrl(server = state.activeServer) {
+  return utilsGetActiveServerUrl(server)
 }
 
 export function getApiUrl(path) {
@@ -441,8 +465,6 @@ export function fetchServers() {
         }
       } catch (err) {
         console.debug('Backend /api/servers not available, using stored servers', err)
-      } finally {
-        serversPromise = null
       }
 
       if (!loaded) {
@@ -466,12 +488,14 @@ export function fetchServers() {
         }
         if (state.activeServer?.id) {
           localStorage.setItem('qibocal_active_server_id', state.activeServer.id)
-          checkActiveServerAuth(state.activeServer)
+          await checkActiveServerAuth(state.activeServer)
         } else {
           setActiveServer(null)
         }
       }
-    })()
+    })().finally(() => {
+      serversPromise = null
+    })
   }
   return serversPromise
 }
@@ -485,6 +509,10 @@ export async function ensureServersLoaded() {
 }
 
 export function setActiveServer(server) {
+  authCheckVersion++
+  state.auth.checked = false
+  state.auth.showLoginModal = false
+  state.auth.errorMessage = ''
   if (!server) {
     state.activeServer = null
     state.auth.enabled = false
@@ -494,11 +522,16 @@ export function setActiveServer(server) {
     localStorage.removeItem('qibocal_active_server_id')
     return
   }
+  if (getServerAuthKey(server) !== getServerAuthKey(state.activeServer)) {
+    state.auth.enabled = true
+    state.auth.token = null
+    state.auth.user = null
+  }
   state.activeServer = { ...server, url: normalizeUrl(server.url) }
   if (server.id) {
     localStorage.setItem('qibocal_active_server_id', server.id)
   }
-  checkActiveServerAuth(state.activeServer)
+  return checkActiveServerAuth(state.activeServer)
 }
 
 export async function addServer(urlOrObj, name = null, description = null, avatar = null, author_identities = null) {

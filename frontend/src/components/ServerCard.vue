@@ -75,6 +75,16 @@
               Edit
             </button>
             <button
+              v-if="isAuthenticatedOnServer"
+              @click="onLogout"
+              class="border-0 w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-purple-50 hover:text-[#833dff] flex items-center gap-2 bg-transparent"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H5a2 2 0 00-2 2v10a2 2 0 002 2h4m7-12l5 5-5 5m5-5H9" />
+              </svg>
+              Log out
+            </button>
+            <button
               @click="onDelete"
               class="border-0 w-full px-3 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 bg-transparent"
             >
@@ -138,19 +148,22 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { renderAvatar } from './Avatars.js'
-import { normalizeUrl, getActiveAuthToken } from '../store.js'
+import { state, normalizeUrl, getActiveAuthToken } from '../store.js'
 
 const props = defineProps({
   server: { type: Object, required: true },
   isActive: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['select', 'edit', 'delete', 'administer', 'authenticate'])
+const emit = defineEmits(['select', 'edit', 'delete', 'administer', 'logout'])
 
 const menuOpen = ref(false)
 const reportCount = ref(null)
-const requiresAuth = ref(false)
-const isAuthenticatedOnServer = ref(false)
+const checkedRequiresAuth = ref(false)
+const requiresAuth = computed(() => props.isActive && state.auth.checked
+  ? state.auth.enabled
+  : checkedRequiresAuth.value)
+const isAuthenticatedOnServer = computed(() => Boolean(getActiveAuthToken(props.server)))
 const isChecking = ref(false)
 let checkHealthTimeout = null
 let pendingAction = null
@@ -267,12 +280,7 @@ async function checkHealth() {
 
     if (aRes && aRes.ok) {
       const authData = await aRes.json()
-      requiresAuth.value = Boolean(authData.auth_enabled)
-      const token = getActiveAuthToken(props.server)
-      isAuthenticatedOnServer.value = Boolean(token)
-    } else {
-      requiresAuth.value = false
-      isAuthenticatedOnServer.value = true
+      checkedRequiresAuth.value = Boolean(authData.auth_enabled)
     }
   } catch {
     if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
@@ -305,11 +313,7 @@ function handleClick() {
   // If not yet checked or disconnected, try to connect first
   if (connectionStatus.value === 'unchecked' || connectionStatus.value === 'disconnected') {
     pendingAction = () => {
-      if (requiresAuth.value && !isAuthenticatedOnServer.value) {
-        emit('authenticate', props.server)
-      } else {
-        emit('select', props.server)
-      }
+      emit('select', props.server)
     }
     checkHealth()
     return
@@ -320,12 +324,12 @@ function handleClick() {
     return
   }
   
-  if (requiresAuth.value && !isAuthenticatedOnServer.value) {
-    emit('authenticate', props.server)
-    return
-  }
-  
   emit('select', props.server)
+}
+
+function onLogout() {
+  menuOpen.value = false
+  emit('logout', props.server)
 }
 
 function onAdmin() {

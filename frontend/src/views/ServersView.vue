@@ -128,7 +128,7 @@
             :server="server"
             :is-active="server.id === activeServer?.id"
             @select="selectAndNavigate"
-            @authenticate="handleAuthenticate"
+            @logout="handleLogout"
             @edit="openEditModal"
             @delete="handleDelete"
             @administer="navigateToAdmin"
@@ -173,8 +173,8 @@ import {
   setActiveServer,
   canAccessDashboard,
   isAdmin,
-  getActiveAuthToken,
-  checkActiveServerAuth,
+  isAuthenticated,
+  logoutActiveServer,
   saveStoredServers,
   persistServersConfig
 } from '../store.js'
@@ -291,7 +291,6 @@ function navigateToAdmin(server) {
 }
 
 async function selectAndNavigate(server) {
-  setActiveServer(server)
   
   // Check if server is reachable before navigating
   try {
@@ -310,20 +309,18 @@ async function selectAndNavigate(server) {
     return
   }
   
-  await checkActiveServerAuth(server)
-  const token = getActiveAuthToken(server)
-  if (state.auth?.enabled && !token) {
-    state.auth.errorMessage = `Authentication required for "${server.name}". Please click "Sign in" below.`
+  if (!await setActiveServer(server)) return
+  if (!isAuthenticated.value) {
+    toastMessage.value = ''
+    state.auth.showLoginModal = true
     return
   }
   router.push('/dashboard')
 }
 
-async function handleAuthenticate(server) {
-  setActiveServer(server)
-  await checkActiveServerAuth(server)
-  state.auth.errorMessage = ''
-  state.auth.showLoginModal = true
+function handleLogout(server) {
+  logoutActiveServer(server)
+  toastMessage.value = `Logged out of "${server.name}". Click the server to sign in again.`
 }
 
 function openEditModal(server) {

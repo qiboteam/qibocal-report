@@ -39,6 +39,18 @@ When started with `--auth`, the server:
 3. Rejects requests lacking required permissions with `403 Forbidden`.
 4. Leaves public documentation endpoints (`/api/docs-nav`, `/api/docs-content/*`) open to everyone without requiring login.
 
+### Connecting and changing accounts
+
+Click a registered server on `/servers` to connect. The interface checks its current
+authentication mode: an authenticated server prompts for sign-in when needed and
+applies the signed-in user's role; an open server grants full access without a
+login. Restarting a server with or without `--auth` does not require registering it
+again.
+
+To change accounts, choose **Log out** in the server card's three-dots menu, or below
+**Documentation** in the shared sidebar. This removes the saved session for that
+server only. Click the server again to sign in as a different user.
+
 ---
 
 ## 🔑 Initial Setup: The First Administrator

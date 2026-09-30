@@ -104,7 +104,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { state, loginActiveServer } from '../../store.js'
 
@@ -118,6 +118,14 @@ const errorMessage = ref('')
 
 const isOpen = computed(() => state.auth?.showLoginModal)
 const activeServer = computed(() => state.activeServer)
+
+watch(isOpen, (open) => {
+  if (open) {
+    username.value = ''
+    password.value = ''
+    errorMessage.value = ''
+  }
+})
 
 function close() {
   state.auth.showLoginModal = false

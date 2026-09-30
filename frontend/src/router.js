@@ -89,7 +89,7 @@ router.beforeEach(async (to, from, next) => {
 
   // 4. Ensure auth status has been verified for active server
   if (!state.auth?.checked) {
-    await checkActiveServerAuth(state.activeServer)
+    if (!await checkActiveServerAuth(state.activeServer)) return next('/servers')
   }
 
   // 5. If authentication is enabled and user is not authenticated, block internal pages
@@ -100,4 +100,3 @@ router.beforeEach(async (to, from, next) => {
 
   return next()
 })
-

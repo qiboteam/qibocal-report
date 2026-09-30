@@ -1,4 +1,4 @@
-import { state, getActiveAuthToken } from './store.js'
+import { state, getActiveAuthToken, setServerAuth } from './store.js'
 import { getApiUrl, getActiveServerUrl } from './utils/url.js'
 
 /**
@@ -14,8 +14,7 @@ export async function apiFetch(path, options = {}) {
   }
   const res = await fetch(url, { ...options, headers })
   if (res.status === 401 && state.auth?.enabled) {
-    state.auth.token = null
-    state.auth.user = null
+    setServerAuth(state.activeServer, null, null)
     state.auth.errorMessage = 'Authentication required. Please sign in to access this instance.'
     if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite') && !window.location.hash.startsWith('#/admin')) {
       window.location.hash = '#/servers'
@@ -220,4 +219,3 @@ export async function apiBulkAction(payload) {
     body: JSON.stringify(payload)
   })
 }
-

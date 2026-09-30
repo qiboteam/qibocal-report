@@ -85,6 +85,19 @@
       <span v-if="!isCollapsed">Documentation</span>
     </router-link>
 
+    <button
+      v-if="state.auth.enabled && state.auth.token"
+      @click="handleLogout"
+      class="border-0 bg-transparent rounded-xl text-xs font-semibold transition flex items-center text-gray-700 hover:bg-gray-100 cursor-pointer"
+      :class="isCollapsed ? 'w-9 h-9 justify-center' : 'gap-3 px-3 py-2'"
+      title="Log out"
+    >
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H5a2 2 0 00-2 2v10a2 2 0 002 2h4m7-12l5 5-5 5m5-5H9" />
+      </svg>
+      <span v-if="!isCollapsed">Log out</span>
+    </button>
+
     <!-- Server Admin Button (Admin only) -->
     <router-link
       v-if="isAdmin"
@@ -105,7 +118,15 @@
 </template>
 
 <script setup>
-import { isAdmin } from '../../store.js'
+import { useRouter } from 'vue-router'
+import { state, isAdmin, logoutActiveServer } from '../../store.js'
+
+const router = useRouter()
+
+function handleLogout() {
+  logoutActiveServer()
+  router.push('/servers')
+}
 
 defineProps({
   isCollapsed: { type: Boolean, default: false },
