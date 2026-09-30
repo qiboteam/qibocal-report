@@ -4,7 +4,6 @@ import json
 import os
 import re
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -129,9 +128,9 @@ def _discover_protocols(report_dir: Path, meta_data: dict[str, Any]) -> list[str
 
 
 def _format_date(raw_date: str | None) -> str:
-    """Normalize date string to YYYY-MM-DD."""
+    """Normalize date string to YYYY-MM-DD, leaving missing dates empty."""
     if not raw_date:
-        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        return ""
     clean = raw_date.strip().split("T")[0]
     return clean
 
@@ -484,7 +483,7 @@ def filter_reports(
         filtered = [r for r in filtered if r.date >= start_date]
 
     if end_date:
-        filtered = [r for r in filtered if r.date <= end_date]
+        filtered = [r for r in filtered if r.date and r.date <= end_date]
 
     # Sorting
     if sort_by == "date_asc":
