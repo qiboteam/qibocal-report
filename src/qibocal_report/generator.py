@@ -2,6 +2,9 @@
 
 import json
 import shutil
+import subprocess
+import sys
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 
@@ -9,6 +12,19 @@ from typing import Any
 
 from qibocal_report.logger import log_info, log_success, log_warning
 from qibocal_report.models import ProtocolDetail
+from qibocal_report.qibocal_environment import (
+    EnvironmentOperationError,
+    GENERATION_TIMEOUT,
+    generation_environment,
+    get_qibocal_status,
+)
+
+
+class GenerationError(str):
+    def __new__(cls, message: str, error_code: str | None = None):
+        instance = super().__new__(cls, message)
+        instance.error_code = error_code
+        return instance
 
 
 def has_cached_report(report_dir: Path) -> bool:
@@ -278,6 +294,45 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
 def _generate_qibocal_protocols(
     report_dir: Path,
 ) -> tuple[list[ProtocolDetail] | None, str | None]:
+    """Run Qibocal in a fresh interpreter, so version changes take effect immediately."""
+    result_path = report_dir.resolve() / f".qibocal-generation-{uuid.uuid4().hex}.json"
+    try:
+        with generation_environment():
+            result = subprocess.run(
+                [
+                    sys.executable, "-m", "qibocal_report.generation_worker",
+                    str(report_dir.resolve()), str(result_path),
+                ],
+                capture_output=True, text=True, timeout=GENERATION_TIMEOUT, check=False,
+            )
+            if result.returncode:
+                output = (result.stderr or result.stdout or "No worker output.").strip()
+                return None, f"Qibocal generation worker failed (exit {result.returncode}): {output[-2000:]}"
+            with result_path.open(encoding="utf-8") as stream:
+                payload = json.load(stream)
+            protocols = payload["protocols"]
+            error = payload.get("error")
+            return (
+                [ProtocolDetail(**protocol) for protocol in protocols]
+                if protocols is not None else None,
+                GenerationError(error, payload.get("error_code")) if error else None,
+            )
+    except subprocess.TimeoutExpired:
+        return None, f"Qibocal plot generation timed out after {GENERATION_TIMEOUT} seconds."
+    except EnvironmentOperationError as error:
+        return None, error.detail
+    except (OSError, ValueError, TypeError, KeyError) as error:
+        return None, f"Qibocal generation worker could not return plot results: {error}"
+    finally:
+        try:
+            result_path.unlink(missing_ok=True)
+        except OSError as error:
+            log_warning(f"Could not remove Qibocal worker result '{result_path}': {error}")
+
+
+def _generate_qibocal_protocols_native(
+    report_dir: Path,
+) -> tuple[list[ProtocolDetail] | None, str | None]:
     """Attempt to generate report protocols using native Qibocal if available.
 
     Returns:
@@ -287,12 +342,19 @@ def _generate_qibocal_protocols(
     try:
         from qibocal.auto.output import Output  # type: ignore
         from qibocal.cli.report import generate_figures_and_report  # type: ignore
-    except (ImportError, ModuleNotFoundError):
-        return None, (
-            "Qibocal is not installed in the environment. "
-            "Install Qibocal to enable on-the-fly plot generation, "
-            "or use pre-cached report outputs."
-        )
+    except ImportError as error:
+        if (
+            isinstance(error, ModuleNotFoundError)
+            and error.name == "qibocal"
+            and not get_qibocal_status().installed
+        ):
+            return None, GenerationError(
+                "Qibocal is not installed in the environment. "
+                "Install Qibocal to enable on-the-fly plot generation, "
+                "or use pre-cached report outputs.",
+                "qibocal_not_installed",
+            )
+        return None, f"Error importing Qibocal or its dependencies: {error}"
     except (AttributeError, RuntimeError, OSError) as err:
         return None, f"Error importing Qibocal: {err}"
 
@@ -310,6 +372,7 @@ def _generate_qibocal_protocols(
             targets = getattr(completed.task, "targets", [])
             all_figs: list[dict] = []
             html_parts: list[str] = []
+            target_errors: list[str] = []
 
             if targets:
                 for target in targets:
@@ -336,7 +399,9 @@ def _generate_qibocal_protocols(
                         TypeError,
                         KeyError,
                         OSError,
+                        ImportError,
                     ) as r_err:
+                        target_errors.append(f"Target {target}: {r_err}")
                         log_warning(
                             f"Error generating target {target} for "
                             f"'{task_str}': {r_err}"
@@ -363,7 +428,9 @@ def _generate_qibocal_protocols(
                     TypeError,
                     KeyError,
                     OSError,
+                    ImportError,
                 ) as r_err:
+                    target_errors.append(str(r_err))
                     log_warning(
                         f"Error generating target-less routine '{task_str}': {r_err}"
                     )
@@ -381,10 +448,13 @@ def _generate_qibocal_protocols(
                     name=clean_name,
                     category="calibration",
                     execution_time=exec_time,
-                    status="success" if has_output else "error",
+                    status="success" if has_output and not target_errors else "error",
                     error=None
-                    if has_output
-                    else f"Qibocal could not produce figures for routine '{task_str}'.",
+                    if has_output and not target_errors
+                    else (
+                        f"Qibocal could not produce all outputs for routine '{task_str}'."
+                        + (" " + "; ".join(target_errors) if target_errors else "")
+                    ),
                     html="\n".join(html_parts),
                     figures=all_figs,
                 )
@@ -397,6 +467,7 @@ def _generate_qibocal_protocols(
         TypeError,
         KeyError,
         OSError,
+        ImportError,
     ) as err:
         log_warning(f"Qibocal report generation failed for '{report_dir.name}': {err}")
         return None, f"Qibocal failed to generate report: {err}"
@@ -415,13 +486,18 @@ def generate_report_on_the_fly(
 
     native_protocols, error_reason = _generate_qibocal_protocols(report_dir)
 
-    if native_protocols and any(p.status == "success" for p in native_protocols):
+    if native_protocols:
+        protocols = sort_protocols_by_execution_order(native_protocols, report_dir)
+        if not any(p.status == "success" for p in native_protocols):
+            log_warning(
+                f"Qibocal failed to generate outputs for '{report_dir.name}': "
+                + "; ".join(p.error or p.id for p in protocols)
+            )
+            return protocols
         log_success(
             f"Generated {len(native_protocols)} protocol(s) "
             "using native Qibocal engine."
         )
-        protocols = sort_protocols_by_execution_order(native_protocols, report_dir)
-
         # Cache into report/ directory
         report_path = report_dir / "report"
         report_path.mkdir(parents=True, exist_ok=True)
@@ -475,8 +551,7 @@ def generate_report_on_the_fly(
         discovered_protocols = [report_dir.name]
 
     err_msg = error_reason or (
-        "Plot generation unavailable: Qibocal is not installed in the "
-        "current environment and no pre-cached plot exists."
+        "Qibocal did not produce protocol outputs for this report."
     )
 
     protocols = []
@@ -503,6 +578,7 @@ def generate_report_on_the_fly(
                 execution_time=exec_time,
                 status="error",
                 error=err_msg,
+                error_code=getattr(error_reason, "error_code", None),
                 html="",
                 figures=[],
             )

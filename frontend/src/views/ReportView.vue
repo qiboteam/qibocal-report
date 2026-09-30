@@ -56,7 +56,8 @@
           </button>
 
           <!-- Actions: Print to PDF & Regenerate plots -->
-          <div class="flex items-center gap-2">
+          <div class="flex items-center flex-wrap gap-2">
+            <qibocal-controls :missing="qibocalMissing" :busy="regenerating" @installed="handleRegenerate" />
             <!-- Qibocal Docs link -->
             <a
               href="https://qibo.science/qibocal/stable/protocols/"
@@ -124,11 +125,14 @@
         <!-- Notification if regenerated -->
         <div
           v-if="statusBanner"
-          class="no-print p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-center justify-between"
+          class="no-print p-3 border rounded-xl text-xs flex items-center justify-between"
+          :class="statusBannerError ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-purple-50 border-purple-200 text-purple-900'"
         >
-          <span>✓ {{ statusBanner }}</span>
+          <span>{{ statusBanner }}</span>
           <button @click="statusBanner = ''" class="text-purple-600 hover:text-purple-900 cursor-pointer">&times;</button>
         </div>
+
+        <plot-generation-errors v-if="qibocalMissing" :protocols="protocols" />
 
         <!-- Report Header Card -->
         <report-header-card
@@ -169,6 +173,9 @@ import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
 import ProtocolCard from '../components/report/ProtocolCard.vue'
 import ProtocolDocsModal from '../components/modals/ProtocolDocsModal.vue'
+import QibocalControls from '../components/report/QibocalControls.vue'
+import PlotGenerationErrors from '../components/report/PlotGenerationErrors.vue'
+import { isQibocalMissing } from '../utils/plotGeneration.js'
 
 const showDocsModal = ref(false)
 
@@ -193,12 +200,15 @@ const {
   protocols,
   regenerating,
   statusBanner,
+  statusBannerError,
   savingAuthor,
   loadReportData,
   handleRegenerate,
   handleSaveAuthor,
   handleRemoveTag
 } = useReportDetail(reportId)
+
+const qibocalMissing = computed(() => isQibocalMissing(protocols.value))
 
 function scrollToProtocol(protoId) {
   if (!protoId) return

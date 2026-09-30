@@ -2,7 +2,7 @@
   <div
     v-if="show"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
-    @click.self="$emit('close')"
+    @click.self="close"
   >
     <div class="bg-white rounded-2xl max-w-5xl w-full p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[90vh]">
       <!-- Header -->
@@ -18,12 +18,17 @@
             {{ report?.id || 'Preview' }}
           </h2>
         </div>
-        <button
-          @click="$emit('close')"
-          class="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 text-lg transition cursor-pointer shrink-0"
-        >
-          &times;
-        </button>
+        <div class="flex items-center gap-2 shrink-0">
+          <qibocal-controls :missing="qibocalMissing" :busy="loading" @installed="loadPreview(true)" @installing="installing = $event" />
+          <button
+            :disabled="installing"
+            @click="close"
+            aria-label="Close preview"
+            class="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 text-lg transition cursor-pointer shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            &times;
+          </button>
+        </div>
       </div>
 
       <!-- Body: plots-only preview -->
@@ -36,15 +41,15 @@
           Failed to load preview: {{ error }}
         </div>
 
-        <div v-else-if="protocolGroups.length === 0" class="p-12 text-center text-xs text-gray-400">
-          No figures available to preview for this report.
-        </div>
-
         <div v-else class="space-y-6">
+          <plot-generation-errors :protocols="protocols" />
+          <div v-if="protocolGroups.length === 0 && !generationErrors.length" class="p-12 text-center text-xs text-gray-400">
+            No figures available to preview for this report.
+          </div>
           <div v-for="group in protocolGroups" :key="group.id || group.name">
             <h3 class="text-sm font-bold text-gray-900 mb-2">
               <span class="px-2.5 py-0.5 rounded-lg bg-purple-50 text-purple-700 inline-block">
-                {{ extractProtocolType(group.name) }}
+                {{ extractProtocolType(group.name || group.id) }}
               </span>
             </h3>
             <div class="space-y-4">
@@ -62,60 +67,78 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
-import { apiFetch } from '../../store.js'
+import { ref, computed, watch, onUnmounted } from 'vue'
+import { state } from '../../store.js'
+import { apiFetch } from '../../api.js'
+import { getPlotGenerationErrors, isQibocalMissing } from '../../utils/plotGeneration.js'
 import LoadingSpinner from '../LoadingSpinner.vue'
 import PlotlyViewer from '../PlotlyViewer.vue'
+import QibocalControls from '../report/QibocalControls.vue'
+import PlotGenerationErrors from '../report/PlotGenerationErrors.vue'
 
 const props = defineProps({
   show: { type: Boolean, default: false },
   report: { type: Object, default: null }
 })
 
-defineEmits(['close'])
+const emit = defineEmits(['close'])
 
 const loading = ref(false)
+const installing = ref(false)
 const error = ref(null)
-const protocolGroups = ref([])
+const protocols = ref([])
+const protocolGroups = computed(() => protocols.value.filter(proto => proto.figures?.length))
+const generationErrors = computed(() => getPlotGenerationErrors(protocols.value))
+const qibocalMissing = computed(() => isQibocalMissing(protocols.value))
+let requestVersion = 0
 
-function extractProtocolType(name) {
+function close() {
+  if (!installing.value) emit('close')
+}
+
+function extractProtocolType(name = '') {
   return name.replace(/-\d+$/, '')
 }
 
-async function loadPreview() {
-  if (!props.report?.id) return
+async function loadPreview(regenerate = false) {
+  if (!props.show || !props.report?.id) return
+  const version = ++requestVersion
+  const server = state.activeServer
   loading.value = true
   error.value = null
-  protocolGroups.value = []
+  protocols.value = []
   try {
     const encodedId = encodeURIComponent(props.report.id)
-    const res = await apiFetch(`/api/reports/${encodedId}/protocols`)
+    const res = await apiFetch(
+      `/api/reports/${encodedId}/${regenerate ? 'regenerate' : 'protocols'}`,
+      regenerate ? { method: 'POST' } : {},
+      server
+    )
     if (!res.ok) {
-      throw new Error(`Failed to load protocols (${res.status})`)
+      const data = await res.json()
+      throw new Error(data.detail || `Failed to load protocols (${res.status})`)
     }
-    const protocols = await res.json()
-    protocolGroups.value = (protocols || [])
-      .filter(proto => proto.figures && proto.figures.length > 0)
-      .map(proto => ({
-        id: proto.id,
-        name: proto.name || proto.id,
-        figures: proto.figures
-      }))
+    const data = await res.json()
+    if (version === requestVersion) protocols.value = data
   } catch (err) {
-    error.value = err.message
+    if (version === requestVersion) error.value = err.message
   } finally {
-    loading.value = false
+    if (version === requestVersion) loading.value = false
   }
 }
 
 watch(
-  () => [props.show, props.report?.id],
+  () => [props.show, props.report?.id, state.activeServer?.id, state.activeServer?.url],
   ([show, id]) => {
     if (show && id) {
       loadPreview()
     } else {
-      protocolGroups.value = []
+      requestVersion++
+      protocols.value = []
     }
-  }
+  },
+  { immediate: true }
 )
+
+onUnmounted(() => { requestVersion++ })
 </script>

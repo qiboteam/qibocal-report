@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 
-from qibocal_report import auth, config
+from qibocal_report import auth, config, qibocal_environment
 from qibocal_report.actions import execute_bulk_action, find_report_dirs
 from qibocal_report.archive import (
     create_archive,
@@ -63,6 +63,9 @@ from qibocal_report.models import (
     PasswordResetModel,
     PlatformDataResponse,
     ProtocolDetail,
+    QibocalInstallRequest,
+    QibocalOptions,
+    QibocalStatus,
     RegisterRequest,
     ReportDetail,
     ReportSummary,
@@ -166,6 +169,24 @@ require_editor = require_role([UserRole.EDITOR.value, UserRole.ADMIN.value])
 require_admin = require_role([UserRole.ADMIN.value])
 
 
+def require_environment_admin(user: dict | None = Depends(get_current_user)) -> dict:
+    """Environment changes must never use the open-server synthetic administrator."""
+    if not auth.is_auth_enabled():
+        raise HTTPException(
+            status_code=403, detail="Qibocal environment administration requires authentication to be enabled."
+        )
+    if user is None:
+        raise HTTPException(
+            status_code=401, detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if user["role"] != UserRole.ADMIN.value:
+        raise HTTPException(
+            status_code=403, detail="Only an authenticated administrator can manage Qibocal."
+        )
+    return user
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_uvicorn_logging()
@@ -220,6 +241,40 @@ def get_report_root() -> Path:
 def get_original_root() -> Path:
     """Get the original directory where the server was spawned."""
     return ORIGINAL_ROOT_DIR
+
+
+@app.get("/api/qibocal", response_model=QibocalStatus, tags=["Qibocal"])
+def qibocal_status(
+    response: Response, _user: dict = Depends(require_viewer),
+) -> QibocalStatus:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return qibocal_environment.get_qibocal_status()
+    except qibocal_environment.EnvironmentOperationError as error:
+        raise HTTPException(error.status_code, error.detail) from error
+
+
+@app.get("/api/admin/qibocal/options", response_model=QibocalOptions, tags=["Qibocal"])
+def qibocal_options(
+    response: Response, _user: dict = Depends(require_environment_admin),
+) -> QibocalOptions:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return qibocal_environment.get_qibocal_options()
+    except qibocal_environment.EnvironmentOperationError as error:
+        raise HTTPException(error.status_code, error.detail) from error
+
+
+@app.post("/api/admin/qibocal/install", response_model=QibocalStatus, tags=["Qibocal"])
+def qibocal_install(
+    body: QibocalInstallRequest, response: Response,
+    _user: dict = Depends(require_environment_admin),
+) -> QibocalStatus:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return qibocal_environment.install_qibocal(body.option)
+    except qibocal_environment.EnvironmentOperationError as error:
+        raise HTTPException(error.status_code, error.detail) from error
 
 
 # --- Health Endpoint ---

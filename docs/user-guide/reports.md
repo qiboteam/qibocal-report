@@ -56,6 +56,26 @@ If a calibration routine needs to be re-plotted with updated fitting criteria or
 - The server purges the cached `report/` folder and re-runs evaluation routines.
 - Updated plots and parameters are automatically refreshed in your browser without requiring a server restart.
 
+### Installing or switching Qibocal
+
+Both the dashboard plot preview and the full report explicitly show generation
+errors, including when Qibocal is not installed on the report server.
+Pre-cached plots remain viewable without Qibocal.
+
+On an authentication-enabled server, signed-in administrators can use
+**Install Qibocal** or **Switch Qibocal Version** in either view. The picker
+offers a few recent compatible stable PyPI releases and the latest default
+branch of the official [Git repository](https://github.com/qiboteam/qibocal).
+The current server version is shown in the picker. If PyPI is unavailable, the
+error is displayed and the Git option remains available.
+
+**Install and Regenerate** changes Qibocal and its dependencies in the server's
+Python environment for all users, then regenerates the current report's cached
+plots. Other reports' cached plots are not changed; use **Regenerate Plots** to
+refresh them when needed. Future plot generation uses the installed version
+without a server restart. Viewers, editors, and open (unauthenticated) servers
+cannot install or switch versions through the application.
+
 ---
 
 ## 🖨️ Publication-Grade Print to PDF

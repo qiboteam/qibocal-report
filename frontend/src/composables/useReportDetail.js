@@ -1,5 +1,7 @@
 import { ref, onUnmounted } from 'vue'
-import { state, addToHistory, removeFromHistory, apiFetch, getActiveWsUrl } from '../store.js'
+import { state, addToHistory, removeFromHistory, getActiveWsUrl } from '../store.js'
+import { apiFetch } from '../api.js'
+import { getPlotGenerationErrors } from '../utils/plotGeneration.js'
 
 /**
  * Sort protocol objects by execution order using history or stats from report detail.
@@ -97,12 +99,14 @@ export function useReportDetail(reportId) {
   const protocols = ref([])
   const regenerating = ref(false)
   const statusBanner = ref('')
+  const statusBannerError = ref(false)
   const savingAuthor = ref(false)
 
   let activeWs = null
 
-  function showBanner(msg, durationMs = 3500) {
+  function showBanner(msg, durationMs = 3500, isError = false) {
     statusBanner.value = msg
+    statusBannerError.value = isError
     if (durationMs > 0) {
       setTimeout(() => {
         if (statusBanner.value === msg) {
@@ -231,6 +235,7 @@ export function useReportDetail(reportId) {
     error.value = null
     report.value = null
     protocols.value = []
+    regenerating.value = false
     statusBanner.value = ''
     loadingStatus.value = 'Connecting to server...'
 
@@ -251,26 +256,35 @@ export function useReportDetail(reportId) {
 
   async function handleRegenerate() {
     const id = typeof reportId === 'function' ? reportId() : reportId.value
-    if (!id) return
+    if (!id || regenerating.value) return
+    const server = state.activeServer
+    const isCurrent = () => server === state.activeServer && id === (typeof reportId === 'function' ? reportId() : reportId.value)
     regenerating.value = true
     statusBanner.value = ''
     try {
       const encodedId = encodeURIComponent(id)
-      const res = await apiFetch(`/api/reports/${encodedId}/regenerate`, { method: 'POST' })
+      const res = await apiFetch(`/api/reports/${encodedId}/regenerate`, { method: 'POST' }, server)
       if (res.ok) {
         const regenData = await res.json()
+        if (!isCurrent()) return
         protocols.value = sortProtocolsByExecutionOrder(regenData, report.value)
-        showBanner('Report plots regenerated successfully!', 3500)
+        const generationErrors = getPlotGenerationErrors(regenData)
+        if (generationErrors.length) {
+          showBanner(`Some plots could not be generated: ${generationErrors.join(' ')}`, 0, true)
+        } else {
+          showBanner('Report plots regenerated successfully!', 3500)
+        }
         if (report.value) {
-          report.value.has_cached_report = true
+          report.value.has_cached_report = regenData.some(proto => proto.status === 'success')
         }
       } else {
-        throw new Error(`Regeneration failed (${res.status})`)
+        const data = await res.json()
+        throw new Error(data.detail || `Regeneration failed (${res.status})`)
       }
     } catch (err) {
-      alert('Regeneration failed: ' + err.message)
+      if (isCurrent()) alert('Regeneration failed: ' + err.message)
     } finally {
-      regenerating.value = false
+      if (isCurrent()) regenerating.value = false
     }
   }
 
@@ -339,6 +353,7 @@ export function useReportDetail(reportId) {
     protocols,
     regenerating,
     statusBanner,
+    statusBannerError,
     savingAuthor,
     loadReportData,
     handleRegenerate,

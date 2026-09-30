@@ -200,3 +200,38 @@ test('API rejection removes the persisted session as well as the active session'
   assert.equal(getActiveAuthToken(server), null)
   assert.equal(state.auth.user, null)
 })
+
+test('an old server API rejection clears only that server session', async () => {
+  let finishRequest
+  mock.method(globalThis, 'fetch', async url => {
+    if (url.endsWith('/api/auth/status')) return json({ auth_enabled: true })
+    if (url.endsWith('/api/auth/me')) return json(viewer)
+    return new Promise(resolve => { finishRequest = resolve })
+  })
+  await setActiveServer(server)
+  setServerAuth(server, 'first-session', viewer)
+  setServerAuth(otherServer, 'second-session', editor)
+  const pending = apiFetch('/api/qibocal', {}, state.activeServer)
+  await setActiveServer(otherServer)
+  finishRequest(json({ detail: 'Unauthorized' }, 401))
+  await pending
+  assert.equal(getActiveAuthToken(server), null)
+  assert.equal(getActiveAuthToken(otherServer), 'second-session')
+  assert.equal(state.auth.token, 'second-session')
+  assert.equal(state.auth.errorMessage, '')
+})
+
+test('a stale API rejection cannot clear a newly signed-in session', async () => {
+  let finishRequest
+  mock.method(globalThis, 'fetch', async url => url.endsWith('/api/auth/status')
+    ? json({ auth_enabled: true })
+    : new Promise(resolve => { finishRequest = resolve }))
+  await setActiveServer(server)
+  const pending = apiFetch('/api/qibocal')
+  setServerAuth(server, 'new-session', editor)
+  finishRequest(json({ detail: 'Unauthorized' }, 401))
+  await pending
+  assert.equal(getActiveAuthToken(server), 'new-session')
+  assert.equal(state.auth.token, 'new-session')
+  assert.equal(state.auth.errorMessage, '')
+})

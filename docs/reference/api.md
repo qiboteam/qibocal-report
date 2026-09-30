@@ -79,8 +79,107 @@ Retrieve detailed metadata, platform snapshots, history, and protocol summaries 
 ### `GET /api/reports/{report_id}/protocols`
 Fetch all protocol outputs including formatted HTML tables and serialized Plotly figure structures.
 
+Failed outputs have `status: "error"` and an informative `error` message. The
+optional `error_code: "qibocal_not_installed"` identifies a genuinely missing
+Qibocal installation. Missing dependencies, incompatible Qibocal APIs, invalid
+report data, and individual routine failures retain their own error messages
+without that code. Partial figures and tables remain available when a routine
+fails for some targets.
+
 ### `POST /api/reports/{report_id}/regenerate`
 Purge the cached `report/` folder for this run and recompute figures on the fly using Qibocal evaluation routines.
+
+Generation uses a fresh process in the server's Python environment, with a
+five-minute timeout, so subsequent requests use a newly installed Qibocal version
+without restarting the server.
+
+---
+
+## 🧩 Qibocal Server Environment
+
+### `GET /api/qibocal`
+Inspect Qibocal's installed package metadata without importing its plotting
+dependencies. Requires viewer access when authentication is enabled; it is also
+available on open servers. Responses use `Cache-Control: no-store`.
+
+```json
+{"installed": true, "version": "0.2.7", "source": "pypi"}
+```
+
+If absent, `installed` is `false` and both `version` and `source` are `null`.
+`source` is `"pypi"` or `"git"` for recognized installations, or `null` for an
+unrecognized installation origin.
+
+### `GET /api/admin/qibocal/options`
+Requires authentication to be **enabled** and a logged-in user whose current
+role is **admin**. The synthetic administrator on an authentication-disabled
+server cannot access environment administration.
+
+Returns the same installed status plus up to five recent stable, non-yanked
+PyPI releases compatible with the server's Python version, followed by the
+fixed official Git repository option. Versions are ordered by Python package
+version semantics, not alphabetically. Responses use `Cache-Control: no-store`.
+
+```json
+{
+  "installed": false,
+  "version": null,
+  "source": null,
+  "options": [
+    {
+      "id": "pypi:0.2.7",
+      "label": "Qibocal 0.2.7 (PyPI)",
+      "source": "pypi",
+      "version": "0.2.7"
+    },
+    {
+      "id": "git",
+      "label": "Git repository (latest)",
+      "source": "git",
+      "version": null
+    }
+  ],
+  "pypi_error": null
+}
+```
+
+Releases come from `https://pypi.org/pypi/qibocal/json`. If PyPI is unavailable
+or returns invalid data, `pypi_error` explicitly describes the failure and the
+Git option remains available.
+
+### `POST /api/admin/qibocal/install`
+Uses the same strict administrator authorization as the options endpoint.
+
+- **Body**: `{"option": "pypi:0.2.7"}` or `{"option": "git"}`.
+- PyPI selections are revalidated against the server's recent compatible
+  options, then installed as an exact `qibocal==<version>` pin.
+- `"git"` always installs `git+https://github.com/qiboteam/qibocal.git`; arbitrary
+  URLs, package names, versions outside the offered choices, and installer
+  arguments are rejected.
+- Installation upgrades/reinstalls Qibocal using the server's `sys.executable`
+  through pip, or `uv pip --python <sys.executable>` when pip is unavailable.
+  The installer has a ten-minute timeout.
+- Installs and plot generation are synchronized. Concurrent installation
+  requests return **409**.
+- Success returns `{"installed": true, "version": "...", "source": "pypi"}`,
+  or `"source": "git"`, only after package metadata confirms the installation.
+  Responses use `Cache-Control: no-store`.
+
+Errors return a descriptive `detail`: **400** for an invalid selection,
+**401/403** for insufficient authentication/permissions, **409** for concurrent
+installation or a busy generation environment, **502** for PyPI validation or
+installer failure, **503** for an unavailable installer, **504** for installation
+timeout, and **500** if installed metadata cannot confirm the requested result.
+
+Installing a version does not clear any report caches. Regenerate the current
+report with its existing `/regenerate` endpoint to refresh cached outputs.
+
+This changes the **server's Python environment**, not the browser or just the
+current report. Qibocal and its resolved dependencies are shared by every report
+and user on that server; other processes using the same environment can also be
+affected. Run the report server in a dedicated virtual environment rather than
+a shared or system-wide Python environment. Administrator authorization limits
+who can request installation but does not isolate dependency changes.
 
 ---
 

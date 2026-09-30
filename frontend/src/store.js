@@ -231,6 +231,10 @@ export const isAdmin = computed(() => {
   return state.auth?.user?.role === 'admin'
 })
 
+export const canManageQibocal = computed(() => {
+  return Boolean(state.auth?.checked && state.auth?.enabled && state.auth?.token && state.auth?.user?.role === 'admin')
+})
+
 export const isAuthenticated = computed(() => {
   if (!state.auth?.enabled) return true
   return Boolean(state.auth?.token && state.auth?.user)

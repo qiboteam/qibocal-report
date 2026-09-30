@@ -1,20 +1,27 @@
-import { state, getActiveAuthToken, setServerAuth } from './store.js'
+import { state, getActiveAuthToken, getServerAuthKey, setServerAuth } from './store.js'
 import { getApiUrl, getActiveServerUrl } from './utils/url.js'
 
 /**
- * Dispatches a fetch request against the currently active server's base URL,
+ * Dispatches a fetch request against the selected or currently active server,
  * automatically including Authorization headers when a token is present.
  */
-export async function apiFetch(path, options = {}) {
-  const url = getApiUrl(path, state.activeServer)
+export async function apiFetch(path, options = {}, server = state.activeServer) {
+  const url = getApiUrl(path, server)
+  const serverUrl = getActiveServerUrl(server)
   const headers = new Headers(options.headers || {})
-  const token = getActiveAuthToken(state.activeServer)
+  const token = getActiveAuthToken(server)
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`)
   }
   const res = await fetch(url, { ...options, headers })
-  if (res.status === 401 && state.auth?.enabled) {
-    setServerAuth(state.activeServer, null, null)
+  const sessionIsCurrent = token === getActiveAuthToken(server)
+  if (res.status === 401 && token && sessionIsCurrent) {
+    setServerAuth(server, null, null)
+  }
+  if (res.status === 401 && sessionIsCurrent && state.auth?.enabled &&
+      getServerAuthKey(server) === getServerAuthKey(state.activeServer) &&
+      serverUrl === getActiveServerUrl(state.activeServer)) {
+    setServerAuth(server, null, null)
     state.auth.errorMessage = 'Authentication required. Please sign in to access this instance.'
     if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite') && !window.location.hash.startsWith('#/admin')) {
       window.location.hash = '#/servers'
@@ -135,6 +142,22 @@ export async function apiDeletePasswordReset(token) {
 
 export async function apiGetAdminConfig() {
   return apiFetch('/api/admin/config')
+}
+
+export async function apiGetQibocal(server = state.activeServer) {
+  return apiFetch('/api/qibocal', { cache: 'no-store' }, server)
+}
+
+export async function apiGetQibocalOptions(server = state.activeServer) {
+  return apiFetch('/api/admin/qibocal/options', { cache: 'no-store' }, server)
+}
+
+export async function apiInstallQibocal(option, server = state.activeServer) {
+  return apiFetch('/api/admin/qibocal/install', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ option })
+  }, server)
 }
 
 /**

@@ -1,7 +1,7 @@
 """Pydantic models for qibocal-report."""
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +62,29 @@ class ProtocolDetail(BaseModel):
     html: str | None = ""
     figures: list[dict[str, Any]] = Field(default_factory=list)
     error: str | None = None
+    error_code: str | None = None
+
+
+class QibocalStatus(BaseModel):
+    installed: bool
+    version: str | None = None
+    source: Literal["pypi", "git"] | None = None
+
+
+class QibocalOption(BaseModel):
+    id: str
+    label: str
+    source: Literal["pypi", "git"]
+    version: str | None = None
+
+
+class QibocalOptions(QibocalStatus):
+    options: list[QibocalOption] = Field(default_factory=list)
+    pypi_error: str | None = None
+
+
+class QibocalInstallRequest(BaseModel):
+    option: str = Field(min_length=1, max_length=200)
 
 
 class ReportSummary(BaseModel):
@@ -342,4 +365,3 @@ class AdminConfigResponse(BaseModel):
     reports_count: int
     users_count: int
     invites_count: int
-
