@@ -13,11 +13,15 @@ from urllib.parse import urlsplit
 import click
 import pytest
 from click.testing import CliRunner
+from rich.console import Console
 
 from qibocal_report.cli import main
 from qibocal_report.notebook import (
     READY_PREFIX,
     NotebookOptions,
+    NotebookOutput,
+    _read_stderr,
+    _read_worker,
     _wait_ready,
     _wait_tunnel,
     connection_file,
@@ -26,6 +30,74 @@ from qibocal_report.notebook import (
     ssh_arguments,
     stop_process,
 )
+from qibocal_report.notebook_worker import EVENT_PREFIX
+
+
+@pytest.mark.parametrize("color", [False, True])
+def test_rich_node_output(color):
+    stream = io.StringIO()
+    output = NotebookOutput()
+    output.console = Console(file=stream, force_terminal=color, width=120)
+    output.line(
+        EVENT_PREFIX
+        + json.dumps(
+            {
+                "kind": "node",
+                "role": "compute",
+                "identity": {
+                    "hostname": "compute-1",
+                    "cwd": "/work/[red]literal[/red]",
+                    "slurm": {"SLURM_JOB_ID": "123", "SLURM_JOB_PARTITION": "chip"},
+                },
+            }
+        )
+    )
+    text = stream.getvalue()
+    assert "Compute node" in text
+    assert "Hostname" in text and "compute-1" in text
+    assert "/work/[red]literal[/red]" in text
+    assert "SLURM_JOB_ID" in text and "123" in text
+    assert "SLURM_JOB_PARTITION" in text
+    assert EVENT_PREFIX not in text
+    assert ("\x1b[" in text) is color
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        "{",
+        "[]",
+        '{"kind":"unknown"}',
+        '{"kind":"node","role":"compute","identity":{"slurm":[]}}',
+    ],
+)
+def test_invalid_diagnostic_visible(data):
+    stream = io.StringIO()
+    output = NotebookOutput()
+    output.console = Console(file=stream, width=160)
+    output.line(EVENT_PREFIX + data)
+    assert "Invalid notebook diagnostic received" in stream.getvalue()
+    assert data in stream.getvalue()
+
+
+def test_worker_streams_keep_readiness_separate():
+    process = worker_process()
+    process.stderr = io.StringIO(
+        EVENT_PREFIX
+        + json.dumps({"kind": "status", "message": "Waiting for allocation"})
+        + "\nraw scheduler log\n"
+    )
+    output = NotebookOutput()
+    stream = io.StringIO()
+    output.console = Console(file=stream)
+    messages = queue.Queue()
+    _read_stderr(process, output)
+    _read_worker(process, messages, output)
+    assert json.loads(messages.get())["port"] == 8123
+    assert messages.get() is None
+    assert "Waiting for allocation" in stream.getvalue()
+    assert "raw scheduler log" in stream.getvalue()
+    assert READY_PREFIX not in stream.getvalue()
 
 
 def test_notebook_help():
@@ -205,13 +277,14 @@ def worker_process():
         + "\n"
     )
     process.poll.return_value = None
+    process.stderr = io.StringIO("")
     process.wait.return_value = 0
     return process
 
 
 @pytest.mark.parametrize("ssh", [None, "-p 2222 user@login"])
 @pytest.mark.parametrize("slurm", [False, True])
-def test_launch_composes_layers(ssh, slurm):
+def test_launch_composes_layers(ssh, slurm, capsys):
     process = worker_process()
     tunnel = MagicMock()
     tunnel.poll.return_value = None
@@ -260,6 +333,13 @@ def test_launch_composes_layers(ssh, slurm):
     )
     browser.assert_not_called()
     assert stop.call_args_list[-1].args[0] is process
+    output = capsys.readouterr()
+    assert output.out == (
+        f"http://127.0.0.1:{9000 if ssh else 8123}/lab?token=secret\n"
+    )
+    assert "Notebook ready" in output.err
+    assert "Press Ctrl+C" in output.err
+    assert "\x1b" not in output.out + output.err
 
 
 @pytest.mark.parametrize("marimo", [False, True])
@@ -377,7 +457,7 @@ def test_tunnel_wait_http_response(monkeypatch):
     assert requested == ["/lab?token=secret"]
 
 
-def test_local_launcher_real_process_lifecycle():
+def test_local_launcher_real_process_lifecycle(capsys):
     source = """
 import json
 import sys
@@ -393,6 +473,10 @@ class Handler(BaseHTTPRequestHandler):
 
 server = HTTPServer(("127.0.0.1", 0), Handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
+print("QIBOCAL_NOTEBOOK_EVENT " + json.dumps({
+    "kind": "node", "role": "access and compute",
+    "identity": {"hostname": "local-test", "fqdn": "local-test.example"},
+}), file=sys.stderr, flush=True)
 print("QIBOCAL_NOTEBOOK_READY " + json.dumps({
     "host": "localhost", "port": server.server_port,
     "token": "test-token", "path": "/lab",
@@ -415,6 +499,13 @@ server.server_close()
     ):
         launch(NotebookOptions(timeout=5))
     assert len(opened) == 1
+    output = capsys.readouterr()
+    assert output.out == opened[0] + "\n"
+    assert "Access and compute node" in output.err
+    assert "local-test" in output.err
+    assert "FQDN" in output.err
+    assert EVENT_PREFIX not in output.err
+    assert READY_PREFIX not in output.err
     url = urlsplit(opened[0])
     assert url.query == "token=test-token"
     with pytest.raises(OSError):

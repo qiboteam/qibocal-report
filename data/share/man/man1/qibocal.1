@@ -26,6 +26,21 @@ The connection layers compose:
 local machine, optional SSH access node, optional SLURM computing node.
 Omitting SSH submits from the local machine. Omitting SLURM runs on the access
 node. Omitting both starts a local notebook.
+.PP
+Each worker immediately logs its node identity to standard error:
+actual hostname, fully qualified domain name, user, OS release, architecture,
+Python executable and version, process ID, and working directory on arrival.
+SLURM sessions distinguish access and compute nodes and include available
+allocation details: cluster, job and step IDs, partition, node lists,
+CPU and memory allocation, and GPU IDs.
+Without SLURM, one node serves both access and compute roles.
+.PP
+Node details appear in labeled Rich panels, with colored startup stages
+and a ready banner. All formatting happens locally; remote workers forward
+structured diagnostics without requiring Rich or a terminal on SSH or SLURM
+nodes. Redirected output has no automatic ANSI colors.
+Diagnostics remain on standard error and the authenticated URL remains
+on its own line on standard output.
 .SS Options
 .TP
 .BI \-\-ssh " TEXT"

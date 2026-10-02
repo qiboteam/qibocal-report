@@ -88,6 +88,17 @@ qibocal notebook --marimo --venv ./calibration-env -n
 ```
 
 The command opens an authenticated local URL and stays attached until Ctrl+C.
+Each worker logs its node identity to stderr as soon as it starts: the actual
+hostname, fully qualified domain name, user, OS release, architecture, Python
+executable/version, process ID, and working directory on arrival. SLURM sessions
+log the access and compute nodes separately, including available allocation
+details (cluster, job/step IDs, partition, node lists, CPU/memory, and GPU IDs).
+Without SLURM, the same node serves both roles.
+Rich renders these details as labeled node panels, with colored startup stages
+and a clear ready banner. Rendering happens locally: SSH and SLURM workers use
+only Python's standard library and forward structured diagnostics, so they do
+not need Rich installed or a remote terminal. Redirected output remains readable
+without ANSI colors; the authenticated URL stays on its own line on stdout.
 Use `-n` to print the URL without opening a browser. Notebook connections can
 be named in `~/.config/qibocal-report/notebooks.json` (or under
 `$XDG_CONFIG_HOME`) and invoked with `qibocal notebook myconnection`.

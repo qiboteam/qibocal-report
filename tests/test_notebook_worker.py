@@ -16,6 +16,74 @@ import pytest
 from qibocal_report import notebook_worker as worker
 
 
+def test_node_identity_logging(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    for name, value in {
+        "SLURM_CLUSTER_NAME": "lab",
+        "SLURM_JOB_ID": "12345",
+        "SLURM_JOB_PARTITION": "chip",
+        "SLURM_STEP_ID": "0",
+        "SLURM_JOB_NODELIST": "compute-[1-2]",
+        "SLURM_CPUS_PER_TASK": "4",
+        "SLURM_MEM_PER_NODE": "8192",
+        "SLURM_JOB_GPUS": "0",
+        "CUDA_VISIBLE_DEVICES": "0",
+        "PRIVATE_TOKEN": "do-not-log",
+    }.items():
+        monkeypatch.setenv(name, value)
+    with (
+        patch.object(worker.socket, "gethostname", return_value="compute-1"),
+        patch.object(worker.socket, "getfqdn", return_value="compute-1.lab"),
+        patch.object(worker.getpass, "getuser", return_value="scientist"),
+    ):
+        worker.log_node("compute")
+    output = capsys.readouterr()
+    assert output.out == ""
+    prefix = worker.EVENT_PREFIX
+    assert output.err.startswith(prefix)
+    event = json.loads(output.err[len(prefix) :])
+    assert event["kind"] == "node"
+    assert event["role"] == "compute"
+    identity = event["identity"]
+    assert identity["hostname"] == "compute-1"
+    assert identity["fqdn"] == "compute-1.lab"
+    assert identity["user"] == "scientist"
+    assert identity["cwd"] == str(tmp_path.resolve())
+    assert identity["python"] == sys.executable
+    assert identity["python_version"] == worker.platform.python_version()
+    assert identity["pid"] == os.getpid()
+    assert identity["system"] == worker.platform.system()
+    assert identity["release"] == worker.platform.release()
+    assert identity["architecture"] == worker.platform.machine()
+    assert identity["slurm"]["SLURM_JOB_ID"] == "12345"
+    assert identity["slurm"]["SLURM_JOB_PARTITION"] == "chip"
+    assert identity["slurm"]["SLURM_STEP_ID"] == "0"
+    assert identity["slurm"]["SLURM_CPUS_PER_TASK"] == "4"
+    assert identity["slurm"]["SLURM_MEM_PER_NODE"] == "8192"
+    assert identity["slurm"]["SLURM_JOB_GPUS"] == "0"
+    assert "PRIVATE_TOKEN" not in output.err
+    assert "do-not-log" not in output.err
+
+
+@pytest.mark.parametrize(
+    "options, role",
+    [
+        ({}, "access and compute"),
+        ({"queue": "chip"}, "access"),
+        ({"slurm": "--mem=4G"}, "access"),
+        ({"_node_role": "compute"}, "compute"),
+    ],
+)
+def test_node_logged_before_setup_failure(options, role, tmp_path, capsys):
+    with pytest.raises(FileNotFoundError):
+        worker.run(dict(options, workdir=str(tmp_path / "missing")))
+    output = capsys.readouterr()
+    assert output.out == ""
+    event = json.loads(output.err[len(worker.EVENT_PREFIX) :])
+    assert event["kind"] == "node"
+    assert event["role"] == role
+
+
 def test_environment_resolution(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
@@ -275,6 +343,7 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo):
     assert command[11].startswith("WORKER_SOURCE = ")
     nested = json.loads(command[12])
     assert nested["queue"] is None and nested["slurm"] is None
+    assert nested["_node_role"] == "compute"
     assert nested["workdir"] == str(tmp_path / "work")
     assert spawn.call_args_list[1].args[0] == [
         "ssh",
@@ -297,6 +366,9 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo):
     output = capsys.readouterr()
     assert output.out.count(worker.READY_PREFIX) == 1
     assert "scheduler progress" in output.err
+    event = json.loads(output.err.splitlines()[0][len(worker.EVENT_PREFIX) :])
+    assert event["kind"] == "node"
+    assert event["role"] == "access"
     ready = json.loads(output.out[len(worker.READY_PREFIX) :])
     assert ready == {
         "host": socket.gethostname(),
@@ -428,7 +500,8 @@ HTTPServer(('127.0.0.1', port), Handler).serve_forever()
 
 @pytest.mark.parametrize("marimo", [False, True])
 @pytest.mark.parametrize("shutdown", ["eof", "signal"])
-def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown):
+@pytest.mark.parametrize("role", ["access and compute", "compute"])
+def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown, role):
     cache = tmp_path / "cache"
     target = tmp_path / "target"
     server = (
@@ -470,6 +543,7 @@ def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown):
     process = subprocess.Popen(
         [
             sys.executable,
+            "-S",
             "-u",
             "-c",
             script,
@@ -479,6 +553,7 @@ def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown):
                     "workdir": str(tmp_path),
                     "marimo": marimo,
                     "timeout": 10,
+                    "_node_role": role,
                 }
             ),
         ],
@@ -511,6 +586,15 @@ def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown):
         assert process.stdout.read() == ""
         logs = process.stderr.read()
         assert "child stdout log" in logs and "child stderr log" in logs
+        node_line = logs.splitlines()[0]
+        prefix = worker.EVENT_PREFIX
+        assert node_line.startswith(prefix)
+        event = json.loads(node_line[len(prefix) :])
+        assert event["kind"] == "node"
+        assert event["role"] == role
+        identity = event["identity"]
+        assert identity["hostname"] == ready["host"]
+        assert identity["pid"] == process.pid
         assert not list(runtime_directory.glob("qibocal-kernels-*"))
         with pytest.raises(OSError):
             os.kill(int(pidfile.read_text()), 0)

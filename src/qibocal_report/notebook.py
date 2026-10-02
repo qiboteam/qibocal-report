@@ -17,10 +17,89 @@ from urllib.request import ProxyHandler, build_opener
 
 import click
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from qibocal_report import config
+from qibocal_report.notebook_worker import EVENT_PREFIX
 
 READY_PREFIX = "QIBOCAL_NOTEBOOK_READY "
+
+
+class NotebookOutput:
+    """Render locally so transported workers need only the standard library."""
+
+    def __init__(self):
+        self.console = Console(stderr=True)
+
+    def status(self, message: str, style: str = "cyan") -> None:
+        self.console.print(Text(message, style=style))
+
+    def line(self, line: str) -> None:
+        if not line.startswith(EVENT_PREFIX):
+            self.console.print(
+                Text.from_ansi(line.rstrip("\n")),
+                style="bold red" if line.startswith("Notebook worker:") else "dim",
+            )
+            return
+        try:
+            data = json.loads(line[len(EVENT_PREFIX) :])
+        except ValueError:
+            data = None
+        if isinstance(data, dict):
+            if data.get("kind") == "status" and isinstance(data.get("message"), str):
+                self.status(data["message"])
+                return
+            if (
+                data.get("kind") == "node"
+                and isinstance(data.get("role"), str)
+                and isinstance(data.get("identity"), dict)
+                and all(
+                    isinstance(key, str) and isinstance(value, (str, int))
+                    for key, value in data["identity"].items()
+                    if key != "slurm"
+                )
+                and isinstance(data["identity"].get("slurm", {}), dict)
+                and all(
+                    isinstance(key, str) and isinstance(value, str)
+                    for key, value in data["identity"].get("slurm", {}).items()
+                )
+            ):
+                table = Table.grid(padding=(0, 2))
+                table.add_column(style="bold", no_wrap=True)
+                table.add_column(overflow="fold")
+                labels = {
+                    "fqdn": "FQDN",
+                    "system": "OS",
+                    "release": "OS release",
+                    "python": "Python executable",
+                    "python_version": "Python version",
+                    "pid": "PID",
+                    "cwd": "Arrival directory",
+                }
+                for key, value in data["identity"].items():
+                    if key != "slurm":
+                        table.add_row(
+                            Text(labels.get(key, key.replace("_", " ").capitalize())),
+                            Text(str(value)),
+                        )
+                for key, value in data["identity"].get("slurm", {}).items():
+                    table.add_row(Text(key), Text(value))
+                self.console.print(
+                    Panel(
+                        table,
+                        title=Text(
+                            f"{data['role'].capitalize()} node", style="bold cyan"
+                        ),
+                        border_style="cyan",
+                        expand=False,
+                    )
+                )
+                return
+        self.status("Invalid notebook diagnostic received:", "bold red")
+        self.console.print(Text(line.rstrip("\n")))
 
 
 class NotebookOptions(BaseModel):
@@ -113,13 +192,20 @@ def stop_process(process: subprocess.Popen) -> None:
         process.wait()
 
 
-def _read_worker(process: subprocess.Popen, messages: queue.Queue) -> None:
+def _read_worker(
+    process: subprocess.Popen, messages: queue.Queue, output: NotebookOutput
+) -> None:
     for line in process.stdout:
         if line.startswith(READY_PREFIX):
             messages.put(line[len(READY_PREFIX) :])
         else:
-            click.echo(line, nl=False, err=True)
+            output.line(line)
     messages.put(None)
+
+
+def _read_stderr(process: subprocess.Popen, output: NotebookOutput) -> None:
+    for line in process.stderr:
+        output.line(line)
 
 
 def _wait_ready(
@@ -175,6 +261,7 @@ def _wait_tunnel(url: str, processes: list[subprocess.Popen], deadline: float) -
 
 
 def launch(options: NotebookOptions) -> None:
+    output = NotebookOutput()
     worker = Path(__file__).with_name("notebook_worker.py").read_text(encoding="utf-8")
     source = f"WORKER_SOURCE = {worker!r}\n{worker}"
     worker_options = options.model_dump(exclude={"ssh", "no_interactive"})
@@ -209,22 +296,35 @@ def launch(options: NotebookOptions) -> None:
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, interrupt)
+    readers = []
     try:
+        output.status(
+            f"Connecting to SSH destination {destination}."
+            if destination
+            else "Starting local notebook launcher."
+        )
         process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
             start_new_session=True,
         )
         processes.append(process)
         messages = queue.Queue()
-        threading.Thread(
-            target=_read_worker, args=(process, messages), daemon=True
-        ).start()
+        readers = [
+            threading.Thread(
+                target=_read_worker, args=(process, messages, output), daemon=True
+            ),
+            threading.Thread(target=_read_stderr, args=(process, output), daemon=True),
+        ]
+        for reader in readers:
+            reader.start()
         ready = _wait_ready(process, messages, deadline)
         port = ready["port"]
         if ssh_base is not None:
+            output.status("Opening SSH tunnel to the local notebook URL.")
             port = free_port()
             tunnel = subprocess.Popen(
                 [
@@ -234,18 +334,36 @@ def launch(options: NotebookOptions) -> None:
                     f"127.0.0.1:{port}:127.0.0.1:{ready['port']}",
                     destination,
                 ],
+                stderr=subprocess.PIPE,
+                text=True,
                 start_new_session=True,
             )
             processes.append(tunnel)
+            reader = threading.Thread(
+                target=_read_stderr, args=(tunnel, output), daemon=True
+            )
+            readers.append(reader)
+            reader.start()
         query = urlencode(
             {"access_token" if options.marimo else "token": ready["token"]}
         )
         url = f"http://127.0.0.1:{port}{ready['path']}?{query}"
         _wait_tunnel(url, processes, deadline)
-        click.echo(url)
+        output.console.print(
+            Panel(
+                Text(
+                    f"{'Marimo' if options.marimo else 'JupyterLab'} is ready.\n"
+                    "Open the URL below in your browser.\n"
+                    "Press Ctrl+C to stop the notebook and its tunnels."
+                ),
+                title="Notebook ready",
+                border_style="green",
+                expand=False,
+            )
+        )
+        Console().print(Text(url, style="bold cyan"), soft_wrap=True)
         if not options.no_interactive and not webbrowser.open(url):
-            click.echo("Could not open a browser; use the URL above.", err=True)
-        click.echo("Press Ctrl+C to stop the notebook and its tunnels.", err=True)
+            output.status("Could not open a browser; use the URL above.", "yellow")
         while all(process.poll() is None for process in processes):
             time.sleep(0.2)
         failed = next(process for process in processes if process.poll() is not None)
@@ -254,12 +372,14 @@ def launch(options: NotebookOptions) -> None:
                 f"Notebook session exited with status {failed.returncode}."
             )
     except KeyboardInterrupt:
-        click.echo("Stopping notebook session.", err=True)
+        output.status("Stopping notebook session.", "yellow")
     except OSError as exc:
         raise click.ClickException(f"Could not launch notebook session: {exc}") from exc
     finally:
         try:
             for process in reversed(processes):
                 stop_process(process)
+            for reader in readers:
+                reader.join(timeout=1)
         finally:
             signal.signal(signal.SIGTERM, previous_sigterm)

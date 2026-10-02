@@ -1,8 +1,10 @@
 """Self-contained notebook worker, also executed on remote hosts with ``python -c``."""
 
+import getpass
 import json
 import math
 import os
+import platform
 import queue
 import secrets
 import shlex
@@ -19,6 +21,52 @@ from urllib.parse import urlencode
 from urllib.request import ProxyHandler, build_opener
 
 READY_PREFIX = "QIBOCAL_NOTEBOOK_READY "
+EVENT_PREFIX = "QIBOCAL_NOTEBOOK_EVENT "
+
+
+def event(kind, **details):
+    sys.stderr.write(EVENT_PREFIX + json.dumps({"kind": kind, **details}) + "\n")
+    sys.stderr.flush()
+
+
+def log_node(role):
+    identity = {
+        "hostname": socket.gethostname(),
+        "fqdn": socket.getfqdn(),
+        "user": getpass.getuser(),
+        "system": platform.system(),
+        "release": platform.release(),
+        "architecture": platform.machine(),
+        "python": sys.executable,
+        "python_version": platform.python_version(),
+        "pid": os.getpid(),
+        "cwd": str(Path.cwd()),
+    }
+    slurm = {
+        name: os.environ[name]
+        for name in (
+            "SLURM_CLUSTER_NAME",
+            "SLURM_JOB_ID",
+            "SLURM_JOB_NAME",
+            "SLURM_JOB_PARTITION",
+            "SLURM_JOB_NODELIST",
+            "SLURM_STEP_ID",
+            "SLURM_STEP_NODELIST",
+            "SLURM_NODEID",
+            "SLURM_PROCID",
+            "SLURM_CPUS_ON_NODE",
+            "SLURM_CPUS_PER_TASK",
+            "SLURM_MEM_PER_NODE",
+            "SLURM_MEM_PER_CPU",
+            "SLURM_JOB_GPUS",
+            "SLURM_STEP_GPUS",
+            "CUDA_VISIBLE_DEVICES",
+        )
+        if name in os.environ
+    }
+    if slurm:
+        identity["slurm"] = slurm
+    event("node", role=role, identity=identity)
 
 
 class WorkerError(RuntimeError):
@@ -242,6 +290,7 @@ class Runtime:
 def ensure_environment(runtime, path, server=False, marimo=False):
     python = path / "bin" / "python"
     if not path.exists() and not path.is_symlink():
+        event("status", message=f"Creating environment: {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
         command = [sys.executable, "-m", "venv"]
         if not server:
@@ -249,6 +298,10 @@ def ensure_environment(runtime, path, server=False, marimo=False):
         runtime.command([*command, str(path)])
         if server:
             packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
+            event(
+                "status",
+                message=f"Installing notebook dependencies: {', '.join(packages)}",
+            )
             runtime.command([str(python), "-m", "pip", "install", *packages])
     if not python.is_file() or not os.access(python, os.X_OK):
         raise WorkerError(
@@ -381,19 +434,29 @@ def run(options):
     old_handlers = {}
     kernel_directory = None
     try:
+        scheduled = options.get("queue") is not None or options.get("slurm") is not None
+        log_node(
+            options.get("_node_role", "access" if scheduled else "access and compute")
+        )
         for sig in (signal.SIGTERM, signal.SIGINT):
             old_handlers[sig] = signal.signal(sig, lambda *_: runtime.stop.set())
         monitor_stdin(runtime.stop)
         if options.get("workdir"):
             os.chdir(Path(options["workdir"]).expanduser())
         marimo = options.get("marimo", False)
-        if options.get("queue") is not None or options.get("slurm") is not None:
+        if scheduled:
             extra = slurm_arguments(options.get("slurm"))
             source = globals().get("WORKER_SOURCE")
             if not source:
                 raise WorkerError("SLURM execution requires embedded WORKER_SOURCE")
             script = "WORKER_SOURCE = " + repr(source) + "\n" + source
-            nested = dict(options, queue=None, slurm=None, workdir=str(Path.cwd()))
+            nested = dict(
+                options,
+                queue=None,
+                slurm=None,
+                workdir=str(Path.cwd()),
+                _node_role="compute",
+            )
             command = ["srun", "--unbuffered"]
             if options.get("queue"):
                 command += ["--partition", options["queue"]]
@@ -407,9 +470,17 @@ def run(options):
                 script,
                 json.dumps(nested),
             ]
+            event(
+                "status",
+                message="Submitting SLURM job"
+                + (f" on partition {options['queue']}" if options.get("queue") else "")
+                + (f" ({shlex.join(extra)})" if extra else "")
+                + "; waiting for a compute node.",
+            )
             worker, messages = runtime.spawn(command, capture=True)
             data = wait_nested(runtime, worker, messages)
             port = free_port()
+            event("status", message=f"Opening compute-node tunnel to {data['host']}.")
             tunnel, _ = runtime.spawn(
                 [
                     "ssh",
@@ -456,6 +527,12 @@ def run(options):
                 raise WorkerError(
                     "The target and notebook server environments must be separate"
                 )
+            event(
+                "status",
+                message=f"Preparing notebook in {Path.cwd()}\n"
+                f"Kernel environment: {target_path}\n"
+                f"Server environment: {server_path}",
+            )
             target = ensure_environment(runtime, target_path)
             server = ensure_environment(
                 runtime, server_path, server=True, marimo=marimo
@@ -538,6 +615,12 @@ def run(options):
                     f"--IdentityProvider.token={token}",
                     "--MappingKernelManager.default_kernel_name=qibocal",
                 ]
+            event(
+                "status",
+                message=(
+                    f"Starting {'Marimo' if marimo else 'JupyterLab'} on port {port}."
+                ),
+            )
             process, _ = runtime.spawn(command, env=env)
             processes = [process]
         wait_http(runtime, port, token, path, marimo, processes)
