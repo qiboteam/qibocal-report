@@ -110,7 +110,8 @@ def test_environment_resolution(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     "server, marimo", [(False, False), (True, False), (True, True)]
 )
-def test_new_environment_commands(tmp_path, server, marimo):
+def test_new_environment_commands(tmp_path, monkeypatch, server, marimo):
+    monkeypatch.setattr(worker.util, "find_spec", lambda name: object())
     runtime = MagicMock()
     path = tmp_path / "environment"
 
@@ -138,6 +139,62 @@ def test_new_environment_commands(tmp_path, server, marimo):
         ]
     else:
         assert runtime.command.call_count == 1
+
+
+@pytest.mark.parametrize("marimo", [False, True])
+def test_server_environment_without_ensurepip(tmp_path, monkeypatch, marimo):
+    monkeypatch.setattr(
+        worker.util,
+        "find_spec",
+        lambda name: object() if name == "pip" else None,
+    )
+    path = tmp_path / "server"
+    runtime = MagicMock()
+
+    def command(arguments):
+        if arguments[1:3] == ["-m", "venv"]:
+            (path / "bin").mkdir(parents=True)
+            (path / "bin/python").symlink_to(sys.executable)
+
+    runtime.command.side_effect = command
+    python = worker.ensure_environment(runtime, path, server=True, marimo=marimo)
+    assert runtime.command.call_args_list[0].args[0] == [
+        sys.executable,
+        "-m",
+        "venv",
+        "--without-pip",
+        str(path),
+    ]
+    packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
+    expected = [sys.executable, "-m", "pip", "--python", python, "install", *packages]
+    assert runtime.command.call_args_list[1].args[0] == expected
+
+
+def test_server_without_installer_fails_before_creation(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker.util, "find_spec", lambda name: None)
+    runtime = MagicMock()
+    path = tmp_path / "server"
+    with pytest.raises(worker.WorkerError, match="pip >= 22.3"):
+        worker.ensure_environment(runtime, path, server=True)
+    assert not path.exists()
+    runtime.command.assert_not_called()
+    runtime.command.side_effect = worker.WorkerError("import failed")
+    with pytest.raises(worker.WorkerError, match="no ensurepip"):
+        worker.server_sites(runtime, "/env/bin/python", False)
+
+
+def test_missing_server_dependencies_without_ensurepip(monkeypatch):
+    monkeypatch.setattr(
+        worker.util, "find_spec", lambda name: object() if name == "pip" else None
+    )
+    runtime = MagicMock()
+    runtime.command.side_effect = worker.WorkerError("import failed")
+    with pytest.raises(
+        worker.WorkerError,
+        match=r"-m pip --python /env/bin/python install jupyterlab ipykernel",
+    ):
+        worker.server_sites(runtime, "/env/bin/python", False)
+    assert runtime.command.call_count == 1
 
 
 def test_existing_environment_never_modified(tmp_path):
@@ -279,20 +336,71 @@ def test_slurm_options():
     ]
 
 
+def test_node_addresses():
+    runtime = MagicMock()
+    runtime.command.return_value = (
+        "127.0.0.1 ::1 0.0.0.0 :: 169.254.1.1 fe80::1 224.0.0.1 ff02::1 "
+        "192.0.2.10 2001:db8::10 192.0.2.10\n"
+    )
+    assert worker.node_addresses(runtime) == ["192.0.2.10", "2001:db8::10"]
+    runtime.command.assert_called_once_with(["hostname", "-I"], capture=True)
+
+
+@pytest.mark.parametrize("result", ["", "127.0.0.1 fe80::1", "not-an-ip"])
+def test_node_addresses_fail_explicitly(result):
+    runtime = MagicMock()
+    runtime.command.return_value = result
+    with pytest.raises(worker.WorkerError):
+        worker.node_addresses(runtime)
+
+
+@pytest.mark.parametrize(
+    "access, compute, expected",
+    [
+        (
+            ["198.51.100.10", "192.0.2.10"],
+            ["203.0.113.20", "192.0.2.20"],
+            "192.0.2.20",
+        ),
+        (
+            ["192.0.2.130"],
+            ["192.0.2.20", "192.0.2.140"],
+            "192.0.2.140",
+        ),
+        (
+            ["2001:db8:1::10"],
+            ["2001:db8:2::20", "2001:db8:1::20"],
+            "2001:db8:1::20",
+        ),
+        (["192.0.2.10", "2001:db8::10"], ["192.0.2.20"], "192.0.2.20"),
+    ],
+)
+def test_compute_address_longest_network_prefix(access, compute, expected):
+    assert worker.compute_address(access, compute) == expected
+
+
+def test_compute_address_requires_matching_family():
+    with pytest.raises(worker.WorkerError, match="no common IP address family"):
+        worker.compute_address(["192.0.2.10"], ["2001:db8::20"])
+
+
 @pytest.mark.parametrize("marimo", [False, True])
-def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo):
+@pytest.mark.parametrize("ipv6", [False, True])
+def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo, ipv6):
+    access_addresses = ["2001:db8::10"] if ipv6 else ["192.0.2.10"]
+    compute_host = "2001:db8::20" if ipv6 else "192.0.2.20"
     runtime = worker.Runtime(5)
     process = MagicMock()
     process.poll.return_value = None
-    tunnel = MagicMock()
-    tunnel.poll.return_value = None
+    forwarder = MagicMock()
+    forwarder.port = 9100
     messages = queue.Queue()
     messages.put("scheduler progress\n")
     messages.put(
         worker.READY_PREFIX
         + json.dumps(
             {
-                "host": "compute-1",
+                "host": compute_host,
                 "port": 8100,
                 "token": "secret",
                 "path": "/" if marimo else "/lab",
@@ -313,12 +421,13 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo):
 
     with (
         patch.object(worker, "Runtime", return_value=runtime),
-        patch.object(
-            runtime, "spawn", side_effect=[(process, messages), (tunnel, queue.Queue())]
-        ) as spawn,
+        patch.object(runtime, "spawn", return_value=(process, messages)) as spawn,
+        patch.object(worker, "Forwarder", return_value=forwarder) as forward,
         patch.object(runtime, "close") as close,
         patch.object(worker, "monitor_stdin"),
-        patch.object(worker, "free_port", return_value=9100),
+        patch.object(
+            worker, "node_addresses", return_value=access_addresses
+        ) as addresses,
         patch.object(worker, "wait_http") as wait,
         patch.object(worker, "announce", side_effect=announce_and_stop),
     ):
@@ -344,23 +453,12 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo):
     nested = json.loads(command[12])
     assert nested["queue"] is None and nested["slurm"] is None
     assert nested["_node_role"] == "compute"
+    assert nested["_access_addresses"] == access_addresses
     assert nested["workdir"] == str(tmp_path / "work")
-    assert spawn.call_args_list[1].args[0] == [
-        "ssh",
-        "-N",
-        "-T",
-        "-o",
-        "ExitOnForwardFailure=yes",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "ServerAliveInterval=30",
-        "-o",
-        "ServerAliveCountMax=3",
-        "-L",
-        "127.0.0.1:9100:127.0.0.1:8100",
-        "compute-1",
-    ]
+    forward.assert_called_once_with(compute_host, 8100)
+    forwarder.close.assert_called_once()
+    addresses.assert_called_once_with(runtime)
+    assert spawn.call_count == 1
     wait.assert_called_once()
     close.assert_called_once()
     output = capsys.readouterr()
@@ -382,9 +480,33 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo):
     "data",
     [
         {"host": "-bad", "port": 123, "token": "a", "path": "/lab"},
-        {"host": "node", "port": True, "token": "a", "path": "/lab"},
-        {"host": "node", "port": 123, "token": "", "path": "/lab"},
-        {"host": "node", "port": 123, "token": "a", "path": "//evil"},
+        {"host": "192.0.2.20", "port": True, "token": "a", "path": "/lab"},
+        {"host": "192.0.2.20", "port": 123, "token": "", "path": "/lab"},
+        {"host": "192.0.2.20", "port": 123, "token": "a", "path": "//evil"},
+        {
+            "host": "not-an-ip",
+            "port": 123,
+            "token": "a",
+            "path": "/lab",
+        },
+        {
+            "host": "127.0.0.1",
+            "port": 123,
+            "token": "a",
+            "path": "/lab",
+        },
+        {
+            "host": "fe80::1%eth0",
+            "port": 123,
+            "token": "a",
+            "path": "/lab",
+        },
+        {
+            "host": "",
+            "port": 123,
+            "token": "a",
+            "path": "/lab",
+        },
     ],
 )
 def test_nested_readiness_validation(data):
@@ -402,6 +524,133 @@ def test_nested_timeout_and_stop():
     runtime.stop.set()
     with pytest.raises(worker.Stopped):
         runtime.check()
+
+
+@pytest.mark.parametrize("marimo", [False, True])
+@pytest.mark.parametrize("host", ["192.0.2.20", "2001:db8::20"])
+def test_compute_worker_binds_selected_interface(tmp_path, monkeypatch, marimo, host):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    runtime = worker.Runtime(5)
+    process = MagicMock()
+    process.poll.return_value = None
+
+    def announce_and_stop(*args):
+        runtime.stop.set()
+
+    with (
+        patch.object(worker, "Runtime", return_value=runtime),
+        patch.object(runtime, "spawn", return_value=(process, queue.Queue())) as spawn,
+        patch.object(runtime, "command", return_value='["/target-sites"]'),
+        patch.object(runtime, "close"),
+        patch.object(worker, "monitor_stdin"),
+        patch.object(worker, "node_addresses", return_value=[host]) as addresses,
+        patch.object(
+            worker,
+            "ensure_environment",
+            side_effect=["/target/python", "/server/python"],
+        ),
+        patch.object(worker, "server_sites", return_value=["/server-sites"]),
+        patch.object(worker, "free_port", return_value=8100) as port,
+        patch.object(worker, "wait_http") as wait,
+        patch.object(worker, "announce", side_effect=announce_and_stop) as announce,
+    ):
+        worker.run(
+            {
+                "marimo": marimo,
+                "_node_role": "compute",
+                "_access_addresses": [host.replace("20", "10")],
+            }
+        )
+    addresses.assert_called_once_with(runtime)
+    port.assert_called_once_with(host)
+    command = spawn.call_args.args[0]
+    if marimo:
+        assert command[command.index("--host") + 1] == host
+    else:
+        assert f"--ServerApp.ip={host}" in command
+    assert spawn.call_count == 1
+    assert wait.call_args.kwargs["host"] == host
+    assert announce.call_args.args[3] == host
+
+
+def test_forwarder_bidirectional_and_half_close():
+    payload = b"notebook websocket data" * 10000
+    received = queue.Queue()
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        listener.settimeout(5)
+
+        def serve():
+            with listener.accept()[0] as connection:
+                connection.settimeout(5)
+                connection.sendall(b"connected")
+                chunks = []
+                while chunk := connection.recv(65536):
+                    chunks.append(chunk)
+                received.put(b"".join(chunks))
+                connection.sendall(payload)
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        forwarder = worker.Forwarder("127.0.0.1", listener.getsockname()[1])
+        try:
+            assert forwarder.server.server_address[0] == "127.0.0.1"
+            with socket.create_connection(
+                ("127.0.0.1", forwarder.port), timeout=5
+            ) as client:
+                assert client.recv(9) == b"connected"
+                client.sendall(payload)
+                client.shutdown(socket.SHUT_WR)
+                chunks = []
+                while chunk := client.recv(65536):
+                    chunks.append(chunk)
+                assert b"".join(chunks) == payload
+            assert received.get(timeout=5) == payload
+        finally:
+            forwarder.close()
+            thread.join(timeout=5)
+        assert not forwarder.thread.is_alive()
+        assert not thread.is_alive()
+        with pytest.raises(OSError):
+            socket.create_connection(("127.0.0.1", forwarder.port), timeout=0.2)
+
+
+def test_forwarder_shutdown_closes_idle_connections():
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        listener.settimeout(5)
+        forwarder = worker.Forwarder("127.0.0.1", listener.getsockname()[1])
+        try:
+            with (
+                socket.create_connection(
+                    ("127.0.0.1", forwarder.port), timeout=5
+                ) as client,
+                listener.accept()[0] as remote,
+            ):
+                remote.settimeout(5)
+                forwarder.close()
+                assert client.recv(1) == b""
+                assert remote.recv(1) == b""
+        finally:
+            if not forwarder.stop.is_set():
+                forwarder.close()
+
+
+def test_forwarder_connection_failure_is_reported(capsys):
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    forwarder = worker.Forwarder("127.0.0.1", port)
+    try:
+        with socket.create_connection(
+            ("127.0.0.1", forwarder.port), timeout=5
+        ) as client:
+            assert client.recv(1) == b""
+        assert "Notebook forwarding connection failed" in capsys.readouterr().err
+    finally:
+        forwarder.close()
 
 
 def test_http_authenticated_readiness_bypasses_proxy(monkeypatch):
@@ -501,7 +750,10 @@ HTTPServer(('127.0.0.1', port), Handler).serve_forever()
 @pytest.mark.parametrize("marimo", [False, True])
 @pytest.mark.parametrize("shutdown", ["eof", "signal"])
 @pytest.mark.parametrize("role", ["access and compute", "compute"])
-def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown, role):
+@pytest.mark.parametrize("runtime_exists", [False, True])
+def test_real_transported_script_lifecycle(
+    tmp_path, marimo, shutdown, role, runtime_exists
+):
     cache = tmp_path / "cache"
     target = tmp_path / "target"
     server = (
@@ -532,7 +784,8 @@ def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown, role):
     script = "WORKER_SOURCE = " + repr(source) + "\n" + source
     pidfile = tmp_path / "server.pid"
     runtime_directory = tmp_path / "runtime"
-    runtime_directory.mkdir()
+    if runtime_exists:
+        runtime_directory.mkdir()
     env = dict(
         os.environ,
         XDG_CACHE_HOME=str(cache),
@@ -586,6 +839,9 @@ def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown, role):
         assert process.stdout.read() == ""
         logs = process.stderr.read()
         assert "child stdout log" in logs and "child stderr log" in logs
+        assert ("using the system temporary directory" in logs) is (
+            not marimo and not runtime_exists
+        )
         node_line = logs.splitlines()[0]
         prefix = worker.EVENT_PREFIX
         assert node_line.startswith(prefix)

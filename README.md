@@ -105,6 +105,16 @@ be named in `~/.config/qibocal-report/notebooks.json` (or under
 Existing kernel environments remain unchanged; missing ones are created empty.
 Named environments live under `$XDG_CACHE_HOME/qibocal/envs/` (fallback:
 `~/.cache/qibocal/envs/`). Server dependencies are installed separately on first use.
+If the computing node lacks `ensurepip`, installation uses the worker Python's
+pip (22.3+) to target the server environment without changing
+system packages. Existing environments, including incomplete ones left by a
+failed setup, require explicit repair using the command reported by the launcher.
+SLURM address discovery and the notebook share one allocation. The launcher uses
+the compute IP with the longest network prefix in common with an access-node IP,
+so compute-hostname resolution and compute-node SSH access are unnecessary.
+The token-protected server listens on that selected interface; an access-node
+loopback relay preserves the local browser URL. The access-to-compute hop is
+unencrypted and requires a trusted computing network.
 
 Notebook dispatch is documented outside the web frontend in the installed
 **`man qibocal`** page ([source](data/share/man/man1/qibocal.1)), including networking

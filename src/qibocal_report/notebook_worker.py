@@ -1,20 +1,24 @@
 """Self-contained notebook worker, also executed on remote hosts with ``python -c``."""
 
 import getpass
+import ipaddress
 import json
 import math
 import os
 import platform
 import queue
 import secrets
+import select
 import shlex
 import signal
 import socket
+import socketserver
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from importlib import util
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import urlencode
@@ -176,10 +180,99 @@ def cache_home():
     return Path(os.environ.get("XDG_CACHE_HOME") or "~/.cache").expanduser().absolute()
 
 
-def free_port():
-    with socket.socket() as listener:
-        listener.bind(("127.0.0.1", 0))
+def free_port(host="127.0.0.1"):
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family) as listener:
+        listener.bind((host, 0))
         return listener.getsockname()[1]
+
+
+def usable_address(value):
+    address = ipaddress.ip_address(value)
+    return not (
+        address.is_loopback
+        or address.is_link_local
+        or address.is_multicast
+        or address.is_unspecified
+    )
+
+
+def node_addresses(runtime):
+    result = runtime.command(["hostname", "-I"], capture=True)
+    addresses = []
+    for value in result.split():
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError as error:
+            raise WorkerError(
+                f"hostname -I returned an invalid IP: {value!r}"
+            ) from error
+        if usable_address(address):
+            addresses.append(str(address))
+    if not addresses:
+        raise WorkerError("hostname -I reported no usable node IP addresses")
+    return list(dict.fromkeys(addresses))
+
+
+def compute_address(access_addresses, compute_addresses):
+    best = None
+    longest = -1
+    for local in map(ipaddress.ip_address, access_addresses):
+        for remote in map(ipaddress.ip_address, compute_addresses):
+            if local.version != remote.version:
+                continue
+            prefix = local.max_prefixlen - (int(local) ^ int(remote)).bit_length()
+            if prefix > longest:
+                best, longest = str(remote), prefix
+    if best is None:
+        raise WorkerError("Access and compute nodes have no common IP address family")
+    return best
+
+
+class Forwarder:
+    """Relay access-node loopback to the selected compute interface."""
+
+    def __init__(self, host, port):
+        self.stop = threading.Event()
+        stop = self.stop
+
+        class Handler(socketserver.BaseRequestHandler):
+            def handle(self):
+                try:
+                    with socket.create_connection((host, port), timeout=5) as remote:
+                        self.request.settimeout(5)
+                        peers = {self.request: remote, remote: self.request}
+                        readers = list(peers)
+                        while readers and not stop.is_set():
+                            readable, _, _ = select.select(readers, [], [], 0.2)
+                            for source in readable:
+                                data = source.recv(65536)
+                                if data:
+                                    peers[source].sendall(data)
+                                else:
+                                    readers.remove(source)
+                                    peers[source].shutdown(socket.SHUT_WR)
+                except OSError as error:
+                    if not stop.is_set():
+                        event(
+                            "status",
+                            message=f"Notebook forwarding connection failed: {error}",
+                        )
+
+        self.server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), Handler)
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(
+            target=self.server.serve_forever,
+            kwargs={"poll_interval": 0.1},
+            daemon=True,
+        )
+        self.thread.start()
+
+    def close(self):
+        self.stop.set()
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
 
 
 def stop_process(process):
@@ -287,22 +380,37 @@ class Runtime:
             thread.join(timeout=1)
 
 
+def server_install_command(python, packages, seeded):
+    if seeded:
+        return [python, "-m", "pip", "install", *packages]
+    if util.find_spec("pip") is not None:
+        return [sys.executable, "-m", "pip", "--python", python, "install", *packages]
+    raise WorkerError(
+        "Computing-node Python has no ensurepip and no package installer is "
+        "available. Install its python3-venv package, provide pip >= 22.3 "
+        "for the worker's Python."
+    )
+
+
 def ensure_environment(runtime, path, server=False, marimo=False):
     python = path / "bin" / "python"
     if not path.exists() and not path.is_symlink():
+        seeded = server and util.find_spec("ensurepip") is not None
+        if server:
+            packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
+            install = server_install_command(str(python), packages, seeded)
         event("status", message=f"Creating environment: {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
         command = [sys.executable, "-m", "venv"]
-        if not server:
+        if not seeded:
             command.append("--without-pip")
         runtime.command([*command, str(path)])
         if server:
-            packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
             event(
                 "status",
                 message=f"Installing notebook dependencies: {', '.join(packages)}",
             )
-            runtime.command([str(python), "-m", "pip", "install", *packages])
+            runtime.command(install)
     if not python.is_file() or not os.access(python, os.X_OK):
         raise WorkerError(
             f"Environment {path} has no executable bin/python; repair it manually"
@@ -327,9 +435,12 @@ def server_sites(runtime, python, marimo):
         sites = json.loads(result)
     except (WorkerError, json.JSONDecodeError) as error:
         runtime.check()
+        install = server_install_command(
+            python, packages, seeded=util.find_spec("ensurepip") is not None
+        )
         raise WorkerError(
             f"Notebook dependencies unavailable. Repair the server environment with: "
-            f"{shlex.join([python, '-m', 'pip', 'install', *packages])}"
+            f"{shlex.join(install)}"
         ) from error
     return sites
 
@@ -344,10 +455,11 @@ def bootstrap(sites, module):
     )
 
 
-def wait_http(runtime, port, token, path, marimo, processes):
+def wait_http(runtime, port, token, path, marimo, processes, host="127.0.0.1"):
     opener = build_opener(ProxyHandler({}))
     query = urlencode({"access_token" if marimo else "token": token})
-    url = f"http://127.0.0.1:{port}{path}?{query}"
+    authority = f"[{host}]" if ":" in host else host
+    url = f"http://{authority}:{port}{path}?{query}"
     while True:
         runtime.check()
         if any(process.poll() is not None for process in processes):
@@ -365,12 +477,15 @@ def wait_http(runtime, port, token, path, marimo, processes):
         runtime.stop.wait(0.1)
 
 
-def announce(port, token, path):
+def announce(port, token, path, host=None):
+    data = {
+        "host": host or socket.gethostname(),
+        "port": port,
+        "token": token,
+        "path": path,
+    }
     print(
-        READY_PREFIX
-        + json.dumps(
-            {"host": socket.gethostname(), "port": port, "token": token, "path": path}
-        ),
+        READY_PREFIX + json.dumps(data),
         flush=True,
     )
 
@@ -394,19 +509,14 @@ def wait_nested(runtime, process, messages):
             valid = (
                 isinstance(data, dict)
                 and isinstance(data.get("host"), str)
-                and bool(data["host"])
-                and not data["host"].startswith("-")
-                and all(
-                    character.isalnum() or character in ".-_"
-                    for character in data["host"]
-                )
+                and usable_address(data["host"])
                 and type(data.get("port")) is int
                 and 0 < data["port"] < 65536
                 and isinstance(data.get("token"), str)
                 and bool(data["token"])
                 and data.get("path") in {"/", "/lab"}
             )
-        except (json.JSONDecodeError, TypeError):
+        except (ValueError, TypeError):
             valid = False
         if not valid:
             raise WorkerError("Invalid nested notebook readiness response")
@@ -433,6 +543,7 @@ def run(options):
     runtime = Runtime(timeout)
     old_handlers = {}
     kernel_directory = None
+    forwarder = None
     try:
         scheduled = options.get("queue") is not None or options.get("slurm") is not None
         log_node(
@@ -444,11 +555,13 @@ def run(options):
         if options.get("workdir"):
             os.chdir(Path(options["workdir"]).expanduser())
         marimo = options.get("marimo", False)
+        listen_host = "127.0.0.1"
         if scheduled:
             extra = slurm_arguments(options.get("slurm"))
             source = globals().get("WORKER_SOURCE")
             if not source:
                 raise WorkerError("SLURM execution requires embedded WORKER_SOURCE")
+            access_addresses = node_addresses(runtime)
             script = "WORKER_SOURCE = " + repr(source) + "\n" + source
             nested = dict(
                 options,
@@ -456,6 +569,7 @@ def run(options):
                 slurm=None,
                 workdir=str(Path.cwd()),
                 _node_role="compute",
+                _access_addresses=access_addresses,
             )
             command = ["srun", "--unbuffered"]
             if options.get("queue"):
@@ -479,28 +593,14 @@ def run(options):
             )
             worker, messages = runtime.spawn(command, capture=True)
             data = wait_nested(runtime, worker, messages)
-            port = free_port()
-            event("status", message=f"Opening compute-node tunnel to {data['host']}.")
-            tunnel, _ = runtime.spawn(
-                [
-                    "ssh",
-                    "-N",
-                    "-T",
-                    "-o",
-                    "ExitOnForwardFailure=yes",
-                    "-o",
-                    "BatchMode=yes",
-                    "-o",
-                    "ServerAliveInterval=30",
-                    "-o",
-                    "ServerAliveCountMax=3",
-                    "-L",
-                    f"127.0.0.1:{port}:127.0.0.1:{data['port']}",
-                    data["host"],
-                ]
+            event(
+                "status",
+                message=f"Forwarding access-node loopback to {data['host']}.",
             )
+            forwarder = Forwarder(data["host"], data["port"])
+            port = forwarder.port
             token, path = data["token"], data["path"]
-            processes = [worker, tunnel]
+            processes = [worker]
 
             def drain():
                 for line in iter(messages.get, None):
@@ -510,6 +610,15 @@ def run(options):
             runtime.threads.append(thread)
             thread.start()
         else:
+            if "_access_addresses" in options:
+                listen_host = compute_address(
+                    options["_access_addresses"], node_addresses(runtime)
+                )
+                event(
+                    "status",
+                    message=f"Selected compute interface: {listen_host}. "
+                    "The notebook is token-protected on this interface.",
+                )
             target_path = environment_path(options.get("venv", "qibocal"))
             server_path = (
                 cache_home()
@@ -553,7 +662,7 @@ def run(options):
                     capture=True,
                 )
             )
-            port, token = free_port(), secrets.token_urlsafe(32)
+            port, token = free_port(listen_host), secrets.token_urlsafe(32)
             env = os.environ.copy()
             target_pythonpath = os.pathsep.join(
                 [*target_sites, *filter(None, [env.get("PYTHONPATH")]), *sites]
@@ -567,7 +676,7 @@ def run(options):
                     bootstrap(sites, "marimo"),
                     "edit",
                     "--host",
-                    "127.0.0.1",
+                    listen_host,
                     "--port",
                     str(port),
                     "--headless",
@@ -577,9 +686,18 @@ def run(options):
                 ]
             else:
                 path = "/lab"
+                runtime_directory = os.environ.get("XDG_RUNTIME_DIR") or None
+                if runtime_directory and not Path(runtime_directory).is_dir():
+                    event(
+                        "status",
+                        message=f"Runtime directory {runtime_directory} is missing; "
+                        "using the system temporary directory "
+                        "for kernel specifications.",
+                    )
+                    runtime_directory = None
                 kernel_directory = tempfile.TemporaryDirectory(
                     prefix="qibocal-kernels-",
-                    dir=os.environ.get("XDG_RUNTIME_DIR") or None,
+                    dir=runtime_directory,
                 )
                 kernel_root = Path(kernel_directory.name)
                 kernel = kernel_root / "kernels" / "qibocal"
@@ -609,7 +727,7 @@ def run(options):
                     "-m",
                     "jupyterlab",
                     "--no-browser",
-                    "--ServerApp.ip=127.0.0.1",
+                    f"--ServerApp.ip={listen_host}",
                     f"--ServerApp.port={port}",
                     "--ServerApp.port_retries=0",
                     f"--IdentityProvider.token={token}",
@@ -623,15 +741,20 @@ def run(options):
             )
             process, _ = runtime.spawn(command, env=env)
             processes = [process]
-        wait_http(runtime, port, token, path, marimo, processes)
+        wait_http(runtime, port, token, path, marimo, processes, host=listen_host)
         runtime.check()
-        announce(port, token, path)
+        if scheduled or listen_host == "127.0.0.1":
+            announce(port, token, path)
+        else:
+            announce(port, token, path, listen_host)
         while not runtime.stop.wait(0.1):
             if any(process.poll() is not None for process in processes):
                 raise WorkerError("Notebook server or forwarding process exited")
     except Stopped:
         pass
     finally:
+        if forwarder is not None:
+            forwarder.close()
         runtime.close()
         if kernel_directory is not None:
             kernel_directory.cleanup()

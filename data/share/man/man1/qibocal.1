@@ -100,16 +100,26 @@ tunnel setup. Default: 300. Increase this for long SLURM queue waits.
 Local execution requires Python 3.10+ with venv support. SSH execution requires
 OpenSSH locally and python3 (3.10+) with venv support on the access
 and computing nodes. SLURM execution requires srun on the access node
-and non-interactive
-SSH access from the access node to the allocated computing node, with known
-host keys already configured. Notebook servers bind only to loopback.
-SLURM sessions tunnel computing-node loopback to access-node loopback; SSH
-sessions additionally tunnel access-node loopback to the local machine.
+and network access from the access node to the allocated computing node.
+Both nodes need hostname \-I to report their interface addresses.
+The launcher selects a computing-node IP by the longest common network prefix
+with an access-node address; hostname resolution and SSH access to the computing
+node are not required.
+Address discovery and the notebook run in the same single SLURM allocation.
+Local and unscheduled SSH notebook servers bind only to loopback.
+SLURM notebook servers bind to the selected computing-node interface, not all
+interfaces, and are protected by a generated authentication token.
+The access worker relays its loopback port to that interface; SSH sessions
+tunnel access-node loopback to the local machine. The access-to-compute network
+hop is not encrypted, so use SLURM notebooks only on a trusted computing network.
 Every session uses a generated authentication token.
 .PP
 Server dependencies are installed on first use into a separate managed
-environment, not the kernel environment. This requires pip and package-index
-access on the computing node. Existing server environments are reused as-is.
+environment, not the kernel environment. This requires package-index access
+on the computing node and either ensurepip or pip (22.3+) in the worker's Python.
+If ensurepip is unavailable, the worker creates a pip-free
+server environment and targets it with the external installer; system packages
+are not changed. Existing server environments are reused as-is.
 If first-time installation fails, repair that server environment explicitly
 using the command reported by the launcher; it is never implicitly overwritten.
 Jupyter exposes the selected environment as the default kernel named
@@ -204,7 +214,8 @@ Each node uses its own value; the local value is not forwarded over SSH.
 .TP
 .B XDG_RUNTIME_DIR
 Location for temporary notebook kernel specifications on the computing node.
-When unset or empty, use the system temporary directory.
+When unset, empty, or pointing to a missing directory, use the system temporary
+directory. A missing directory is reported in the startup diagnostics.
 .TP
 .B QIBOCAL_REPORT_CONFIG_DIR
 Override the local report and notebook connection configuration directory.
