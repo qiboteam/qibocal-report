@@ -102,16 +102,21 @@ without ANSI colors; the authenticated URL stays on its own line on stdout.
 Use `-n` to print the URL without opening a browser. Notebook connections can
 be named in `~/.config/qibocal-report/notebooks.json` (or under
 `$XDG_CONFIG_HOME`) and invoked with `qibocal notebook myconnection`.
-Existing kernel environments remain unchanged. A missing default `qibocal`
+Existing Jupyter kernel environments remain unchanged. With `--marimo`, Marimo is
+installed directly into the target environment and launched with its Python;
+no separate Marimo environment is used. A missing default `qibocal`
 environment is created with the latest public Qibocal release (`pip install
 qibocal`), ready to use or replace with a development version. Other missing
-kernel environments are created empty.
+kernel environments are created with `pip` but no calibration packages.
 Named environments live under `$XDG_CACHE_HOME/qibocal/envs/` (fallback:
-`~/.cache/qibocal/envs/`). Server dependencies are installed separately on first use.
+`~/.cache/qibocal/envs/`). Jupyter server dependencies are installed separately
+on first use into the managed `jupyter` environment.
 If the computing node lacks `ensurepip`, installation uses the worker Python's
-pip (22.3+) to target the new environment without changing
-system packages. Existing environments, including incomplete ones left by a
-failed setup, require explicit repair using the command reported by the launcher.
+pip (22.3+) to install `pip` and any requested dependencies into the new environment
+without changing system packages; this requires package-index access even for
+otherwise empty kernel environments. Existing Jupyter environments, including incomplete
+ones left by a failed setup, require explicit repair using the command reported
+by the launcher.
 SLURM address discovery and the notebook share one allocation. The launcher uses
 the compute IP with the longest network prefix in common with an access-node IP,
 so compute-hostname resolution and compute-node SSH access are unnecessary.

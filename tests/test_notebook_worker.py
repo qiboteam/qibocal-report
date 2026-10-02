@@ -108,15 +108,14 @@ def test_environment_resolution(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "server, marimo, packages",
+    "server, packages",
     [
-        (False, False, ()),
-        (False, False, ("qibocal",)),
-        (True, False, ()),
-        (True, True, ()),
+        (False, ()),
+        (False, ("qibocal",)),
+        (True, ()),
     ],
 )
-def test_new_environment_commands(tmp_path, monkeypatch, server, marimo, packages):
+def test_new_environment_commands(tmp_path, monkeypatch, server, packages):
     monkeypatch.setattr(worker.util, "find_spec", lambda name: object())
     runtime = MagicMock()
     path = tmp_path / "environment"
@@ -129,13 +128,13 @@ def test_new_environment_commands(tmp_path, monkeypatch, server, marimo, package
             python.chmod(0o700)
 
     runtime.command.side_effect = command
-    assert worker.ensure_environment(
-        runtime, path, server, marimo, packages=packages
-    ) == str(path / "bin/python")
+    assert worker.ensure_environment(runtime, path, server, packages=packages) == str(
+        path / "bin/python"
+    )
     creation = runtime.command.call_args_list[0].args[0]
-    assert ("--without-pip" in creation) is (not (server or packages))
+    assert "--without-pip" not in creation
     if server:
-        packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
+        packages = ["jupyterlab", "ipykernel"]
     if packages:
         assert runtime.command.call_args_list[1].args[0] == [
             str(path / "bin/python"),
@@ -149,9 +148,14 @@ def test_new_environment_commands(tmp_path, monkeypatch, server, marimo, package
 
 
 @pytest.mark.parametrize(
-    "server, marimo", [(False, False), (True, False), (True, True)]
+    "server, packages",
+    [
+        (False, ()),
+        (False, ("qibocal",)),
+        (True, ()),
+    ],
 )
-def test_environment_without_ensurepip(tmp_path, monkeypatch, server, marimo):
+def test_environment_without_ensurepip(tmp_path, monkeypatch, server, packages):
     monkeypatch.setattr(
         worker.util,
         "find_spec",
@@ -166,9 +170,7 @@ def test_environment_without_ensurepip(tmp_path, monkeypatch, server, marimo):
             (path / "bin/python").symlink_to(sys.executable)
 
     runtime.command.side_effect = command
-    python = worker.ensure_environment(
-        runtime, path, server=server, marimo=marimo, packages=("qibocal",)
-    )
+    python = worker.ensure_environment(runtime, path, server=server, packages=packages)
     assert runtime.command.call_args_list[0].args[0] == [
         sys.executable,
         "-m",
@@ -176,29 +178,53 @@ def test_environment_without_ensurepip(tmp_path, monkeypatch, server, marimo):
         "--without-pip",
         str(path),
     ]
-    packages = (
-        (["marimo"] if marimo else ["jupyterlab", "ipykernel"])
-        if server
-        else ["qibocal"]
-    )
-    expected = [sys.executable, "-m", "pip", "--python", python, "install", *packages]
+    packages = ["jupyterlab", "ipykernel"] if server else list(packages)
+    expected = [
+        sys.executable,
+        "-m",
+        "pip",
+        "--python",
+        python,
+        "install",
+        "pip",
+        *packages,
+    ]
     assert runtime.command.call_args_list[1].args[0] == expected
 
 
+@pytest.mark.skipif(worker.util.find_spec("ensurepip") is None, reason="no ensurepip")
+def test_new_empty_environment_has_pip(tmp_path):
+    runtime = MagicMock()
+    runtime.command.side_effect = lambda arguments: subprocess.run(
+        arguments, check=True, capture_output=True, text=True
+    )
+    path = tmp_path / "environment"
+    python = worker.ensure_environment(runtime, path)
+    result = subprocess.run(
+        [python, "-m", "pip", "--version"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert str(path) in result.stdout
+    assert (path / "bin/pip").is_file()
+
+
+@pytest.mark.parametrize("packages", [(), ("qibocal",)])
 @pytest.mark.parametrize("server", [False, True])
 def test_environment_without_installer_fails_before_creation(
-    tmp_path, monkeypatch, server
+    tmp_path, monkeypatch, server, packages
 ):
     monkeypatch.setattr(worker.util, "find_spec", lambda name: None)
     runtime = MagicMock()
     path = tmp_path / "server"
     with pytest.raises(worker.WorkerError, match="pip >= 22.3"):
-        worker.ensure_environment(runtime, path, server=server, packages=("qibocal",))
+        worker.ensure_environment(runtime, path, server=server, packages=packages)
     assert not path.exists()
     runtime.command.assert_not_called()
     runtime.command.side_effect = worker.WorkerError("import failed")
-    with pytest.raises(worker.WorkerError, match="no ensurepip"):
-        worker.server_sites(runtime, "/env/bin/python", False)
+    with pytest.raises(worker.WorkerError, match="no external package installer"):
+        worker.server_sites(runtime, "/env/bin/python")
 
 
 def test_missing_server_dependencies_without_ensurepip(monkeypatch):
@@ -211,7 +237,7 @@ def test_missing_server_dependencies_without_ensurepip(monkeypatch):
         worker.WorkerError,
         match=r"-m pip --python /env/bin/python install jupyterlab ipykernel",
     ):
-        worker.server_sites(runtime, "/env/bin/python", False)
+        worker.server_sites(runtime, "/env/bin/python")
     assert runtime.command.call_count == 1
 
 
@@ -235,7 +261,7 @@ def test_existing_missing_dependencies_actionable():
     with pytest.raises(
         worker.WorkerError, match="python -m pip install jupyterlab ipykernel"
     ):
-        worker.server_sites(runtime, "/env/bin/python", False)
+        worker.server_sites(runtime, "/env/bin/python")
     assert runtime.command.call_count == 1
 
 
@@ -261,7 +287,7 @@ def test_failed_install_is_not_implicitly_retried(tmp_path, server):
     runtime.command.assert_not_called()
     runtime.command.side_effect = worker.WorkerError("missing dependency")
     with pytest.raises(worker.WorkerError, match="Repair the server environment"):
-        worker.server_sites(runtime, python, False)
+        worker.server_sites(runtime, python)
 
 
 def test_overlapping_environments_fail_without_creation(tmp_path, monkeypatch):
@@ -271,7 +297,7 @@ def test_overlapping_environments_fail_without_creation(tmp_path, monkeypatch):
         patch.object(worker, "ensure_environment") as ensure,
         pytest.raises(worker.WorkerError, match="must be separate"),
     ):
-        worker.run({"venv": "notebook-jupyter"})
+        worker.run({"venv": "jupyter"})
     ensure.assert_not_called()
 
 
@@ -279,7 +305,7 @@ def test_symlinked_overlapping_environments_fail_without_creation(
     tmp_path, monkeypatch
 ):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
-    server_path = tmp_path / "qibocal/envs/notebook-jupyter"
+    server_path = tmp_path / "qibocal/envs/jupyter"
     server_path.mkdir(parents=True)
     target_path = tmp_path / "target"
     target_path.symlink_to(server_path, target_is_directory=True)
@@ -292,9 +318,7 @@ def test_symlinked_overlapping_environments_fail_without_creation(
     ensure.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "venv", ["./qibocal/envs", "./qibocal/envs/notebook-jupyter/nested"]
-)
+@pytest.mark.parametrize("venv", ["./qibocal/envs", "./qibocal/envs/jupyter/nested"])
 def test_nested_environments_fail_without_creation(tmp_path, monkeypatch, venv):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     monkeypatch.chdir(tmp_path)
@@ -565,7 +589,9 @@ def test_compute_worker_binds_selected_interface(
     with (
         patch.object(worker, "Runtime", return_value=runtime),
         patch.object(runtime, "spawn", return_value=(process, queue.Queue())) as spawn,
-        patch.object(runtime, "command", return_value='["/target-sites"]'),
+        patch.object(
+            runtime, "command", return_value="true" if marimo else '["/target-sites"]'
+        ) as install,
         patch.object(runtime, "close"),
         patch.object(worker, "monitor_stdin"),
         patch.object(worker, "node_addresses", return_value=[host]) as addresses,
@@ -574,7 +600,8 @@ def test_compute_worker_binds_selected_interface(
             "ensure_environment",
             side_effect=["/target/python", "/server/python"],
         ) as ensure,
-        patch.object(worker, "server_sites", return_value=["/server-sites"]),
+        patch.object(worker, "server_sites", return_value=["/server-sites"]) as sites,
+        patch.object(worker.util, "find_spec", return_value=object()),
         patch.object(worker, "free_port", return_value=8100) as port,
         patch.object(worker, "wait_http") as wait,
         patch.object(worker, "announce", side_effect=announce_and_stop) as announce,
@@ -594,12 +621,82 @@ def test_compute_worker_binds_selected_interface(
     port.assert_called_once_with(host)
     command = spawn.call_args.args[0]
     if marimo:
+        assert ensure.call_count == 1
+        sites.assert_not_called()
+        assert install.call_count == 2
+        assert install.call_args.args[0] == [
+            "/target/python",
+            "-m",
+            "pip",
+            "install",
+            "marimo",
+        ]
+        assert command[:4] == ["/target/python", "-m", "marimo", "edit"]
+        assert spawn.call_args.kwargs["env"].get("PYTHONPATH") == os.environ.get(
+            "PYTHONPATH"
+        )
         assert command[command.index("--host") + 1] == host
     else:
+        assert ensure.call_count == 2
+        assert ensure.call_args_list[1].args == (
+            runtime,
+            tmp_path / "qibocal/envs/jupyter",
+        )
+        assert ensure.call_args_list[1].kwargs == {"server": True}
         assert f"--ServerApp.ip={host}" in command
     assert spawn.call_count == 1
     assert wait.call_args.kwargs["host"] == host
     assert announce.call_args.args[3] == host
+
+
+@pytest.mark.parametrize("seeded", [False, True])
+def test_marimo_install_failure_stops_startup(tmp_path, monkeypatch, seeded):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    runtime = worker.Runtime(5)
+    with (
+        patch.object(worker, "Runtime", return_value=runtime),
+        patch.object(worker, "monitor_stdin"),
+        patch.object(
+            worker, "ensure_environment", return_value="/target/python"
+        ) as ensure,
+        patch.object(worker, "server_sites") as sites,
+        patch.object(
+            worker.util,
+            "find_spec",
+            side_effect=lambda name: object() if seeded or name == "pip" else None,
+        ),
+        patch.object(
+            runtime,
+            "command",
+            side_effect=[
+                json.dumps(seeded),
+                worker.WorkerError("Installation failed"),
+            ],
+        ) as install,
+        patch.object(runtime, "spawn") as spawn,
+        patch.object(runtime, "close"),
+        pytest.raises(worker.WorkerError, match="Installation failed"),
+    ):
+        worker.run({"marimo": True, "venv": "jupyter"})
+    ensure.assert_called_once_with(
+        runtime, tmp_path / "qibocal/envs/jupyter", packages=()
+    )
+    sites.assert_not_called()
+    spawn.assert_not_called()
+    assert install.call_count == 2
+    assert install.call_args.args[0] == (
+        ["/target/python", "-m", "pip", "install", "marimo"]
+        if seeded
+        else [
+            sys.executable,
+            "-m",
+            "pip",
+            "--python",
+            "/target/python",
+            "install",
+            "marimo",
+        ]
+    )
 
 
 def test_forwarder_bidirectional_and_half_close():
@@ -739,6 +836,7 @@ from urllib.parse import parse_qs, urlsplit
 args = sys.argv
 marimo = '--token-password' in args
 if marimo:
+    assert Path(os.environ['EXPECTED_TARGET']).with_name('marimo-installed').is_file()
     port = int(args[args.index('--port') + 1])
     token = args[args.index('--token-password') + 1]
     assert args[args.index('--host') + 1] == '127.0.0.1'
@@ -785,24 +883,28 @@ def test_real_transported_script_lifecycle(
 ):
     cache = tmp_path / "cache"
     target = tmp_path / "target"
-    server = (
-        cache / "qibocal/envs" / ("notebook-marimo" if marimo else "notebook-jupyter")
-    )
+    server = cache / "qibocal/envs/jupyter"
     (target / "bin").mkdir(parents=True)
-    (server / "bin").mkdir(parents=True)
-    (target / "bin/python").symlink_to(sys.executable)
-    sites = tmp_path / "server-sites"
+    if not marimo:
+        (server / "bin").mkdir(parents=True)
+        (target / "bin/python").symlink_to(sys.executable)
+    sites = tmp_path / ("target-sites" if marimo else "server-sites")
     sites.mkdir()
     module = sites / ("marimo" if marimo else "jupyterlab")
     module.mkdir()
     (module / "__init__.py").write_text("")
     (module / "__main__.py").write_text(FAKE_SERVER)
-    python = server / "bin/python"
+    python = (target if marimo else server) / "bin/python"
     python.write_text(
         f"#!{sys.executable}\n"
         "import json, os, sys\n"
+        "from pathlib import Path\n"
         f"sites = {str(sites)!r}\n"
-        "if sys.argv[1] == '-c':\n"
+        "if sys.argv[1:] == ['-m', 'pip', 'install', 'marimo']:\n"
+        "    Path(sys.argv[0]).with_name('marimo-installed').touch()\n"
+        "elif sys.argv[1] == '-c' and \"find_spec('pip')\" in sys.argv[2]:\n"
+        "    print('true')\n"
+        "elif sys.argv[1] == '-c':\n"
         "    print(json.dumps([sites]))\n"
         "else:\n"
         "    os.environ['PYTHONPATH'] = sites\n"
@@ -860,6 +962,8 @@ def test_real_transported_script_lifecycle(
         assert ready["path"] == ("/" if marimo else "/lab")
         assert ready["host"] == socket.gethostname()
         assert pidfile.exists()
+        if marimo:
+            assert not (cache / "qibocal/envs").exists()
         if shutdown == "eof":
             process.stdin.close()
         else:

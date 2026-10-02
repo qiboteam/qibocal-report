@@ -386,18 +386,21 @@ def environment_install_command(python, packages, seeded):
     if util.find_spec("pip") is not None:
         return [sys.executable, "-m", "pip", "--python", python, "install", *packages]
     raise WorkerError(
-        "Computing-node Python has no ensurepip and no package installer is "
-        "available. Install its python3-venv package, provide pip >= 22.3 "
-        "for the worker's Python."
+        "Target environment has no pip and no external package installer is "
+        "available. Bootstrap pip in the target environment (install the "
+        "computing node's python3-venv package if ensurepip is unavailable), "
+        "or provide pip >= 22.3 for the worker's Python."
     )
 
 
-def ensure_environment(runtime, path, server=False, marimo=False, packages=()):
+def ensure_environment(runtime, path, server=False, packages=()):
     python = path / "bin" / "python"
     if not path.exists() and not path.is_symlink():
         if server:
-            packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
-        seeded = bool(packages) and util.find_spec("ensurepip") is not None
+            packages = ["jupyterlab", "ipykernel"]
+        seeded = util.find_spec("ensurepip") is not None
+        if not seeded:
+            packages = ["pip", *packages]
         if packages:
             install = environment_install_command(str(python), packages, seeded)
         event("status", message=f"Creating environment: {path}")
@@ -420,8 +423,8 @@ def ensure_environment(runtime, path, server=False, marimo=False, packages=()):
     return str(python)
 
 
-def server_sites(runtime, python, marimo):
-    packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
+def server_sites(runtime, python):
+    packages = ["jupyterlab", "ipykernel"]
     try:
         result = runtime.command(
             [
@@ -623,64 +626,74 @@ def run(options):
                 )
             target_name = options.get("venv", "qibocal")
             target_path = environment_path(target_name)
-            server_path = (
-                cache_home()
-                / "qibocal"
-                / "envs"
-                / ("notebook-marimo" if marimo else "notebook-jupyter")
-            )
-            resolved_server = server_path.resolve()
-            resolved_target = target_path.resolve()
-            if (
-                resolved_server == resolved_target
-                or resolved_server in resolved_target.parents
-                or resolved_target in resolved_server.parents
-            ):
-                raise WorkerError(
-                    "The target and notebook server environments must be separate"
-                )
+            server_path = cache_home() / "qibocal" / "envs" / "jupyter"
+            if not marimo:
+                resolved_server = server_path.resolve()
+                resolved_target = target_path.resolve()
+                if (
+                    resolved_server == resolved_target
+                    or resolved_server in resolved_target.parents
+                    or resolved_target in resolved_server.parents
+                ):
+                    raise WorkerError(
+                        "The target and notebook server environments must be separate"
+                    )
             event(
                 "status",
                 message=f"Preparing notebook in {Path.cwd()}\n"
-                f"Kernel environment: {target_path}\n"
-                f"Server environment: {server_path}",
+                f"Kernel environment: {target_path}"
+                + ("" if marimo else f"\nServer environment: {server_path}"),
             )
             target = ensure_environment(
                 runtime,
                 target_path,
                 packages=("qibocal",) if target_name == "qibocal" else (),
             )
-            server = ensure_environment(
-                runtime, server_path, server=True, marimo=marimo
-            )
-            sites = server_sites(runtime, server, marimo)
-            target_sites = json.loads(
-                runtime.command(
-                    [
-                        target,
-                        "-c",
-                        (
-                            "import json, sysconfig; "
-                            "print(json.dumps(list(dict.fromkeys("
-                            "[sysconfig.get_path('purelib'), "
-                            "sysconfig.get_path('platlib')]))))"
-                        ),
-                    ],
-                    capture=True,
+            if marimo:
+                has_pip = json.loads(
+                    runtime.command(
+                        [
+                            target,
+                            "-c",
+                            (
+                                "import json, importlib.util; "
+                                "print(json.dumps(importlib.util.find_spec('pip') "
+                                "is not None))"
+                            ),
+                        ],
+                        capture=True,
+                    )
                 )
-            )
+                event("status", message=f"Installing marimo in: {target_path}")
+                runtime.command(
+                    environment_install_command(target, ["marimo"], seeded=has_pip)
+                )
+            else:
+                server = ensure_environment(runtime, server_path, server=True)
+                sites = server_sites(runtime, server)
+                target_sites = json.loads(
+                    runtime.command(
+                        [
+                            target,
+                            "-c",
+                            (
+                                "import json, sysconfig; "
+                                "print(json.dumps(list(dict.fromkeys("
+                                "[sysconfig.get_path('purelib'), "
+                                "sysconfig.get_path('platlib')]))))"
+                            ),
+                        ],
+                        capture=True,
+                    )
+                )
             port, token = free_port(listen_host), secrets.token_urlsafe(32)
             env = os.environ.copy()
-            target_pythonpath = os.pathsep.join(
-                [*target_sites, *filter(None, [env.get("PYTHONPATH")]), *sites]
-            )
             if marimo:
                 path = "/"
-                env["PYTHONPATH"] = target_pythonpath
                 command = [
                     target,
-                    "-c",
-                    bootstrap(sites, "marimo"),
+                    "-m",
+                    "marimo",
                     "edit",
                     "--host",
                     listen_host,
@@ -692,6 +705,9 @@ def run(options):
                     token,
                 ]
             else:
+                target_pythonpath = os.pathsep.join(
+                    [*target_sites, *filter(None, [env.get("PYTHONPATH")]), *sites]
+                )
                 path = "/lab"
                 runtime_directory = os.environ.get("XDG_RUNTIME_DIR") or None
                 if runtime_directory and not Path(runtime_directory).is_dir():

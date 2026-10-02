@@ -88,12 +88,13 @@ Names resolve under
 (fallback:
 .BR ~/.cache/qibocal/envs/ ).
 Absolute paths and explicit relative paths (./env or ../env) are used directly.
-Existing environments are never overwritten or installed into.
+Existing environments are never overwritten. Jupyter leaves target environments
+unchanged; with \-\-marimo, Marimo is installed directly into the target environment.
 When the default named environment qibocal is missing, it is created with
 the latest public Qibocal release using pip install qibocal.
 You can replace it with a development version or manage its dependencies
-afterward. Other missing kernel environments are created empty, without pip
-or packages; install your calibration dependencies into them separately.
+afterward. Other missing kernel environments are created with pip but no
+calibration packages; install your calibration dependencies into them separately.
 .TP
 .BI \-\-timeout " SECONDS"
 Maximum startup time, including environment preparation, queue wait, and
@@ -116,21 +117,25 @@ tunnel access-node loopback to the local machine. The access-to-compute network
 hop is not encrypted, so use SLURM notebooks only on a trusted computing network.
 Every session uses a generated authentication token.
 .PP
-Server dependencies are installed on first use into a separate managed
-environment, not the kernel environment. Installing server dependencies or
+Jupyter server dependencies are installed on first use into the separate managed
+jupyter environment under $XDG_CACHE_HOME/qibocal/envs/
+(fallback: ~/.cache/qibocal/envs/), not the kernel environment.
+Marimo is installed directly into the target environment and launched with its
+Python; no separate Marimo environment is used. Installing notebook dependencies or
 Qibocal into a new default kernel requires package-index access
 on the computing node and either ensurepip or pip (22.3+) in the worker's Python.
-If ensurepip is unavailable, the worker creates a pip-free
-environment and targets it with the external installer; system packages
-are not changed. Existing server environments are reused as-is.
+All newly created environments include pip. If ensurepip is unavailable,
+the worker uses the external installer to install pip and any requested
+dependencies into the new environment; system packages
+are not changed. This requires package-index access even for otherwise empty
+kernel environments. Existing Jupyter server environments are reused as-is.
 If first-time installation fails, repair that server environment explicitly
 using the command reported by the launcher; it is never implicitly overwritten.
 Jupyter exposes the selected environment as the default kernel named
 .BR Qibocal .
 Its kernel uses that environment's Python and packages, with server-provided
-ipykernel dependencies as a fallback. Marimo similarly runs with the selected
-environment's Python and uses the separate server's packages as a fallback.
-This keeps an existing calibration environment unchanged; server dependencies
+ipykernel dependencies as a fallback.
+This keeps an existing Jupyter calibration environment unchanged; server dependencies
 may still appear in the notebook's import path.
 .SS Named connections
 Create a JSON object whose keys are connection names and values are options:
