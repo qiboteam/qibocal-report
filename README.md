@@ -32,7 +32,7 @@
 ## ⚡ Key Features
 
 - **Interactive Visualizations**: High-resolution 2D and 3D graphics powered by **Plotly.js** with zoom, pan, hover data inspection, and image export.
-- **Multi-Server Dashboard**: Connect to, name, and monitor multiple local or remote Qibocal report servers across your lab network; auto-assigned Docker-style names and abstract geometric avatars, with persistent storage in `~/.config/qibocal-report/servers.json`.
+- **Multi-Server Dashboard**: Connect to, name, and monitor multiple local or remote Qibocal report servers across your lab network; auto-assigned Docker-style names and abstract geometric avatars, with persistent storage in `$XDG_CONFIG_HOME/qibocal-report/servers.json` (fallback: `~/.config/qibocal-report/servers.json`).
 - **Search & Smart Facets**: Instant full-text search across titles, platforms, authors, protocols, and tags; faceted filtering with author filters, protocol frequency ranking, interactive date histogram timeline, and tag search.
 - **Dual Display Modes**: Toggle seamlessly between sortable, resizable **Table View** and rich **Card View** (inspired by Inspire-HEP full-width cards).
 - **Statistics Dashboard**: Dedicated analytics view (`/#/statistics`) tracking calibration throughput, activity over time, protocol frequency distribution, author activity, and platform breakdowns.
@@ -76,6 +76,28 @@ qibocal report server ./sample_data --port 8000
 ```
 
 Open your browser at **`http://localhost:8000`**.
+
+### Interactive Notebooks
+
+Start JupyterLab locally, over SSH, or on a SLURM partition:
+
+```bash
+qibocal notebook
+qibocal notebook --ssh myuser@login -q mychip -w /shared/calibration
+qibocal notebook --marimo --venv ./calibration-env -n
+```
+
+The command opens an authenticated local URL and stays attached until Ctrl+C.
+Use `-n` to print the URL without opening a browser. Notebook connections can
+be named in `~/.config/qibocal-report/notebooks.json` (or under
+`$XDG_CONFIG_HOME`) and invoked with `qibocal notebook myconnection`.
+Existing kernel environments remain unchanged; missing ones are created empty.
+Named environments live under `$XDG_CACHE_HOME/qibocal/envs/` (fallback:
+`~/.cache/qibocal/envs/`). Server dependencies are installed separately on first use.
+
+Notebook dispatch is documented outside the web frontend in the installed
+**`man qibocal`** page ([source](data/share/man/man1/qibocal.1)), including networking
+requirements, environment paths, and configuration examples.
 
 ### 3. Standalone Client Mode
 

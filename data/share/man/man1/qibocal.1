@@ -1,0 +1,211 @@
+.TH QIBOCAL 1 "October 2, 2026" "qibocal-report" "User Commands"
+.SH NAME
+qibocal \- serve calibration reports and dispatch interactive notebooks
+.SH SYNOPSIS
+.B qibocal
+.RB [ \-\-version ]
+.RB [ \-\-help ]
+.I COMMAND
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+qibocal-report provides the qibocal command for report servers, local
+configuration management, and notebook sessions. Use
+.B qibocal COMMAND \-\-help
+for the available command options.
+.SH NOTEBOOK
+.B qibocal notebook
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+Start JupyterLab (default) or Marimo and open its authenticated URL in the
+local browser. Keep the command running for the lifetime of the session.
+Ctrl+C stops the notebook, releases its SLURM allocation,
+and closes the tunnels.
+.PP
+The connection layers compose:
+local machine, optional SSH access node, optional SLURM computing node.
+Omitting SSH submits from the local machine. Omitting SLURM runs on the access
+node. Omitting both starts a local notebook.
+.SS Options
+.TP
+.BI \-\-ssh " TEXT"
+SSH options followed by a host or user@host destination.
+Quote the entire value when including options, for example
+.BR "\-\-ssh '\-p 2222 \-i ~/.ssh/lab user@login'" .
+Host aliases, agent authentication, and jump hosts from SSH configuration work.
+The destination must be the last argument; do not include a remote command.
+.TP
+.BR \-q ", " \-\-queue " " \fIPARTITION\fR
+SLURM partition passed to srun on the access node.
+.TP
+.BI \-\-slurm " TEXT"
+Additional srun options as a quoted argument string, for example
+.BR "\-\-slurm '\-\-time=02:00:00 \-\-account=lab \-\-gres=gpu:1'" .
+Specifying this option alone also enables SLURM dispatch.
+Resource allocation must select one task on one computing node.
+Only common scheduling/resource options are accepted; command, IO,
+and working-directory overrides are rejected. Use separated short options
+(for example, \-c 2 rather than \-c2).
+.TP
+.BR \-w ", " \-\-workdir " " \fIDIRECTORY\fR
+Change directory on the access node before starting the session or submitting
+to SLURM. With SLURM, this directory must also be accessible on the computing
+node. Relative kernel paths are resolved in the notebook working directory.
+.TP
+.B \-\-marimo
+Run Marimo instead of JupyterLab.
+.TP
+.B \-\-jupyter
+Use JupyterLab, including when overriding a named Marimo connection.
+.TP
+.BR \-n ", " \-\-no\-interactive
+Print the authenticated URL without opening a browser. The command still
+stays attached to supervise the notebook and tunnels.
+.TP
+.B \-\-interactive
+Open the browser, including when overriding a named non-interactive connection.
+.TP
+.BI \-\-venv " NAME_OR_PATH"
+Kernel environment on the computing node; default:
+.BR qibocal .
+Names resolve under
+.BR $XDG_CACHE_HOME/qibocal/envs/
+(fallback:
+.BR ~/.cache/qibocal/envs/ ).
+Absolute paths and explicit relative paths (./env or ../env) are used directly.
+Existing environments are never overwritten or installed into.
+Missing kernel environments are created empty, without pip or packages.
+Install Qibocal and your other calibration dependencies into this environment
+separately before using them in a notebook.
+.TP
+.BI \-\-timeout " SECONDS"
+Maximum startup time, including environment preparation, queue wait, and
+tunnel setup. Default: 300. Increase this for long SLURM queue waits.
+.SS Requirements and environments
+Local execution requires Python 3.10+ with venv support. SSH execution requires
+OpenSSH locally and python3 (3.10+) with venv support on the access
+and computing nodes. SLURM execution requires srun on the access node
+and non-interactive
+SSH access from the access node to the allocated computing node, with known
+host keys already configured. Notebook servers bind only to loopback.
+SLURM sessions tunnel computing-node loopback to access-node loopback; SSH
+sessions additionally tunnel access-node loopback to the local machine.
+Every session uses a generated authentication token.
+.PP
+Server dependencies are installed on first use into a separate managed
+environment, not the kernel environment. This requires pip and package-index
+access on the computing node. Existing server environments are reused as-is.
+If first-time installation fails, repair that server environment explicitly
+using the command reported by the launcher; it is never implicitly overwritten.
+Jupyter exposes the selected environment as the default kernel named
+.BR Qibocal .
+Its kernel uses that environment's Python and packages, with server-provided
+ipykernel dependencies as a fallback. Marimo similarly runs with the selected
+environment's Python and uses the separate server's packages as a fallback.
+This keeps an existing calibration environment unchanged; server dependencies
+may still appear in the notebook's import path.
+.SS Named connections
+Create a JSON object whose keys are connection names and values are options:
+.PP
+.nf
+{
+  "mychip": {
+    "ssh": "myuser@login",
+    "queue": "mychip",
+    "workdir": "/shared/calibration",
+    "venv": "qibocal",
+    "slurm": "--time=02:00:00",
+    "marimo": false,
+    "no_interactive": false,
+    "timeout": 900
+  }
+}
+.fi
+.PP
+Save it to
+.BR $XDG_CONFIG_HOME/qibocal-report/notebooks.json ,
+with
+.BR ~/.config/qibocal-report/notebooks.json
+as the fallback. QIBOCAL_REPORT_CONFIG_DIR overrides its containing directory.
+Invoke
+.BR "qibocal notebook mychip" .
+Explicit command-line options override the connection's values.
+Unknown options, invalid types, missing names, and malformed files are errors.
+The command does not create or modify the connection file.
+.SS Examples
+.nf
+qibocal notebook
+qibocal notebook --venv ./calibration-env --marimo
+qibocal notebook --ssh myuser@login --workdir /shared/runs
+qibocal notebook --queue mychip --no-interactive
+qibocal notebook --ssh myuser@login -q mychip --timeout 900
+qibocal notebook mychip --jupyter -n
+.fi
+.SH REPORT COMMANDS
+.TP
+.BR "qibocal report server" " [DIRECTORY]"
+Serve reports and the embedded web app. Directory defaults to the current
+directory. Options: \-\-host (localhost), \-\-port (8000), \-\-auth/\-\-no-auth.
+.TP
+.B qibocal report client
+Serve the standalone report client. Options: \-\-host (127.0.0.1),
+\-\-port (8000), \-\-reload.
+.TP
+.BR "qibocal report dev" " [DIRECTORY]"
+Run backend and Vite development servers. Options: \-\-host (localhost),
+\-\-port (8000), \-\-frontend-port (5173), \-\-reload/\-\-no-reload,
+\-\-auth/\-\-no-auth. Requires the frontend sources and Node.js.
+.TP
+.BR "qibocal report export" " [OUTPUT_DIR]"
+Export the static report client (default: ./dist).
+Options: \-\-build/\-\-no-build and \-\-base-path.
+.TP
+.B qibocal report admin list
+List administrators. Options: \-\-all (include all users), \-\-json.
+.TP
+.BR "qibocal report admin invite" " [USERNAME]"
+Generate an administrator invitation. Options: \-u/\-\-username,
+\-\-server-url, \-\-host, \-\-port, \-e/\-\-expires-in-hours,
+\-\-interactive/\-\-no-interactive, \-\-json.
+.BR "qibocal report invite"
+is an equivalent shortcut.
+.SH CONFIG COMMANDS
+.TP
+.B qibocal config path
+Print the absolute report configuration directory without creating it.
+.TP
+.B qibocal config clean
+Ask before removing servers.json and authentication data.
+\-f/\-\-force skips confirmation. Does not remove notebooks.json, notebook
+environments, reports, unrelated files, or directories.
+.SH ENVIRONMENT
+.TP
+.B XDG_CONFIG_HOME
+Configuration root for notebook connections.
+.TP
+.B XDG_CACHE_HOME
+Cache root for computing-node kernel and notebook server environments.
+Each node uses its own value; the local value is not forwarded over SSH.
+.TP
+.B XDG_RUNTIME_DIR
+Location for temporary notebook kernel specifications on the computing node.
+When unset or empty, use the system temporary directory.
+.TP
+.B QIBOCAL_REPORT_CONFIG_DIR
+Override the local report and notebook connection configuration directory.
+.TP
+.B QIBOCAL_AUTH_FILE
+Override the report authentication database.
+.TP
+.B QIBOCAL_REPORT_DIR
+Report directory used by the report server.
+.TP
+.B QIBOCAL_FRONTEND_URL
+Frontend development-server URL.
+.SH EXIT STATUS
+Zero on normal completion or an orderly notebook Ctrl+C shutdown.
+Nonzero on invalid configuration, startup failure, timeout, or session failure.
+.SH SEE ALSO
+.BR ssh (1),
+.BR srun (1),
+.BR python3 (1)
