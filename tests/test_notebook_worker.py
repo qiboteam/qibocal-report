@@ -458,9 +458,12 @@ def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown):
     source = Path(worker.__file__).read_text()
     script = "WORKER_SOURCE = " + repr(source) + "\n" + source
     pidfile = tmp_path / "server.pid"
+    runtime_directory = tmp_path / "runtime"
+    runtime_directory.mkdir()
     env = dict(
         os.environ,
         XDG_CACHE_HOME=str(cache),
+        XDG_RUNTIME_DIR=str(runtime_directory),
         FAKE_PID=str(pidfile),
         EXPECTED_TARGET=str(target / "bin/python"),
     )
@@ -508,7 +511,7 @@ def test_real_transported_script_lifecycle(tmp_path, marimo, shutdown):
         assert process.stdout.read() == ""
         logs = process.stderr.read()
         assert "child stdout log" in logs and "child stderr log" in logs
-        assert not list(tmp_path.glob(".qibocal-kernels-*"))
+        assert not list(runtime_directory.glob("qibocal-kernels-*"))
         with pytest.raises(OSError):
             os.kill(int(pidfile.read_text()), 0)
         with pytest.raises(OSError):

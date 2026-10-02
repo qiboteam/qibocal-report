@@ -100,4 +100,4 @@ The Server Administration dashboard provides three main panels:
 
 - **Password Hashing**: Passwords are encrypted using **PBKDF2-HMAC-SHA256** with 100,000 iterations and unique 16-byte random salts per user. Raw passwords are never stored.
 - **JWT Tokens**: Authenticated sessions issue signed JSON Web Tokens (HS256) valid for 7 days.
-- **Persistence**: User credentials, roles, and invitation tokens are persisted in `auth.json` inside the server configuration directory (`$HOME/.config/qibocal-report/` or `$QIBOCAL_REPORT_CONFIG_DIR`).
+- **Persistence**: User credentials, roles, and invitation tokens are persisted in `auth.json` inside the server configuration directory (`$XDG_CONFIG_HOME/qibocal-report/`, falling back to `$HOME/.config/qibocal-report/`). `$QIBOCAL_REPORT_CONFIG_DIR` overrides this directory; `$QIBOCAL_AUTH_FILE` can override the authentication file separately.

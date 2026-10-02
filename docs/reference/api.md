@@ -56,7 +56,9 @@ Update an existing server's metadata, display name, avatar, or default status.
 Remove a server from the local registry.
 
 ### `POST /api/servers/save`
-Explicitly save the backend registry to `~/.config/qibocal-report/servers.json`.
+Explicitly save the backend registry to
+`$XDG_CONFIG_HOME/qibocal-report/servers.json` (fallback:
+`~/.config/qibocal-report/servers.json`; overridden by `QIBOCAL_REPORT_CONFIG_DIR`).
 Registry mutations already save this file automatically.
 
 ---

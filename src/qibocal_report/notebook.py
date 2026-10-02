@@ -37,11 +37,8 @@ class NotebookOptions(BaseModel):
 
 
 def connection_file() -> Path:
-    """Honor the report override, otherwise use the XDG configuration directory."""
-    if os.environ.get("QIBOCAL_REPORT_CONFIG_DIR"):
-        return config.get_config_dir(create=False) / "notebooks.json"
-    root = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
-    return root / "qibocal-report" / "notebooks.json"
+    """Share the report configuration directory without creating it."""
+    return config.get_config_dir(create=False) / "notebooks.json"
 
 
 def load_options(name: str | None, overrides: dict) -> NotebookOptions:

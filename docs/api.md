@@ -16,7 +16,7 @@ The `qibocal-report` backend exposes a fully documented OpenAPI REST API. Intera
 - `POST /api/servers` - Register a new remote server.
 - `PUT /api/servers/{id}` - Modify server parameters.
 - `DELETE /api/servers/{id}` - Remove server registration.
-- `POST /api/servers/save` - Persist server list to `~/.config/qibocal-report/servers.json`.
+- `POST /api/servers/save` - Persist server list to `$XDG_CONFIG_HOME/qibocal-report/servers.json` (fallback: `~/.config/qibocal-report/servers.json`; overridden by `QIBOCAL_REPORT_CONFIG_DIR`).
 
 ### 📑 Reports & Search
 - `GET /api/reports` - List and filter reports with query parameters (`q`, `author`, `protocol`, `label`, `start_date`, `end_date`, `sort_by`).

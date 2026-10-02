@@ -501,7 +501,8 @@ def run(options):
             else:
                 path = "/lab"
                 kernel_directory = tempfile.TemporaryDirectory(
-                    prefix="qibocal-kernels-"
+                    prefix="qibocal-kernels-",
+                    dir=os.environ.get("XDG_RUNTIME_DIR") or None,
                 )
                 kernel_root = Path(kernel_directory.name)
                 kernel = kernel_root / "kernels" / "qibocal"
