@@ -13,7 +13,7 @@ configuration management, and notebook sessions. Use
 .B qibocal COMMAND \-\-help
 for the available command options.
 .SH NOTEBOOK
-.B qibocal notebook
+.B qibocal notebook connect
 .RI [ CONNECTION ]
 .RI [ OPTIONS ]
 .PP
@@ -41,7 +41,7 @@ structured diagnostics without requiring Rich or a terminal on SSH or SLURM
 nodes. Redirected output has no automatic ANSI colors.
 Diagnostics remain on standard error and the authenticated URL remains
 on its own line on standard output.
-.SS Options
+.SS Connect options
 .TP
 .BI \-\-ssh " TEXT"
 SSH options followed by a host or user@host destination.
@@ -99,6 +99,13 @@ calibration packages; install your calibration dependencies into them separately
 .BI \-\-timeout " SECONDS"
 Maximum startup time, including environment preparation, queue wait, and
 tunnel setup. Default: 300. Increase this for long SLURM queue waits.
+.TP
+.BI \-\-subnet " CIDR"
+Restrict SLURM computing-node IP selection to an IPv4 or IPv6 subnet,
+for example 192.168.0.0/24. Among matching addresses, choose the IP with the
+longest network prefix in common with an access-node IP.
+Startup fails if no usable computing-node IP matches.
+Local and unscheduled SSH sessions still bind only to loopback.
 .SS Requirements and environments
 Local execution requires Python 3.10+ with venv support. SSH execution requires
 OpenSSH locally and python3 (3.10+) with venv support on the access
@@ -161,18 +168,49 @@ with
 .BR ~/.config/qibocal-report/notebooks.json
 as the fallback. QIBOCAL_REPORT_CONFIG_DIR overrides its containing directory.
 Invoke
-.BR "qibocal notebook mychip" .
+.BR "qibocal notebook connect mychip" .
 Explicit command-line options override the connection's values.
 Unknown options, invalid types, missing names, and malformed files are errors.
-The command does not create or modify the connection file.
+The connect command does not create or modify the connection file.
+.SS Adding connections
+.B qibocal notebook add
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+With no options, prompt first for the connection name if not supplied, then show a
+multiple-selection menu of options to change from their defaults, then ask for
+each selected value. Unselected options retain their defaults.
+.PP
+To register a connection without the setup menu, provide its name and options
+together. The options are identical to those of
+.BR "qibocal notebook connect" ;
+see Connect options above or
+.BR "qibocal notebook connect \-\-help" .
+If options are provided without a name, prompt only for the name.
+A name alone opens the setup menu for that connection.
+Explicitly supplied options are saved in their JSON configuration representation.
+Other connections are preserved; an existing name is an error.
+Adding a connection does not start a notebook session.
+.SS Listing connections
+.B qibocal notebook list
+.RB [ \-\-raw ]
+.PP
+Display registered names and their configured options in a Rich table.
+An empty registry is reported without creating a file.
+With \-\-raw, print the connection file verbatim, without formatting or JSON
+validation; a missing file is an error.
 .SS Examples
 .nf
-qibocal notebook
-qibocal notebook --venv ./calibration-env --marimo
-qibocal notebook --ssh myuser@login --workdir /shared/runs
-qibocal notebook --queue mychip --no-interactive
-qibocal notebook --ssh myuser@login -q mychip --timeout 900
-qibocal notebook mychip --jupyter -n
+qibocal notebook connect
+qibocal notebook connect --venv ./calibration-env --marimo
+qibocal notebook connect --ssh myuser@login --workdir /shared/runs
+qibocal notebook connect --queue mychip --no-interactive
+qibocal notebook connect --ssh myuser@login -q mychip --timeout 900
+qibocal notebook connect mychip --jupyter -n
+qibocal notebook add
+qibocal notebook add mychip --ssh myuser@login -q mychip
+qibocal notebook list
+qibocal notebook list --raw
 .fi
 .SH REPORT COMMANDS
 .TP

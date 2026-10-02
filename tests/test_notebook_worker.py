@@ -430,6 +430,52 @@ def test_compute_address_requires_matching_family():
         worker.compute_address(["192.0.2.10"], ["2001:db8::20"])
 
 
+@pytest.mark.parametrize(
+    "access, compute, subnet, expected",
+    [
+        (
+            ["10.0.0.10"],
+            ["10.0.0.20", "192.168.0.20", "192.168.1.20"],
+            "192.168.0.0/24",
+            "192.168.0.20",
+        ),
+        (
+            ["192.168.0.130"],
+            ["192.168.0.20", "192.168.0.140", "192.168.1.130"],
+            "192.168.0.0/24",
+            "192.168.0.140",
+        ),
+        (
+            ["2001:db8:2::10"],
+            ["192.168.0.20", "2001:db8:2::20", "2001:db8:1::20"],
+            "2001:db8:1::/64",
+            "2001:db8:1::20",
+        ),
+        (
+            ["192.168.0.10"],
+            ["192.168.0.0", "192.168.0.255"],
+            "192.168.0.255/32",
+            "192.168.0.255",
+        ),
+    ],
+)
+def test_compute_address_subnet(access, compute, subnet, expected):
+    assert worker.compute_address(access, compute, subnet) == expected
+
+
+@pytest.mark.parametrize("compute", [[], ["192.168.1.20"], ["2001:db8::20"]])
+def test_compute_address_subnet_no_match(compute):
+    with pytest.raises(worker.WorkerError, match="match subnet 192.168.0.0/24"):
+        worker.compute_address(["192.168.0.10"], compute, "192.168.0.0/24")
+
+
+def test_compute_address_subnet_requires_matching_family():
+    with pytest.raises(worker.WorkerError, match="no common IP address family"):
+        worker.compute_address(
+            ["2001:db8::10"], ["192.168.0.20"], "192.168.0.0/24"
+        )
+
+
 @pytest.mark.parametrize("marimo", [False, True])
 @pytest.mark.parametrize("ipv6", [False, True])
 def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo, ipv6):
@@ -483,6 +529,7 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo, 
                 "slurm": "--mem=4G",
                 "workdir": "./work",
                 "marimo": marimo,
+                "subnet": "2001:db8::/64" if ipv6 else "192.0.2.0/24",
             }
         )
     command = spawn.call_args_list[0].args[0]
@@ -500,6 +547,7 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo, 
     assert nested["queue"] is None and nested["slurm"] is None
     assert nested["_node_role"] == "compute"
     assert nested["_access_addresses"] == access_addresses
+    assert nested["subnet"] == ("2001:db8::/64" if ipv6 else "192.0.2.0/24")
     assert nested["workdir"] == str(tmp_path / "work")
     forward.assert_called_once_with(compute_host, 8100)
     forwarder.close.assert_called_once()
@@ -575,8 +623,9 @@ def test_nested_timeout_and_stop():
 @pytest.mark.parametrize("marimo", [False, True])
 @pytest.mark.parametrize("host", ["192.0.2.20", "2001:db8::20"])
 @pytest.mark.parametrize("venv", [None, "qibocal", "custom", "./qibocal"])
+@pytest.mark.parametrize("subnet", [False, True])
 def test_compute_worker_binds_selected_interface(
-    tmp_path, monkeypatch, marimo, host, venv
+    tmp_path, monkeypatch, marimo, host, venv, subnet
 ):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     runtime = worker.Runtime(5)
@@ -594,7 +643,9 @@ def test_compute_worker_binds_selected_interface(
         ) as install,
         patch.object(runtime, "close"),
         patch.object(worker, "monitor_stdin"),
-        patch.object(worker, "node_addresses", return_value=[host]) as addresses,
+        patch.object(
+            worker, "node_addresses", return_value=["10.0.0.10", host]
+        ) as addresses,
         patch.object(
             worker,
             "ensure_environment",
@@ -613,6 +664,10 @@ def test_compute_worker_binds_selected_interface(
         }
         if venv is not None:
             options["venv"] = venv
+        if subnet:
+            options["subnet"] = (
+                "2001:db8::/64" if ":" in host else "192.0.2.0/24"
+            )
         worker.run(options)
     assert ensure.call_args_list[0].kwargs == {
         "packages": ("qibocal",) if venv in (None, "qibocal") else ()

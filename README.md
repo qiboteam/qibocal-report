@@ -82,9 +82,9 @@ Open your browser at **`http://localhost:8000`**.
 Start JupyterLab locally, over SSH, or on a SLURM partition:
 
 ```bash
-qibocal notebook
-qibocal notebook --ssh myuser@login -q mychip -w /shared/calibration
-qibocal notebook --marimo --venv ./calibration-env -n
+qibocal notebook connect
+qibocal notebook connect --ssh myuser@login -q mychip -w /shared/calibration
+qibocal notebook connect --marimo --venv ./calibration-env -n
 ```
 
 The command opens an authenticated local URL and stays attached until Ctrl+C.
@@ -101,7 +101,24 @@ not need Rich installed or a remote terminal. Redirected output remains readable
 without ANSI colors; the authenticated URL stays on its own line on stdout.
 Use `-n` to print the URL without opening a browser. Notebook connections can
 be named in `~/.config/qibocal-report/notebooks.json` (or under
-`$XDG_CONFIG_HOME`) and invoked with `qibocal notebook myconnection`.
+`$XDG_CONFIG_HOME`) and invoked with `qibocal notebook connect myconnection`.
+
+Register connections interactively with `qibocal notebook add`: enter a name,
+select which options should differ from their defaults, then set those options.
+Alternatively, supply a name and connection options directly:
+
+```bash
+qibocal notebook add myconnection --ssh myuser@login -q mychip
+qibocal notebook list
+qibocal notebook list --raw
+```
+
+`add` accepts the same options as `connect`; see `qibocal notebook connect --help`
+for their documentation. It records explicitly supplied options in the JSON
+configuration without starting a session and rejects existing names.
+`list` displays registered connections in a Rich table; `list --raw` prints the
+connection file verbatim.
+
 Existing Jupyter kernel environments remain unchanged. With `--marimo`, Marimo is
 installed directly into the target environment and launched with its Python;
 no separate Marimo environment is used. A missing default `qibocal`
@@ -120,6 +137,10 @@ by the launcher.
 SLURM address discovery and the notebook share one allocation. The launcher uses
 the compute IP with the longest network prefix in common with an access-node IP,
 so compute-hostname resolution and compute-node SSH access are unnecessary.
+Use `--subnet 192.168.0.0/24` to consider only computing-node IPs in that
+subnet (IPv4 and IPv6 CIDR networks are supported). The longest-prefix selection
+then applies among matching addresses; startup fails if none match. This option
+does not change loopback binding for local or unscheduled SSH sessions.
 The token-protected server listens on that selected interface; an access-node
 loopback relay preserves the local browser URL. The access-to-compute hop is
 unencrypted and requires a trusted computing network.

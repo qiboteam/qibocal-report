@@ -214,7 +214,18 @@ def node_addresses(runtime):
     return list(dict.fromkeys(addresses))
 
 
-def compute_address(access_addresses, compute_addresses):
+def compute_address(access_addresses, compute_addresses, subnet=None):
+    if subnet is not None:
+        network = ipaddress.ip_network(subnet)
+        compute_addresses = [
+            value
+            for value in compute_addresses
+            if ipaddress.ip_address(value) in network
+        ]
+        if not compute_addresses:
+            raise WorkerError(
+                f"No usable computing-node IP addresses match subnet {subnet}"
+            )
     best = None
     longest = -1
     for local in map(ipaddress.ip_address, access_addresses):
@@ -617,7 +628,9 @@ def run(options):
         else:
             if "_access_addresses" in options:
                 listen_host = compute_address(
-                    options["_access_addresses"], node_addresses(runtime)
+                    options["_access_addresses"],
+                    node_addresses(runtime),
+                    options.get("subnet"),
                 )
                 event(
                     "status",

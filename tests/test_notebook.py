@@ -103,6 +103,10 @@ def test_worker_streams_keep_readiness_separate():
 def test_notebook_help():
     result = CliRunner().invoke(main, ["notebook", "--help"])
     assert result.exit_code == 0
+    for command in ("connect", "add", "list"):
+        assert command in result.output
+    result = CliRunner().invoke(main, ["notebook", "connect", "--help"])
+    assert result.exit_code == 0
     for option in (
         "--ssh",
         "--queue",
@@ -110,6 +114,7 @@ def test_notebook_help():
         "--workdir",
         "--slurm",
         "--venv",
+        "--subnet",
         "-n",
     ):
         assert option in result.output
@@ -133,7 +138,7 @@ def test_connection_file_home(tmp_path, monkeypatch):
 
 def test_cli_defaults():
     with patch("qibocal_report.notebook.launch") as mock:
-        result = CliRunner().invoke(main, ["notebook"])
+        result = CliRunner().invoke(main, ["notebook", "connect"])
     assert result.exit_code == 0
     assert mock.call_args.args == (NotebookOptions(),)
     assert not connection_file().exists()
@@ -149,6 +154,7 @@ def test_named_connection_cli_overrides():
                     "marimo": True,
                     "no_interactive": True,
                     "timeout": 900,
+                    "subnet": "192.0.2.0/24",
                 }
             }
         ),
@@ -159,6 +165,7 @@ def test_named_connection_cli_overrides():
             main,
             [
                 "notebook",
+                "connect",
                 "chip",
                 "-q",
                 "new",
@@ -168,6 +175,8 @@ def test_named_connection_cli_overrides():
                 "/data",
                 "--timeout",
                 "120",
+                "--subnet",
+                "192.168.0.0/24",
             ],
         )
     assert result.exit_code == 0, result.output
@@ -178,6 +187,7 @@ def test_named_connection_cli_overrides():
     assert options.marimo is False
     assert options.no_interactive is False
     assert options.timeout == 120
+    assert options.subnet == "192.168.0.0/24"
 
 
 def test_cli_short_options():
@@ -186,6 +196,7 @@ def test_cli_short_options():
             main,
             [
                 "notebook",
+                "connect",
                 "-q",
                 "chip",
                 "-w",
@@ -218,23 +229,26 @@ def test_cli_short_options():
         ('{"chip": {"typo": true}}', "Invalid notebook options"),
         ('{"chip": {"marimo": "yes"}}', "Invalid notebook options"),
         ('{"chip": {"timeout": -1}}', "Invalid notebook options"),
+        ('{"chip": {"subnet": "invalid"}}', "Invalid notebook options"),
+        ('{"chip": {"subnet": 24}}', "Invalid notebook options"),
     ],
 )
 def test_invalid_connection(contents, error):
     connection_file().write_text(contents, encoding="utf-8")
     with patch("qibocal_report.notebook.launch") as mock:
-        result = CliRunner().invoke(main, ["notebook", "chip"])
+        result = CliRunner().invoke(main, ["notebook", "connect", "chip"])
     assert result.exit_code == 1
     assert error in result.output
     mock.assert_not_called()
 
 
 def test_missing_connection():
-    result = CliRunner().invoke(main, ["notebook", "missing"])
+    result = CliRunner().invoke(main, ["notebook", "connect", "missing"])
     assert result.exit_code == 1
     assert "Could not read" in result.output
 
 
+@pytest.mark.parametrize("command", ["connect", "add"])
 @pytest.mark.parametrize(
     "arguments",
     [
@@ -243,13 +257,234 @@ def test_missing_connection():
         ["--slurm", "'unterminated"],
         ["--timeout", "0"],
         ["--timeout", "nan"],
+        ["--subnet", "invalid"],
+        ["--subnet", "192.168.0.0/33"],
+        ["--subnet", "192.168.0.1/24"],
+        ["--subnet", "2001:db8::/129"],
     ],
 )
-def test_invalid_cli_options(arguments):
+def test_invalid_cli_options(arguments, command):
     with patch("qibocal_report.notebook.launch") as mock:
-        result = CliRunner().invoke(main, ["notebook", *arguments])
+        result = CliRunner().invoke(
+            main,
+            ["notebook", command, *(["chip"] if command == "add" else []), *arguments],
+        )
     assert result.exit_code != 0
     mock.assert_not_called()
+    assert not connection_file().exists()
+
+
+def test_add_help_references_connect():
+    result = CliRunner().invoke(main, ["notebook", "add", "--help"])
+    assert result.exit_code == 0
+    assert "qibocal notebook connect --help" in result.output
+    assert "--ssh" not in result.output
+    assert "--timeout" not in result.output
+
+
+def test_add_options_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "new-config"))
+    with patch("qibocal_report.notebook.launch") as mock:
+        result = CliRunner().invoke(
+            main,
+            [
+                "notebook",
+                "add",
+                "chip",
+                "--ssh",
+                "-p 2222 user@login",
+                "-q",
+                "chip",
+                "--slurm",
+                "--time=01:00:00",
+                "-w",
+                "~/runs",
+                "--venv",
+                "./env",
+                "--marimo",
+                "-n",
+                "--timeout",
+                "900",
+                "--subnet",
+                "2001:db8::/64",
+            ],
+        )
+    assert result.exit_code == 0, result.output
+    mock.assert_not_called()
+    values = {
+        "ssh": "-p 2222 user@login",
+        "queue": "chip",
+        "slurm": "--time=01:00:00",
+        "workdir": "~/runs",
+        "venv": "./env",
+        "marimo": True,
+        "no_interactive": True,
+        "timeout": 900.0,
+        "subnet": "2001:db8::/64",
+    }
+    assert json.loads(connection_file().read_text()) == {"chip": values}
+    with patch("qibocal_report.notebook.launch") as mock:
+        result = CliRunner().invoke(main, ["notebook", "connect", "chip"])
+    assert result.exit_code == 0, result.output
+    assert mock.call_args.args == (NotebookOptions(**values),)
+
+
+def test_add_preserves_connections_and_explicit_defaults():
+    connection_file().write_text('{"old": {"marimo": true}}\n', encoding="utf-8")
+    result = CliRunner().invoke(
+        main,
+        ["notebook", "add", "new", "--jupyter", "--interactive", "--venv", "qibocal"],
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(connection_file().read_text()) == {
+        "old": {"marimo": True},
+        "new": {"marimo": False, "no_interactive": False, "venv": "qibocal"},
+    }
+
+
+def test_add_interactive_defaults():
+    result = CliRunner().invoke(main, ["notebook", "add"], input="local\n\n")
+    assert result.exit_code == 0, result.output
+    assert result.output.index("Connection name") < result.output.index(
+        "Options to change"
+    )
+    assert "Default" in result.output
+    assert json.loads(connection_file().read_text()) == {"local": {}}
+
+
+def test_add_interactive_selected_options():
+    result = CliRunner().invoke(
+        main,
+        ["notebook", "add"],
+        input="chip\n1,2,3,4,5,6,7,8,9\nuser@login\nchip\n"
+        "--time=01:00:00\n/data\n./env\ny\ny\n900\n192.168.0.0/24\n",
+    )
+    assert result.exit_code == 0, result.output
+    assert load_options("chip", {}) == NotebookOptions(
+        ssh="user@login",
+        queue="chip",
+        slurm="--time=01:00:00",
+        workdir="/data",
+        venv="./env",
+        marimo=True,
+        no_interactive=True,
+        timeout=900,
+        subnet="192.168.0.0/24",
+    )
+
+
+def test_add_interactive_invalid_selection_reprompts():
+    result = CliRunner().invoke(
+        main, ["notebook", "add"], input="chip\n0,10\nbad\n2,2\nchip\n"
+    )
+    assert result.exit_code == 0, result.output
+    assert "Choose numbers between 1 and 9" in result.output
+    assert json.loads(connection_file().read_text()) == {"chip": {"queue": "chip"}}
+
+
+def test_add_options_without_name_prompts_only_for_name():
+    result = CliRunner().invoke(main, ["notebook", "add", "--marimo"], input="chip\n")
+    assert result.exit_code == 0, result.output
+    assert "Options to change" not in result.output
+    assert json.loads(connection_file().read_text()) == {"chip": {"marimo": True}}
+
+
+def test_add_name_only_prompts_for_options():
+    result = CliRunner().invoke(main, ["notebook", "add", "local"], input="\n")
+    assert result.exit_code == 0, result.output
+    assert "Connection name" not in result.output
+    assert "Options to change" in result.output
+    assert json.loads(connection_file().read_text()) == {"local": {}}
+
+
+def test_add_duplicate_does_not_overwrite():
+    text = '{"chip": {"queue": "old"}}\n'
+    connection_file().write_text(text, encoding="utf-8")
+    result = CliRunner().invoke(main, ["notebook", "add", "chip", "-q", "new"])
+    assert result.exit_code == 1
+    assert "already exists" in result.output
+    assert connection_file().read_text() == text
+
+
+@pytest.mark.parametrize("contents", ["{", "[]", '{"chip": []}'])
+@pytest.mark.parametrize("command", ["add", "list"])
+def test_invalid_registry_is_not_overwritten(contents, command):
+    connection_file().write_text(contents, encoding="utf-8")
+    result = CliRunner().invoke(
+        main, ["notebook", command, *(["new", "--marimo"] if command == "add" else [])]
+    )
+    assert result.exit_code == 1
+    assert connection_file().read_text() == contents
+
+
+def test_add_write_failure_preserves_registry():
+    text = '{"old": {}}\n'
+    path = connection_file()
+    path.write_text(text, encoding="utf-8")
+    with patch("qibocal_report.notebook.Path.replace", side_effect=OSError("denied")):
+        result = CliRunner().invoke(main, ["notebook", "add", "new", "--marimo"])
+    assert result.exit_code == 1
+    assert "Could not write" in result.output
+    assert path.read_text() == text
+    assert list(path.parent.iterdir()) == [path]
+
+
+@pytest.mark.parametrize("input", ["", "chip\n", "chip\n1\n"])
+def test_add_aborted_prompt_does_not_write(input):
+    result = CliRunner().invoke(main, ["notebook", "add"], input=input)
+    assert result.exit_code != 0
+    assert not connection_file().exists()
+
+
+def test_add_empty_name():
+    result = CliRunner().invoke(main, ["notebook", "add", " ", "--marimo"])
+    assert result.exit_code == 1
+    assert "must not be empty" in result.output
+    assert not connection_file().exists()
+
+
+def test_list_rich_literal_values():
+    connection_file().write_text(
+        json.dumps({"[red]chip[/red]": {"workdir": "/[blue]data[/blue]"}, "local": {}}),
+        encoding="utf-8",
+    )
+    result = CliRunner().invoke(main, ["notebook", "list"], env={"COLUMNS": "120"})
+    assert result.exit_code == 0, result.output
+    for text in (
+        "Notebook connections",
+        "Connection",
+        "Configured options",
+        "[red]chip[/red]",
+        "/[blue]data[/blue]",
+        "local",
+        "(defaults)",
+    ):
+        assert text in result.output
+    assert "\x1b[" not in result.output
+
+
+def test_list_empty_does_not_create_file():
+    result = CliRunner().invoke(main, ["notebook", "list"])
+    assert result.exit_code == 0, result.output
+    assert "No notebook connections registered" in result.output
+    assert not connection_file().exists()
+
+
+@pytest.mark.parametrize(
+    "contents", [b'{"chip": {}}\r\n', b'{ "local" : {} }', b"invalid"]
+)
+def test_list_raw_verbatim(contents):
+    connection_file().write_bytes(contents)
+    result = CliRunner().invoke(main, ["notebook", "list", "--raw"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout_bytes == contents
+
+
+def test_list_raw_missing_file():
+    result = CliRunner().invoke(main, ["notebook", "list", "--raw"])
+    assert result.exit_code == 1
+    assert "Could not read" in result.output
+    assert not connection_file().exists()
 
 
 def test_ssh_arguments():
@@ -294,6 +529,7 @@ def test_launch_composes_layers(ssh, slurm, capsys):
         queue="chip" if slurm else None,
         workdir="/data with space",
         no_interactive=True,
+        subnet="192.168.0.0/24" if slurm else None,
     )
     with (
         patch(
@@ -325,6 +561,7 @@ def test_launch_composes_layers(ssh, slurm, capsys):
     assert "WORKER_SOURCE = " in worker_command[3]
     remote_options = json.loads(worker_command[-1])
     assert remote_options["queue"] == ("chip" if slurm else None)
+    assert remote_options["subnet"] == ("192.168.0.0/24" if slurm else None)
     assert remote_options["workdir"] == "/data with space"
     assert "ssh" not in remote_options
     assert (

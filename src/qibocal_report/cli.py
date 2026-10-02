@@ -24,32 +24,120 @@ def main():
     """Qibocal: Quantum calibration and characterization framework."""
 
 
-@main.command(name="notebook")
+def notebook_options(*, hidden: bool = False):
+    """Keep connect and add option parsing identical."""
+
+    def decorate(command):
+        for option in reversed(
+            [
+                click.option(
+                    "--ssh",
+                    hidden=hidden,
+                    help="SSH options followed by a host or user@host destination.",
+                ),
+                click.option(
+                    "-q",
+                    "--queue",
+                    hidden=hidden,
+                    help="SLURM partition on the access node.",
+                ),
+                click.option(
+                    "--slurm",
+                    hidden=hidden,
+                    help="Additional srun options, as a quoted argument string.",
+                ),
+                click.option(
+                    "-w",
+                    "--workdir",
+                    hidden=hidden,
+                    help="Working directory on the access node.",
+                ),
+                click.option(
+                    "--venv",
+                    hidden=hidden,
+                    help="Kernel environment name or path on the computing node.",
+                ),
+                click.option(
+                    "--marimo/--jupyter",
+                    default=None,
+                    hidden=hidden,
+                    help="Use Marimo instead of JupyterLab.",
+                ),
+                click.option(
+                    "--no-interactive/--interactive",
+                    "-n",
+                    default=None,
+                    hidden=hidden,
+                    help="Print the connection URL without opening a browser.",
+                ),
+                click.option(
+                    "--timeout",
+                    hidden=hidden,
+                    type=click.FloatRange(min=0, min_open=True),
+                    help="Startup timeout in seconds (default: 300).",
+                ),
+                click.option(
+                    "--subnet",
+                    hidden=hidden,
+                    metavar="CIDR",
+                    help="Restrict SLURM computing-node IPs to this subnet "
+                    "(e.g. 192.168.0.0/24).",
+                ),
+            ]
+        ):
+            command = option(command)
+        return command
+
+    return decorate
+
+
+@main.group(name="notebook")
+def notebook():
+    """Connect to notebooks and manage registered connections."""
+
+
+@notebook.command(name="connect")
 @click.argument("connection", required=False)
-@click.option("--ssh", help="SSH options followed by a host or user@host destination.")
-@click.option("-q", "--queue", help="SLURM partition on the access node.")
-@click.option("--slurm", help="Additional srun options, as a quoted argument string.")
-@click.option("-w", "--workdir", help="Working directory on the access node.")
-@click.option("--venv", help="Kernel environment name or path on the computing node.")
-@click.option(
-    "--marimo/--jupyter", default=None, help="Use Marimo instead of JupyterLab."
-)
-@click.option(
-    "--no-interactive/--interactive",
-    "-n",
-    default=None,
-    help="Print the connection URL without opening a browser.",
-)
-@click.option(
-    "--timeout",
-    type=click.FloatRange(min=0, min_open=True),
-    help="Startup timeout in seconds (default: 300).",
-)
-def notebook(connection: str | None, **options):
+@notebook_options()
+def notebook_connect(connection: str | None, **options):
     """Start a local, SSH, or SLURM notebook, optionally using a named CONNECTION."""
     from qibocal_report.notebook import launch, load_options
 
     launch(load_options(connection, options))
+
+
+@notebook.command(name="list")
+@click.option("--raw", is_flag=True, help="Print the connection file verbatim.")
+def notebook_list(raw: bool):
+    """List registered notebook connections."""
+    from qibocal_report.notebook import list_connections
+
+    list_connections(raw=raw)
+
+
+@notebook.command(name="add")
+@click.argument("connection", required=False)
+@notebook_options(hidden=True)
+def notebook_add(connection: str | None, **options):
+    """Register CONNECTION with the options of `qibocal notebook connect`.
+
+    See `qibocal notebook connect --help` for all connection options.
+    With no options, prompt for a name and non-default options.
+    """
+    from qibocal_report.notebook import add_connection, prompt_options
+
+    interactive = all(value is None for value in options.values())
+    if connection is None:
+        connection = click.prompt("Connection name")
+    if interactive:
+        options = prompt_options(
+            [
+                param
+                for param in notebook_connect.params
+                if isinstance(param, click.Option)
+            ]
+        )
+    add_connection(connection, options)
 
 
 @main.group(name="config")

@@ -1,5 +1,6 @@
 """Notebook connection configuration and local session supervision."""
 
+import ipaddress
 import json
 import os
 import queue
@@ -8,6 +9,7 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
@@ -16,7 +18,7 @@ from urllib.parse import urlencode
 from urllib.request import ProxyHandler, build_opener
 
 import click
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -113,6 +115,14 @@ class NotebookOptions(BaseModel):
     marimo: bool = False
     no_interactive: bool = False
     timeout: float = Field(default=300.0, gt=0, allow_inf_nan=False)
+    subnet: str | None = Field(default=None, min_length=1)
+
+    @field_validator("subnet")
+    @classmethod
+    def validate_subnet(cls, value: str | None) -> str | None:
+        if value is not None:
+            ipaddress.ip_network(value)
+        return value
 
 
 def connection_file() -> Path:
@@ -120,27 +130,36 @@ def connection_file() -> Path:
     return config.get_config_dir(create=False) / "notebooks.json"
 
 
+def load_connections(*, missing_ok: bool = False) -> dict:
+    path = connection_file()
+    try:
+        connections = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        if missing_ok:
+            return {}
+        raise click.ClickException(f"Could not read '{path}': {exc}") from exc
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"Could not read '{path}': {exc}") from exc
+    if not isinstance(connections, dict):
+        raise click.ClickException(f"'{path}' must contain a connection-name object.")
+    for name, values in connections.items():
+        if not isinstance(values, dict):
+            raise click.ClickException(
+                f"Notebook connection '{name}' must be an object."
+            )
+    return connections
+
+
 def load_options(name: str | None, overrides: dict) -> NotebookOptions:
     values = {}
     if name is not None:
         path = connection_file()
-        try:
-            connections = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise click.ClickException(f"Could not read '{path}': {exc}") from exc
-        if not isinstance(connections, dict):
-            raise click.ClickException(
-                f"'{path}' must contain a connection-name object."
-            )
+        connections = load_connections()
         if name not in connections:
             raise click.ClickException(
                 f"Notebook connection '{name}' not found in '{path}'."
             )
         values = connections[name]
-        if not isinstance(values, dict):
-            raise click.ClickException(
-                f"Notebook connection '{name}' must be an object."
-            )
     values = {
         **values,
         **{key: value for key, value in overrides.items() if value is not None},
@@ -154,6 +173,118 @@ def load_options(name: str | None, overrides: dict) -> NotebookOptions:
         return options
     except (ValidationError, ValueError) as exc:
         raise click.ClickException(f"Invalid notebook options: {exc}") from exc
+
+
+def prompt_options(parameters: list[click.Option]) -> dict:
+    defaults = NotebookOptions().model_dump()
+    console = Console()
+    table = Table(title="Choose options to change from their defaults")
+    table.add_column("#", style="cyan")
+    table.add_column("Option")
+    table.add_column("Default")
+    table.add_column("Description")
+    for index, parameter in enumerate(parameters, 1):
+        default = defaults[parameter.name]
+        table.add_row(
+            str(index),
+            Text(parameter.opts[0]),
+            Text("None" if default is None else str(default)),
+            Text(parameter.help or ""),
+        )
+    console.print(table)
+
+    def selection(value: str) -> list[click.Option]:
+        tokens = value.replace(",", " ").split()
+        selected = []
+        for token in tokens:
+            if (
+                not token.isascii()
+                or not token.isdigit()
+                or not 1 <= int(token) <= len(parameters)
+            ):
+                raise click.BadParameter(
+                    f"Choose numbers between 1 and {len(parameters)}."
+                )
+            parameter = parameters[int(token) - 1]
+            if parameter not in selected:
+                selected.append(parameter)
+        return selected
+
+    selected = click.prompt(
+        "Options to change (comma-separated numbers; Enter keeps defaults)",
+        default="",
+        show_default=False,
+        value_proc=selection,
+    )
+    values = {}
+    for parameter in selected:
+        default = defaults[parameter.name]
+        label = parameter.opts[0]
+        if parameter.is_bool_flag:
+            values[parameter.name] = click.confirm(label, default=default)
+        else:
+            values[parameter.name] = click.prompt(
+                label, default=default, type=parameter.type
+            )
+    return values
+
+
+def add_connection(name: str, values: dict) -> None:
+    if not name.strip():
+        raise click.ClickException("Connection name must not be empty.")
+    options = load_options(None, values)
+    connections = load_connections(missing_ok=True)
+    if name in connections:
+        raise click.ClickException(f"Notebook connection '{name}' already exists.")
+    connections[name] = options.model_dump(exclude_unset=True)
+    path = connection_file()
+    temporary = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, delete=False
+        ) as stream:
+            temporary = Path(stream.name)
+            json.dump(connections, stream, indent=2)
+            stream.write("\n")
+        temporary.replace(path)
+    except OSError as exc:
+        raise click.ClickException(f"Could not write '{path}': {exc}") from exc
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    click.echo(f"Added notebook connection '{name}'.")
+
+
+def list_connections(*, raw: bool = False) -> None:
+    if raw:
+        path = connection_file()
+        try:
+            contents = path.read_bytes()
+        except OSError as exc:
+            raise click.ClickException(f"Could not read '{path}': {exc}") from exc
+        click.echo(contents, nl=False)
+        return
+    connections = load_connections(missing_ok=True)
+    console = Console()
+    if not connections:
+        console.print("No notebook connections registered.")
+        return
+    table = Table(title="Notebook connections")
+    table.add_column("Connection", style="bold cyan")
+    table.add_column("Configured options", overflow="fold")
+    for name, values in connections.items():
+        table.add_row(
+            Text(name),
+            Text(
+                "\n".join(
+                    f"{key}: {json.dumps(value, ensure_ascii=False)}"
+                    for key, value in values.items()
+                )
+                or "(defaults)"
+            ),
+        )
+    console.print(table)
 
 
 def ssh_arguments(value: str) -> tuple[list[str], str]:
