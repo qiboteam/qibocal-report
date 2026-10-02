@@ -24,6 +24,34 @@ def main():
     """Qibocal: Quantum calibration and characterization framework."""
 
 
+@main.command(name="notebook")
+@click.argument("connection", required=False)
+@click.option("--ssh", help="SSH options followed by a host or user@host destination.")
+@click.option("-q", "--queue", help="SLURM partition on the access node.")
+@click.option("--slurm", help="Additional srun options, as a quoted argument string.")
+@click.option("-w", "--workdir", help="Working directory on the access node.")
+@click.option("--venv", help="Kernel environment name or path on the computing node.")
+@click.option(
+    "--marimo/--jupyter", default=None, help="Use Marimo instead of JupyterLab."
+)
+@click.option(
+    "--no-interactive/--interactive",
+    "-n",
+    default=None,
+    help="Print the connection URL without opening a browser.",
+)
+@click.option(
+    "--timeout",
+    type=click.FloatRange(min=0, min_open=True),
+    help="Startup timeout in seconds (default: 300).",
+)
+def notebook(connection: str | None, **options):
+    """Start a local, SSH, or SLURM notebook, optionally using a named CONNECTION."""
+    from qibocal_report.notebook import launch, load_options
+
+    launch(load_options(connection, options))
+
+
 @main.group(name="config")
 def config_group():
     """Locate and clean local server configurations."""
