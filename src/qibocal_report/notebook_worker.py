@@ -380,7 +380,7 @@ class Runtime:
             thread.join(timeout=1)
 
 
-def server_install_command(python, packages, seeded):
+def environment_install_command(python, packages, seeded):
     if seeded:
         return [python, "-m", "pip", "install", *packages]
     if util.find_spec("pip") is not None:
@@ -392,23 +392,25 @@ def server_install_command(python, packages, seeded):
     )
 
 
-def ensure_environment(runtime, path, server=False, marimo=False):
+def ensure_environment(runtime, path, server=False, marimo=False, packages=()):
     python = path / "bin" / "python"
     if not path.exists() and not path.is_symlink():
-        seeded = server and util.find_spec("ensurepip") is not None
         if server:
             packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
-            install = server_install_command(str(python), packages, seeded)
+        seeded = bool(packages) and util.find_spec("ensurepip") is not None
+        if packages:
+            install = environment_install_command(str(python), packages, seeded)
         event("status", message=f"Creating environment: {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
         command = [sys.executable, "-m", "venv"]
         if not seeded:
             command.append("--without-pip")
         runtime.command([*command, str(path)])
-        if server:
+        if packages:
             event(
                 "status",
-                message=f"Installing notebook dependencies: {', '.join(packages)}",
+                message=f"Installing {'notebook' if server else 'kernel'} "
+                f"dependencies: {', '.join(packages)}",
             )
             runtime.command(install)
     if not python.is_file() or not os.access(python, os.X_OK):
@@ -435,7 +437,7 @@ def server_sites(runtime, python, marimo):
         sites = json.loads(result)
     except (WorkerError, json.JSONDecodeError) as error:
         runtime.check()
-        install = server_install_command(
+        install = environment_install_command(
             python, packages, seeded=util.find_spec("ensurepip") is not None
         )
         raise WorkerError(
@@ -619,7 +621,8 @@ def run(options):
                     message=f"Selected compute interface: {listen_host}. "
                     "The notebook is token-protected on this interface.",
                 )
-            target_path = environment_path(options.get("venv", "qibocal"))
+            target_name = options.get("venv", "qibocal")
+            target_path = environment_path(target_name)
             server_path = (
                 cache_home()
                 / "qibocal"
@@ -642,7 +645,11 @@ def run(options):
                 f"Kernel environment: {target_path}\n"
                 f"Server environment: {server_path}",
             )
-            target = ensure_environment(runtime, target_path)
+            target = ensure_environment(
+                runtime,
+                target_path,
+                packages=("qibocal",) if target_name == "qibocal" else (),
+            )
             server = ensure_environment(
                 runtime, server_path, server=True, marimo=marimo
             )

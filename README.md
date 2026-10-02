@@ -102,11 +102,14 @@ without ANSI colors; the authenticated URL stays on its own line on stdout.
 Use `-n` to print the URL without opening a browser. Notebook connections can
 be named in `~/.config/qibocal-report/notebooks.json` (or under
 `$XDG_CONFIG_HOME`) and invoked with `qibocal notebook myconnection`.
-Existing kernel environments remain unchanged; missing ones are created empty.
+Existing kernel environments remain unchanged. A missing default `qibocal`
+environment is created with the latest public Qibocal release (`pip install
+qibocal`), ready to use or replace with a development version. Other missing
+kernel environments are created empty.
 Named environments live under `$XDG_CACHE_HOME/qibocal/envs/` (fallback:
 `~/.cache/qibocal/envs/`). Server dependencies are installed separately on first use.
 If the computing node lacks `ensurepip`, installation uses the worker Python's
-pip (22.3+) to target the server environment without changing
+pip (22.3+) to target the new environment without changing
 system packages. Existing environments, including incomplete ones left by a
 failed setup, require explicit repair using the command reported by the launcher.
 SLURM address discovery and the notebook share one allocation. The launcher uses

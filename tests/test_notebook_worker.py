@@ -108,9 +108,15 @@ def test_environment_resolution(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "server, marimo", [(False, False), (True, False), (True, True)]
+    "server, marimo, packages",
+    [
+        (False, False, ()),
+        (False, False, ("qibocal",)),
+        (True, False, ()),
+        (True, True, ()),
+    ],
 )
-def test_new_environment_commands(tmp_path, monkeypatch, server, marimo):
+def test_new_environment_commands(tmp_path, monkeypatch, server, marimo, packages):
     monkeypatch.setattr(worker.util, "find_spec", lambda name: object())
     runtime = MagicMock()
     path = tmp_path / "environment"
@@ -123,13 +129,14 @@ def test_new_environment_commands(tmp_path, monkeypatch, server, marimo):
             python.chmod(0o700)
 
     runtime.command.side_effect = command
-    assert worker.ensure_environment(runtime, path, server, marimo) == str(
-        path / "bin/python"
-    )
+    assert worker.ensure_environment(
+        runtime, path, server, marimo, packages=packages
+    ) == str(path / "bin/python")
     creation = runtime.command.call_args_list[0].args[0]
-    assert ("--without-pip" in creation) is (not server)
+    assert ("--without-pip" in creation) is (not (server or packages))
     if server:
         packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
+    if packages:
         assert runtime.command.call_args_list[1].args[0] == [
             str(path / "bin/python"),
             "-m",
@@ -141,14 +148,16 @@ def test_new_environment_commands(tmp_path, monkeypatch, server, marimo):
         assert runtime.command.call_count == 1
 
 
-@pytest.mark.parametrize("marimo", [False, True])
-def test_server_environment_without_ensurepip(tmp_path, monkeypatch, marimo):
+@pytest.mark.parametrize(
+    "server, marimo", [(False, False), (True, False), (True, True)]
+)
+def test_environment_without_ensurepip(tmp_path, monkeypatch, server, marimo):
     monkeypatch.setattr(
         worker.util,
         "find_spec",
         lambda name: object() if name == "pip" else None,
     )
-    path = tmp_path / "server"
+    path = tmp_path / "environment"
     runtime = MagicMock()
 
     def command(arguments):
@@ -157,7 +166,9 @@ def test_server_environment_without_ensurepip(tmp_path, monkeypatch, marimo):
             (path / "bin/python").symlink_to(sys.executable)
 
     runtime.command.side_effect = command
-    python = worker.ensure_environment(runtime, path, server=True, marimo=marimo)
+    python = worker.ensure_environment(
+        runtime, path, server=server, marimo=marimo, packages=("qibocal",)
+    )
     assert runtime.command.call_args_list[0].args[0] == [
         sys.executable,
         "-m",
@@ -165,17 +176,24 @@ def test_server_environment_without_ensurepip(tmp_path, monkeypatch, marimo):
         "--without-pip",
         str(path),
     ]
-    packages = ["marimo"] if marimo else ["jupyterlab", "ipykernel"]
+    packages = (
+        (["marimo"] if marimo else ["jupyterlab", "ipykernel"])
+        if server
+        else ["qibocal"]
+    )
     expected = [sys.executable, "-m", "pip", "--python", python, "install", *packages]
     assert runtime.command.call_args_list[1].args[0] == expected
 
 
-def test_server_without_installer_fails_before_creation(tmp_path, monkeypatch):
+@pytest.mark.parametrize("server", [False, True])
+def test_environment_without_installer_fails_before_creation(
+    tmp_path, monkeypatch, server
+):
     monkeypatch.setattr(worker.util, "find_spec", lambda name: None)
     runtime = MagicMock()
     path = tmp_path / "server"
     with pytest.raises(worker.WorkerError, match="pip >= 22.3"):
-        worker.ensure_environment(runtime, path, server=True)
+        worker.ensure_environment(runtime, path, server=server, packages=("qibocal",))
     assert not path.exists()
     runtime.command.assert_not_called()
     runtime.command.side_effect = worker.WorkerError("import failed")
@@ -197,16 +215,17 @@ def test_missing_server_dependencies_without_ensurepip(monkeypatch):
     assert runtime.command.call_count == 1
 
 
-def test_existing_environment_never_modified(tmp_path):
+@pytest.mark.parametrize("server", [False, True])
+def test_existing_environment_never_modified(tmp_path, server):
     path = tmp_path / "environment"
     (path / "bin").mkdir(parents=True)
     (path / "bin/python").symlink_to(sys.executable)
     runtime = MagicMock()
-    worker.ensure_environment(runtime, path, server=True)
+    worker.ensure_environment(runtime, path, server=server, packages=("qibocal",))
     runtime.command.assert_not_called()
     (path / "bin/python").unlink()
     with pytest.raises(worker.WorkerError, match="repair it manually"):
-        worker.ensure_environment(runtime, path, server=True)
+        worker.ensure_environment(runtime, path, server=server, packages=("qibocal",))
     runtime.command.assert_not_called()
 
 
@@ -220,7 +239,8 @@ def test_existing_missing_dependencies_actionable():
     assert runtime.command.call_count == 1
 
 
-def test_failed_install_is_not_implicitly_retried(tmp_path):
+@pytest.mark.parametrize("server", [False, True])
+def test_failed_install_is_not_implicitly_retried(tmp_path, server):
     runtime = MagicMock()
     path = tmp_path / "server"
 
@@ -233,9 +253,11 @@ def test_failed_install_is_not_implicitly_retried(tmp_path):
 
     runtime.command.side_effect = command
     with pytest.raises(worker.WorkerError, match="Installation failed"):
-        worker.ensure_environment(runtime, path, server=True)
+        worker.ensure_environment(runtime, path, server=server, packages=("qibocal",))
     runtime.command.reset_mock()
-    python = worker.ensure_environment(runtime, path, server=True)
+    python = worker.ensure_environment(
+        runtime, path, server=server, packages=("qibocal",)
+    )
     runtime.command.assert_not_called()
     runtime.command.side_effect = worker.WorkerError("missing dependency")
     with pytest.raises(worker.WorkerError, match="Repair the server environment"):
@@ -528,7 +550,10 @@ def test_nested_timeout_and_stop():
 
 @pytest.mark.parametrize("marimo", [False, True])
 @pytest.mark.parametrize("host", ["192.0.2.20", "2001:db8::20"])
-def test_compute_worker_binds_selected_interface(tmp_path, monkeypatch, marimo, host):
+@pytest.mark.parametrize("venv", [None, "qibocal", "custom", "./qibocal"])
+def test_compute_worker_binds_selected_interface(
+    tmp_path, monkeypatch, marimo, host, venv
+):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     runtime = worker.Runtime(5)
     process = MagicMock()
@@ -548,19 +573,23 @@ def test_compute_worker_binds_selected_interface(tmp_path, monkeypatch, marimo, 
             worker,
             "ensure_environment",
             side_effect=["/target/python", "/server/python"],
-        ),
+        ) as ensure,
         patch.object(worker, "server_sites", return_value=["/server-sites"]),
         patch.object(worker, "free_port", return_value=8100) as port,
         patch.object(worker, "wait_http") as wait,
         patch.object(worker, "announce", side_effect=announce_and_stop) as announce,
     ):
-        worker.run(
-            {
-                "marimo": marimo,
-                "_node_role": "compute",
-                "_access_addresses": [host.replace("20", "10")],
-            }
-        )
+        options = {
+            "marimo": marimo,
+            "_node_role": "compute",
+            "_access_addresses": [host.replace("20", "10")],
+        }
+        if venv is not None:
+            options["venv"] = venv
+        worker.run(options)
+    assert ensure.call_args_list[0].kwargs == {
+        "packages": ("qibocal",) if venv in (None, "qibocal") else ()
+    }
     addresses.assert_called_once_with(runtime)
     port.assert_called_once_with(host)
     command = spawn.call_args.args[0]

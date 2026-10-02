@@ -89,9 +89,11 @@ Names resolve under
 .BR ~/.cache/qibocal/envs/ ).
 Absolute paths and explicit relative paths (./env or ../env) are used directly.
 Existing environments are never overwritten or installed into.
-Missing kernel environments are created empty, without pip or packages.
-Install Qibocal and your other calibration dependencies into this environment
-separately before using them in a notebook.
+When the default named environment qibocal is missing, it is created with
+the latest public Qibocal release using pip install qibocal.
+You can replace it with a development version or manage its dependencies
+afterward. Other missing kernel environments are created empty, without pip
+or packages; install your calibration dependencies into them separately.
 .TP
 .BI \-\-timeout " SECONDS"
 Maximum startup time, including environment preparation, queue wait, and
@@ -115,10 +117,11 @@ hop is not encrypted, so use SLURM notebooks only on a trusted computing network
 Every session uses a generated authentication token.
 .PP
 Server dependencies are installed on first use into a separate managed
-environment, not the kernel environment. This requires package-index access
+environment, not the kernel environment. Installing server dependencies or
+Qibocal into a new default kernel requires package-index access
 on the computing node and either ensurepip or pip (22.3+) in the worker's Python.
 If ensurepip is unavailable, the worker creates a pip-free
-server environment and targets it with the external installer; system packages
+environment and targets it with the external installer; system packages
 are not changed. Existing server environments are reused as-is.
 If first-time installation fails, repair that server environment explicitly
 using the command reported by the launcher; it is never implicitly overwritten.
