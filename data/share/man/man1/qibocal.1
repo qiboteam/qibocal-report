@@ -137,9 +137,16 @@ are not changed. This requires package-index access even for otherwise empty
 kernel environments. Existing Jupyter server environments are reused as-is.
 If first-time installation fails, repair that server environment explicitly
 using the command reported by the launcher; it is never implicitly overwritten.
-Jupyter exposes the selected environment as the default kernel named
-.BR Qibocal .
-Its kernel uses that environment's Python and packages, with server-provided
+Jupyter exposes all managed kernel environments and environments previously selected
+for Jupyter with \-\-venv on the computing node.
+The selected environment is the default kernel. The managed qibocal environment is
+named Qibocal; other managed kernels are named Qibocal (NAME).
+Path-based kernels also include their path in the label, with the home directory
+abbreviated as ~.
+Registrations persist under $XDG_CACHE_HOME/qibocal/kernels/
+(fallback: ~/.cache/qibocal/kernels/).
+Unavailable environments and the Jupyter server environment are not listed.
+Each kernel uses its environment's Python and packages, with server-provided
 ipykernel dependencies as a fallback.
 This keeps an existing Jupyter calibration environment unchanged; server dependencies
 may still appear in the notebook's import path.

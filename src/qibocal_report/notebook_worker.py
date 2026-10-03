@@ -1,6 +1,7 @@
 """Self-contained notebook worker, also executed on remote hosts with ``python -c``."""
 
 import getpass
+import hashlib
 import ipaddress
 import json
 import math
@@ -471,6 +472,103 @@ def bootstrap(sites, module):
     )
 
 
+def prepare_kernels(runtime, root, target_path, target, sites, env):
+    """Expose managed and previously selected environments without modifying them."""
+    cache = cache_home() / "qibocal"
+    registry = cache / "kernels"
+    selected = target_path.resolve()
+    managed_path = (cache / "envs").resolve()
+    server_path = (cache / "envs" / "jupyter").resolve()
+    default_path = (cache / "envs" / "qibocal").resolve()
+    environments = {selected}
+    if (cache / "envs").is_dir():
+        environments.update(path.resolve() for path in (cache / "envs").iterdir())
+    if registry.is_dir():
+        for registration in sorted(registry.glob("*.json")):
+            value = json.loads(registration.read_text(encoding="utf-8"))
+            if not isinstance(value, str):
+                raise WorkerError(f"Invalid kernel registration: {registration}")
+            environments.add(Path(value).resolve())
+    default_name = None
+    for environment in sorted(environments):
+        if environment == server_path:
+            continue
+        python = str(environment / "bin" / "python")
+        if environment == selected:
+            python = target
+        elif not Path(python).is_file() or not os.access(python, os.X_OK):
+            event(
+                "status",
+                message=f"Skipping unavailable kernel environment: {environment}",
+            )
+            continue
+        name = (
+            "qibocal"
+            if environment == default_path
+            else "qibocal-" + hashlib.sha256(os.fsencode(environment)).hexdigest()
+        )
+        target_sites = json.loads(
+            runtime.command(
+                [
+                    python,
+                    "-c",
+                    (
+                        "import json, sysconfig; "
+                        "print(json.dumps(list(dict.fromkeys("
+                        "[sysconfig.get_path('purelib'), "
+                        "sysconfig.get_path('platlib')]))))"
+                    ),
+                ],
+                capture=True,
+            )
+        )
+        kernel = root / "kernels" / name
+        kernel.mkdir(parents=True)
+        display_name = "Qibocal"
+        if environment != default_path:
+            display_name = f"Qibocal ({environment.name})"
+            if environment.parent != managed_path:
+                home = Path.home().resolve()
+                display_path = (
+                    Path("~") / environment.relative_to(home)
+                    if environment.is_relative_to(home)
+                    else environment
+                )
+                display_name += f" - {display_path}"
+        (kernel / "kernel.json").write_text(
+            json.dumps(
+                {
+                    "argv": [
+                        python,
+                        "-c",
+                        bootstrap(sites, "ipykernel_launcher"),
+                        "-f",
+                        "{connection_file}",
+                    ],
+                    "display_name": display_name,
+                    "language": "python",
+                    "env": {
+                        "PYTHONPATH": os.pathsep.join(
+                            [
+                                *target_sites,
+                                *filter(None, [env.get("PYTHONPATH")]),
+                                *sites,
+                            ]
+                        )
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        if environment == selected:
+            default_name = name
+    registry.mkdir(parents=True, exist_ok=True)
+    (registry / f"{default_name}.json").write_text(
+        json.dumps(str(selected)), encoding="utf-8"
+    )
+    return default_name
+
+
 def wait_http(runtime, port, token, path, marimo, processes, host="127.0.0.1"):
     opener = build_opener(ProxyHandler({}))
     query = urlencode({"access_token" if marimo else "token": token})
@@ -684,21 +782,6 @@ def run(options):
             else:
                 server = ensure_environment(runtime, server_path, server=True)
                 sites = server_sites(runtime, server)
-                target_sites = json.loads(
-                    runtime.command(
-                        [
-                            target,
-                            "-c",
-                            (
-                                "import json, sysconfig; "
-                                "print(json.dumps(list(dict.fromkeys("
-                                "[sysconfig.get_path('purelib'), "
-                                "sysconfig.get_path('platlib')]))))"
-                            ),
-                        ],
-                        capture=True,
-                    )
-                )
             port, token = free_port(listen_host), secrets.token_urlsafe(32)
             env = os.environ.copy()
             if marimo:
@@ -718,9 +801,6 @@ def run(options):
                     token,
                 ]
             else:
-                target_pythonpath = os.pathsep.join(
-                    [*target_sites, *filter(None, [env.get("PYTHONPATH")]), *sites]
-                )
                 path = "/lab"
                 runtime_directory = os.environ.get("XDG_RUNTIME_DIR") or None
                 if runtime_directory and not Path(runtime_directory).is_dir():
@@ -736,24 +816,8 @@ def run(options):
                     dir=runtime_directory,
                 )
                 kernel_root = Path(kernel_directory.name)
-                kernel = kernel_root / "kernels" / "qibocal"
-                kernel.mkdir(parents=True)
-                (kernel / "kernel.json").write_text(
-                    json.dumps(
-                        {
-                            "argv": [
-                                target,
-                                "-c",
-                                bootstrap(sites, "ipykernel_launcher"),
-                                "-f",
-                                "{connection_file}",
-                            ],
-                            "display_name": "Qibocal",
-                            "language": "python",
-                            "env": {"PYTHONPATH": target_pythonpath},
-                        }
-                    ),
-                    encoding="utf-8",
+                default_kernel = prepare_kernels(
+                    runtime, kernel_root, target_path, target, sites, env
                 )
                 env["JUPYTER_PATH"] = os.pathsep.join(
                     filter(None, [str(kernel_root), env.get("JUPYTER_PATH")])
@@ -767,7 +831,7 @@ def run(options):
                     f"--ServerApp.port={port}",
                     "--ServerApp.port_retries=0",
                     f"--IdentityProvider.token={token}",
-                    "--MappingKernelManager.default_kernel_name=qibocal",
+                    f"--MappingKernelManager.default_kernel_name={default_kernel}",
                 ]
             event(
                 "status",

@@ -881,6 +881,100 @@ def test_bootstrap_target_package_precedence(tmp_path):
     assert result.stdout.strip() == "target"
 
 
+@pytest.mark.parametrize(
+    "external_parent", ["external", "home/external", "home-other/external"]
+)
+def test_kernels_include_managed_and_previously_selected_environments(
+    tmp_path, monkeypatch, external_parent
+):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    managed = tmp_path / "cache/qibocal/envs"
+    default = managed / "qibocal"
+    named = managed / "newenv"
+    server = managed / "jupyter"
+    explicit = tmp_path / external_parent / "newenv"
+    environments = [default, named, server, explicit]
+    for environment in environments:
+        (environment / "bin").mkdir(parents=True)
+        (environment / "bin/python").symlink_to(sys.executable)
+    sites = tmp_path / "server-sites"
+    sites.mkdir()
+    (sites / "ipykernel_launcher.py").write_text("import shared; print(shared.VALUE)\n")
+    for environment in environments:
+        (environment / "site-packages").mkdir()
+        (environment / "site-packages/shared.py").write_text(
+            f"VALUE = {str(environment)!r}\n"
+        )
+    runtime = MagicMock()
+    runtime.command.side_effect = lambda arguments, **_: json.dumps(
+        [str(Path(arguments[0]).parent.parent / "site-packages")]
+    )
+    inherited = {"PYTHONPATH": "/inherited"}
+
+    def prepare(root, selected):
+        return worker.prepare_kernels(
+            runtime,
+            root,
+            selected,
+            str(selected / "bin/python"),
+            [str(sites)],
+            inherited,
+        )
+
+    explicit_name = prepare(tmp_path / "session-1", explicit)
+    selected_name = prepare(tmp_path / "session-2", named)
+    assert explicit_name != selected_name
+    assert selected_name != "qibocal"
+    assert prepare(tmp_path / "session-3", default) == "qibocal"
+    kernels = {
+        path.parent.name: json.loads(path.read_text())
+        for path in (tmp_path / "session-3/kernels").glob("*/kernel.json")
+    }
+    assert set(kernels) == {"qibocal", explicit_name, selected_name}
+    assert kernels["qibocal"]["display_name"] == "Qibocal"
+    assert kernels[selected_name]["display_name"] == "Qibocal (newenv)"
+    display_path = (
+        "~/external/newenv" if external_parent == "home/external" else str(explicit)
+    )
+    assert kernels[explicit_name]["display_name"] == (
+        f"Qibocal (newenv) - {display_path}"
+    )
+    assert len({data["display_name"] for data in kernels.values()}) == 3
+    for data in kernels.values():
+        python = data["argv"][0]
+        environment = Path(python).parent.parent
+        assert environment != server
+        assert data["env"]["PYTHONPATH"].split(os.pathsep) == [
+            str(environment / "site-packages"),
+            "/inherited",
+            str(sites),
+        ]
+        result = subprocess.run(
+            [python, "-c", data["argv"][2]],
+            env={**os.environ, **data["env"]},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert result.stdout.strip() == str(environment)
+    assert inherited == {"PYTHONPATH": "/inherited"}
+    explicit.rename(tmp_path / "removed")
+    prepare(tmp_path / "session-4", default)
+    assert not (tmp_path / "session-4/kernels" / explicit_name).exists()
+
+
+def test_invalid_kernel_registration_is_reported(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    registry = tmp_path / "qibocal/kernels"
+    registry.mkdir(parents=True)
+    (registry / "invalid.json").write_text("{}")
+    with pytest.raises(worker.WorkerError, match="Invalid kernel registration"):
+        worker.prepare_kernels(
+            MagicMock(), tmp_path / "session", tmp_path / "target", "python", [], {}
+        )
+
+
 FAKE_SERVER = """
 import json, os, sys
 from pathlib import Path
@@ -903,15 +997,19 @@ else:
     )
     assert '--ServerApp.ip=127.0.0.1' in args
     assert '--ServerApp.port_retries=0' in args and '--no-browser' in args
-    assert '--MappingKernelManager.default_kernel_name=qibocal' in args
+    name = next(
+        a.split('=', 1)[1] for a in args
+        if a.startswith('--MappingKernelManager.default_kernel_name=')
+    )
     kernel = (
         Path(os.environ['JUPYTER_PATH'].split(os.pathsep)[0])
-        / 'kernels/qibocal/kernel.json'
+        / 'kernels' / name / 'kernel.json'
     )
     data = json.loads(kernel.read_text())
     assert data['argv'][0] == os.environ['EXPECTED_TARGET']
     assert 'ipykernel_launcher' in data['argv'][2]
     assert 'PYTHONPATH' in data['env']
+    assert 'target' in data['display_name']
 Path(os.environ['FAKE_PID']).write_text(str(os.getpid()))
 print('child stdout log', flush=True)
 print('child stderr log', file=sys.stderr, flush=True)

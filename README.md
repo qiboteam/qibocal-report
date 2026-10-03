@@ -60,6 +60,10 @@ The command opens an authenticated local URL and stays attached until Ctrl+C.
 Use `--marimo` for Marimo instead of JupyterLab, or `-n` to print the URL without
 opening a browser. Save reusable connections with `qibocal notebook add`.
 
+Use `--venv NAME_OR_PATH` to select the default kernel environment. JupyterLab
+also lists all managed kernel environments and environments previously selected
+for Jupyter with `--venv` on the computing node, with distinct labels.
+
 See **`man qibocal`** ([source](data/share/man/man1/qibocal.1)) for connection
 management, environment setup, networking requirements, and configuration
 examples, or `qibocal notebook connect --help` for command options.
