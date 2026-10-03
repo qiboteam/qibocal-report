@@ -622,7 +622,7 @@ def test_nested_timeout_and_stop():
 
 @pytest.mark.parametrize("marimo", [False, True])
 @pytest.mark.parametrize("host", ["192.0.2.20", "2001:db8::20"])
-@pytest.mark.parametrize("venv", [None, "qibocal", "custom", "./qibocal"])
+@pytest.mark.parametrize("venv", [None, "qibocal", "newenv", "./qibocal"])
 @pytest.mark.parametrize("subnet", [False, True])
 def test_compute_worker_binds_selected_interface(
     tmp_path, monkeypatch, marimo, host, venv, subnet
@@ -669,9 +669,7 @@ def test_compute_worker_binds_selected_interface(
                 "2001:db8::/64" if ":" in host else "192.0.2.0/24"
             )
         worker.run(options)
-    assert ensure.call_args_list[0].kwargs == {
-        "packages": ("qibocal",) if venv in (None, "qibocal") else ()
-    }
+    assert ensure.call_args_list[0].kwargs == {"packages": ("qibocal",)}
     addresses.assert_called_once_with(runtime)
     port.assert_called_once_with(host)
     command = spawn.call_args.args[0]
@@ -734,7 +732,7 @@ def test_marimo_install_failure_stops_startup(tmp_path, monkeypatch, seeded):
     ):
         worker.run({"marimo": True, "venv": "jupyter"})
     ensure.assert_called_once_with(
-        runtime, tmp_path / "qibocal/envs/jupyter", packages=()
+        runtime, tmp_path / "qibocal/envs/jupyter", packages=("qibocal",)
     )
     sites.assert_not_called()
     spawn.assert_not_called()

@@ -90,11 +90,10 @@ Names resolve under
 Absolute paths and explicit relative paths (./env or ../env) are used directly.
 Existing environments are never overwritten. Jupyter leaves target environments
 unchanged; with \-\-marimo, Marimo is installed directly into the target environment.
-When the default named environment qibocal is missing, it is created with
+Any missing kernel environment, whether specified by name or path, is created with
 the latest public Qibocal release using pip install qibocal.
 You can replace it with a development version or manage its dependencies
-afterward. Other missing kernel environments are created with pip but no
-calibration packages; install your calibration dependencies into them separately.
+afterward.
 .TP
 .BI \-\-timeout " SECONDS"
 Maximum startup time, including environment preparation, queue wait, and
@@ -129,7 +128,7 @@ jupyter environment under $XDG_CACHE_HOME/qibocal/envs/
 (fallback: ~/.cache/qibocal/envs/), not the kernel environment.
 Marimo is installed directly into the target environment and launched with its
 Python; no separate Marimo environment is used. Installing notebook dependencies or
-Qibocal into a new default kernel requires package-index access
+Qibocal into a new kernel environment requires package-index access
 on the computing node and either ensurepip or pip (22.3+) in the worker's Python.
 All newly created environments include pip. If ensurepip is unavailable,
 the worker uses the external installer to install pip and any requested

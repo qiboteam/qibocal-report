@@ -660,7 +660,7 @@ def run(options):
             target = ensure_environment(
                 runtime,
                 target_path,
-                packages=("qibocal",) if target_name == "qibocal" else (),
+                packages=("qibocal",),
             )
             if marimo:
                 has_pip = json.loads(
