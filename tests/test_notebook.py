@@ -103,7 +103,7 @@ def test_worker_streams_keep_readiness_separate():
 def test_notebook_help():
     result = CliRunner().invoke(main, ["notebook", "--help"])
     assert result.exit_code == 0
-    for command in ("connect", "add", "list"):
+    for command in ("connect", "add", "list", "update", "remove"):
         assert command in result.output
     result = CliRunner().invoke(main, ["notebook", "connect", "--help"])
     assert result.exit_code == 0
@@ -441,6 +441,178 @@ def test_add_empty_name():
     assert result.exit_code == 1
     assert "must not be empty" in result.output
     assert not connection_file().exists()
+
+
+def test_update_preserves_unspecified_settings():
+    values = {
+        "ssh": "user@login",
+        "queue": "old",
+        "marimo": True,
+        "no_interactive": True,
+        "subnet": "192.0.2.0/24",
+    }
+    connection_file().write_text(
+        json.dumps({"chip": values, "other": {"venv": "custom"}}),
+        encoding="utf-8",
+    )
+    with patch("qibocal_report.notebook.launch") as launch:
+        result = CliRunner().invoke(
+            main,
+            [
+                "notebook",
+                "update",
+                "chip",
+                "-q",
+                "new",
+                "--jupyter",
+                "--interactive",
+                "--subnet",
+                "192.168.0.0/24",
+            ],
+        )
+    assert result.exit_code == 0, result.output
+    assert "Updated notebook connection 'chip'" in result.output
+    launch.assert_not_called()
+    values.update(
+        queue="new", marimo=False, no_interactive=False, subnet="192.168.0.0/24"
+    )
+    assert json.loads(connection_file().read_text()) == {
+        "chip": values,
+        "other": {"venv": "custom"},
+    }
+    assert load_options("chip", {}) == NotebookOptions(**values)
+
+
+@pytest.mark.parametrize("named", [False, True])
+def test_update_interactive_current_values(named):
+    connection_file().write_text(
+        '{"chip": {"queue": "old", "marimo": true, "timeout": 900}}',
+        encoding="utf-8",
+    )
+    result = CliRunner().invoke(
+        main,
+        ["notebook", "update", *(["chip"] if named else [])],
+        input=("" if named else "chip\n") + "2,6,8\nnew\nn\n\n",
+    )
+    assert result.exit_code == 0, result.output
+    assert "Current" in result.output
+    assert "old" in result.output
+    assert "Enter keeps current values" in result.output
+    assert json.loads(connection_file().read_text()) == {
+        "chip": {"queue": "new", "marimo": False, "timeout": 900.0}
+    }
+
+
+def test_update_options_without_name():
+    connection_file().write_text('{"chip": {"queue": "old"}}', encoding="utf-8")
+    result = CliRunner().invoke(
+        main, ["notebook", "update", "--marimo"], input="chip\n"
+    )
+    assert result.exit_code == 0, result.output
+    assert "Options to change" not in result.output
+    assert json.loads(connection_file().read_text()) == {
+        "chip": {"queue": "old", "marimo": True}
+    }
+
+
+@pytest.mark.parametrize("input", ["", "2\n"])
+def test_update_aborted_prompt_preserves_registry(input):
+    text = '{"chip": {"queue": "old"}}\n'
+    connection_file().write_text(text, encoding="utf-8")
+    result = CliRunner().invoke(main, ["notebook", "update", "chip"], input=input)
+    assert result.exit_code != 0
+    assert connection_file().read_text() == text
+
+
+def test_update_interactive_no_changes():
+    connection_file().write_text('{"chip": {"queue": "old"}}', encoding="utf-8")
+    result = CliRunner().invoke(main, ["notebook", "update", "chip"], input="\n")
+    assert result.exit_code == 0, result.output
+    assert json.loads(connection_file().read_text()) == {"chip": {"queue": "old"}}
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--ssh", "'unterminated"],
+        ["--ssh", "-p"],
+        ["--slurm", "'unterminated"],
+        ["--timeout", "0"],
+        ["--subnet", "invalid"],
+    ],
+)
+def test_update_invalid_options_preserves_registry(arguments):
+    text = '{"chip": {"queue": "old"}}\n'
+    connection_file().write_text(text, encoding="utf-8")
+    result = CliRunner().invoke(main, ["notebook", "update", "chip", *arguments])
+    assert result.exit_code != 0
+    assert connection_file().read_text() == text
+
+
+@pytest.mark.parametrize("other", [False, True])
+def test_remove_immediately_preserves_other_connections(other):
+    connections = {"chip": {"queue": "old"}}
+    if other:
+        connections["other"] = {"venv": "custom"}
+    connection_file().write_text(json.dumps(connections), encoding="utf-8")
+    with patch("qibocal_report.notebook.launch") as launch:
+        result = CliRunner().invoke(main, ["notebook", "remove", "chip"])
+    assert result.exit_code == 0, result.output
+    assert "Removed notebook connection 'chip'" in result.output
+    launch.assert_not_called()
+    del connections["chip"]
+    assert json.loads(connection_file().read_text()) == connections
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [["update", "missing"], ["update", "missing", "--marimo"], ["remove", "missing"]],
+)
+@pytest.mark.parametrize("exists", [False, True])
+def test_connection_mutation_requires_existing_name(arguments, exists):
+    text = '{"chip": {}}\n'
+    if exists:
+        connection_file().write_text(text, encoding="utf-8")
+    result = CliRunner().invoke(main, ["notebook", *arguments])
+    assert result.exit_code == 1
+    assert ("not found" if exists else "Could not read") in result.output
+    if exists:
+        assert connection_file().read_text() == text
+    else:
+        assert not connection_file().exists()
+
+
+@pytest.mark.parametrize("command", ["update", "remove"])
+@pytest.mark.parametrize("contents", ["{", "[]", '{"chip": []}'])
+def test_mutation_invalid_registry_is_not_overwritten(command, contents):
+    connection_file().write_text(contents, encoding="utf-8")
+    result = CliRunner().invoke(
+        main,
+        ["notebook", command, "chip", *(["--marimo"] if command == "update" else [])],
+    )
+    assert result.exit_code == 1
+    assert connection_file().read_text() == contents
+
+
+@pytest.mark.parametrize("command", ["update", "remove"])
+def test_mutation_write_failure_preserves_registry(command):
+    text = '{"chip": {}}\n'
+    path = connection_file()
+    path.write_text(text, encoding="utf-8")
+    with patch("qibocal_report.notebook.Path.replace", side_effect=OSError("denied")):
+        result = CliRunner().invoke(
+            main,
+            [
+                "notebook",
+                command,
+                "chip",
+                *(["--marimo"] if command == "update" else []),
+            ],
+        )
+    assert result.exit_code == 1
+    assert "Could not write" in result.output
+    assert path.read_text() == text
+    assert list(path.parent.iterdir()) == [path]
 
 
 def test_list_rich_literal_values():

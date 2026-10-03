@@ -199,6 +199,24 @@ Display registered names and their configured options in a Rich table.
 An empty registry is reported without creating a file.
 With \-\-raw, print the connection file verbatim, without formatting or JSON
 validation; a missing file is an error.
+.SS Updating connections
+.B qibocal notebook update
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+Update an existing connection using the same options as connect.
+Explicitly supplied settings replace their stored values; unspecified settings
+and other connections are preserved. With no options, show the option-selection
+menu using the connection's current values. Prompt for the name if omitted.
+Missing connections and invalid resulting options are errors.
+Updating a connection does not start or stop a notebook session.
+.SS Removing connections
+.B qibocal notebook remove
+.I CONNECTION
+.PP
+Remove the named connection immediately, without confirmation.
+The name must exist. Other connections, environments, and running sessions
+are unchanged. Removing the last connection leaves an empty JSON object.
 .SS Examples
 .nf
 qibocal notebook connect
@@ -211,6 +229,8 @@ qibocal notebook add
 qibocal notebook add mychip --ssh myuser@login -q mychip
 qibocal notebook list
 qibocal notebook list --raw
+qibocal notebook update mychip --subnet 192.168.0.0/24
+qibocal notebook remove mychip
 .fi
 .SH REPORT COMMANDS
 .TP

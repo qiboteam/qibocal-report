@@ -140,6 +140,41 @@ def notebook_add(connection: str | None, **options):
     add_connection(connection, options)
 
 
+@notebook.command(name="update")
+@click.argument("connection", required=False)
+@notebook_options(hidden=True)
+def notebook_update(connection: str | None, **options):
+    """Update an existing CONNECTION using `qibocal notebook connect` options.
+
+    See `qibocal notebook connect --help` for all connection options.
+    Unspecified settings are preserved. With no options, prompt for changes
+    using the connection's current values.
+    """
+    from qibocal_report.notebook import load_options, prompt_options, update_connection
+
+    if connection is None:
+        connection = click.prompt("Connection name")
+    if all(value is None for value in options.values()):
+        options = prompt_options(
+            [
+                param
+                for param in notebook_connect.params
+                if isinstance(param, click.Option)
+            ],
+            current=load_options(connection, {}),
+        )
+    update_connection(connection, options)
+
+
+@notebook.command(name="remove")
+@click.argument("connection")
+def notebook_remove(connection: str):
+    """Remove a registered CONNECTION immediately, without confirmation."""
+    from qibocal_report.notebook import remove_connection
+
+    remove_connection(connection)
+
+
 @main.group(name="config")
 def config_group():
     """Locate and clean local server configurations."""

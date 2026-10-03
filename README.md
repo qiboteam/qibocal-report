@@ -119,6 +119,20 @@ configuration without starting a session and rejects existing names.
 `list` displays registered connections in a Rich table; `list --raw` prints the
 connection file verbatim.
 
+Manage existing connections with:
+
+```bash
+qibocal notebook update myconnection --subnet 192.168.0.0/24
+qibocal notebook remove myconnection
+```
+
+`update` accepts the same options as `connect`, preserves unspecified settings,
+and requires an existing name. Without options, it opens the option
+menu with the connection's current values (prompting for a name if omitted).
+`remove` deletes a connection immediately, without confirmation.
+Other connections and notebook environments are unchanged;
+neither command starts or stops a session.
+
 Existing Jupyter kernel environments remain unchanged. With `--marimo`, Marimo is
 installed directly into the target environment and launched with its Python;
 no separate Marimo environment is used. A missing default `qibocal`

@@ -150,16 +150,18 @@ def load_connections(*, missing_ok: bool = False) -> dict:
     return connections
 
 
+def registered_connection(connections: dict, name: str) -> dict:
+    if name not in connections:
+        raise click.ClickException(
+            f"Notebook connection '{name}' not found in '{connection_file()}'."
+        )
+    return connections[name]
+
+
 def load_options(name: str | None, overrides: dict) -> NotebookOptions:
     values = {}
     if name is not None:
-        path = connection_file()
-        connections = load_connections()
-        if name not in connections:
-            raise click.ClickException(
-                f"Notebook connection '{name}' not found in '{path}'."
-            )
-        values = connections[name]
+        values = registered_connection(load_connections(), name)
     values = {
         **values,
         **{key: value for key, value in overrides.items() if value is not None},
@@ -175,13 +177,19 @@ def load_options(name: str | None, overrides: dict) -> NotebookOptions:
         raise click.ClickException(f"Invalid notebook options: {exc}") from exc
 
 
-def prompt_options(parameters: list[click.Option]) -> dict:
-    defaults = NotebookOptions().model_dump()
+def prompt_options(
+    parameters: list[click.Option], current: NotebookOptions | None = None
+) -> dict:
+    defaults = (current or NotebookOptions()).model_dump()
     console = Console()
-    table = Table(title="Choose options to change from their defaults")
+    table = Table(
+        title="Choose options to change"
+        if current is not None
+        else "Choose options to change from their defaults"
+    )
     table.add_column("#", style="cyan")
     table.add_column("Option")
-    table.add_column("Default")
+    table.add_column("Current" if current is not None else "Default")
     table.add_column("Description")
     for index, parameter in enumerate(parameters, 1):
         default = defaults[parameter.name]
@@ -211,7 +219,8 @@ def prompt_options(parameters: list[click.Option]) -> dict:
         return selected
 
     selected = click.prompt(
-        "Options to change (comma-separated numbers; Enter keeps defaults)",
+        "Options to change (comma-separated numbers; Enter keeps "
+        + ("current values)" if current is not None else "defaults)"),
         default="",
         show_default=False,
         value_proc=selection,
@@ -237,6 +246,34 @@ def add_connection(name: str, values: dict) -> None:
     if name in connections:
         raise click.ClickException(f"Notebook connection '{name}' already exists.")
     connections[name] = options.model_dump(exclude_unset=True)
+    write_connections(connections)
+    click.echo(f"Added notebook connection '{name}'.")
+
+
+def update_connection(name: str, values: dict) -> None:
+    connections = load_connections()
+    current = registered_connection(connections, name)
+    options = load_options(
+        None,
+        {
+            **current,
+            **{key: value for key, value in values.items() if value is not None},
+        },
+    )
+    connections[name] = options.model_dump(exclude_unset=True)
+    write_connections(connections)
+    click.echo(f"Updated notebook connection '{name}'.")
+
+
+def remove_connection(name: str) -> None:
+    connections = load_connections()
+    registered_connection(connections, name)
+    del connections[name]
+    write_connections(connections)
+    click.echo(f"Removed notebook connection '{name}'.")
+
+
+def write_connections(connections: dict) -> None:
     path = connection_file()
     temporary = None
     try:
@@ -253,7 +290,6 @@ def add_connection(name: str, values: dict) -> None:
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-    click.echo(f"Added notebook connection '{name}'.")
 
 
 def list_connections(*, raw: bool = False) -> None:
