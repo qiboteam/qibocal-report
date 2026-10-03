@@ -32,7 +32,7 @@
 ## ⚡ Key Features
 
 - **Interactive Visualizations**: High-resolution 2D and 3D graphics powered by **Plotly.js** with zoom, pan, hover data inspection, and image export.
-- **Multi-Server Dashboard**: Connect to, name, and monitor multiple local or remote Qibocal report servers across your lab network; auto-assigned Docker-style names and abstract geometric avatars, with persistent storage in `~/.config/qibocal-report/servers.json`.
+- **Multi-Server Dashboard**: Connect to, name, and monitor multiple local or remote Qibocal report servers across your lab network; auto-assigned Docker-style names and abstract geometric avatars, with persistent storage in `$XDG_CONFIG_HOME/qibocal/servers.json` (fallback: `~/.config/qibocal/servers.json`).
 - **Search & Smart Facets**: Instant full-text search across titles, platforms, authors, protocols, and tags; faceted filtering with author filters, protocol frequency ranking, interactive date histogram timeline, and tag search.
 - **Dual Display Modes**: Toggle seamlessly between sortable, resizable **Table View** and rich **Card View** (inspired by Inspire-HEP full-width cards).
 - **Statistics Dashboard**: Dedicated analytics view (`/#/statistics`) tracking calibration throughput, activity over time, protocol frequency distribution, author activity, and platform breakdowns.
@@ -76,6 +76,92 @@ qibocal report server ./sample_data --port 8000
 ```
 
 Open your browser at **`http://localhost:8000`**.
+
+### Interactive Notebooks
+
+Start JupyterLab locally, over SSH, or on a SLURM partition:
+
+```bash
+qibocal notebook connect
+qibocal notebook connect --ssh myuser@login -q mychip -w /shared/calibration
+qibocal notebook connect --marimo --venv ./calibration-env -n
+```
+
+The command opens an authenticated local URL and stays attached until Ctrl+C.
+Each worker logs its node identity to stderr as soon as it starts: the actual
+hostname, fully qualified domain name, user, OS release, architecture, Python
+executable/version, process ID, and working directory on arrival. SLURM sessions
+log the access and compute nodes separately, including available allocation
+details (cluster, job/step IDs, partition, node lists, CPU/memory, and GPU IDs).
+Without SLURM, the same node serves both roles.
+Rich renders these details as labeled node panels, with colored startup stages
+and a clear ready banner. Rendering happens locally: SSH and SLURM workers use
+only Python's standard library and forward structured diagnostics, so they do
+not need Rich installed or a remote terminal. Redirected output remains readable
+without ANSI colors; the authenticated URL stays on its own line on stdout.
+Use `-n` to print the URL without opening a browser. Notebook connections can
+be named in `~/.config/qibocal/notebooks.json` (or under
+`$XDG_CONFIG_HOME`) and invoked with `qibocal notebook connect myconnection`.
+
+Register connections interactively with `qibocal notebook add`: enter a name,
+select which options should differ from their defaults, then set those options.
+Alternatively, supply a name and connection options directly:
+
+```bash
+qibocal notebook add myconnection --ssh myuser@login -q mychip
+qibocal notebook list
+qibocal notebook list --raw
+```
+
+`add` accepts the same options as `connect`; see `qibocal notebook connect --help`
+for their documentation. It records explicitly supplied options in the JSON
+configuration without starting a session and rejects existing names.
+`list` displays registered connections in a Rich table; `list --raw` prints the
+connection file verbatim.
+
+Manage existing connections with:
+
+```bash
+qibocal notebook update myconnection --subnet 192.168.0.0/24
+qibocal notebook remove myconnection
+```
+
+`update` accepts the same options as `connect`, preserves unspecified settings,
+and requires an existing name. Without options, it opens the option
+menu with the connection's current values (prompting for a name if omitted).
+`remove` deletes a connection immediately, without confirmation.
+Other connections and notebook environments are unchanged;
+neither command starts or stops a session.
+
+Existing Jupyter kernel environments remain unchanged. With `--marimo`, Marimo is
+installed directly into the target environment and launched with its Python;
+no separate Marimo environment is used. A missing default `qibocal`
+environment is created with the latest public Qibocal release (`pip install
+qibocal`), ready to use or replace with a development version. Other missing
+kernel environments are created with `pip` but no calibration packages.
+Named environments live under `$XDG_CACHE_HOME/qibocal/envs/` (fallback:
+`~/.cache/qibocal/envs/`). Jupyter server dependencies are installed separately
+on first use into the managed `jupyter` environment.
+If the computing node lacks `ensurepip`, installation uses the worker Python's
+pip (22.3+) to install `pip` and any requested dependencies into the new environment
+without changing system packages; this requires package-index access even for
+otherwise empty kernel environments. Existing Jupyter environments, including incomplete
+ones left by a failed setup, require explicit repair using the command reported
+by the launcher.
+SLURM address discovery and the notebook share one allocation. The launcher uses
+the compute IP with the longest network prefix in common with an access-node IP,
+so compute-hostname resolution and compute-node SSH access are unnecessary.
+Use `--subnet 192.168.0.0/24` to consider only computing-node IPs in that
+subnet (IPv4 and IPv6 CIDR networks are supported). The longest-prefix selection
+then applies among matching addresses; startup fails if none match. This option
+does not change loopback binding for local or unscheduled SSH sessions.
+The token-protected server listens on that selected interface; an access-node
+loopback relay preserves the local browser URL. The access-to-compute hop is
+unencrypted and requires a trusted computing network.
+
+Notebook dispatch is documented outside the web frontend in the installed
+**`man qibocal`** page ([source](data/share/man/man1/qibocal.1)), including networking
+requirements, environment paths, and configuration examples.
 
 ### 3. Standalone Client Mode
 

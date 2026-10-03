@@ -34,5 +34,5 @@ dev = [
 qibocal = "qibocal_report.cli:main"
 
 [tool.uv.build-backend]
-source-include = ["docs/**"]
-data = { purelib = "docs" }
+source-include = ["docs/**", "data/**"]
+data = { purelib = "docs", data = "data" }

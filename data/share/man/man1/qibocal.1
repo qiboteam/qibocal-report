@@ -1,0 +1,303 @@
+.TH QIBOCAL 1 "October 2, 2026" "qibocal-report" "User Commands"
+.SH NAME
+qibocal \- serve calibration reports and dispatch interactive notebooks
+.SH SYNOPSIS
+.B qibocal
+.RB [ \-\-version ]
+.RB [ \-\-help ]
+.I COMMAND
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+qibocal-report provides the qibocal command for report servers, local
+configuration management, and notebook sessions. Use
+.B qibocal COMMAND \-\-help
+for the available command options.
+.SH NOTEBOOK
+.B qibocal notebook connect
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+Start JupyterLab (default) or Marimo and open its authenticated URL in the
+local browser. Keep the command running for the lifetime of the session.
+Ctrl+C stops the notebook, releases its SLURM allocation,
+and closes the tunnels.
+.PP
+The connection layers compose:
+local machine, optional SSH access node, optional SLURM computing node.
+Omitting SSH submits from the local machine. Omitting SLURM runs on the access
+node. Omitting both starts a local notebook.
+.PP
+Each worker immediately logs its node identity to standard error:
+actual hostname, fully qualified domain name, user, OS release, architecture,
+Python executable and version, process ID, and working directory on arrival.
+SLURM sessions distinguish access and compute nodes and include available
+allocation details: cluster, job and step IDs, partition, node lists,
+CPU and memory allocation, and GPU IDs.
+Without SLURM, one node serves both access and compute roles.
+.PP
+Node details appear in labeled Rich panels, with colored startup stages
+and a ready banner. All formatting happens locally; remote workers forward
+structured diagnostics without requiring Rich or a terminal on SSH or SLURM
+nodes. Redirected output has no automatic ANSI colors.
+Diagnostics remain on standard error and the authenticated URL remains
+on its own line on standard output.
+.SS Connect options
+.TP
+.BI \-\-ssh " TEXT"
+SSH options followed by a host or user@host destination.
+Quote the entire value when including options, for example
+.BR "\-\-ssh '\-p 2222 \-i ~/.ssh/lab user@login'" .
+Host aliases, agent authentication, and jump hosts from SSH configuration work.
+The destination must be the last argument; do not include a remote command.
+.TP
+.BR \-q ", " \-\-queue " " \fIPARTITION\fR
+SLURM partition passed to srun on the access node.
+.TP
+.BI \-\-slurm " TEXT"
+Additional srun options as a quoted argument string, for example
+.BR "\-\-slurm '\-\-time=02:00:00 \-\-account=lab \-\-gres=gpu:1'" .
+Specifying this option alone also enables SLURM dispatch.
+Resource allocation must select one task on one computing node.
+Only common scheduling/resource options are accepted; command, IO,
+and working-directory overrides are rejected. Use separated short options
+(for example, \-c 2 rather than \-c2).
+.TP
+.BR \-w ", " \-\-workdir " " \fIDIRECTORY\fR
+Change directory on the access node before starting the session or submitting
+to SLURM. With SLURM, this directory must also be accessible on the computing
+node. Relative kernel paths are resolved in the notebook working directory.
+.TP
+.B \-\-marimo
+Run Marimo instead of JupyterLab.
+.TP
+.B \-\-jupyter
+Use JupyterLab, including when overriding a named Marimo connection.
+.TP
+.BR \-n ", " \-\-no\-interactive
+Print the authenticated URL without opening a browser. The command still
+stays attached to supervise the notebook and tunnels.
+.TP
+.B \-\-interactive
+Open the browser, including when overriding a named non-interactive connection.
+.TP
+.BI \-\-venv " NAME_OR_PATH"
+Kernel environment on the computing node; default:
+.BR qibocal .
+Names resolve under
+.BR $XDG_CACHE_HOME/qibocal/envs/
+(fallback:
+.BR ~/.cache/qibocal/envs/ ).
+Absolute paths and explicit relative paths (./env or ../env) are used directly.
+Existing environments are never overwritten. Jupyter leaves target environments
+unchanged; with \-\-marimo, Marimo is installed directly into the target environment.
+When the default named environment qibocal is missing, it is created with
+the latest public Qibocal release using pip install qibocal.
+You can replace it with a development version or manage its dependencies
+afterward. Other missing kernel environments are created with pip but no
+calibration packages; install your calibration dependencies into them separately.
+.TP
+.BI \-\-timeout " SECONDS"
+Maximum startup time, including environment preparation, queue wait, and
+tunnel setup. Default: 300. Increase this for long SLURM queue waits.
+.TP
+.BI \-\-subnet " CIDR"
+Restrict SLURM computing-node IP selection to an IPv4 or IPv6 subnet,
+for example 192.168.0.0/24. Among matching addresses, choose the IP with the
+longest network prefix in common with an access-node IP.
+Startup fails if no usable computing-node IP matches.
+Local and unscheduled SSH sessions still bind only to loopback.
+.SS Requirements and environments
+Local execution requires Python 3.10+ with venv support. SSH execution requires
+OpenSSH locally and python3 (3.10+) with venv support on the access
+and computing nodes. SLURM execution requires srun on the access node
+and network access from the access node to the allocated computing node.
+Both nodes need hostname \-I to report their interface addresses.
+The launcher selects a computing-node IP by the longest common network prefix
+with an access-node address; hostname resolution and SSH access to the computing
+node are not required.
+Address discovery and the notebook run in the same single SLURM allocation.
+Local and unscheduled SSH notebook servers bind only to loopback.
+SLURM notebook servers bind to the selected computing-node interface, not all
+interfaces, and are protected by a generated authentication token.
+The access worker relays its loopback port to that interface; SSH sessions
+tunnel access-node loopback to the local machine. The access-to-compute network
+hop is not encrypted, so use SLURM notebooks only on a trusted computing network.
+Every session uses a generated authentication token.
+.PP
+Jupyter server dependencies are installed on first use into the separate managed
+jupyter environment under $XDG_CACHE_HOME/qibocal/envs/
+(fallback: ~/.cache/qibocal/envs/), not the kernel environment.
+Marimo is installed directly into the target environment and launched with its
+Python; no separate Marimo environment is used. Installing notebook dependencies or
+Qibocal into a new default kernel requires package-index access
+on the computing node and either ensurepip or pip (22.3+) in the worker's Python.
+All newly created environments include pip. If ensurepip is unavailable,
+the worker uses the external installer to install pip and any requested
+dependencies into the new environment; system packages
+are not changed. This requires package-index access even for otherwise empty
+kernel environments. Existing Jupyter server environments are reused as-is.
+If first-time installation fails, repair that server environment explicitly
+using the command reported by the launcher; it is never implicitly overwritten.
+Jupyter exposes the selected environment as the default kernel named
+.BR Qibocal .
+Its kernel uses that environment's Python and packages, with server-provided
+ipykernel dependencies as a fallback.
+This keeps an existing Jupyter calibration environment unchanged; server dependencies
+may still appear in the notebook's import path.
+.SS Named connections
+Create a JSON object whose keys are connection names and values are options:
+.PP
+.nf
+{
+  "mychip": {
+    "ssh": "myuser@login",
+    "queue": "mychip",
+    "workdir": "/shared/calibration",
+    "venv": "qibocal",
+    "slurm": "--time=02:00:00",
+    "marimo": false,
+    "no_interactive": false,
+    "timeout": 900
+  }
+}
+.fi
+.PP
+Save it to
+.BR $XDG_CONFIG_HOME/qibocal/notebooks.json ,
+with
+.BR ~/.config/qibocal/notebooks.json
+as the fallback. QIBOCAL_REPORT_CONFIG_DIR overrides its containing directory.
+Invoke
+.BR "qibocal notebook connect mychip" .
+Explicit command-line options override the connection's values.
+Unknown options, invalid types, missing names, and malformed files are errors.
+The connect command does not create or modify the connection file.
+.SS Adding connections
+.B qibocal notebook add
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+With no options, prompt first for the connection name if not supplied, then show a
+multiple-selection menu of options to change from their defaults, then ask for
+each selected value. Unselected options retain their defaults.
+.PP
+To register a connection without the setup menu, provide its name and options
+together. The options are identical to those of
+.BR "qibocal notebook connect" ;
+see Connect options above or
+.BR "qibocal notebook connect \-\-help" .
+If options are provided without a name, prompt only for the name.
+A name alone opens the setup menu for that connection.
+Explicitly supplied options are saved in their JSON configuration representation.
+Other connections are preserved; an existing name is an error.
+Adding a connection does not start a notebook session.
+.SS Listing connections
+.B qibocal notebook list
+.RB [ \-\-raw ]
+.PP
+Display registered names and their configured options in a Rich table.
+An empty registry is reported without creating a file.
+With \-\-raw, print the connection file verbatim, without formatting or JSON
+validation; a missing file is an error.
+.SS Updating connections
+.B qibocal notebook update
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+Update an existing connection using the same options as connect.
+Explicitly supplied settings replace their stored values; unspecified settings
+and other connections are preserved. With no options, show the option-selection
+menu using the connection's current values. Prompt for the name if omitted.
+Missing connections and invalid resulting options are errors.
+Updating a connection does not start or stop a notebook session.
+.SS Removing connections
+.B qibocal notebook remove
+.I CONNECTION
+.PP
+Remove the named connection immediately, without confirmation.
+The name must exist. Other connections, environments, and running sessions
+are unchanged. Removing the last connection leaves an empty JSON object.
+.SS Examples
+.nf
+qibocal notebook connect
+qibocal notebook connect --venv ./calibration-env --marimo
+qibocal notebook connect --ssh myuser@login --workdir /shared/runs
+qibocal notebook connect --queue mychip --no-interactive
+qibocal notebook connect --ssh myuser@login -q mychip --timeout 900
+qibocal notebook connect mychip --jupyter -n
+qibocal notebook add
+qibocal notebook add mychip --ssh myuser@login -q mychip
+qibocal notebook list
+qibocal notebook list --raw
+qibocal notebook update mychip --subnet 192.168.0.0/24
+qibocal notebook remove mychip
+.fi
+.SH REPORT COMMANDS
+.TP
+.BR "qibocal report server" " [DIRECTORY]"
+Serve reports and the embedded web app. Directory defaults to the current
+directory. Options: \-\-host (localhost), \-\-port (8000), \-\-auth/\-\-no-auth.
+.TP
+.B qibocal report client
+Serve the standalone report client. Options: \-\-host (127.0.0.1),
+\-\-port (8000), \-\-reload.
+.TP
+.BR "qibocal report dev" " [DIRECTORY]"
+Run backend and Vite development servers. Options: \-\-host (localhost),
+\-\-port (8000), \-\-frontend-port (5173), \-\-reload/\-\-no-reload,
+\-\-auth/\-\-no-auth. Requires the frontend sources and Node.js.
+.TP
+.BR "qibocal report export" " [OUTPUT_DIR]"
+Export the static report client (default: ./dist).
+Options: \-\-build/\-\-no-build and \-\-base-path.
+.TP
+.B qibocal report admin list
+List administrators. Options: \-\-all (include all users), \-\-json.
+.TP
+.BR "qibocal report admin invite" " [USERNAME]"
+Generate an administrator invitation. Options: \-u/\-\-username,
+\-\-server-url, \-\-host, \-\-port, \-e/\-\-expires-in-hours,
+\-\-interactive/\-\-no-interactive, \-\-json.
+.BR "qibocal report invite"
+is an equivalent shortcut.
+.SH CONFIG COMMANDS
+.TP
+.B qibocal config path
+Print the absolute report configuration directory without creating it.
+.TP
+.B qibocal config clean
+Ask before removing servers.json and authentication data.
+\-f/\-\-force skips confirmation. Does not remove notebooks.json, notebook
+environments, reports, unrelated files, or directories.
+.SH ENVIRONMENT
+.TP
+.B XDG_CONFIG_HOME
+Configuration root for notebook connections.
+.TP
+.B XDG_CACHE_HOME
+Cache root for computing-node kernel and notebook server environments.
+Each node uses its own value; the local value is not forwarded over SSH.
+.TP
+.B XDG_RUNTIME_DIR
+Location for temporary notebook kernel specifications on the computing node.
+When unset, empty, or pointing to a missing directory, use the system temporary
+directory. A missing directory is reported in the startup diagnostics.
+.TP
+.B QIBOCAL_REPORT_CONFIG_DIR
+Override the local report and notebook connection configuration directory.
+.TP
+.B QIBOCAL_AUTH_FILE
+Override the report authentication database.
+.TP
+.B QIBOCAL_REPORT_DIR
+Report directory used by the report server.
+.TP
+.B QIBOCAL_FRONTEND_URL
+Frontend development-server URL.
+.SH EXIT STATUS
+Zero on normal completion or an orderly notebook Ctrl+C shutdown.
+Nonzero on invalid configuration, startup failure, timeout, or session failure.
+.SH SEE ALSO
+.BR ssh (1),
+.BR srun (1),
+.BR python3 (1)

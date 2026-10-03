@@ -33,11 +33,29 @@ def test_config_path(tmp_path, monkeypatch):
 
 def test_config_path_default(tmp_path, monkeypatch):
     monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     with patch("qibocal_report.config.Path.home", return_value=tmp_path):
         result = CliRunner().invoke(main, ["config", "path"])
     assert result.exit_code == 0
-    assert result.stdout == f"{tmp_path / '.config' / 'qibocal-report'}\n"
+    assert result.stdout == f"{tmp_path / '.config' / 'qibocal'}\n"
     assert not (tmp_path / ".config").exists()
+
+
+@pytest.mark.parametrize("xdg", ["xdg-config", ""])
+def test_config_path_xdg(tmp_path, monkeypatch, xdg):
+    from qibocal_report import auth, config
+
+    monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
+    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    root = tmp_path / xdg if xdg else tmp_path / ".config"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(root) if xdg else "")
+    result = CliRunner().invoke(main, ["config", "path"])
+    assert result.exit_code == 0
+    assert result.stdout == f"{root / 'qibocal'}\n"
+    assert config.get_config_file(create=False) == root / "qibocal/servers.json"
+    assert auth.get_auth_file(create=False) == root / "qibocal/auth.json"
+    assert not root.exists()
 
 
 def test_config_path_relative(tmp_path, monkeypatch):
