@@ -32,7 +32,7 @@
 ## ⚡ Key Features
 
 - **Interactive Visualizations**: High-resolution 2D and 3D graphics powered by **Plotly.js** with zoom, pan, hover data inspection, and image export.
-- **Multi-Server Dashboard**: Connect to, name, and monitor multiple local or remote Qibocal report servers across your lab network; auto-assigned Docker-style names and abstract geometric avatars, with persistent storage in `$XDG_CONFIG_HOME/qibocal-report/servers.json` (fallback: `~/.config/qibocal-report/servers.json`).
+- **Multi-Server Dashboard**: Connect to, name, and monitor multiple local or remote Qibocal report servers across your lab network; auto-assigned Docker-style names and abstract geometric avatars, with persistent storage in `$XDG_CONFIG_HOME/qibocal/servers.json` (fallback: `~/.config/qibocal/servers.json`).
 - **Search & Smart Facets**: Instant full-text search across titles, platforms, authors, protocols, and tags; faceted filtering with author filters, protocol frequency ranking, interactive date histogram timeline, and tag search.
 - **Dual Display Modes**: Toggle seamlessly between sortable, resizable **Table View** and rich **Card View** (inspired by Inspire-HEP full-width cards).
 - **Statistics Dashboard**: Dedicated analytics view (`/#/statistics`) tracking calibration throughput, activity over time, protocol frequency distribution, author activity, and platform breakdowns.
@@ -100,7 +100,7 @@ only Python's standard library and forward structured diagnostics, so they do
 not need Rich installed or a remote terminal. Redirected output remains readable
 without ANSI colors; the authenticated URL stays on its own line on stdout.
 Use `-n` to print the URL without opening a browser. Notebook connections can
-be named in `~/.config/qibocal-report/notebooks.json` (or under
+be named in `~/.config/qibocal/notebooks.json` (or under
 `$XDG_CONFIG_HOME`) and invoked with `qibocal notebook connect myconnection`.
 
 Register connections interactively with `qibocal notebook add`: enter a name,

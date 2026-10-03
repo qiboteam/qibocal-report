@@ -53,7 +53,7 @@ def get_config_dir(*, create: bool = True) -> Path:
         path = Path(custom_dir)
     else:
         root = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
-        path = root / "qibocal-report"
+        path = root / "qibocal"
     if create:
         path.mkdir(parents=True, exist_ok=True)
     return path

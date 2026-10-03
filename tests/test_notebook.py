@@ -123,7 +123,7 @@ def test_notebook_help():
 def test_connection_file_xdg(tmp_path, monkeypatch):
     monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    assert connection_file() == tmp_path / "qibocal-report" / "notebooks.json"
+    assert connection_file() == tmp_path / "qibocal" / "notebooks.json"
     assert not connection_file().parent.exists()
 
 
@@ -131,9 +131,7 @@ def test_connection_file_home(tmp_path, monkeypatch):
     monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
-    assert (
-        connection_file() == tmp_path / ".config" / "qibocal-report" / "notebooks.json"
-    )
+    assert connection_file() == tmp_path / ".config" / "qibocal" / "notebooks.json"
 
 
 def test_cli_defaults():

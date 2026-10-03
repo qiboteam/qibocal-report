@@ -14,10 +14,14 @@ qibocal report [OPTIONS] COMMAND [ARGS]...
 ### `qibocal config path`
 
 Prints the absolute server configuration directory,
-`$XDG_CONFIG_HOME/qibocal-report/` (fallback: `~/.config/qibocal-report/`),
+`$XDG_CONFIG_HOME/qibocal/` (fallback: `~/.config/qibocal/`),
 as a single plain-text line with no labels or formatting.
 `QIBOCAL_REPORT_CONFIG_DIR` overrides this location. The command does not create
 the directory.
+
+Existing configurations under `qibocal-report/` are not moved automatically.
+Move their files into `qibocal/` to retain registered servers, authentication data,
+and notebook connections, or set `QIBOCAL_REPORT_CONFIG_DIR` to the old directory.
 
 ```bash
 qibocal config path
@@ -193,7 +197,7 @@ qibocal report admin invite alice_admin --json
 | :--- | :--- | :--- |
 | `QIBOCAL_REPORT_DIR` | Absolute path to the calibration directory scanned for reports. | Set by CLI argument |
 | `QIBOCAL_FRONTEND_URL` | Used by developer mode to proxy requests to the Vite dev server. | Unset |
-| `QIBOCAL_REPORT_CONFIG_DIR` | Override the directory containing server configurations and the default authentication database. | `$XDG_CONFIG_HOME/qibocal-report/`, falling back to `~/.config/qibocal-report/` |
+| `QIBOCAL_REPORT_CONFIG_DIR` | Override the directory containing server configurations and the default authentication database. | `$XDG_CONFIG_HOME/qibocal/`, falling back to `~/.config/qibocal/` |
 | `XDG_CONFIG_HOME` | Default configuration root. | `~/.config/` |
 | `QIBOCAL_AUTH_FILE` | Custom authentication database path; also removed by `qibocal config clean`. | `auth.json` in the configuration directory |
 | `HOME` | Determines the fallback configuration root when `XDG_CONFIG_HOME` is unset or empty. | User home |

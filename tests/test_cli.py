@@ -37,7 +37,7 @@ def test_config_path_default(tmp_path, monkeypatch):
     with patch("qibocal_report.config.Path.home", return_value=tmp_path):
         result = CliRunner().invoke(main, ["config", "path"])
     assert result.exit_code == 0
-    assert result.stdout == f"{tmp_path / '.config' / 'qibocal-report'}\n"
+    assert result.stdout == f"{tmp_path / '.config' / 'qibocal'}\n"
     assert not (tmp_path / ".config").exists()
 
 
@@ -52,9 +52,9 @@ def test_config_path_xdg(tmp_path, monkeypatch, xdg):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(root) if xdg else "")
     result = CliRunner().invoke(main, ["config", "path"])
     assert result.exit_code == 0
-    assert result.stdout == f"{root / 'qibocal-report'}\n"
-    assert config.get_config_file(create=False) == root / "qibocal-report/servers.json"
-    assert auth.get_auth_file(create=False) == root / "qibocal-report/auth.json"
+    assert result.stdout == f"{root / 'qibocal'}\n"
+    assert config.get_config_file(create=False) == root / "qibocal/servers.json"
+    assert auth.get_auth_file(create=False) == root / "qibocal/auth.json"
     assert not root.exists()
 
 
