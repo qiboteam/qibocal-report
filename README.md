@@ -1,5 +1,3 @@
-# Qibocal Report (`qibocal-report`)
-
 <div align="center">
 
 <img src="https://raw.githubusercontent.com/qiboteam/qibo/main/doc/source/_static/qibo_logo_dark.svg" alt="Qibo Logo" width="300" style="margin: 1.2rem 0;" />
@@ -14,56 +12,27 @@
 
 </div>
 
----
-
-## 🌐 The Qibo Ecosystem
-
-`qibocal-report` is part of the **[Qibo](https://qibo.science)** open-source quantum computing ecosystem:
-
-| Project | Description | Link |
-| :--- | :--- | :--- |
-| **Qibo** | Full-stack quantum simulation and algorithms framework. | [qibo.science/qibo](https://qibo.science/qibo/stable/) • [GitHub](https://github.com/qiboteam/qibo) |
-| **Qibolab** | Dedicated quantum hardware control and pulse execution layer. | [qibo.science/qibolab](https://qibo.science/qibolab/stable/) • [GitHub](https://github.com/qiboteam/qibolab) |
-| **Qibocal** | Protocols for characterization, calibration, and validation of quantum processors. | [qibo.science/qibocal](https://qibo.science/qibocal/stable/) • [GitHub](https://github.com/qiboteam/qibocal) |
-| **Qibocal Report** | Modern web app and server to explore, compare, and manage Qibocal calibration runs. | [qibocal-report Docs](#-documentation) • [GitHub](https://github.com/qiboteam/qibocal-report) |
-
----
+`qibocal-report` provides a user interface around the
+[Qibocal](https://github.com/qiboteam/qibocal) calibration library.
+It helps users manage the calibration workflow, from interactive notebook
+sessions to exploring results and organizing runs across report servers.
 
 ## ⚡ Key Features
 
-- **Interactive Visualizations**: High-resolution 2D and 3D graphics powered by **Plotly.js** with zoom, pan, hover data inspection, and image export.
-- **Multi-Server Dashboard**: Connect to, name, and monitor multiple local or remote Qibocal report servers across your lab network; auto-assigned Docker-style names and abstract geometric avatars, with persistent storage in `$XDG_CONFIG_HOME/qibocal/servers.json` (fallback: `~/.config/qibocal/servers.json`).
-- **Search & Smart Facets**: Instant full-text search across titles, platforms, authors, protocols, and tags; faceted filtering with author filters, protocol frequency ranking, interactive date histogram timeline, and tag search.
-- **Dual Display Modes**: Toggle seamlessly between sortable, resizable **Table View** and rich **Card View** (inspired by Inspire-HEP full-width cards).
-- **Statistics Dashboard**: Dedicated analytics view (`/#/statistics`) tracking calibration throughput, activity over time, protocol frequency distribution, author activity, and platform breakdowns.
-- **Batch Actions**: Bulk tag, update author, or safely delete multiple calibration runs simultaneously from the dashboard.
-- **Detailed Protocol Cards**:
-  - Individual routine duration extracted directly from `meta.json`.
-  - Injected protocol summary tables styled natively to match the application aesthetic.
-  - One-click individual protocol data zip downloads.
-- **Instant On-The-Fly Downloads**:
-  - Full report folder as `.zip`.
-  - Calibrated platform configuration folder (`new_platform/`) as `.zip` (sparkled chip icon).
-  - Initial platform configuration folder (`platform/`) as `.zip` (plain chip icon).
-  - Protocol-level data folder as `.zip`.
-  - Direct browser viewing of `meta.json` (`{}`).
-- **On-The-Fly Regeneration**: Recompute and refresh protocol figures dynamically via backend evaluation routines.
-- **Publication-Grade Print to PDF**: Dedicated print media stylesheets that cleanly format tables and charts while hiding navigation and controls for archival PDF exports.
-
----
+- **Interactive Visualizations**: Explore calibration reports with interactive 2D and 3D plots, inspect protocol results, and download data and platform configurations.
+- **Multi-Server Dashboard**: Connect to and manage local or remote report servers from one place.
+- **Search & Filters**: Find calibration runs by title, platform, author, protocol, tag, or date.
+- **Statistics Dashboard**: Follow calibration activity over time and explore trends across protocols, authors, and platforms.
+- **Batch Actions**: Organize multiple runs at once by updating tags and authors, or deleting reports.
 
 ## 🚀 Quick Start
 
 ### 1. Installation
 
-Install directly using `pip` or `uv`:
+Install using `pip`:
 
 ```bash
-# Using pip
 pip install qibocal-report
-
-# Or using uv
-uv pip install qibocal-report
 ```
 
 ### 2. Serving Reports (CLI)
@@ -88,80 +57,12 @@ qibocal notebook connect --marimo --venv ./calibration-env -n
 ```
 
 The command opens an authenticated local URL and stays attached until Ctrl+C.
-Each worker logs its node identity to stderr as soon as it starts: the actual
-hostname, fully qualified domain name, user, OS release, architecture, Python
-executable/version, process ID, and working directory on arrival. SLURM sessions
-log the access and compute nodes separately, including available allocation
-details (cluster, job/step IDs, partition, node lists, CPU/memory, and GPU IDs).
-Without SLURM, the same node serves both roles.
-Rich renders these details as labeled node panels, with colored startup stages
-and a clear ready banner. Rendering happens locally: SSH and SLURM workers use
-only Python's standard library and forward structured diagnostics, so they do
-not need Rich installed or a remote terminal. Redirected output remains readable
-without ANSI colors; the authenticated URL stays on its own line on stdout.
-Use `-n` to print the URL without opening a browser. Notebook connections can
-be named in `~/.config/qibocal/notebooks.json` (or under
-`$XDG_CONFIG_HOME`) and invoked with `qibocal notebook connect myconnection`.
+Use `--marimo` for Marimo instead of JupyterLab, or `-n` to print the URL without
+opening a browser. Save reusable connections with `qibocal notebook add`.
 
-Register connections interactively with `qibocal notebook add`: enter a name,
-select which options should differ from their defaults, then set those options.
-Alternatively, supply a name and connection options directly:
-
-```bash
-qibocal notebook add myconnection --ssh myuser@login -q mychip
-qibocal notebook list
-qibocal notebook list --raw
-```
-
-`add` accepts the same options as `connect`; see `qibocal notebook connect --help`
-for their documentation. It records explicitly supplied options in the JSON
-configuration without starting a session and rejects existing names.
-`list` displays registered connections in a Rich table; `list --raw` prints the
-connection file verbatim.
-
-Manage existing connections with:
-
-```bash
-qibocal notebook update myconnection --subnet 192.168.0.0/24
-qibocal notebook remove myconnection
-```
-
-`update` accepts the same options as `connect`, preserves unspecified settings,
-and requires an existing name. Without options, it opens the option
-menu with the connection's current values (prompting for a name if omitted).
-`remove` deletes a connection immediately, without confirmation.
-Other connections and notebook environments are unchanged;
-neither command starts or stops a session.
-
-Existing Jupyter kernel environments remain unchanged. With `--marimo`, Marimo is
-installed directly into the target environment and launched with its Python;
-no separate Marimo environment is used. A missing default `qibocal`
-environment is created with the latest public Qibocal release (`pip install
-qibocal`), ready to use or replace with a development version. Other missing
-kernel environments are created with `pip` but no calibration packages.
-Named environments live under `$XDG_CACHE_HOME/qibocal/envs/` (fallback:
-`~/.cache/qibocal/envs/`). Jupyter server dependencies are installed separately
-on first use into the managed `jupyter` environment.
-If the computing node lacks `ensurepip`, installation uses the worker Python's
-pip (22.3+) to install `pip` and any requested dependencies into the new environment
-without changing system packages; this requires package-index access even for
-otherwise empty kernel environments. Existing Jupyter environments, including incomplete
-ones left by a failed setup, require explicit repair using the command reported
-by the launcher.
-SLURM address discovery and the notebook share one allocation. The launcher uses
-the compute IP with the longest network prefix in common with an access-node IP,
-so compute-hostname resolution and compute-node SSH access are unnecessary.
-Use `--subnet 192.168.0.0/24` to consider only computing-node IPs in that
-subnet (IPv4 and IPv6 CIDR networks are supported). The longest-prefix selection
-then applies among matching addresses; startup fails if none match. This option
-does not change loopback binding for local or unscheduled SSH sessions.
-The token-protected server listens on that selected interface; an access-node
-loopback relay preserves the local browser URL. The access-to-compute hop is
-unencrypted and requires a trusted computing network.
-
-Notebook dispatch is documented outside the web frontend in the installed
-**`man qibocal`** page ([source](data/share/man/man1/qibocal.1)), including networking
-requirements, environment paths, and configuration examples.
+See **`man qibocal`** ([source](data/share/man/man1/qibocal.1)) for connection
+management, environment setup, networking requirements, and configuration
+examples, or `qibocal notebook connect --help` for command options.
 
 ### 3. Standalone Client Mode
 
@@ -195,54 +96,14 @@ cd frontend && pnpm run build
 
 Automated deployment to GitHub Pages is configured via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
 
----
-
 ## 📖 Documentation
 
-Comprehensive documentation is available directly within the running web application at **`/#/docs`** and organized in sections and subpages:
-
-- **Overview & Qibo Ecosystem** (`docs/index.md`)
-- **User Guide**:
-  - [Quickstart & Directory Layout](docs/user-guide/quickstart.md)
-  - [Dashboard & Server Management](docs/user-guide/dashboard.md)
-  - [Reports, Protocols & Exports](docs/user-guide/reports.md)
-- **Developer & Architecture**:
-  - [System Architecture](docs/developer/architecture.md)
-  - [Development Workflow](docs/developer/workflow.md)
-  - [Design System & Aesthetics](docs/developer/design-system.md)
-- **Reference**:
-  - [CLI Reference](docs/reference/cli.md)
-  - [REST API & WebSockets](docs/reference/api.md)
+The documentation covers report and server management, calibration results and
+exports, development and architecture, and CLI and API references.
+Select **Documentation** in the application's navigation, or open **`/#/docs`**
+on your running instance.
 
 Interactive OpenAPI / Swagger documentation is also accessible at **`/api/docs/swagger`**.
-
----
-
-## 🛠️ Development & Environment (`devenv`, `uv`, `pnpm`)
-
-This repository uses [devenv](https://devenv.sh) for reproducible nix-based environments:
-
-```bash
-# Enter development shell
-devenv shell
-
-# Run pytest backend test suite
-devenv shell -- pytest tests/
-
-# Build frontend and embed into Python package
-devenv shell -- build-frontend
-
-# Build frontend static export for static web hosting
-devenv shell -- export-static
-
-# Build standalone Python wheel
-devenv shell -- build-wheel
-
-# Run pre-commit hooks and linters
-devenv shell -- prek run --all-files
-```
-
----
 
 ## 📄 License
 
