@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 import ServersView from './views/ServersView.vue'
 import DashboardView from './views/DashboardView.vue'
 import ReportView from './views/ReportView.vue'
@@ -46,7 +46,7 @@ const routes = [
 ]
 
 export const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes,
   scrollBehavior() {
     return { top: 0 }

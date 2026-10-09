@@ -101,6 +101,12 @@ cd frontend && pnpm run build
 
 Automated deployment to GitHub Pages is configured via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
 
+Navigation uses hash URLs so that refreshing or sharing a page works on static
+hosts without server-side routing. The deployment path is preserved: for example,
+the hosted documentation is at
+[`https://qibo.science/qibocal-report/#/docs`](https://qibo.science/qibocal-report/#/docs).
+Static exports also work at other subpaths without configuring the router.
+
 ## 📖 Documentation
 
 The documentation covers report and server management, calibration results and
