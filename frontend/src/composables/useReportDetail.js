@@ -1,7 +1,8 @@
-import { ref, onUnmounted } from 'vue'
-import { state, addToHistory, removeFromHistory, getActiveWsUrl } from '../store.js'
+import { ref, watch, onUnmounted } from 'vue'
+import { state, addToHistory, removeFromHistory, getActiveWsUrl, canEdit } from '../store.js'
 import { apiFetch } from '../api.js'
 import { getPlotGenerationErrors } from '../utils/plotGeneration.js'
+import { createLiveReportSubscription, mergeLiveProtocols, synchronizeLiveProtocols } from '../utils/liveReport.js'
 
 /**
  * Sort protocol objects by execution order using history or stats from report detail.
@@ -101,8 +102,63 @@ export function useReportDetail(reportId) {
   const statusBanner = ref('')
   const statusBannerError = ref(false)
   const savingAuthor = ref(false)
+  const live = ref(false)
+  const liveConnecting = ref(false)
 
   let activeWs = null
+  const liveSubscription = createLiveReportSubscription({
+    onState(value) {
+      live.value = value === 'active'
+      liveConnecting.value = value === 'connecting'
+    },
+    onError(message) {
+      showBanner(message, 0, true)
+    },
+    onMessage(message) {
+      if (message.type === 'metadata') {
+        report.value = message.report
+        addToHistory(message.report)
+        protocols.value = sortProtocolsByExecutionOrder(protocols.value, message.report)
+      } else if (message.type === 'snapshot') {
+        protocols.value = sortProtocolsByExecutionOrder(
+          synchronizeLiveProtocols(protocols.value, message.protocols),
+          report.value
+        )
+      } else if (message.type === 'update') {
+        protocols.value = sortProtocolsByExecutionOrder(
+          mergeLiveProtocols(protocols.value, message.protocols, message.removed),
+          report.value
+        )
+        const errors = getPlotGenerationErrors(message.protocols)
+        if (errors.length) showBanner(`Live plot errors: ${errors.join(' ')}`, 0, true)
+      }
+    }
+  })
+
+  function toggleLive() {
+    if (live.value || liveConnecting.value) {
+      liveSubscription.stop()
+    } else if (canEdit.value && !loading.value && !regenerating.value && report.value) {
+      statusBanner.value = ''
+      liveSubscription.start(getActiveWsUrl(
+        `/ws/live/reports/${encodeURIComponent(report.value.id)}`
+      ))
+    }
+  }
+
+  watch(
+    [
+      () => typeof reportId === 'function' ? reportId() : reportId.value,
+      () => state.activeServer?.id,
+      () => state.activeServer?.url,
+      () => state.auth.token,
+      () => state.auth.user?.id,
+      () => state.auth.user?.role,
+      canEdit
+    ],
+    () => liveSubscription.stop(),
+    { flush: 'sync' }
+  )
 
   function showBanner(msg, durationMs = 3500, isError = false) {
     statusBanner.value = msg
@@ -230,6 +286,7 @@ export function useReportDetail(reportId) {
   async function loadReportData() {
     const id = typeof reportId === 'function' ? reportId() : reportId.value
     if (!id) return
+    liveSubscription.stop()
 
     loading.value = true
     error.value = null
@@ -257,6 +314,7 @@ export function useReportDetail(reportId) {
   async function handleRegenerate() {
     const id = typeof reportId === 'function' ? reportId() : reportId.value
     if (!id || regenerating.value) return
+    liveSubscription.stop()
     const server = state.activeServer
     const isCurrent = () => server === state.activeServer && id === (typeof reportId === 'function' ? reportId() : reportId.value)
     regenerating.value = true
@@ -339,6 +397,7 @@ export function useReportDetail(reportId) {
   }
 
   onUnmounted(() => {
+    liveSubscription.stop()
     if (activeWs) {
       try { activeWs.close() } catch {}
       activeWs = null
@@ -355,6 +414,9 @@ export function useReportDetail(reportId) {
     statusBanner,
     statusBannerError,
     savingAuthor,
+    live,
+    liveConnecting,
+    toggleLive,
     loadReportData,
     handleRegenerate,
     handleSaveAuthor,

@@ -61,6 +61,24 @@ If a calibration routine needs to be re-plotted with updated fitting criteria or
 - The server purges the cached `report/` folder and re-runs evaluation routines.
 - Updated plots and parameters are automatically refreshed in your browser without requiring a server restart.
 
+### Live updates during calibration
+
+Click **Live** in the report action bar to follow an execution automatically.
+A slowly blinking red light indicates an active connection. The server checks
+task data once per second and waits for two stable snapshots before generating
+plots. Only new or changed protocols are evaluated; unchanged plots stay in
+place. Metadata and removed protocols are updated as well.
+
+Live mode requires editor or administrator access on authenticated servers,
+and Qibocal must be installed on the server to generate plots. Click **Live**
+again to stop. Leaving the report, switching servers, changing your sign-in
+session, or manually regenerating plots also stops the subscription. A lost
+connection is reported explicitly; click **Live** to reconnect.
+
+Generation failures are shown without deleting previously cached good plots.
+Incomplete data writes are retried when their inputs change. Regeneration already
+in progress may finish after you stop Live, but no further updates are scheduled.
+
 ### Installing or switching Qibocal
 
 Both the dashboard plot preview and the full report explicitly show generation

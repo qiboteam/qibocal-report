@@ -40,6 +40,7 @@ from qibocal_report.archive import (
 )
 from qibocal_report.docs import DOCS_NAVIGATION, resolve_docs_content
 from qibocal_report.generator import get_report_protocols, regenerate_report
+from qibocal_report.live import handle_live_websocket
 from qibocal_report.logger import (
     log_error,
     log_history,
@@ -1269,6 +1270,23 @@ def delete_single_report(report_id: str) -> BulkActionResponse:
 
 
 # --- Real-Time WebSocket ---
+@app.websocket("/ws/live/reports/{report_id:path}")
+async def live_report_websocket_endpoint(websocket: WebSocket, report_id: str):
+    """Subscribe to incremental plots and metadata; requires editor access."""
+    token = websocket.query_params.get("token")
+
+    def authorized():
+        if not auth.is_auth_enabled():
+            return True
+        payload = auth.decode_access_token(token) if token else None
+        user = auth.get_user_by_id(payload.get("sub")) if payload else None
+        return bool(
+            user and user["role"] in (UserRole.EDITOR.value, UserRole.ADMIN.value)
+        )
+
+    await handle_live_websocket(websocket, report_id, REPORT_ROOT_DIR, authorized)
+
+
 @app.websocket("/ws/reports/{report_id:path}")
 async def report_websocket_endpoint(websocket: WebSocket, report_id: str):
     """WebSocket endpoint for real-time report streaming and plot generation."""

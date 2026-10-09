@@ -286,6 +286,38 @@ Delete a single report directory from disk.
 ### `WS /ws/reports/{report_id}`
 Connect to receive real-time execution events, streaming status changes, and progress updates.
 
+### `WS /ws/live/reports/{report_id}`
+Subscribe to incremental report updates. Requires editor or administrator access
+when authentication is enabled; pass the access token in the `token` query
+parameter, as with the report-loading socket. Authorization is rechecked while
+subscribed. Disconnecting stops monitoring.
+
+The server checks `data/{task_id}/` inputs every second and debounces changes
+until two consecutive snapshots match. It excludes generated `report/` artifacts
+and worker result files. Changes to metadata or execution order refresh metadata
+without re-plotting unchanged tasks.
+
+```json
+{"type": "live", "active": true}
+{"type": "snapshot", "protocols": [{"id": "rabi-0", "name": "Rabi", "status": "success", "figures": []}]}
+{"type": "metadata", "report": {"id": "run", "history": ["rabi-0"]}}
+{"type": "update", "protocols": [{"id": "rabi-0", "name": "Rabi", "status": "success", "figures": []}], "removed": []}
+{"type": "error", "message": "Live update failed: ..."}
+```
+
+An initial `snapshot` contains all currently cached protocols, including updates
+missed while disconnected; use it to reconcile the complete displayed list.
+In subsequent `update` messages, `protocols` contains only changed or new outputs.
+Merge them by `id` and delete IDs in `removed`. Metadata carries a complete report
+detail. Generation errors do not necessarily close the connection; permission
+revocation and deleted reports do.
+
+Incremental outputs are atomically merged into `report/protocols.json`. Input
+fingerprints in `report/.live-inputs.json` allow subsequent subscriptions to
+detect changes and share cached results. Legacy caches without fingerprints
+use existing cached tasks as their initial baseline. Full regeneration still
+discards all cached outputs.
+
 ---
 
 ## 📖 Documentation Content

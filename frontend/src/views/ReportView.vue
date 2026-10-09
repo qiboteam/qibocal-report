@@ -88,6 +88,23 @@
               <span>Docs Rules</span>
             </button>
 
+            <button
+              type="button"
+              @click="toggleLive"
+              :disabled="!canEdit || regenerating"
+              :aria-pressed="live"
+              class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border shadow-2xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              :class="live ? 'border-red-300 text-red-700' : 'border-gray-200 text-gray-700 hover:border-purple-300'"
+              :title="!canEdit ? 'Live mode requires editor access' : 'Watch for new data and update only changed protocol plots'"
+            >
+              <span
+                class="w-2 h-2 rounded-full"
+                :class="live ? 'bg-red-500 live-recording-light' : 'bg-gray-300'"
+                aria-hidden="true"
+              ></span>
+              {{ liveConnecting ? 'Connecting...' : 'Live' }}
+            </button>
+
             <!-- Regenerate button -->
             <button
               @click="!isViewer && handleRegenerate()"
@@ -165,7 +182,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canManageQibocal } from '../store.js'
+import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canEdit, canManageQibocal } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
@@ -201,6 +218,9 @@ const {
   statusBanner,
   statusBannerError,
   savingAuthor,
+  live,
+  liveConnecting,
+  toggleLive,
   loadReportData,
   handleRegenerate,
   handleSaveAuthor,
@@ -296,3 +316,18 @@ watch(
   }
 )
 </script>
+
+<style scoped>
+.live-recording-light {
+  animation: live-recording 2.4s ease-in-out infinite;
+}
+
+@keyframes live-recording {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-recording-light { animation: none; }
+}
+</style>

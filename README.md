@@ -20,6 +20,7 @@ sessions to exploring results and organizing runs across report servers.
 ## ⚡ Key Features
 
 - **Interactive Visualizations**: Explore calibration reports with interactive 2D and 3D plots, inspect protocol results, and download data and platform configurations.
+- **Live Reports**: Follow running calibrations with automatic updates that regenerate only new or changed protocol plots.
 - **Multi-Server Dashboard**: Connect to and manage local or remote report servers from one place.
 - **Search & Filters**: Find calibration runs by title, platform, author, protocol, tag, or date.
 - **Statistics Dashboard**: Follow calibration activity over time and explore trends across protocols, authors, and platforms.

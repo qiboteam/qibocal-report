@@ -12,8 +12,13 @@ def _json_default(value):
 
 
 def main() -> None:
-    report_dir, result_path = (Path(argument) for argument in sys.argv[1:])
-    protocols, error = _generate_qibocal_protocols_native(report_dir)
+    report_dir, result_path = (Path(argument) for argument in sys.argv[1:3])
+    protocol_ids = json.loads(sys.argv[3]) if len(sys.argv) > 3 else None
+    protocols, error = (
+        _generate_qibocal_protocols_native(report_dir)
+        if protocol_ids is None
+        else _generate_qibocal_protocols_native(report_dir, protocol_ids)
+    )
     payload = {
         "protocols": [protocol.model_dump() for protocol in protocols]
         if protocols is not None

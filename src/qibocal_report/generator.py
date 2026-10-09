@@ -4,20 +4,54 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
 import uuid
+import weakref
 from collections.abc import Callable
 from pathlib import Path
-
 from typing import Any
 
+from qibocal_report.live_inputs import protocol_inputs, write_input_cache
 from qibocal_report.logger import log_info, log_success, log_warning
 from qibocal_report.models import ProtocolDetail
 from qibocal_report.qibocal_environment import (
-    EnvironmentOperationError,
     GENERATION_TIMEOUT,
+    EnvironmentOperationError,
     generation_environment,
     get_qibocal_status,
 )
+
+_REPORT_LOCKS = weakref.WeakValueDictionary()
+_REPORT_LOCKS_GUARD = threading.Lock()
+
+
+def report_generation_lock(report_dir: Path):
+    """Serialize cache reads and generation for the same report."""
+    key = str(report_dir.resolve())
+    with _REPORT_LOCKS_GUARD:
+        lock = _REPORT_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _REPORT_LOCKS[key] = lock
+        return lock
+
+
+def write_protocol_cache(report_dir: Path, protocols: list[ProtocolDetail]) -> None:
+    """Atomically publish a complete cache, including incremental updates."""
+    report_path = report_dir / "report"
+    report_path.mkdir(parents=True, exist_ok=True)
+    temporary = report_path / f".protocols-{uuid.uuid4().hex}.json"
+    try:
+        temporary.write_text(
+            json.dumps(
+                [p.model_dump() for p in protocols],
+                default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o),
+            ),
+            encoding="utf-8",
+        )
+        temporary.replace(report_path / "protocols.json")
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 class GenerationError(str):
@@ -33,7 +67,7 @@ def has_cached_report(report_dir: Path) -> bool:
     if not report_path.is_dir():
         return False
     # Check if there are json files inside
-    return any(report_path.glob("*.json"))
+    return any(not path.name.startswith(".") for path in report_path.glob("*.json"))
 
 
 def format_execution_time(seconds: float | None) -> str:
@@ -266,7 +300,9 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
 
     # Otherwise read all *.json files except meta.json and history.json
     for json_file in report_path.glob("*.json"):
-        if json_file.name in ("meta.json", "history.json"):
+        if json_file.name.startswith(".") or json_file.name in (
+            "meta.json", "history.json"
+        ):
             continue
         try:
             with open(json_file, encoding="utf-8") as f:
@@ -293,6 +329,7 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
 
 def _generate_qibocal_protocols(
     report_dir: Path,
+    protocol_ids: list[str] | None = None,
 ) -> tuple[list[ProtocolDetail] | None, str | None]:
     """Run Qibocal in a fresh interpreter, so version changes take effect immediately."""
     result_path = report_dir.resolve() / f".qibocal-generation-{uuid.uuid4().hex}.json"
@@ -302,6 +339,7 @@ def _generate_qibocal_protocols(
                 [
                     sys.executable, "-m", "qibocal_report.generation_worker",
                     str(report_dir.resolve()), str(result_path),
+                    *([json.dumps(protocol_ids)] if protocol_ids is not None else []),
                 ],
                 capture_output=True, text=True, timeout=GENERATION_TIMEOUT, check=False,
             )
@@ -332,6 +370,7 @@ def _generate_qibocal_protocols(
 
 def _generate_qibocal_protocols_native(
     report_dir: Path,
+    protocol_ids: list[str] | None = None,
 ) -> tuple[list[ProtocolDetail] | None, str | None]:
     """Attempt to generate report protocols using native Qibocal if available.
 
@@ -341,6 +380,8 @@ def _generate_qibocal_protocols_native(
     """
     try:
         from qibocal.auto.output import Output  # type: ignore
+        if protocol_ids is not None:
+            from qibocal.auto.task import Completed  # type: ignore
         from qibocal.cli.report import generate_figures_and_report  # type: ignore
     except ImportError as error:
         if (
@@ -359,11 +400,40 @@ def _generate_qibocal_protocols_native(
         return None, f"Error importing Qibocal: {err}"
 
     try:
-        rep_output = Output.load(report_dir)
+        if protocol_ids is None:
+            tasks = Output.load(report_dir).history.items()
+        else:
+            # Load only selected tasks; an unfinished sibling must not block updates.
+            tasks = ((task_id, None) for task_id in protocol_ids)
         timing_map = _extract_protocol_timing_map(report_dir)
         generated: list[ProtocolDetail] = []
-        for task_id, completed in rep_output.history.items():
+        for task_id, completed in tasks:
             task_str = str(task_id)
+            if protocol_ids is not None:
+                try:
+                    completed = Completed.load(report_dir / "data" / task_str)
+                except (
+                    AttributeError,
+                    RuntimeError,
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    OSError,
+                    ImportError,
+                ) as error:
+                    message = f"Could not load routine '{task_str}': {error}"
+                    log_warning(message)
+                    generated.append(
+                        ProtocolDetail(
+                            id=task_str,
+                            name=task_str.replace("_", " ").title(),
+                            category="calibration",
+                            execution_time=timing_map.get(task_str, "N/A"),
+                            status="error",
+                            error=message,
+                        )
+                    )
+                    continue
             clean_name = (
                 getattr(completed.task, "operation_name", task_str)
                 .replace("_", " ")
@@ -484,6 +554,11 @@ def generate_report_on_the_fly(
     """
     log_info(f"Generating protocol plots on-the-fly for report '{report_dir.name}'...")
 
+    try:
+        inputs = protocol_inputs(report_dir)
+    except (OSError, ValueError, TypeError) as error:
+        log_warning(f"Could not fingerprint report inputs: {error}")
+        inputs = None
     native_protocols, error_reason = _generate_qibocal_protocols(report_dir)
 
     if native_protocols:
@@ -519,6 +594,15 @@ def generate_report_on_the_fly(
                     default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o),
                 )
 
+        write_protocol_cache(report_dir, protocols)
+        if inputs is not None:
+            write_input_cache(
+                report_dir,
+                {
+                    p.id: inputs[p.id] for p in protocols
+                    if p.status == "success" and p.id in inputs
+                },
+            )
         log_success(
             f"Report '{report_dir.name}' plots generated and cached "
             f"successfully ({len(protocols)} routines)."
@@ -593,11 +677,12 @@ def get_report_protocols(
     report_dir: Path, progress_callback: Callable[[int, int, str], None] | None = None
 ) -> list[ProtocolDetail]:
     """Retrieve report protocols: pre-cached if present, or generate on-the-fly."""
-    if has_cached_report(report_dir):
-        protocols = load_cached_protocols(report_dir)
-    else:
-        protocols = generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
-    return sort_protocols_by_execution_order(protocols, report_dir)
+    with report_generation_lock(report_dir):
+        if has_cached_report(report_dir):
+            protocols = load_cached_protocols(report_dir)
+        else:
+            protocols = generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
+        return sort_protocols_by_execution_order(protocols, report_dir)
 
 
 def regenerate_report(
@@ -607,8 +692,9 @@ def regenerate_report(
     Explicit request for plots regeneration (Issue #10):
     Deletes the existing report/ folder and regenerates all protocol plots.
     """
-    log_info(f"Regenerating plots: removing existing cache for '{report_dir.name}'...")
-    report_path = report_dir / "report"
-    if report_path.is_dir():
-        shutil.rmtree(report_path)
-    return generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
+    with report_generation_lock(report_dir):
+        log_info(f"Regenerating plots: removing existing cache for '{report_dir.name}'...")
+        report_path = report_dir / "report"
+        if report_path.is_dir():
+            shutil.rmtree(report_path)
+        return generate_report_on_the_fly(report_dir, progress_callback=progress_callback)

@@ -53,6 +53,11 @@ Provides two distinct operational modes:
 
 ### 6. Real-Time WebSockets
 - Provides a WebSocket endpoint (`/ws/reports/{report_id}`) for live progress updates during active calibration runs.
+- Live subscriptions (`/ws/live/reports/{report_id}`) use debounced input
+  fingerprints to evaluate only changed tasks in a fresh Qibocal process.
+  Per-report locks serialize generation and cache updates, and incremental
+  outputs are published atomically. Monitoring stops when the subscriber
+  disconnects.
 
 ---
 
