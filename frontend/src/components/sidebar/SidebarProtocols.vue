@@ -15,6 +15,19 @@
           </svg>
         </api-file-button>
 
+        <button
+          type="button"
+          @click="copyReportPath"
+          :disabled="copyingPath || !reportId"
+          :aria-busy="copyingPath"
+          :title="pathCopyTitle"
+          :aria-label="pathCopyTitle"
+          class="flex-1 max-w-[52px] h-7 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer shrink-0 disabled:opacity-50"
+        >
+          <Check v-if="pathCopied" class="w-3.5 h-3.5 text-emerald-600" />
+          <Copy v-else class="w-3.5 h-3.5" />
+        </button>
+
         <!-- Download New Platform (.zip) -->
         <api-file-button
           :path="downloadNewPlatformPath"
@@ -140,6 +153,19 @@
       </svg>
     </api-file-button>
 
+    <button
+      type="button"
+      @click="copyReportPath"
+      :disabled="copyingPath || !reportId"
+      :aria-busy="copyingPath"
+      :title="pathCopyTitle"
+      :aria-label="pathCopyTitle"
+      class="w-9 h-9 rounded-xl bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer disabled:opacity-50"
+    >
+      <Check v-if="pathCopied" class="w-4 h-4 text-emerald-600" />
+      <Copy v-else class="w-4 h-4" />
+    </button>
+
     <api-file-button
       :path="downloadNewPlatformPath"
       :filename="getReportDownloadFilename(reportId, '_new_platform')"
@@ -206,8 +232,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { state, isViewer } from '../../store.js'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { Check, Copy } from 'lucide-vue-next'
+import { state, isViewer, getActiveAuthToken } from '../../store.js'
+import { apiGetReportPath } from '../../api.js'
+import { copyToClipboard } from '../../utils/clipboard.js'
 import { getProtocolDocUrl } from '../../utils/protocolDocs.js'
 import { getReportDownloadFilename } from '../../utils/apiFiles.js'
 import ApiFileButton from '../ApiFileButton.vue'
@@ -220,6 +249,51 @@ const props = defineProps({
 })
 
 defineEmits(['select-protocol', 'regenerate', 'print-pdf'])
+
+const copyingPath = ref(false)
+const pathCopied = ref(false)
+const pathCopyTitle = computed(() => pathCopied.value
+  ? 'Report path copied!'
+  : 'Copy report folder path for qq upload')
+let copyContext = 0
+
+watch(
+  () => [
+    props.reportId, state.activeServer?.id, state.activeServer?.url,
+    getActiveAuthToken(), state.auth.enabled, state.auth.user?.role
+  ],
+  () => {
+    copyContext++
+    pathCopied.value = false
+  },
+  { flush: 'sync' }
+)
+
+onBeforeUnmount(() => { copyContext++ })
+
+async function copyReportPath() {
+  if (copyingPath.value || !props.reportId) return
+  copyingPath.value = true
+  pathCopied.value = false
+  const context = copyContext
+  try {
+    const response = await apiGetReportPath(props.reportId)
+    if (context !== copyContext) return
+    if (!response.ok) {
+      throw new Error(`Failed to fetch report path (${response.status})`)
+    }
+    const data = await response.json()
+    if (context !== copyContext) return
+    if (!await copyToClipboard(data.path)) {
+      throw new Error('Clipboard access failed')
+    }
+    if (context === copyContext) pathCopied.value = true
+  } catch (err) {
+    if (context === copyContext) window.alert(`Failed to copy report path: ${err.message}`)
+  } finally {
+    copyingPath.value = false
+  }
+}
 
 function getDocLink(p) {
   return getProtocolDocUrl(p?.id, p?.name, state.activeServer)

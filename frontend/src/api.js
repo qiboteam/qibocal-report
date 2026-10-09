@@ -188,6 +188,12 @@ export async function apiGetReport(reportId) {
   return apiFetch(`/api/reports/${encodedId}`)
 }
 
+export async function apiGetReportPath(reportId, server = state.activeServer) {
+  return apiFetch(`/api/reports/${encodeURIComponent(reportId)}/path`, {
+    cache: 'no-store'
+  }, server)
+}
+
 export async function apiGetReportProtocols(reportId) {
   const encodedId = encodeURIComponent(reportId)
   return apiFetch(`/api/reports/${encodedId}/protocols`)

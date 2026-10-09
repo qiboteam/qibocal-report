@@ -87,6 +87,17 @@ Returns aggregated statistical distributions across all discovered reports:
 ### `GET /api/reports/{report_id}`
 Retrieve detailed metadata, platform snapshots, history, and protocol summaries for a single report.
 
+### `GET /api/reports/{report_id}/path`
+Return the report folder path for use with `qq upload`. Available on open servers
+and to signed-in viewers, editors, and administrators. Open servers and
+administrators receive an absolute filesystem path; viewers and editors receive
+a path relative to the server's currently selected report root, without exposing
+the absolute root. Responses use `Cache-Control: no-store`.
+
+```json
+{"path": "2026-10-09/calibration-run", "is_absolute": false}
+```
+
 ---
 
 ## 🔬 Protocol Outputs & Regeneration

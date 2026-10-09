@@ -42,6 +42,7 @@ The sidebar includes instant download actions generated dynamically on the fly:
 | Button / Icon | Description | Endpoint |
 | :--- | :--- | :--- |
 | **Download Protocol (.zip)** | Full archive containing all data, logs, platform snapshots, and cached figures. | `GET /api/reports/{id}/download/full` |
+| **Copy report path** *(Copy icon)* | Copy the server-side report folder path for use with `qq upload`. | `GET /api/reports/{id}/path` |
 | **New Platform (.zip)** *(Sparkled chip)* | Calibrated hardware parameters resulting from the run, packaged as a platform folder. | `GET /api/reports/{id}/download/new-platform` |
 | **Old Platform (.zip)** *(Plain chip)* | Initial pre-calibration hardware parameters used at the start of the experiment. | `GET /api/reports/{id}/download/old-platform` |
 | **Meta.json (`{}`)** | View raw execution metadata inline in a new browser tab. | `GET /api/reports/{id}/meta.json` |
@@ -50,6 +51,12 @@ On authentication-enabled servers, these actions use your sign-in session,
 including for remote instances. Protocol-data, platform, and archive downloads
 use the same authenticated requests. If your browser blocks the metadata tab,
 allow pop-ups for the report application and try again.
+
+**Copy report path** is available in both expanded and collapsed sidebar modes.
+It copies an absolute path on open servers and for signed-in administrators.
+Viewers and editors receive a path relative to the server's currently selected
+report root. The path refers to the report server, not the browser's computer;
+use relative paths from that root when running `qq upload` on the server.
 
 ---
 

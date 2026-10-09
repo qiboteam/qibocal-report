@@ -116,6 +116,11 @@ class ReportDetail(ReportSummary):
     protocols_summary: list[ProtocolSummary] = Field(default_factory=list)
 
 
+class ReportPathResponse(BaseModel):
+    path: str
+    is_absolute: bool
+
+
 class PlatformDataResponse(BaseModel):
     report_id: str
     platform_name: str | None = None

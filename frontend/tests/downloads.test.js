@@ -3,7 +3,7 @@ import { test, mock } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { createSSRApp, h } from 'vue'
+import { createSSRApp, createRenderer, h, reactive, ssrContextKey } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
@@ -286,6 +286,7 @@ test('authenticated downloads and metadata previews', async t => {
       for (const isCollapsed of [false, true]) {
         buttons.length = 0
         const html = await renderToString(createSSRApp(SidebarProtocols, { reportId, isCollapsed }))
+        assert.equal((html.match(/aria-label="Copy report folder path for qq upload"/g) || []).length, 1)
         assert.deepEqual(buttons.map(button => button.props.path), [
           `${prefix}/download/full`, `${prefix}/download/new-platform`,
           `${prefix}/download/old-platform`, `${prefix}/meta.json`
@@ -312,6 +313,107 @@ test('authenticated downloads and metadata previews', async t => {
       assert.equal(buttons[0].props.path, '')
       assert.match(html, /disabled[^>]*title="Download Pending routine/)
       mock.restoreAll()
+    })
+
+    await t.test('report paths use authenticated uncached requests and copy the returned path', async () => {
+      setupBrowser()
+      window.isSecureContext = true
+      const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+      const writeText = mock.fn()
+      Object.defineProperty(globalThis, 'navigator', {
+        configurable: true, value: { clipboard: { writeText } }
+      })
+      try {
+        const sidebar = await setupComponent(SidebarProtocols, { reportId: 'nested/run' })
+        for (const path of ['nested/run', '/server/reports/nested/run']) {
+          mock.method(globalThis, 'fetch', async (url, options) => {
+            assert.equal(url, 'https://first.example/api/reports/nested%2Frun/path')
+            assert.equal(options.headers.get('Authorization'), 'Bearer first-session')
+            assert.equal(options.cache, 'no-store')
+            return Response.json({ path, is_absolute: path.startsWith('/') })
+          })
+          await sidebar.copyReportPath()
+          assert.equal(writeText.mock.calls.at(-1).arguments[0], path)
+          assert.equal(sidebar.pathCopied.value, true)
+          assert.equal(sidebar.pathCopyTitle.value, 'Report path copied!')
+          assert.equal(sidebar.copyingPath.value, false)
+        }
+
+        let resolve
+        const fetch = mock.method(globalThis, 'fetch', () => new Promise(done => { resolve = done }))
+        const pending = sidebar.copyReportPath()
+        await sidebar.copyReportPath()
+        assert.equal(fetch.mock.callCount(), 1)
+        resolve(Response.json({ detail: 'Missing report' }, { status: 404 }))
+        await pending
+        assert.equal(sidebar.pathCopied.value, false)
+        assert.equal(sidebar.copyingPath.value, false)
+        assert.match(window.alert.mock.calls.at(-1).arguments[0], /Failed to copy report path/)
+        assert.equal(writeText.mock.callCount(), 2)
+
+        mock.method(globalThis, 'fetch', async () => { throw new Error('Offline') })
+        await sidebar.copyReportPath()
+        assert.match(window.alert.mock.calls.at(-1).arguments[0], /Offline/)
+
+        window.isSecureContext = false
+        mock.method(document, 'createElement', () => ({
+          style: {}, setAttribute() {}, focus() {}, select() {}
+        }))
+        document.body.removeChild = mock.fn()
+        document.execCommand = () => false
+        mock.method(globalThis, 'fetch', async () => Response.json({ path: 'nested/run' }))
+        await sidebar.copyReportPath()
+        assert.equal(sidebar.pathCopied.value, false)
+        assert.match(window.alert.mock.calls.at(-1).arguments[0], /Clipboard access failed/)
+        document.execCommand = command => command === 'copy'
+        await sidebar.copyReportPath()
+        assert.equal(sidebar.pathCopied.value, true)
+        assert.equal(document.body.removeChild.mock.callCount(), 2)
+      } finally {
+        if (originalNavigator) Object.defineProperty(globalThis, 'navigator', originalNavigator)
+        else delete globalThis.navigator
+        mock.restoreAll()
+      }
+    })
+
+    await t.test('path copying ignores responses after report, server, session or lifecycle changes', async () => {
+      const renderer = createRenderer({
+        createComment: text => ({ text }),
+        insert: (node, parent) => { parent.node = node },
+        remove: () => {},
+        parentNode: () => null,
+        nextSibling: () => null
+      })
+      for (const change of [
+        ({ props }) => { props.reportId = 'other' },
+        () => { store.state.activeServer = second },
+        () => { store.setServerAuth(first, null, null) },
+        () => { store.state.auth.user.role = 'admin' },
+        ({ app }) => app.unmount()
+      ]) {
+        setupBrowser()
+        const props = reactive({ reportId: 'nested/run' })
+        let sidebar
+        const app = renderer.createApp({
+          setup() {
+            sidebar = SidebarProtocols.setup(props, { expose() {} })
+            return () => null
+          }
+        })
+        app.provide(ssrContextKey, { modules: new Set() })
+        app.mount({})
+        let resolve
+        mock.method(globalThis, 'fetch', () => new Promise(done => { resolve = done }))
+        const pending = sidebar.copyReportPath()
+        change({ props, app })
+        resolve(Response.json({ path: '/server/reports/nested/run', is_absolute: true }))
+        await pending
+        assert.equal(sidebar.pathCopied.value, false)
+        assert.equal(sidebar.copyingPath.value, false)
+        assert.equal(window.alert.mock.callCount(), 0)
+        app.unmount()
+        mock.restoreAll()
+      }
     })
 
     await t.test('the platform page authenticates data requests and exposes the selected ZIP path', async () => {

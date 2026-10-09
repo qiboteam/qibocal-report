@@ -116,6 +116,81 @@ def test_password_hashing():
     assert auth.verify_password(pw, "invalid$format$") is False
 
 
+@pytest.mark.parametrize(
+    ("enabled", "role", "absolute"),
+    [
+        (False, None, True),
+        (True, "admin", True),
+        (True, "editor", False),
+        (True, "viewer", False),
+    ],
+)
+def test_report_upload_path_visibility(auth_env, enabled, role, absolute):
+    auth.set_auth_enabled(enabled)
+    report_id = "21:47:29_[3]_pi-pulse"
+    nested = auth_env / "nested folder"
+    nested.mkdir()
+    (auth_env / report_id).rename(nested / report_id)
+    headers = {}
+    if role:
+        user = auth.create_user(f"path_{role}", "password", role)
+        headers["Authorization"] = f"Bearer {auth.create_access_token(user)}"
+    client = TestClient(app)
+
+    for root, relative in [
+        (auth_env, f"nested folder/{report_id}"),
+        (nested, report_id),
+    ]:
+        set_report_root(root)
+        response = client.get(
+            f"/api/reports/{quote(relative, safe='')}/path", headers=headers
+        )
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "no-store"
+        assert response.json() == {
+            "path": str(nested / report_id) if absolute else relative,
+            "is_absolute": absolute,
+        }
+
+
+def test_report_upload_path_requires_auth_and_current_role(auth_env):
+    client = TestClient(app)
+    report_id = "21:47:29_[3]_pi-pulse"
+    url = f"/api/reports/{quote(report_id, safe='')}/path"
+    for headers in [{}, {"Authorization": "Bearer invalid"}]:
+        response = client.get(url, headers=headers)
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"] == "Bearer"
+
+    auth.create_user("remaining_admin", "password", "admin")
+    user = auth.create_user("path_admin", "password", "admin")
+    headers = {"Authorization": f"Bearer {auth.create_access_token(user)}"}
+    assert client.get(url, headers=headers).json()["is_absolute"] is True
+    auth.update_user_role(user["id"], "viewer")
+    assert client.get(url, headers=headers).json() == {
+        "path": report_id,
+        "is_absolute": False,
+    }
+
+
+def test_report_upload_path_rejects_missing_and_outside_reports(auth_env, tmp_path):
+    auth.set_auth_enabled(False)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "meta.json").write_text("{}", encoding="utf-8")
+    (auth_env / "external-link").symlink_to(outside, target_is_directory=True)
+    client = TestClient(app)
+    for report_id in [
+        "missing",
+        "../outside",
+        str(outside),
+        "external-link",
+    ]:
+        response = client.get(f"/api/reports/{quote(report_id, safe='')}/path")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Report not found"}
+
+
 def test_auth_data_crud(auth_env):
     # Initial state
     users = auth.list_users()

@@ -78,6 +78,7 @@ from qibocal_report.models import (
     QibocalStatus,
     RegisterRequest,
     ReportDetail,
+    ReportPathResponse,
     ReportSummary,
     ServerCreate,
     ServerDirectoryInfo,
@@ -1323,6 +1324,32 @@ def regenerate_report_plots(report_id: str) -> list[ProtocolDetail]:
     log_info(f"HTTP POST /regenerate for '{report_id}'")
     target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
     return regenerate_report(target_dir)
+
+
+@app.get(
+    "/api/reports/{report_id:path}/path",
+    response_model=ReportPathResponse,
+    tags=["Reports"],
+)
+def get_report_upload_path(
+    report_id: str,
+    response: Response,
+    user: Annotated[dict, Depends(require_viewer)],
+) -> ReportPathResponse:
+    """Return the report folder path with role-appropriate filesystem visibility."""
+    response.headers["Cache-Control"] = "no-store"
+    root = REPORT_ROOT_DIR.resolve()
+    report = next((r for r in scan_reports(root) if r.id == report_id), None)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    target = Path(report.path).resolve()
+    if not target.is_dir() or not target.is_relative_to(root):
+        raise HTTPException(status_code=404, detail="Report not found")
+    absolute = not auth.is_auth_enabled() or user["role"] == UserRole.ADMIN.value
+    return ReportPathResponse(
+        path=str(target) if absolute else target.relative_to(root).as_posix(),
+        is_absolute=absolute,
+    )
 
 
 # --- On-the-Fly Downloads ---
