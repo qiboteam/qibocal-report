@@ -45,14 +45,21 @@ IGNORED_DIRS = {
 }
 
 
-def is_report_directory(path: Path) -> bool:
-    """Check if a directory is a genuine Qibocal report folder."""
-    if not path.is_dir() or path.name.startswith("."):
+def is_discovery_directory(path: Path, root_dir: Path) -> bool:
+    """Allow the selected root, excluding hidden and ignored descendants."""
+    try:
+        parts = path.relative_to(root_dir).parts
+    except ValueError:
         return False
-    # Check if any parent component is in IGNORED_DIRS
-    for part in path.parts:
-        if part in IGNORED_DIRS:
-            return False
+    return path.is_dir() and not any(
+        part.startswith(".") or part in IGNORED_DIRS for part in parts
+    )
+
+
+def is_report_directory(path: Path, root_dir: Path | None = None) -> bool:
+    """Recognize report artifacts within a discovery boundary (default: path)."""
+    if not is_discovery_directory(path, root_dir if root_dir is not None else path):
+        return False
 
     # Standard Qibocal output contains meta.json
     if (path / "meta.json").is_file():
@@ -270,7 +277,7 @@ def get_directory_mtime(root_dir: Path) -> float:
             except OSError:
                 pass
 
-            if dp != root_dir and is_report_directory(dp):
+            if is_report_directory(dp, root_dir):
                 for meta_name in ("meta.json", "history.json"):
                     meta_p = dp / meta_name
                     if meta_p.is_file():
@@ -342,7 +349,7 @@ def scan_reports(
     reports: list[ReportSummary] = []
 
     # Check root_dir itself
-    if is_report_directory(resolved_root):
+    if is_report_directory(resolved_root, resolved_root):
         reports = [
             parse_report_directory(
                 resolved_root, resolved_root.parent, author_identities=author_identities
@@ -356,7 +363,7 @@ def scan_reports(
             ]
             p = Path(dirpath)
 
-            if p != resolved_root and is_report_directory(p):
+            if p != resolved_root and is_report_directory(p, resolved_root):
                 reports.append(
                     parse_report_directory(
                         p, resolved_root, author_identities=author_identities
@@ -574,6 +581,7 @@ def get_report_detail(
     author_identities: dict[str, list[str]] | None = None,
 ) -> ReportDetail | None:
     """Retrieve full details for a specific report."""
+    root_dir = root_dir.resolve()
     target_dir = root_dir / report_id
     if not target_dir.is_dir():
         # Search by name match
@@ -582,7 +590,7 @@ def get_report_detail(
                 target_dir = Path(r.path)
                 break
 
-    if not target_dir.is_dir() or not is_report_directory(target_dir):
+    if not is_report_directory(target_dir, root_dir):
         return None
 
     if author_identities is None:
@@ -597,7 +605,9 @@ def get_report_detail(
             author_identities = None
 
     summary = parse_report_directory(
-        target_dir, root_dir, author_identities=author_identities
+        target_dir,
+        root_dir.parent if target_dir == root_dir else root_dir,
+        author_identities=author_identities,
     )
 
     # Read history.json

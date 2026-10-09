@@ -870,13 +870,18 @@ def _get_relative_current() -> str:
         return str(REPORT_ROOT_DIR)
 
 
-def _count_reports_fast(path: Path) -> int:
+def _count_reports_fast(path: Path, root_dir: Path | None = None) -> int:
     """Fast count of reports in a folder without affecting main report cache."""
-    from qibocal_report.scanner import IGNORED_DIRS, is_report_directory
+    from qibocal_report.scanner import (
+        IGNORED_DIRS,
+        is_discovery_directory,
+        is_report_directory,
+    )
 
-    if not path.is_dir():
+    root_dir = root_dir if root_dir is not None else path
+    if not is_discovery_directory(path, root_dir):
         return 0
-    if is_report_directory(path):
+    if is_report_directory(path, root_dir):
         return 1
     count = 0
     for dirpath, dirnames, _ in os.walk(path):
@@ -884,7 +889,7 @@ def _count_reports_fast(path: Path) -> int:
             d for d in dirnames if d not in IGNORED_DIRS and not d.startswith(".")
         ]
         dp = Path(dirpath)
-        if dp != path and is_report_directory(dp):
+        if dp != path and is_report_directory(dp, root_dir):
             count += 1
             dirnames.clear()
     return count
@@ -918,7 +923,7 @@ def browse_server_directory(
     scope: str = "original",
 ) -> DirectoryBrowseResponse:
     """Browse subdirectories of the originally spawned server directory or current report root."""
-    from qibocal_report.scanner import IGNORED_DIRS
+    from qibocal_report.scanner import is_discovery_directory, is_report_directory
 
     base_root = (
         REPORT_ROOT_DIR.resolve()
@@ -937,7 +942,7 @@ def browse_server_directory(
             ),
         )
 
-    if not target.is_dir():
+    if not is_discovery_directory(target, base_root):
         raise HTTPException(
             status_code=404,
             detail=f"Directory '{clean_subpath}' not found",
@@ -961,27 +966,21 @@ def browse_server_directory(
         parent_path = "" if parent_rel == "." else parent_rel
 
     # List subdirectories (treating report folders as leaves and omitting them)
-    from qibocal_report.scanner import is_report_directory
-
     subdirs: list[DirectoryEntry] = []
     try:
         for item in sorted(target.iterdir(), key=lambda x: x.name.lower()):
             if (
-                item.is_dir()
-                and not item.name.startswith(".")
-                and item.name not in IGNORED_DIRS
-                and not is_report_directory(item)
+                is_discovery_directory(item, base_root)
+                and not is_report_directory(item, base_root)
             ):
                 has_sub = any(
-                    c.is_dir()
-                    and not c.name.startswith(".")
-                    and c.name not in IGNORED_DIRS
-                    and not is_report_directory(c)
+                    is_discovery_directory(c, base_root)
+                    and not is_report_directory(c, base_root)
                     for c in item.iterdir()
                 )
                 is_cur = item.resolve() == REPORT_ROOT_DIR.resolve()
                 item_rel = item.relative_to(base_root).as_posix()
-                count = _count_reports_fast(item)
+                count = _count_reports_fast(item, base_root)
                 subdirs.append(
                     DirectoryEntry(
                         name=item.name,
@@ -996,7 +995,7 @@ def browse_server_directory(
 
     current_rel = "" if target == base_root else target.relative_to(base_root).as_posix()
     is_active_root = target.resolve() == REPORT_ROOT_DIR.resolve()
-    reports_in_current = _count_reports_fast(target)
+    reports_in_current = _count_reports_fast(target, base_root)
 
     return DirectoryBrowseResponse(
         original_root=str(ORIGINAL_ROOT_DIR.resolve()),
@@ -1043,7 +1042,7 @@ def change_server_directory(req: ChangeDirectoryRequest) -> ServerDirectoryInfo:
             ),
         )
 
-    if is_report_directory(target):
+    if is_report_directory(target, target):
         raise HTTPException(
             status_code=400,
             detail=(

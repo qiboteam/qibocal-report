@@ -840,6 +840,65 @@ def test_server_directory_management(tmp_path):
     assert not_found_change.status_code == 400
 
 
+@pytest.mark.parametrize("root_path", [".cache/agent/runs/platinum", ".cache"])
+def test_server_discovery_beneath_ignored_ancestor(tmp_path, root_path):
+    root = tmp_path / root_path
+    report_id = "sessions/cdb13be1d07247478469c9538e1556f7"
+    report_dir = root / report_id
+    report_dir.mkdir(parents=True)
+    (report_dir / "meta.json").write_text(
+        json.dumps({"title": "Session report"}), encoding="utf-8"
+    )
+    for name in (".hidden", ".cache", "build"):
+        excluded = root / name / "nested"
+        excluded.mkdir(parents=True)
+        (excluded / "meta.json").write_text("{}", encoding="utf-8")
+    set_report_root(root, is_original=True)
+    client = TestClient(app)
+
+    health = client.get("/api/health")
+    assert health.status_code == 200
+    assert health.json()["reports_count"] == 1
+    assert client.get("/api/server/directory").json()["reports_count"] == 1
+    reports = client.get("/api/reports")
+    assert reports.status_code == 200
+    assert [report["id"] for report in reports.json()] == [report_id]
+    detail = client.get(f"/api/reports/{report_id}")
+    assert detail.status_code == 200
+    assert detail.json()["id"] == report_id
+
+    for scope in ("original", "root"):
+        browse = client.get("/api/server/directory/browse", params={"scope": scope})
+        assert browse.status_code == 200
+        assert browse.json()["reports_count"] == 1
+        assert [
+            (entry["name"], entry["reports_count"], entry["has_subdirs"])
+            for entry in browse.json()["directories"]
+        ] == [("sessions", 1, False)]
+        sessions = client.get(
+            "/api/server/directory/browse", params={"path": "sessions", "scope": scope}
+        )
+        assert sessions.status_code == 200
+        assert sessions.json()["reports_count"] == 1
+        assert sessions.json()["directories"] == []
+
+    for name in (".hidden", ".cache", "build"):
+        assert client.get(f"/api/reports/{name}/nested").status_code == 404
+        assert client.get(
+            "/api/server/directory/browse", params={"path": name}
+        ).status_code == 404
+
+    leaf_change = client.post("/api/server/directory", json={"path": report_id})
+    assert leaf_change.status_code == 400
+    change = client.post("/api/server/directory", json={"path": "sessions"})
+    assert change.status_code == 200
+    assert change.json()["reports_count"] == 1
+    assert client.get("/api/reports").json()[0]["id"] == report_dir.name
+    reset = client.post("/api/server/directory", json={"path": ""})
+    assert reset.status_code == 200
+    assert reset.json()["reports_count"] == 1
+
+
 def test_archive_workflow(tmp_path):
     client = TestClient(app)
     root = get_report_root()
@@ -1093,4 +1152,3 @@ def test_protocol_execution_order_sorting(tmp_path: Path):
     ]
     flex_sorted = sort_protocols_by_execution_order(flex_protos, test_dir_meta)
     assert [p.id for p in flex_sorted] == ["routine_omega_0", "routine_alpha", "routine_unlisted"]
-
