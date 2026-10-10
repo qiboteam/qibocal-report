@@ -1,9 +1,34 @@
 """Pydantic models for qibocal-report."""
 
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+)
+
+
+class NoteCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class Note(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    timestamp: AwareDatetime
+    author: str | None = None
+
+    @field_validator("timestamp")
+    @classmethod
+    def normalize_timestamp(cls, value: datetime) -> datetime:
+        return value.astimezone(timezone.utc)
 
 
 class ServerModel(BaseModel):
@@ -63,6 +88,7 @@ class ProtocolDetail(BaseModel):
     figures: list[dict[str, Any]] = Field(default_factory=list)
     error: str | None = None
     error_code: str | None = None
+    notes: list[Note] = Field(default_factory=list)
 
 
 class QibocalStatus(BaseModel):
@@ -114,6 +140,7 @@ class ReportDetail(ReportSummary):
     history: Any | None = Field(default_factory=dict)
     platform_snapshot: dict[str, Any] | None = Field(default_factory=dict)
     protocols_summary: list[ProtocolSummary] = Field(default_factory=list)
+    notes: list[Note] = Field(default_factory=list)
 
 
 class ReportPathResponse(BaseModel):

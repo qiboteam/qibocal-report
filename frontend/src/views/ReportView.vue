@@ -194,6 +194,13 @@
             @remove-tag="handleRemoveTag"
             @save-author="handleSaveAuthor"
           />
+          <notes-panel
+            class="mt-6"
+            :report-id="reportId"
+            :notes="report.notes"
+            title="Session comments"
+            @update:notes="report.notes = $event"
+          />
           <div v-if="slideshow" class="no-print grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
             <protocol-thumbnail
               v-for="(proto, idx) in protocols"
@@ -214,6 +221,7 @@
             :proto="proto"
             :index="idx"
             :report-id="reportId"
+            @update-notes="proto.notes = $event"
             :class="{ 'slide-hidden': slideshow && selectedId !== proto.id }"
           />
         </div>
@@ -239,6 +247,7 @@ import { useReportSlideshow } from '../composables/useReportSlideshow.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
+import NotesPanel from '../components/report/NotesPanel.vue'
 import ProtocolCard from '../components/report/ProtocolCard.vue'
 import ProtocolThumbnail from '../components/report/ProtocolThumbnail.vue'
 import ProtocolDocsModal from '../components/modals/ProtocolDocsModal.vue'

@@ -39,6 +39,8 @@ def protocol_inputs(report_dir: Path) -> dict[str, list]:
             continue
         files = []
         for path in sorted(task_dir.rglob("*")):
+            if path.name == "notes.json" or path.name.startswith(".notes"):
+                continue
             if path.is_file() and not path.is_symlink():
                 stat = path.stat()
                 files.append(
@@ -54,11 +56,19 @@ def protocol_inputs(report_dir: Path) -> dict[str, list]:
 
 
 def metadata_inputs(report_dir: Path) -> list:
-    """Track execution metadata separately from plot inputs."""
+    """Track metadata and comment histories separately from plot inputs."""
     files = []
-    for name in ("meta.json", "history.json"):
-        path = report_dir / name
+    paths = [report_dir / name for name in ("meta.json", "history.json", "notes.json")]
+    paths.extend(sorted((report_dir / "data").glob("*/notes.json")))
+    for path in paths:
         if path.is_file():
             stat = path.stat()
-            files.append([name, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size])
+            files.append(
+                [
+                    path.relative_to(report_dir).as_posix(),
+                    stat.st_mtime_ns,
+                    stat.st_ctime_ns,
+                    stat.st_size,
+                ]
+            )
     return files

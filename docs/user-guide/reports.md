@@ -56,6 +56,27 @@ Each protocol routine is presented in an individual card:
 
 ---
 
+## Session and protocol notes
+
+Collapsible **Session comments** below the report header and **Protocol comments** in
+each protocol card show comment histories with timestamps and optional authors.
+Each protocol execution (including its iteration) has its own history.
+
+Editors and administrators can add comments; viewers can read them. Open
+servers also allow comments, with no author attached. On authenticated servers,
+the server records the signed-in username. Earlier comments are immutable:
+append a follow-up to correct or update a finding without losing the history.
+
+Notes use Qibocal's `notes.json` in the session folder and
+`data/<task-id>/notes.json` for individual executions. Older reports without
+these files remain viewable with empty histories. Adding a comment creates only
+the corresponding history; it does not change acquisition data, fitting results,
+or metadata. Notes remain available with cached plots or when plot generation
+fails, and survive plot regeneration. Live mode refreshes comments without
+regenerating plots.
+
+---
+
 ## 💾 On-The-Fly ZIP Downloads & Inspection
 
 The sidebar includes instant download actions generated dynamically on the fly:

@@ -87,6 +87,35 @@ Returns aggregated statistical distributions across all discovered reports:
 ### `GET /api/reports/{report_id}`
 Retrieve detailed metadata, platform snapshots, history, and protocol summaries for a single report.
 
+Report details include session `notes`; protocol outputs include per-execution
+`notes`. Both default to `[]` for reports without a notes file. Notes are read
+from their source files independently of cached plots.
+
+### `GET /api/reports/{report_id}/notes`
+### `GET /api/reports/{report_id}/protocols/{protocol_id}/notes`
+Return session or protocol comment histories. Requires viewer access on
+authenticated servers. Responses use `Cache-Control: no-store`.
+
+### `POST /api/reports/{report_id}/notes`
+### `POST /api/reports/{report_id}/protocols/{protocol_id}/notes`
+Append a comment and return the complete updated history. Requires editor or
+administrator access on authenticated servers; open servers also allow writes.
+The body is `{"content": "Reviewed the fit."}`. Blank content and extra fields
+are rejected. The server supplies the UTC timestamp and authenticated username,
+or `null` author on open servers:
+
+```json
+[{"content": "Reviewed the fit.", "timestamp": "2026-10-10T06:00:00Z", "author": "editor"}]
+```
+
+Use the exact protocol execution ID, including its iteration (e.g. `rabi-1`).
+Ambiguous legacy names are rejected rather than assigned to an arbitrary
+iteration. Unknown report or protocol IDs return 404. Invalid stored histories
+return an explicit error and are never silently replaced. Existing records are
+immutable; corrections are new comments. Server appends are serialized across
+workers and saved atomically. External writers (including Qibocal's list-replace
+API) must coordinate writes with the report server to avoid losing comments.
+
 ### `GET /api/reports/{report_id}/path`
 Return the report folder path for use with `qq upload`. Available on open servers
 and to signed-in viewers, editors, and administrators. Open servers and

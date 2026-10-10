@@ -100,6 +100,15 @@
     <div v-else-if="!proto.error && !proto.html" class="my-4 text-xs text-gray-400 italic">
       No figures or tables available for this routine.
     </div>
+    <notes-panel
+      v-if="reportId"
+      class="mt-4"
+      :report-id="reportId"
+      :protocol-id="proto.id"
+      :notes="proto.notes"
+      title="Protocol comments"
+      @update:notes="emit('update-notes', $event)"
+    />
   </div>
 </template>
 
@@ -111,6 +120,9 @@ import { copyToClipboard } from '../../utils/clipboard.js'
 import { getReportDownloadFilename } from '../../utils/apiFiles.js'
 import ApiFileButton from '../ApiFileButton.vue'
 import PlotlyViewer from '../PlotlyViewer.vue'
+import NotesPanel from './NotesPanel.vue'
+
+const emit = defineEmits(['update-notes'])
 
 const props = defineProps({
   proto: { type: Object, required: true },

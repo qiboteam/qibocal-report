@@ -180,7 +180,7 @@ def test_live_socket_pushes_changed_protocol_and_stops(report_dir, monkeypatch):
     monkeypatch.setattr(
         live,
         "get_report_detail",
-        lambda *_: SimpleNamespace(model_dump=lambda: {"id": "run"}),
+        lambda *_: SimpleNamespace(model_dump=lambda **_: {"id": "run"}),
     )
 
     def generate(path, ids):

@@ -13,11 +13,17 @@ from fastapi import (
     FastAPI,
     HTTPException,
     Query,
+    Request,
     Response,
     WebSocket,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+    StreamingResponse,
+)
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 
@@ -68,6 +74,8 @@ from qibocal_report.models import (
     InviteValidateResponse,
     LoginRequest,
     LoginResponse,
+    Note,
+    NoteCreate,
     PaginatedReportsResponse,
     PasswordResetCreateRequest,
     PasswordResetModel,
@@ -89,6 +97,12 @@ from qibocal_report.models import (
     UserModel,
     UserRole,
     UserRoleUpdate,
+)
+from qibocal_report.notes import (
+    NotesError,
+    append_note,
+    load_notes,
+    protocol_notes_directory,
 )
 from qibocal_report.scanner import (
     _parse_meta_json,
@@ -320,6 +334,13 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(NotesError)
+async def notes_error_handler(_request: Request, error: NotesError) -> JSONResponse:
+    log_error(str(error))
+    return JSONResponse(status_code=500, content={"detail": str(error)})
+
 
 # Enable CORS for development frontend
 app.add_middleware(
@@ -1300,6 +1321,87 @@ async def report_websocket_endpoint(websocket: WebSocket, report_id: str):
 
 
 # --- Protocol Outputs & Regeneration ---
+def _notes_directory(report_id: str, protocol_id: str | None = None) -> Path:
+    root = REPORT_ROOT_DIR.resolve()
+    report = next((r for r in scan_reports(root) if r.id == report_id), None)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    target = Path(report.path).resolve()
+    if not target.is_dir() or not target.is_relative_to(root):
+        raise HTTPException(status_code=404, detail="Report not found")
+    if protocol_id is not None:
+        directory = protocol_notes_directory(target, protocol_id)
+        if directory is None:
+            raise HTTPException(
+                status_code=404, detail="Protocol not found or ambiguous"
+            )
+        return directory
+    return target
+
+
+@app.get(
+    "/api/reports/{report_id:path}/protocols/{protocol_id}/notes",
+    response_model=list[Note],
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
+def get_protocol_notes(
+    report_id: str, protocol_id: str, response: Response
+) -> list[Note]:
+    response.headers["Cache-Control"] = "no-store"
+    return load_notes(_notes_directory(report_id, protocol_id))
+
+
+@app.post(
+    "/api/reports/{report_id:path}/protocols/{protocol_id}/notes",
+    response_model=list[Note],
+    tags=["Reports"],
+)
+def add_protocol_note(
+    report_id: str,
+    protocol_id: str,
+    body: NoteCreate,
+    response: Response,
+    user: Annotated[dict, Depends(require_editor)],
+) -> list[Note]:
+    response.headers["Cache-Control"] = "no-store"
+    directory = _notes_directory(report_id, protocol_id)
+    author = user["username"] if auth.is_auth_enabled() else None
+    notes = append_note(directory, body.content, author)
+    log_info(f"Added protocol note for '{report_id}/{protocol_id}'")
+    return notes
+
+
+@app.get(
+    "/api/reports/{report_id:path}/notes",
+    response_model=list[Note],
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+)
+def get_session_notes(report_id: str, response: Response) -> list[Note]:
+    response.headers["Cache-Control"] = "no-store"
+    return load_notes(_notes_directory(report_id))
+
+
+@app.post(
+    "/api/reports/{report_id:path}/notes",
+    response_model=list[Note],
+    tags=["Reports"],
+)
+def add_session_note(
+    report_id: str,
+    body: NoteCreate,
+    response: Response,
+    user: Annotated[dict, Depends(require_editor)],
+) -> list[Note]:
+    response.headers["Cache-Control"] = "no-store"
+    directory = _notes_directory(report_id)
+    author = user["username"] if auth.is_auth_enabled() else None
+    notes = append_note(directory, body.content, author)
+    log_info(f"Added session note for '{report_id}'")
+    return notes
+
+
 @app.get(
     "/api/reports/{report_id:path}/protocols",
     response_model=list[ProtocolDetail],

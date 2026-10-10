@@ -26,6 +26,7 @@ from qibocal_report.models import (
     ReportSummary,
     TagFrequency,
 )
+from qibocal_report.notes import load_notes
 
 IGNORED_DIRS = {
     "node_modules",
@@ -680,4 +681,5 @@ def get_report_detail(
         history=history_data,
         platform_snapshot=platform_data,
         protocols_summary=proto_summaries,
+        notes=load_notes(target_dir),
     )

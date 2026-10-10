@@ -16,6 +16,7 @@ from qibocal_report.logger import (
     log_success,
     log_warning,
 )
+from qibocal_report.notes import NotesError
 from qibocal_report.scanner import get_report_detail, scan_reports
 
 
@@ -46,7 +47,7 @@ async def handle_report_websocket(
         detail = get_report_detail(root_dir, report_id)
         if detail:
             await websocket.send_json(
-                {"type": "metadata", "report": detail.model_dump()}
+                {"type": "metadata", "report": detail.model_dump(mode="json")}
             )
 
         # Step 2: Stream protocols
@@ -57,7 +58,10 @@ async def handle_report_websocket(
             )
             protocols = load_cached_protocols(target_dir)
             await websocket.send_json(
-                {"type": "ready", "protocols": [p.model_dump() for p in protocols]}
+                {
+                    "type": "ready",
+                    "protocols": [p.model_dump(mode="json") for p in protocols],
+                }
             )
             log_success(
                 f"Dispatched {len(protocols)} pre-cached protocol(s) over "
@@ -104,7 +108,10 @@ async def handle_report_websocket(
             )
 
             await websocket.send_json(
-                {"type": "ready", "protocols": [p.model_dump() for p in protocols]}
+                {
+                    "type": "ready",
+                    "protocols": [p.model_dump(mode="json") for p in protocols],
+                }
             )
             log_success(
                 f"Dispatched {len(protocols)} generated protocol(s) over "
@@ -118,5 +125,9 @@ async def handle_report_websocket(
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
         log_info(f"WebSocket client disconnected for report: '{report_id}'")
+    except NotesError as err:
+        log_warning(f"Could not load notes for '{report_id}': {err}")
+        await websocket.send_json({"type": "error", "message": str(err)})
+        await websocket.close()
     except (RuntimeError, OSError) as err:
         log_warning(f"WebSocket session ended for '{report_id}': {err}")

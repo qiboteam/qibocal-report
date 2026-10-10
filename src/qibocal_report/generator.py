@@ -14,6 +14,7 @@ from typing import Any
 from qibocal_report.live_inputs import protocol_inputs, write_input_cache
 from qibocal_report.logger import log_info, log_success, log_warning
 from qibocal_report.models import ProtocolDetail
+from qibocal_report.notes import attach_protocol_notes
 from qibocal_report.qibocal_environment import (
     GENERATION_TIMEOUT,
     EnvironmentOperationError,
@@ -44,7 +45,7 @@ def write_protocol_cache(report_dir: Path, protocols: list[ProtocolDetail]) -> N
     try:
         temporary.write_text(
             json.dumps(
-                [p.model_dump() for p in protocols],
+                [p.model_dump(exclude={"notes"}) for p in protocols],
                 default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o),
             ),
             encoding="utf-8",
@@ -294,14 +295,14 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
                         f"Loaded {len(protocols)} pre-cached protocol(s) "
                         f"for '{report_dir.name}'"
                     )
-                    return protocols
+                    return attach_protocol_notes(report_dir, protocols)
         except (json.JSONDecodeError, OSError, TypeError) as err:
             log_warning(f"Error parsing protocols.json: {err}")
 
     # Otherwise read all *.json files except meta.json and history.json
     for json_file in report_path.glob("*.json"):
         if json_file.name.startswith(".") or json_file.name in (
-            "meta.json", "history.json"
+            "meta.json", "history.json", "notes.json"
         ):
             continue
         try:
@@ -324,7 +325,7 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
     log_success(
         f"Loaded {len(protocols)} pre-cached protocol(s) for '{report_dir.name}'"
     )
-    return protocols
+    return attach_protocol_notes(report_dir, protocols)
 
 
 def _generate_qibocal_protocols(
@@ -568,7 +569,7 @@ def generate_report_on_the_fly(
                 f"Qibocal failed to generate outputs for '{report_dir.name}': "
                 + "; ".join(p.error or p.id for p in protocols)
             )
-            return protocols
+            return attach_protocol_notes(report_dir, protocols)
         log_success(
             f"Generated {len(native_protocols)} protocol(s) "
             "using native Qibocal engine."
@@ -588,7 +589,7 @@ def generate_report_on_the_fly(
         for p in protocols:
             with open(report_path / f"{p.id}.json", "w", encoding="utf-8") as f:
                 json.dump(
-                    p.model_dump(),
+                    p.model_dump(exclude={"notes"}),
                     f,
                     indent=2,
                     default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o),
@@ -607,7 +608,7 @@ def generate_report_on_the_fly(
             f"Report '{report_dir.name}' plots generated and cached "
             f"successfully ({len(protocols)} routines)."
         )
-        return protocols
+        return attach_protocol_notes(report_dir, protocols)
 
     # Qibocal cannot generate the plots
     discovered_protocols: list[str] = []
@@ -670,7 +671,7 @@ def generate_report_on_the_fly(
 
     protocols = sort_protocols_by_execution_order(protocols, report_dir)
     log_warning(f"Plots could not be generated for '{report_dir.name}': {err_msg}")
-    return protocols
+    return attach_protocol_notes(report_dir, protocols)
 
 
 def get_report_protocols(

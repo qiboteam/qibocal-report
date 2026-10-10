@@ -23,6 +23,7 @@ from qibocal_report.live_inputs import (
 )
 from qibocal_report.logger import log_info, log_warning
 from qibocal_report.models import ProtocolDetail
+from qibocal_report.notes import attach_protocol_notes
 from qibocal_report.scanner import get_report_detail, invalidate_report_cache
 
 LIVE_POLL_INTERVAL = 1.0
@@ -100,7 +101,9 @@ def refresh_live_protocols(
                 sort_protocols_by_execution_order(list(cached.values()), report_dir),
             )
             write_input_cache(report_dir, known)
-        return [failures.get(key, cached[key]) for key in changed], removed
+        return attach_protocol_notes(
+            report_dir, [failures.get(key, cached[key]) for key in changed]
+        ), removed
 
 
 def live_initial_state(
@@ -136,6 +139,8 @@ async def handle_live_websocket(
     async def watch():
         previous = None
         previous_meta = None
+        previous_notes = None
+        emitted: dict[str, ProtocolDetail] = {}
         candidate = None
         last_error = None
         await websocket.send_json({"type": "live", "active": True})
@@ -155,14 +160,16 @@ async def handle_live_websocket(
                     return
                 current = await asyncio.to_thread(protocol_inputs, target)
                 meta = await asyncio.to_thread(metadata_inputs, target)
+                notes = [entry for entry in meta if entry[0].endswith("notes.json")]
                 if previous is None:
                     protocols, previous = await asyncio.to_thread(
                         live_initial_state, target, current
                     )
+                    emitted = {p.id: p for p in protocols}
                     await websocket.send_json(
                         {
                             "type": "snapshot",
-                            "protocols": [p.model_dump() for p in protocols],
+                            "protocols": [p.model_dump(mode="json") for p in protocols],
                         }
                     )
                 snapshot = (current, meta)
@@ -172,23 +179,43 @@ async def handle_live_websocket(
                     outputs, removed = await asyncio.to_thread(
                         refresh_live_protocols, target, current, previous
                     )
+                    if previous_notes is not None and notes != previous_notes:
+                        # Comment-only updates do not require plotting.
+                        updated = {
+                            key: protocol for key, protocol in emitted.items()
+                            if key not in removed
+                        }
+                        await asyncio.to_thread(
+                            attach_protocol_notes, target, list(updated.values())
+                        )
+                        updated.update({p.id: p for p in outputs})
+                        outputs = list(updated.values())
                     invalidate_report_cache()
                     detail = await asyncio.to_thread(
                         get_report_detail, root_dir, report_id
                     )
                     if detail:
                         await websocket.send_json(
-                            {"type": "metadata", "report": detail.model_dump()}
+                            {
+                                "type": "metadata",
+                                "report": detail.model_dump(mode="json"),
+                            }
                         )
                     if outputs or removed:
                         await websocket.send_json(
                             {
                                 "type": "update",
-                                "protocols": [p.model_dump() for p in outputs],
+                                "protocols": [
+                                    p.model_dump(mode="json") for p in outputs
+                                ],
                                 "removed": removed,
                             }
                         )
+                        emitted.update({p.id: p for p in outputs})
+                        for key in removed:
+                            emitted.pop(key, None)
                     previous, previous_meta = current, meta
+                    previous_notes = notes
                     last_error = None
                 candidate = snapshot
             except (OSError, ValueError, TypeError, RuntimeError) as error:
