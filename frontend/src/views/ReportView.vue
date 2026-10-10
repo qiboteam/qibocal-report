@@ -4,13 +4,14 @@
     <sidebar
       :report-protocols="protocols"
       :report-id="reportId"
+      :live="live"
       :regenerating="regenerating"
       @regenerate="handleRegenerate"
       @print-pdf="handlePrintPDF"
     />
 
     <!-- Main Report Visualization Panel -->
-    <main class="flex-1 overflow-y-auto p-4 sm:p-8 report-print-container">
+    <main ref="reportPanel" class="flex-1 overflow-y-auto p-4 sm:p-8 report-print-container">
       <div v-if="loading" class="flex flex-col items-center justify-center h-64">
         <loading-spinner label="Preparing your report..." />
         <p class="mt-4 text-xs text-gray-400 font-mono">{{ loadingStatus }}</p>
@@ -159,7 +160,7 @@
         />
 
         <!-- Protocols List with Figures -->
-        <div class="space-y-6">
+        <div ref="protocolList" class="space-y-6">
           <protocol-card
             v-for="(proto, idx) in protocols"
             :key="proto.id"
@@ -184,6 +185,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canEdit, canManageQibocal } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
+import { useMagneticFollow } from '../composables/useMagneticFollow.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
@@ -226,6 +228,15 @@ const {
   handleSaveAuthor,
   handleRemoveTag
 } = useReportDetail(reportId)
+
+const reportPanel = ref(null)
+const protocolList = ref(null)
+useMagneticFollow({
+  protocols: () => protocols.value,
+  live: () => live.value,
+  container: reportPanel,
+  lastCard: () => protocolList.value?.lastElementChild
+})
 
 const qibocalMissing = computed(() => isQibocalMissing(protocols.value))
 const pendingInstallationRegeneration = ref(false)

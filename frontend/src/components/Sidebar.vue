@@ -43,6 +43,7 @@
       <!-- Section A/B: Search Filters or Protocols Summary -->
       <div
         v-if="(isSearchMode || isReportMode)"
+        ref="protocolPanel"
         class="overflow-y-auto overflow-x-hidden shrink-0 w-full box-border"
         :class="isCollapsed ? 'p-2 flex flex-col items-center flex-1 min-h-0' : 'p-3.5 min-w-0'"
         :style="!isCollapsed && historyOpen ? { height: `${middleSectionHeight}px` } : (!isCollapsed ? { flex: '1 1 0%' } : {})"
@@ -119,13 +120,14 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { state, activeServerHistory, setActiveServer } from '../store.js'
 import { useResizable } from '../composables/useResize.js'
+import { useMagneticFollow } from '../composables/useMagneticFollow.js'
 import SidebarServerHeader from './sidebar/SidebarServerHeader.vue'
 import SidebarNavLinks from './sidebar/SidebarNavLinks.vue'
 import SidebarFilters from './sidebar/SidebarFilters.vue'
 import SidebarProtocols from './sidebar/SidebarProtocols.vue'
 import SidebarHistory from './sidebar/SidebarHistory.vue'
 
-defineProps({
+const props = defineProps({
   filterStats: { type: Object, default: () => ({}) },
   fullStats: { type: Object, default: () => ({}) },
   isFiltered: { type: Boolean, default: false },
@@ -138,6 +140,7 @@ defineProps({
   selectedFolder: { type: String, default: '' },
   reportProtocols: { type: Array, default: () => [] },
   reportId: { type: String, default: null },
+  live: { type: Boolean, default: false },
   regenerating: { type: Boolean, default: false }
 })
 
@@ -209,6 +212,13 @@ const currentReportId = computed(() => state.currentReportId)
 const isSearchMode = computed(() => route.path === '/dashboard')
 const isReportMode = computed(() => route.path.startsWith('/reports/'))
 const isArchivesMode = computed(() => route.path === '/archives')
+
+const protocolPanel = ref(null)
+useMagneticFollow({
+  protocols: () => props.reportProtocols,
+  live: () => props.live && isReportMode.value,
+  container: protocolPanel
+})
 
 async function switchServer(s) {
   if (!await setActiveServer(s)) {

@@ -76,6 +76,13 @@ task data once per second and waits for two stable snapshots before generating
 plots. Only new or changed protocols are evaluated; unchanged plots stay in
 place. Metadata and removed protocols are updated as well.
 
+When a new protocol arrives, the plots panel automatically shows its card if the
+previous last card was visible. The sidebar index independently follows new
+protocols only when it is scrolled to the bottom, in either expanded or collapsed
+mode. Scroll away in either panel to stop following there; return to the last
+card or the bottom of the index to resume. Automatic scrolling is disabled
+outside Live mode.
+
 Live mode requires editor or administrator access on authenticated servers,
 and Qibocal must be installed on the server to generate plots. Click **Live**
 again to stop. Leaving the report, switching servers, changing your sign-in
