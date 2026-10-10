@@ -60,16 +60,41 @@
 
           <!-- Actions: Print to PDF & Regenerate plots -->
           <div class="flex items-center flex-wrap gap-2">
-            <button
-              type="button"
-              @click="toggleSlideshow"
-              title="Slideshow"
-              aria-label="Slideshow"
-              :aria-pressed="slideshow"
-              class="px-3 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-purple-300 text-[#833dff] shadow-2xs cursor-pointer"
-            >
-              <GalleryHorizontalEnd class="w-4 h-4" />
-            </button>
+            <div class="inline-flex items-center rounded-xl bg-white border border-gray-200 hover:border-purple-300 shadow-2xs">
+              <Transition
+                name="slideshow-nav"
+                @enter="sizeSlideshowNav"
+                @after-enter="el => el.style.removeProperty('width')"
+                @before-leave="sizeSlideshowNav"
+              >
+                <nav v-if="slideshow" id="slideshow-navigation" aria-label="Slideshow navigation" class="overflow-hidden shrink-0">
+                  <div class="flex items-center w-max gap-0.5 px-1 border-r border-gray-200">
+                    <button type="button" @click="moveSlide(-1)" :disabled="slideIndex === 0" aria-label="Previous slide" title="Previous slide (Left arrow)" class="p-1.5 rounded-lg text-gray-600 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                      <ChevronLeft aria-hidden="true" class="w-3.5 h-3.5" />
+                    </button>
+                    <button type="button" @click="selectSlide(null)" aria-label="Report Overview" title="Report Overview (Up arrow)" class="p-1.5 rounded-lg text-purple-700 hover:bg-gray-50 cursor-pointer">
+                      <Home aria-hidden="true" class="w-3.5 h-3.5" />
+                    </button>
+                    <span class="px-1 text-[10px] text-gray-500 font-mono whitespace-nowrap" aria-live="polite">{{ slideIndex + 1 }} / {{ protocols.length + 1 }}</span>
+                    <button type="button" @click="moveSlide(1)" :disabled="slideIndex === protocols.length" aria-label="Next slide" title="Next slide (Right arrow)" class="p-1.5 rounded-lg text-gray-600 hover:bg-gray-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                      <ChevronRight aria-hidden="true" class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </nav>
+              </Transition>
+              <button
+                type="button"
+                @click="toggleSlideshow"
+                title="Slideshow"
+                aria-label="Slideshow"
+                :aria-pressed="slideshow"
+                :aria-expanded="slideshow"
+                :aria-controls="slideshow ? 'slideshow-navigation' : undefined"
+                class="relative px-3 py-1.5 rounded-xl bg-white hover:bg-gray-50 text-[#833dff] shrink-0 cursor-pointer"
+              >
+                <GalleryHorizontalEnd aria-hidden="true" class="w-4 h-4" />
+              </button>
+            </div>
             <div class="inline-flex items-stretch gap-0.5 text-gray-700">
               <a
                 href="https://qibo.science/qibocal/stable/protocols/"
@@ -145,7 +170,6 @@
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
-              PDF
             </button>
           </div>
         </div>
@@ -161,19 +185,6 @@
         </div>
 
         <plot-generation-errors v-if="qibocalMissing" :protocols="protocols" />
-
-        <nav v-if="slideshow" aria-label="Slideshow navigation" class="no-print flex items-center justify-between gap-2">
-          <button type="button" @click="moveSlide(-1)" :disabled="slideIndex === 0" aria-label="Previous slide" title="Previous slide (Left arrow)" class="p-2 rounded-xl bg-white border border-gray-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-            <ChevronLeft class="w-5 h-5" />
-          </button>
-          <button type="button" @click="selectSlide(null)" title="Report Overview (Up arrow)" class="text-xs font-semibold text-purple-700 cursor-pointer">
-            Report Overview
-          </button>
-          <span class="text-xs text-gray-500 font-mono" aria-live="polite">{{ slideIndex + 1 }} / {{ protocols.length + 1 }}</span>
-          <button type="button" @click="moveSlide(1)" :disabled="slideIndex === protocols.length" aria-label="Next slide" title="Next slide (Right arrow)" class="p-2 rounded-xl bg-white border border-gray-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-            <ChevronRight class="w-5 h-5" />
-          </button>
-        </nav>
 
         <!-- Report Header Card -->
         <div id="report-overview" :class="{ 'slide-hidden': slideshow && selectedId !== null }">
@@ -219,7 +230,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { GalleryHorizontalEnd, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { GalleryHorizontalEnd, ChevronLeft, ChevronRight, Home } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canEdit, canManageQibocal } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
@@ -236,6 +247,10 @@ import PlotGenerationErrors from '../components/report/PlotGenerationErrors.vue'
 import { isQibocalMissing } from '../utils/plotGeneration.js'
 
 const showDocsModal = ref(false)
+
+function sizeSlideshowNav(element) {
+  element.style.width = `${element.scrollWidth}px`
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -426,6 +441,18 @@ watch(
   animation: live-recording 2.4s ease-in-out infinite;
 }
 
+.slideshow-nav-enter-active,
+.slideshow-nav-leave-active {
+  transition: width 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.slideshow-nav-enter-from,
+.slideshow-nav-leave-to {
+  width: 0 !important;
+  opacity: 0;
+  transform: translateX(1rem);
+}
+
 @keyframes live-recording {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.25; }
@@ -433,5 +460,7 @@ watch(
 
 @media (prefers-reduced-motion: reduce) {
   .live-recording-light { animation: none; }
+  .slideshow-nav-enter-active,
+  .slideshow-nav-leave-active { transition: none; }
 }
 </style>
