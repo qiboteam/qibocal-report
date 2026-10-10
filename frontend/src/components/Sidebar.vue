@@ -77,6 +77,8 @@
           :report-id="reportId || currentReportId"
           :is-collapsed="isCollapsed"
           :regenerating="regenerating"
+          :active-slide="activeSlide"
+          @select-protocol="$emit('select-protocol', $event)"
           @regenerate="$emit('regenerate')"
           @print-pdf="$emit('print-pdf')"
         />
@@ -141,6 +143,7 @@ const props = defineProps({
   reportProtocols: { type: Array, default: () => [] },
   reportId: { type: String, default: null },
   live: { type: Boolean, default: false },
+  activeSlide: { type: String, default: undefined },
   regenerating: { type: Boolean, default: false }
 })
 
@@ -151,7 +154,8 @@ defineEmits([
   'toggle-label',
   'open-folder-browser',
   'regenerate',
-  'print-pdf'
+  'print-pdf',
+  'select-protocol'
 ])
 
 const route = useRoute()

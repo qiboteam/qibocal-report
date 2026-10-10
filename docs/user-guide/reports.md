@@ -11,7 +11,28 @@ The left-hand sidebar serves as a quick navigator across all executed routines i
 - **Protocol Status Badges**: Quickly see which protocols succeeded (green checkmark) or experienced warnings/failures.
 - **Execution Timings**: Review the duration of each individual routine alongside total experiment runtime.
 - **Quick Jumping**: Click any protocol in the list to scroll smoothly to its corresponding card.
+- **Report Overview**: The first index entry returns to the report header.
 - **Collapsible Sidebar**: Click the toggle chevron at the bottom of the sidebar to collapse it to compact icon mode, maximizing screen real estate for charts.
+
+---
+
+## Slideshow
+
+The scrollable report remains the default. Toggle the **Slideshow** icon in the
+report action bar to show one slide at a time: the report overview followed by
+one slide per protocol. The overview includes clickable protocol thumbnails;
+plots, status, and the thumbnail list update in Live mode.
+
+Use the previous/next buttons or **Left/Right** arrow keys to navigate. **Up**
+returns to the overview; **Down** jumps to the last protocol. Sidebar entries
+work in both expanded and collapsed mode. Arrow shortcuts do not intercept text
+editing, chart interactions, or modal controls.
+
+In Live mode, viewing the last protocol slide follows newly arriving protocols.
+Selecting an earlier slide or the overview stops following; returning to the
+last protocol resumes it. The sidebar still follows independently when its index
+is at the bottom. Switching back to the scroll view keeps your selected protocol
+in view. Printing includes the complete report in either view mode.
 
 ---
 

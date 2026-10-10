@@ -76,10 +76,22 @@
     </div>
 
     <div class="space-y-1.5">
+      <button
+        type="button"
+        @click="$emit('select-protocol', null)"
+        :aria-current="activeSlide === null ? 'page' : undefined"
+        class="w-full text-left block p-2 rounded-xl text-xs font-semibold hover:bg-purple-50 border border-gray-100 cursor-pointer"
+        :class="activeSlide === null ? 'bg-purple-100 text-purple-800' : 'text-gray-800'"
+      >
+        Report Overview
+      </button>
       <a
         v-for="p in protocols"
         :key="p.id"
-        @click.prevent="scrollToProtocol(p.id)"
+        :href="`#proto-${p.id}`"
+        @click.prevent="$emit('select-protocol', p.id)"
+        :aria-current="activeSlide === p.id ? 'page' : undefined"
+        :class="activeSlide === p.id ? 'bg-purple-100 border-purple-200' : ''"
         class="block p-2 rounded-xl text-xs hover:bg-purple-50/70 border border-gray-100 hover:border-purple-200 transition group cursor-pointer"
       >
         <div class="flex items-center justify-between">
@@ -212,10 +224,23 @@
     </div>
 
     <!-- Square Boxes with First Letters -->
+    <button
+      type="button"
+      @click="$emit('select-protocol', null)"
+      title="Report Overview"
+      aria-label="Report Overview"
+      :aria-current="activeSlide === null ? 'page' : undefined"
+      class="w-9 h-9 rounded-xl flex items-center justify-center border border-purple-100 text-purple-800 hover:bg-purple-100 cursor-pointer shrink-0"
+      :class="activeSlide === null ? 'bg-purple-100' : 'bg-purple-50'"
+    >
+      <LayoutDashboard class="w-4 h-4" />
+    </button>
     <a
       v-for="p in protocols"
       :key="p.id"
-      @click.prevent="scrollToProtocol(p.id)"
+      :href="`#proto-${p.id}`"
+      @click.prevent="$emit('select-protocol', p.id)"
+      :aria-current="activeSlide === p.id ? 'page' : undefined"
       class="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs font-mono transition cursor-pointer relative shadow-2xs group/proto shrink-0 select-none"
       :class="p.status === 'error'
         ? 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-500 hover:text-white'
@@ -233,7 +258,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { Check, Copy } from 'lucide-vue-next'
+import { Check, Copy, LayoutDashboard } from 'lucide-vue-next'
 import { state, isViewer, getActiveAuthToken } from '../../store.js'
 import { apiGetReportPath } from '../../api.js'
 import { copyToClipboard } from '../../utils/clipboard.js'
@@ -245,6 +270,7 @@ const props = defineProps({
   protocols: { type: Array, default: () => [] },
   isCollapsed: { type: Boolean, default: false },
   regenerating: { type: Boolean, default: false },
+  activeSlide: { type: String, default: undefined },
   reportId: { type: String, default: null }
 })
 
@@ -327,10 +353,4 @@ function getInitial(name) {
   return (clean[0] || name[0] || '?').toUpperCase()
 }
 
-function scrollToProtocol(id) {
-  const el = document.getElementById(`proto-${id}`)
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth' })
-  }
-}
 </script>

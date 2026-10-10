@@ -1,13 +1,13 @@
 <template>
   <div
     ref="plotWrapper"
-    class="my-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative transition-all duration-300"
+    :class="thumbnail ? 'my-2 relative' : 'my-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative transition-all duration-300'"
   >
-    <div v-if="figure.title" class="text-sm font-semibold text-gray-800 mb-2 font-mono pr-48">
+    <div v-if="figure.title && !thumbnail" class="text-sm font-semibold text-gray-800 mb-2 font-mono pr-48">
       {{ figure.title }}
     </div>
-    <div v-else class="h-3"></div>
-    <div ref="plotContainer" class="w-full min-h-[350px]"></div>
+    <div v-else-if="!thumbnail" class="h-3"></div>
+    <div ref="plotContainer" class="w-full" :class="thumbnail ? 'h-40' : 'min-h-[350px]'"></div>
   </div>
 </template>
 
@@ -17,7 +17,8 @@ import Plotly from 'plotly.js-dist-min'
 import { copyToClipboard } from '../utils/clipboard.js'
 
 const props = defineProps({
-  figure: { type: Object, required: true }
+  figure: { type: Object, required: true },
+  thumbnail: { type: Boolean, default: false }
 })
 
 const plotWrapper = ref(null)
@@ -44,6 +45,15 @@ function getCleanDataAndLayout() {
       ...(fig.layout?.modebar || {})
     },
     ...(fig.layout ? JSON.parse(JSON.stringify(fig.layout)) : {})
+  }
+  if (props.thumbnail) {
+    delete rawLayout.width
+    rawLayout.height = 160
+    rawLayout.autosize = true
+    rawLayout.margin = { t: 10, r: 10, b: 25, l: 30 }
+    rawLayout.font = { ...rawLayout.font, size: 8 }
+    rawLayout.showlegend = false
+    rawLayout.title = undefined
   }
   return { rawData, rawLayout }
 }
@@ -172,7 +182,8 @@ async function renderPlot() {
 
   const config = {
     responsive: true,
-    displayModeBar: true,
+    displayModeBar: !props.thumbnail,
+    staticPlot: props.thumbnail,
     displaylogo: false,
     modeBarButtonsToRemove: ['lasso2d', 'select2d']
   }
@@ -181,7 +192,7 @@ async function renderPlot() {
     // Plotly.react is high-performance and reuses the graph div safely
     await Plotly.react(plotContainer.value, rawData, rawLayout, config)
     isRendered = true
-    attachPlotListeners()
+    if (!props.thumbnail) attachPlotListeners()
   } catch (err) {
     console.error('Error rendering Plotly figure:', err)
   }
@@ -191,8 +202,9 @@ let resizeTimer = null
 function handleResize() {
   if (resizeTimer) cancelAnimationFrame(resizeTimer)
   resizeTimer = requestAnimationFrame(() => {
-    if (plotContainer.value && isRendered) {
-      Plotly.Plots.resize(plotContainer.value)
+    if (plotContainer.value?.clientHeight > 0) {
+      if (isRendered) Plotly.Plots.resize(plotContainer.value)
+      else renderPlot()
     }
   })
 }
@@ -206,8 +218,8 @@ onMounted(() => {
   window.addEventListener('afterprint', handleResize)
 })
 
-// Shallow watch on figure identity/title only - NEVER deep watch mutable Plotly figures!
-watch(() => [props.figure?.id, props.figure?.title], () => {
+// Watch replacements from Live without traversing mutable Plotly figures.
+watch(() => [props.figure, props.figure?.id, props.figure?.title], () => {
   renderPlot()
 })
 

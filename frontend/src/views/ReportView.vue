@@ -6,6 +6,8 @@
       :report-id="reportId"
       :live="live"
       :regenerating="regenerating"
+      :active-slide="slideshow ? selectedId : undefined"
+      @select-protocol="navigateToProtocol"
       @regenerate="handleRegenerate"
       @print-pdf="handlePrintPDF"
     />
@@ -58,6 +60,16 @@
 
           <!-- Actions: Print to PDF & Regenerate plots -->
           <div class="flex items-center flex-wrap gap-2">
+            <button
+              type="button"
+              @click="toggleSlideshow"
+              title="Slideshow"
+              aria-label="Slideshow"
+              :aria-pressed="slideshow"
+              class="px-3 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-purple-300 text-[#833dff] shadow-2xs cursor-pointer"
+            >
+              <GalleryHorizontalEnd class="w-4 h-4" />
+            </button>
             <!-- Qibocal Docs link -->
             <a
               href="https://qibo.science/qibocal/stable/protocols/"
@@ -151,22 +163,48 @@
 
         <plot-generation-errors v-if="qibocalMissing" :protocols="protocols" />
 
+        <nav v-if="slideshow" aria-label="Slideshow navigation" class="no-print flex items-center justify-between gap-2">
+          <button type="button" @click="moveSlide(-1)" :disabled="slideIndex === 0" aria-label="Previous slide" title="Previous slide (Left arrow)" class="p-2 rounded-xl bg-white border border-gray-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+            <ChevronLeft class="w-5 h-5" />
+          </button>
+          <button type="button" @click="selectSlide(null)" title="Report Overview (Up arrow)" class="text-xs font-semibold text-purple-700 cursor-pointer">
+            Report Overview
+          </button>
+          <span class="text-xs text-gray-500 font-mono" aria-live="polite">{{ slideIndex + 1 }} / {{ protocols.length + 1 }}</span>
+          <button type="button" @click="moveSlide(1)" :disabled="slideIndex === protocols.length" aria-label="Next slide" title="Next slide (Right arrow)" class="p-2 rounded-xl bg-white border border-gray-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+            <ChevronRight class="w-5 h-5" />
+          </button>
+        </nav>
+
         <!-- Report Header Card -->
-        <report-header-card
-          :report="report"
-          :saving-author="savingAuthor"
-          @remove-tag="handleRemoveTag"
-          @save-author="handleSaveAuthor"
-        />
+        <div id="report-overview" :class="{ 'slide-hidden': slideshow && selectedId !== null }">
+          <report-header-card
+            :report="report"
+            :saving-author="savingAuthor"
+            @remove-tag="handleRemoveTag"
+            @save-author="handleSaveAuthor"
+          />
+          <div v-if="slideshow" class="no-print grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
+            <protocol-thumbnail
+              v-for="(proto, idx) in protocols"
+              :key="proto.id"
+              :proto="proto"
+              :index="idx"
+              @select="selectSlide(proto.id)"
+            />
+            <p v-if="!protocols.length" class="text-xs text-gray-500">No protocols in this report yet.</p>
+          </div>
+        </div>
 
         <!-- Protocols List with Figures -->
-        <div ref="protocolList" class="space-y-6">
+        <div ref="protocolList" :class="slideshow ? '' : 'space-y-6'">
           <protocol-card
             v-for="(proto, idx) in protocols"
             :key="proto.id"
             :proto="proto"
             :index="idx"
             :report-id="reportId"
+            :class="{ 'slide-hidden': slideshow && selectedId !== proto.id }"
           />
         </div>
       </div>
@@ -181,15 +219,18 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { GalleryHorizontalEnd, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canEdit, canManageQibocal } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
 import { useMagneticFollow } from '../composables/useMagneticFollow.js'
+import { useReportSlideshow } from '../composables/useReportSlideshow.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
 import ProtocolCard from '../components/report/ProtocolCard.vue'
+import ProtocolThumbnail from '../components/report/ProtocolThumbnail.vue'
 import ProtocolDocsModal from '../components/modals/ProtocolDocsModal.vue'
 import { diagnostics } from '../composables/useDiagnostics.js'
 import PlotGenerationErrors from '../components/report/PlotGenerationErrors.vue'
@@ -231,9 +272,15 @@ const {
 
 const reportPanel = ref(null)
 const protocolList = ref(null)
-useMagneticFollow({
+const { slideshow, selectedId, slideIndex, selectSlide, moveSlide, handleKeydown } = useReportSlideshow({
   protocols: () => protocols.value,
   live: () => live.value,
+  context: () => [reportId.value, state.activeServer?.id, state.activeServer?.url],
+  container: reportPanel
+})
+useMagneticFollow({
+  protocols: () => protocols.value,
+  live: () => live.value && !slideshow.value,
   container: reportPanel,
   lastCard: () => protocolList.value?.lastElementChild
 })
@@ -286,6 +333,44 @@ function scrollToProtocol(protoId) {
   }
 }
 
+function navigateToProtocol(id) {
+  selectSlide(id)
+  if (!slideshow.value) {
+    if (id === null) {
+      document.getElementById('report-overview')?.scrollIntoView({ behavior: 'smooth' })
+    } else {
+      scrollToProtocol(id)
+    }
+  }
+}
+
+async function toggleSlideshow() {
+  if (!slideshow.value) {
+    const panel = reportPanel.value
+    const top = panel.getBoundingClientRect().top + panel.clientTop
+    const overview = document.getElementById('report-overview')?.getBoundingClientRect()
+    const card = [...(protocolList.value?.children || [])].find(element => {
+      const bounds = element.getBoundingClientRect()
+      return bounds.bottom > top && bounds.top < top + panel.clientHeight
+    })
+    const visibleProtocol = protocols.value.find(proto => `proto-${proto.id}` === card?.id)
+    selectSlide(overview?.bottom > top ? null : visibleProtocol?.id ?? null)
+  }
+  slideshow.value = !slideshow.value
+  await nextTick()
+  if (slideshow.value) reportPanel.value.scrollTop = 0
+  else navigateToProtocol(selectedId.value)
+}
+
+watch([slideshow, selectedId], async () => {
+  await nextTick()
+  window.dispatchEvent(new Event('resize'))
+})
+
+function onKeydown(event) {
+  if (!loading.value && !error.value && report.value && !showDocsModal.value) handleKeydown(event)
+}
+
 async function handlePrintPDF() {
   window.dispatchEvent(new Event('resize'))
   await new Promise(r => setTimeout(r, 120))
@@ -293,16 +378,21 @@ async function handlePrintPDF() {
 }
 
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
   await ensureServersLoaded()
   await loadReportData()
 })
+
+onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 watch(
   () => [loading.value, route.query.protocol],
   ([isLoading, targetProto]) => {
     if (!isLoading && targetProto) {
       setTimeout(() => {
-        scrollToProtocol(targetProto)
+        const cleanId = String(targetProto).toLowerCase().trim()
+        const matched = protocols.value.find(p => p.id?.toLowerCase() === cleanId || p.name?.toLowerCase() === cleanId)
+        if (matched) navigateToProtocol(matched.id)
       }, 150)
     }
   },
@@ -329,6 +419,10 @@ watch(
 </script>
 
 <style scoped>
+@media screen {
+  .slide-hidden { display: none !important; }
+}
+
 .live-recording-light {
   animation: live-recording 2.4s ease-in-out infinite;
 }
