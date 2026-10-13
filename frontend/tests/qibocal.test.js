@@ -103,13 +103,15 @@ test('Qibocal administration and plot-generation feedback', async t => {
       return { result, unmount: () => app.unmount() }
     }
 
-    await t.test('only a verified signed-in administrator can change the environment', async () => {
+    await t.test('verified open servers and signed-in administrators can change the environment', async () => {
       for (const [role, enabled, checked, expected] of [
         ['admin', true, true, true],
         ['viewer', true, true, false],
         ['editor', true, true, false],
         [null, true, true, false],
-        ['admin', false, true, false],
+        ['admin', false, true, true],
+        [null, false, true, true],
+        [null, false, false, false],
         ['admin', true, false, false]
       ]) {
         setRole(role, enabled, checked)
@@ -128,6 +130,26 @@ test('Qibocal administration and plot-generation feedback', async t => {
         }
         mock.restoreAll()
       }
+    })
+
+    await t.test('open servers can stream an installation without signing in', async () => {
+      setRole(null, false)
+      const installed = mock.fn()
+      mock.method(globalThis, 'fetch', async (url, options) => {
+        assert.equal(options.headers.has('Authorization'), false)
+        if (url.endsWith('/api/qibocal')) return Response.json({ installed: false })
+        if (url.endsWith('/options')) return Response.json(choices)
+        assert.equal(url, `${first.url}/api/admin/qibocal/install/stream`)
+        assert.deepEqual(JSON.parse(options.body), { option: 'pypi:0.2.5' })
+        return installationResponse({ installed: true, version: '0.2.5', source: 'pypi' })
+      })
+      const environment = await setupComposable(() => useQibocalEnvironment(installed))
+      await environment.refreshOptions()
+      await environment.install()
+      assert.equal(environment.environment.value.version, '0.2.5')
+      assert.equal(installed.mock.callCount(), 1)
+      assert.equal(environment.error.value, '')
+      mock.restoreAll()
     })
 
     await t.test('preview explicitly shows missing Qibocal instead of the empty-figures message', async () => {

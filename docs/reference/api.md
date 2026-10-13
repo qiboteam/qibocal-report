@@ -9,8 +9,8 @@ Interactive Swagger documentation is available at **`/api/docs/swagger`**, and t
 ## 🩺 Health & Server Diagnostics
 
 ### `GET /api/admin/logs?after=0`
-Requires authentication to be enabled and a signed-in administrator (the same
-strict authorization as Qibocal environment administration). Returns bounded
+Available on open servers; requires a signed-in administrator when authentication
+is enabled (the same authorization as Qibocal environment administration). Returns bounded
 in-memory server log history with ANSI color escapes preserved:
 
 ```json
@@ -166,9 +166,8 @@ If absent, `installed` is `false` and both `version` and `source` are `null`.
 unrecognized installation origin.
 
 ### `GET /api/admin/qibocal/options`
-Requires authentication to be **enabled** and a logged-in user whose current
-role is **admin**. The synthetic administrator on an authentication-disabled
-server cannot access environment administration.
+Available on open servers. When authentication is enabled, requires a logged-in
+user whose current role is **admin**.
 
 Returns the same installed status plus up to five recent stable, non-yanked
 PyPI releases compatible with the server's Python version, plus the latest
@@ -215,7 +214,7 @@ rate-limits the server, `github_error` describes the failure, branch choices
 are empty, and the default `"git"` option remains available.
 
 ### `POST /api/admin/qibocal/install`
-Uses the same strict administrator authorization as the options endpoint.
+Uses the same open-server or administrator authorization as the options endpoint.
 
 - **Body**: `{"option": "pypi:0.2.7"}`, `{"option": "git"}`, or
   `{"option": "git:feature/branch"}`.

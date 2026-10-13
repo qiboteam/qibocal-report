@@ -141,7 +141,8 @@ Both the dashboard plot preview and the full report explicitly show generation
 errors, including when Qibocal is not installed on the report server.
 Pre-cached plots remain viewable without Qibocal.
 
-On an authentication-enabled server, signed-in administrators have a thin
+Users of open (unauthenticated) servers and signed-in administrators of
+authentication-enabled servers have a thin
 grey handle with a small central accent marker at the very bottom of every
 page. It starts fully collapsed.
 Drag it upward to open the diagnostics footer, drag it to adjust the height,
@@ -152,7 +153,7 @@ recent server output in full terminal color and follows live output. Uncheck
 for the current server process, not a persistent archive.
 
 The **Qibocal** tab contains version management. Missing-package warnings
-direct administrators to drag open the footer and select this tab. The button grid
+direct users with access to drag open the footer and select this tab. The button grid
 offers five recent compatible stable PyPI releases, plus the latest compatible
 release from the previous major line (the previous minor line for 0.x, such as
 0.1.x alongside 0.2.x).
@@ -178,7 +179,7 @@ default Git branch remains available.
 Python environment for all users, then regenerates the current report's cached
 plots. Other reports' cached plots are not changed; use **Regenerate Plots** to
 refresh them when needed. Future plot generation uses the installed version
-without a server restart. Viewers, editors, and open (unauthenticated) servers
+without a server restart. Viewers and editors on authentication-enabled servers
 cannot access the diagnostics footer or install or switch versions through the
 application. Installation progress is streamed into the tab as colored pip
 (or uv) output, including failures. You can collapse the footer or navigate

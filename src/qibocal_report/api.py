@@ -291,24 +291,6 @@ require_editor = require_role([UserRole.EDITOR.value, UserRole.ADMIN.value])
 require_admin = require_role([UserRole.ADMIN.value])
 
 
-def require_environment_admin(user: dict | None = Depends(get_current_user)) -> dict:
-    """Environment changes must never use the open-server synthetic administrator."""
-    if not auth.is_auth_enabled():
-        raise HTTPException(
-            status_code=403, detail="Qibocal environment administration requires authentication to be enabled."
-        )
-    if user is None:
-        raise HTTPException(
-            status_code=401, detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    if user["role"] != UserRole.ADMIN.value:
-        raise HTTPException(
-            status_code=403, detail="Only an authenticated administrator can manage Qibocal."
-        )
-    return user
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_uvicorn_logging()
@@ -392,7 +374,7 @@ def qibocal_status(
 
 @app.get("/api/admin/qibocal/options", response_model=QibocalOptions, tags=["Qibocal"])
 def qibocal_options(
-    response: Response, _user: dict = Depends(require_environment_admin),
+    response: Response, _user: dict = Depends(require_admin),
 ) -> QibocalOptions:
     response.headers["Cache-Control"] = "no-store"
     try:
@@ -404,7 +386,7 @@ def qibocal_options(
 @app.get("/api/admin/logs", tags=["Diagnostics"])
 def admin_logs(
     response: Response,
-    _user: Annotated[dict, Depends(require_environment_admin)],
+    _user: Annotated[dict, Depends(require_admin)],
     after: int = Query(default=0, ge=0),
 ) -> dict[str, Any]:
     response.headers["Cache-Control"] = "no-store"
@@ -414,7 +396,7 @@ def admin_logs(
 @app.post("/api/admin/qibocal/install", response_model=QibocalStatus, tags=["Qibocal"])
 def qibocal_install(
     body: QibocalInstallRequest, response: Response,
-    _user: dict = Depends(require_environment_admin),
+    _user: dict = Depends(require_admin),
 ) -> QibocalStatus:
     response.headers["Cache-Control"] = "no-store"
     try:
@@ -426,7 +408,7 @@ def qibocal_install(
 @app.post("/api/admin/qibocal/install/stream", tags=["Qibocal"])
 async def qibocal_install_stream(
     body: QibocalInstallRequest,
-    _user: Annotated[dict, Depends(require_environment_admin)],
+    _user: Annotated[dict, Depends(require_admin)],
 ) -> StreamingResponse:
     output = _InstallationOutput()
     task = asyncio.create_task(
@@ -453,7 +435,7 @@ async def qibocal_install_stream(
 @app.post("/api/admin/qibocal/install/stop", tags=["Qibocal"])
 def qibocal_install_stop(
     response: Response,
-    _user: dict = Depends(require_environment_admin),
+    _user: dict = Depends(require_admin),
 ) -> dict[str, str]:
     response.headers["Cache-Control"] = "no-store"
     try:

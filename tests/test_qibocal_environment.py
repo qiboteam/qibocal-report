@@ -248,31 +248,45 @@ def test_anonymous_status_requires_viewer(client):
 
 
 @pytest.mark.parametrize("with_admin_token", [False, True])
-def test_open_server_cannot_administer_environment(
+def test_open_server_can_administer_environment(
     monkeypatch, client, credentials, with_admin_token
 ):
     monkeypatch.setattr(auth, "_AUTH_ENABLED", False)
     headers = credentials["admin"] if with_admin_token else {}
     mock_metadata(monkeypatch, version=None)
+    mock_pypi(monkeypatch)
+    installed = QibocalStatus(installed=True, version="0.2.7", source="pypi")
+    installer = Mock(return_value=installed)
+    monkeypatch.setattr(environment, "install_qibocal", installer)
+    stop = Mock()
+    monkeypatch.setattr(environment, "stop_qibocal_installation", stop)
     assert client.get("/api/qibocal").json()["installed"] is False
-    assert client.get("/api/admin/qibocal/options", headers=headers).status_code == 403
-    assert client.get("/api/admin/logs", headers=headers).status_code == 403
-    assert (
-        client.post(
-            "/api/admin/qibocal/install", json={"option": "git"}, headers=headers
-        ).status_code
-        == 403
+    options = client.get("/api/admin/qibocal/options", headers=headers)
+    assert options.status_code == 200
+    assert options.json()["options"]
+    logs = client.get("/api/admin/logs", headers=headers)
+    assert logs.status_code == 200
+    assert set(logs.json()) == {"entries", "cursor"}
+    response = client.post(
+        "/api/admin/qibocal/install", json={"option": "git"}, headers=headers
     )
-    assert (
-        client.post(
-            "/api/admin/qibocal/install/stream", json={"option": "git"}, headers=headers
-        ).status_code
-        == 403
+    assert response.status_code == 200
+    assert response.json() == installed.model_dump()
+    installer.assert_called_once_with("git")
+    stream = client.post(
+        "/api/admin/qibocal/install/stream", json={"option": "git"}, headers=headers
     )
+    assert stream.status_code == 200
+    assert json.loads(stream.text) == {
+        "type": "complete", "status": installed.model_dump()
+    }
+    assert installer.call_count == 2
+    assert installer.call_args.args[0] == "git"
     assert (
         client.post("/api/admin/qibocal/install/stop", headers=headers).status_code
-        == 403
+        == 200
     )
+    stop.assert_called_once_with()
     subprocess.run.assert_not_called()
     subprocess.Popen.assert_not_called()
 
