@@ -129,7 +129,7 @@ def letter_l(x):
 
 def cal_paths():
     c, x = letter_c(223.3)
-    a, x = letter_a(x + 1.5)
+    a, x = letter_a(x + 1.0)
     l, x = letter_l(x + 3.0)
     return [c, *a, l], x
 
@@ -157,11 +157,13 @@ def notches():
     return "\n".join(parts)
 
 
-def notches_inner():
+def notches_inner(count=5):
     """The graduation drawn inside the bezel: ticks on the inner edge of the ring."""
     parts = []
-    for angle in (235, 252.5, 270, 287.5, 305):
-        depth = 3.0 if angle in (235, 270, 305) else 1.8
+    for i in range(count):
+        angle = 235 + 70 * i / (count - 1)
+        long = i in (0, count - 1) or (count % 2 == 1 and i == count // 2)
+        depth = 3.0 if long else 1.8
         x1, y1 = polar(CX, CY, R_IN + 0.4, angle)
         x2, y2 = polar(CX, CY, R_IN - depth, angle)
         parts.append(f'<path d="M {fmt(x1, y1)} L {fmt(x2, y2)}" stroke="{{color}}" stroke-width="1.5"/>')
@@ -227,6 +229,7 @@ SQUARE_MOTIFS = {
     "A-gauge-ticks": ticks_outside_square(),
     "B-bezel-notches": notches_square(),
     "B2-inner-notches": notches_inner(),
+    "B2-n6": notches_inner(6), "B2-n7": notches_inner(7), "B2-n8": notches_inner(8),
     "C-measured-slope": ruler(166, 184, lambda x: 77.2, 3),
     "D-summit-point": summit_point(),
     "E-reticle": crosshair(),
@@ -275,6 +278,9 @@ MOTIFS = {
     "A-gauge-ticks": (ticks_outside(), ticks_outside()),
     "B-bezel-notches": (notches(), notches()),
     "B2-inner-notches": (notches_inner(), notches_inner()),
+    "B2-n6": (notches_inner(6), notches_inner(6)),
+    "B2-n7": (notches_inner(7), notches_inner(7)),
+    "B2-n8": (notches_inner(8), notches_inner(8)),
     "C-measured-slope": (ruler(175, 220, slope_y, 7), ruler(166, 184, lambda x: 77.2, 3)),
     "D-summit-point": (summit_point(), summit_point()),
     "E-reticle": (crosshair(), crosshair()),
