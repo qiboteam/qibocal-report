@@ -305,7 +305,8 @@ import {
   forgetServer,
   runningServers,
   startServer,
-  unregisteredServers
+  unregisteredServers,
+  withQibocal
 } from '../state.js'
 import { serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
 
@@ -332,7 +333,7 @@ const remoteFields = [
     name: 'venv',
     label: 'Server environment',
     help: 'Default: qibocal',
-    info: 'An environment name, resolved under ~/.cache/qibocal/envs on that machine, or an absolute path there. Created when missing, and given the package below when it has no qibocal — the rule the notebook sessions follow too.'
+    info: 'An environment name, resolved under ~/.cache/qibocal/envs on that machine, or an absolute path there. Created when missing, and given the package below when it has no qibocal-report — the rule the notebook sessions follow too.'
   },
   {
     name: 'workdir',
@@ -343,8 +344,8 @@ const remoteFields = [
   {
     name: 'install',
     label: 'Package to install',
-    help: 'Default: qibocal-report',
-    info: 'What goes into the environment when it has no qibocal: a pinned version, a pre-release, or a different distribution.'
+    help: 'Default: the same qibocal-report as this launcher.',
+    info: 'What goes into the environment when it has no qibocal: by default the very commit this launcher was built from, so the two agree; or a release, a pinned version, a different distribution.'
   }
 ]
 
@@ -504,7 +505,7 @@ async function toggleInvite(server) {
   }
   Object.assign(invite, { serverId: server.id, username: '', hours: 24, busy: false, result: null })
   if (!administrators.value.length) {
-    administrators.value = (await attempt(() => desktop.administrators())) || []
+    administrators.value = (await attempt(() => withQibocal(() => desktop.administrators()))) || []
   }
 }
 
@@ -512,11 +513,11 @@ async function createInvite(server) {
   invite.busy = true
   invite.result = null
   try {
-    invite.result = await desktop.reissueInvite({
+    invite.result = await withQibocal(() => desktop.reissueInvite({
       username: invite.username || null,
       serverUrl: server.url,
       expiresInHours: Number(invite.hours) || 24
-    })
+    }))
     notify('Invitation link created.')
   } catch (error) {
     fail(error)

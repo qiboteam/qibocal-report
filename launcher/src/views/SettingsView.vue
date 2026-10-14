@@ -9,11 +9,11 @@
 
     <!--
       The launcher installs the command line itself, in an environment of
-      its own, without being asked; which version, and pointing it elsewhere,
-      are developer options, folded away.
+      its own, the first time something needs it; which version, and
+      pointing it elsewhere, are developer options, folded away.
     -->
     <section class="bm-card p-5">
-      <h2 class="text-sm font-semibold text-gray-900 mb-3">Qibocal</h2>
+      <h2 class="text-sm font-semibold text-gray-900 mb-3">qibocal-report</h2>
 
       <div v-if="environment?.executable" class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-xs">
         <span class="inline-flex items-center gap-1.5">
@@ -26,17 +26,17 @@
       </div>
       <p v-else-if="installing" class="text-xs text-gray-700 bg-[#f7f5ff] rounded-xl px-3 py-2 mb-4 inline-flex items-center gap-2">
         <Loader2 class="w-3.5 h-3.5 lx-spin text-[#833dff]" />
-        <span>Installing Qibocal, {{ describeSpec(environment?.package) }}: the progress is in
+        <span>Installing qibocal-report, {{ describeSpec(environment?.package, environment) }}: the progress is in
           <router-link to="/processes" class="text-[#833dff] hover:text-[#6b21a8]">Running</router-link>.</span>
       </p>
       <p v-else-if="environment?.python" class="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mb-4">
-        Qibocal is not installed. The launcher installs it on its own when it starts; if that failed, the output is in
-        <router-link to="/processes" class="underline-offset-2 hover:text-amber-900">Running</router-link>, and
-        <em>Install Qibocal</em> tries again.
+        qibocal-report is not installed. The launcher installs it the first time a server, a notebook or an invitation
+        needs it; <em>Install qibocal-report</em> does it now. The output goes to
+        <router-link to="/processes" class="hover:text-amber-900">Running</router-link>.
       </p>
 
       <p v-if="environment && !environment.python" class="text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2 mb-4">
-        No Python 3.10 or newer was found on this machine. Install one — from
+        No Python 3.10 or newer was found on this machine to install qibocal-report with. Install one — from
         <button type="button" class="text-[#833dff] hover:text-[#6b21a8]" @click="openExternal('https://www.python.org/downloads/')">python.org</button>
         or the system package manager — and come back: the launcher creates its environment with it.
       </p>
@@ -51,19 +51,19 @@
         >
           <Loader2 v-if="installing" class="w-3.5 h-3.5 lx-spin" />
           <Download v-else class="w-3.5 h-3.5" />
-          {{ installing ? 'Installing…' : 'Install Qibocal' }}
+          {{ installing ? 'Installing…' : 'Install qibocal-report' }}
         </button>
         <button
           v-else-if="switchable"
           type="button"
           class="lx-primary"
           :disabled="!environment?.python || installing"
-          :title="`Replace ${installedLabel} with ${describeSpec(environment.package)}`"
+          :title="`Replace ${installedLabel} with ${describeSpec(environment.package, environment)}`"
           @click="install(true)"
         >
           <Loader2 v-if="installing" class="w-3.5 h-3.5 lx-spin" />
           <RefreshCw v-else class="w-3.5 h-3.5" />
-          {{ installing ? 'Switching…' : `Switch to ${describeSpec(environment.package)}` }}
+          {{ installing ? 'Switching…' : `Switch to ${describeSpec(environment.package, environment)}` }}
         </button>
         <button
           v-else
@@ -91,10 +91,13 @@
             v-slot="{ id }"
             label="Version"
             :help="versionHelp"
-            info="A release from PyPI, or a branch or tag of the repository installed from its archive, so no git is needed. Until the first release the default is the main branch. The choice is kept in launcher.json and applied by Switch, Update, or the next automatic installation."
+            info="A release from PyPI, or a commit, branch or tag of the repository installed from its archive, so no git is needed. The default is the commit this launcher was built from, whose command line takes exactly the options the launcher passes. The choice is kept in launcher.json and applied by Switch, Update, or the next installation."
           >
             <div class="flex items-center gap-2">
               <select :id="id" v-model="choice" class="lx-select" :disabled="installing">
+                <optgroup v-if="grouped.commit.length" label="This build">
+                  <option v-for="option in grouped.commit" :key="option.spec" :value="option.spec">{{ option.label }}</option>
+                </optgroup>
                 <optgroup v-if="grouped.release.length" label="Releases (PyPI)">
                   <option v-for="option in grouped.release" :key="option.spec" :value="option.spec">{{ option.label }}</option>
                 </optgroup>
@@ -138,7 +141,8 @@
             <p class="lx-label">Another environment</p>
             <p class="lx-help !mt-0 mb-2">
               For a checkout of qibocal-report, or any environment that already has it: the choice wins over the
-              launcher's own installation, until <em>Detect again</em>.
+              launcher's own installation, until <em>Detect again</em>. The command line must take the options this
+              launcher passes, as the current sources do.
             </p>
             <div class="flex flex-wrap items-center gap-2">
               <button type="button" class="lx-action" @click="pickExecutable(true)">
@@ -246,9 +250,9 @@ import {
 } from '../state.js'
 import {
   BRANCHES_URL,
-  DEFAULT_SPEC,
   PYPI_URL,
   TAGS_URL,
+  defaultSpec,
   describeSpec,
   parseRefs,
   parseReleases,
@@ -277,13 +281,15 @@ const sourceLabel = computed(() => ({
 /** What the managed environment holds, when that is what runs. */
 const installedLabel = computed(() =>
   environment.value?.source === 'managed' && environment.value?.managedPackage
-    ? describeSpec(environment.value.managedPackage)
+    ? describeSpec(environment.value.managedPackage, environment.value)
     : ''
 )
+/** The requirement that applies now: the chosen one, or this build's commit. */
+const effective = computed(() => environment.value?.package || defaultSpec(environment.value))
 /** The chosen version differs from the installed one: offer to switch. */
 const switchable = computed(() =>
   Boolean(environment.value?.managedReady && environment.value?.managedPackage &&
-    environment.value.managedPackage !== (environment.value.package || DEFAULT_SPEC))
+    environment.value.managedPackage !== effective.value)
 )
 
 // --- The version picker -----------------------------------------------------
@@ -293,7 +299,7 @@ const branches = ref([])
 const tags = ref([])
 const fetching = ref(false)
 const listsError = ref('')
-const choice = ref(DEFAULT_SPEC)
+const choice = ref('')
 const custom = ref('')
 
 const options = computed(() =>
@@ -301,19 +307,18 @@ const options = computed(() =>
     releases: releases.value,
     branches: branches.value,
     tags: tags.value,
-    current: environment.value?.package || DEFAULT_SPEC
+    current: effective.value,
+    environment: environment.value
   })
 )
 const grouped = computed(() => {
-  const groups = { release: [], branch: [], tag: [], other: [] }
-  for (const option of options.value) groups[option.kind].push(option)
+  const groups = { commit: [], release: [], branch: [], tag: [], other: [] }
+  for (const option of options.value) (groups[option.kind] || groups.other).push(option)
   return groups
 })
 const chosenSpec = computed(() => (choice.value === CUSTOM ? custom.value.trim() : choice.value))
-const dirty = computed(() => Boolean(chosenSpec.value) && chosenSpec.value !== (environment.value?.package || DEFAULT_SPEC))
-const versionHelp = computed(() =>
-  releases.value.length ? `Default: the latest release.` : 'Default: branch main, until there is a release.'
-)
+const dirty = computed(() => Boolean(chosenSpec.value) && chosenSpec.value !== effective.value)
+const versionHelp = computed(() => `Default: ${describeSpec(defaultSpec(environment.value), environment.value)}.`)
 
 async function fetchJson(url) {
   const response = await fetch(url, { headers: { Accept: 'application/json' } })
@@ -337,7 +342,7 @@ async function loadVersions() {
 }
 
 function syncChoice() {
-  const current = environment.value?.package || DEFAULT_SPEC
+  const current = effective.value
   if (options.value.some(option => option.spec === current)) {
     choice.value = current
   } else {
@@ -350,8 +355,8 @@ async function saveVersion() {
   const spec = chosenSpec.value
   if (!spec) return
   const { package: _current, ...rest } = state.preferences || {}
-  const settings = spec === DEFAULT_SPEC ? rest : { ...rest, package: spec }
-  const saved = await attempt(() => desktop.savePreferences(settings), `Version saved: ${describeSpec(spec)}.`)
+  const settings = spec === defaultSpec(environment.value) ? rest : { ...rest, package: spec }
+  const saved = await attempt(() => desktop.savePreferences(settings), `Version saved: ${describeSpec(spec, environment.value)}.`)
   if (saved === undefined) return
   state.preferences = saved
   await refreshEnvironment()
@@ -410,7 +415,7 @@ async function reveal(path) {
   await attempt(() => revealInFileManager(path))
 }
 
-watch(() => environment.value?.package, syncChoice, { immediate: true })
+watch(effective, syncChoice, { immediate: true })
 
 onMounted(async () => {
   await Promise.all([refreshEnvironment(), refreshConfigEntries(), refreshPreferences()])

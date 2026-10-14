@@ -6,26 +6,14 @@
         away, with their accelerators, and the home page lists them again
         with the figures a navigation bar cannot show.
       -->
-      <div class="max-w-5xl mx-auto px-5 h-14 flex items-center gap-3">
+      <div class="max-w-5xl mx-auto px-5 h-14 flex items-center">
         <router-link to="/" class="lx-logo" title="Qibocal home" aria-label="Qibocal home">
           <launcher-logo />
         </router-link>
 
-        <!-- Qibocal being installed in the background: said here, on every page. -->
-        <router-link
-          v-if="installing"
-          to="/processes"
-          class="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#f7f5ff] text-[11px] font-medium text-[#3b107e] hover:bg-[#ebe0ff] transition"
-          title="Follow the installation in Running"
-        >
-          <Loader2 class="w-3.5 h-3.5 lx-spin" />
-          Installing Qibocal…
-        </router-link>
-
         <button
           type="button"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs"
-          :class="{ 'ml-auto': !installing }"
+          class="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs"
           @click="openDashboard()"
         >
           Dashboard
@@ -33,28 +21,44 @@
       </div>
     </header>
 
-    <div v-if="state.notice || state.error" class="max-w-5xl mx-auto w-full px-5 pt-4">
-      <div
-        class="px-3.5 py-2.5 rounded-xl text-xs flex items-start gap-2 shadow-2xs animate-fade-in"
-        :class="state.error ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-800'"
-      >
-        <span class="font-medium whitespace-pre-wrap flex-1">{{ state.error || state.notice }}</span>
-        <button type="button" class="text-current opacity-60 hover:opacity-100" @click="dismiss">
-          <X class="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
-
-    <main class="flex-1 w-full">
+    <!-- Room for the status bar, so nothing hides behind it. -->
+    <main class="flex-1 w-full pb-8">
       <router-view />
     </main>
+
+    <!--
+      The status bar: one quiet line, always there, so a message never moves
+      the page. What the launcher has to say appears on the left and fades
+      by itself; an installation in progress sits on the right for as long
+      as it runs, with the way to its output.
+    -->
+    <footer class="lx-status" role="status" aria-live="polite">
+      <div class="max-w-5xl mx-auto px-5 h-full flex items-center gap-4">
+        <span
+          v-if="state.message"
+          class="truncate"
+          :class="state.message.kind === 'error' ? 'lx-status-error' : ''"
+          :title="state.message.text"
+          @click="dismiss"
+        >{{ state.message.text }}</span>
+        <router-link
+          v-if="installing"
+          to="/processes"
+          class="ml-auto inline-flex items-center gap-1.5 shrink-0 hover:text-[#3b107e] transition"
+          title="Follow the installation in Running"
+        >
+          <Loader2 class="w-3 h-3 lx-spin" />
+          Installing qibocal-report… follow it in Running
+        </router-link>
+      </div>
+    </footer>
   </div>
 </template>
 
 <script setup>
 import { onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Loader2, X } from 'lucide-vue-next'
+import { Loader2 } from 'lucide-vue-next'
 import LauncherLogo from './components/LauncherLogo.vue'
 import { installMenu } from './menu.js'
 import {

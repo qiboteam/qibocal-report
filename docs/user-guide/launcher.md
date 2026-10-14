@@ -14,7 +14,7 @@ Installers for the three desktop platforms are attached to every [release](https
 | Linux | `.deb`, `.AppImage` | The AppImage needs no installation |
 | Windows | `-setup.exe`, `.msi` | The installer sets the application up for the current user |
 
-The launcher drives the `qibocal` command line, it does not replace it — and it installs it itself, in an environment of its own, the first time it starts (see [Installing Qibocal](#installing-qibocal)). A Python 3.10 or newer on the machine is all it needs.
+The launcher drives the `qibocal` command line of the `qibocal-report` package, it does not replace it — and it installs it itself, in an environment of its own, the first time something needs it (see [Installing qibocal-report](#installing-qibocal-report)). A Python 3.10 or newer on the machine is all it needs.
 
 ### Opening an unsigned build
 
@@ -50,15 +50,15 @@ The home page opens onto every section, and each of them is one jump away — fr
 - **Notebooks** (`Cmd/Ctrl+4`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
 - **Configuration** (`Cmd/Ctrl+5`): install or update Qibocal, and edit the files shared with the command line.
 
-The header carries no navigation of its own: the logo in the top-left corner returns to the home page, the button in the top-right opens the dashboard, and everything else is in the **Go** menu, which works from the dashboard too. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
+The header carries no navigation of its own: the logo in the top-left corner returns to the home page, the button in the top-right opens the dashboard, and everything else is in the **Go** menu, which works from the dashboard too. Whatever the launcher has to say — a server starting, a link copied, something that failed — is said in the status bar along the bottom edge, in one quiet line that fades by itself; nothing pops up over the page, and nothing has to be dismissed. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
 
 ---
 
-## ⚙️ Installing Qibocal
+## ⚙️ Installing qibocal-report
 
-Nothing to do: when the launcher starts and finds no Qibocal, it installs one in the background, in an environment of its own, and says so with a spinner in the header while it works — the output is in **Running**, as for everything else it starts. The environment lives in `~/.cache/qibocal/envs/launcher` (or `$XDG_CACHE_HOME/qibocal/envs/launcher`), next to the ones the notebook sessions make. All this needs is a Python 3.10 or newer on the machine: the launcher looks on the `PATH` and in the usual places — Homebrew, `/usr/local`, the python.org installers, pyenv — and says so, in **Configuration**, when it finds none. Should the installation fail, the same page offers **Install Qibocal** to try again, and **Update** reinstalls the chosen version with its dependencies brought up to date.
+The launcher drives the `qibocal` command line of the **`qibocal-report`** package — a different thing from Qibocal, the calibration library, whose name it shares. Nothing to install by hand: the first time a server, a notebook session or an invitation needs the command line and none is there, the launcher installs it in the background, in an environment of its own, and carries on with what was asked once it is done. While it works, the status bar at the bottom says so, with a spinner and the way to **Running**, where the output is; the line disappears by itself when the installation ends. The environment lives in `~/.cache/qibocal/envs/launcher` (or `$XDG_CACHE_HOME/qibocal/envs/launcher`), next to the ones the notebook sessions make. All this needs is a Python 3.10 or newer on the machine: the launcher looks on the `PATH` and in the usual places — Homebrew, `/usr/local`, the python.org installers, pyenv — and says so, in **Configuration**, when it finds none. The same page offers **Install qibocal-report** to do it ahead of time or to try again, and **Update** reinstalls the chosen version with its dependencies brought up to date.
 
-Until `qibocal-report` has a release on PyPI, what gets installed is the **`main` branch**, from the repository archive — no `git` is needed. A server installed that way serves its API without the bundled web page, which is no loss here: the launcher's own dashboard is the client.
+What gets installed, unless another version is chosen, is **the very commit the launcher was built from**, fetched as an archive from the repository — no `git` is needed — so the command line takes exactly the options the launcher passes. The same requirement is handed to a server started on another machine, as its `--install`. A package installed from sources serves its API without the bundled web page, which is no loss here: the launcher's own dashboard is the client.
 
 The launcher then uses, in order:
 
@@ -68,7 +68,7 @@ The launcher then uses, in order:
 4. the `PATH`;
 5. the usual places — `~/.local/bin`, pipx environments, `.venv` folders, `/usr/local/bin`, `/opt/homebrew/bin`.
 
-The **developer options**, folded under the installation, hold two things. **Version** picks what goes into the launcher's environment — the releases on PyPI, the branches and the tags of the repository, fetched when the page opens, or *something else*: any requirement `pip install` accepts, a local checkout included. **Save version** stores the choice in `launcher.json`, and the button above becomes **Switch to …** while the installed version differs from the chosen one. **Another environment** is for a checkout of `qibocal-report`: **Choose environment…** and **Choose executable…** point the launcher at an environment that already has Qibocal — a virtual environment folder is enough, the launcher looks inside its `bin` (or `Scripts`) directory — and **Detect again** goes back to its own installation. Both choices live in `launcher.json`, next to the other configuration files.
+The **developer options**, folded under the installation, hold two things. **Version** picks what goes into the launcher's environment — this build's commit first, then the releases on PyPI and the branches and tags of the repository, fetched when the page opens, or *something else*: any requirement `pip install` accepts, a local checkout included. **Save version** stores the choice in `launcher.json`, and the button above becomes **Switch to …** while the installed version differs from the chosen one. **Another environment** is for a checkout of `qibocal-report`: **Choose environment…** and **Choose executable…** point the launcher at an environment that already has Qibocal — a virtual environment folder is enough, the launcher looks inside its `bin` (or `Scripts`) directory — and **Detect again** goes back to its own installation. Both choices live in `launcher.json`, next to the other configuration files.
 
 ---
 

@@ -52,7 +52,7 @@
         <Loader2 v-if="installing" class="w-3.5 h-3.5 lx-spin text-[#833dff]" />
         <span v-else class="w-1.5 h-1.5 rounded-full" :class="hasQibocal ? 'bg-emerald-500' : 'bg-amber-500'" />
         <span class="font-medium text-gray-700">
-          {{ hasQibocal ? state.environment.version || 'Qibocal available' : installing ? 'Installing Qibocal' : 'Qibocal not installed' }}
+          {{ hasQibocal ? state.environment.version || 'qibocal-report available' : installing ? 'Installing qibocal-report' : 'qibocal-report not installed' }}
         </span>
       </span>
       <code v-if="hasQibocal" class="text-[11px] text-gray-500 truncate max-w-xs">
@@ -62,7 +62,7 @@
         In the background, in an environment of the launcher's own; the progress is in Running.
       </span>
       <span v-else class="text-gray-500">
-        The launcher installs it on its own when it starts; if that failed, the output is in Running.
+        Installed the first time a server, a notebook or an invitation needs it.
       </span>
       <button
         v-if="!hasQibocal && !installing && state.environment?.python"
@@ -70,7 +70,7 @@
         class="ml-auto px-2.5 py-1 rounded-lg bg-[#833dff] text-white font-medium hover:bg-[#722ce6] transition"
         @click="install"
       >
-        Install Qibocal
+        Install it now
       </button>
       <router-link
         v-else

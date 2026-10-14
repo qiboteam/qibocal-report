@@ -53,7 +53,7 @@ export const sections = [
     title: 'Configuration',
     icon: 'Settings',
     accelerator: 'CmdOrCtrl+5',
-    summary: 'Install or update Qibocal, and edit the shared configuration.'
+    summary: 'Which qibocal-report the launcher drives, and the shared configuration.'
   }
 ]
 

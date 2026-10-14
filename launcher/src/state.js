@@ -5,6 +5,9 @@ import { syncDashboardServers, serverUrl } from './lib/servers.js'
 export const LOG_EVENT = 'launcher://log'
 export const PROCESS_EVENT = 'launcher://process'
 
+/** How long a message stays in the status bar, by kind. */
+const MESSAGE_TTL = { info: 6000, error: 15000 }
+
 export const state = reactive({
   ready: false,
   environment: null,
@@ -14,33 +17,49 @@ export const state = reactive({
   configEntries: [],
   preferences: {},
   logs: {},
-  notice: null,
-  error: null
+  /** The one line of the status bar: `{ text, kind }`, or null when quiet. */
+  message: null
 })
 
 export const hasQibocal = computed(() => Boolean(state.environment?.executable))
 
-/** Whether the launcher is installing or updating its own Qibocal right now. */
+/** Whether the launcher is installing or updating its own qibocal-report right now. */
 export const installing = computed(() =>
   state.processes.some(process => process.kind === 'setup' && process.status === 'running')
 )
 
+// --- Messages ---------------------------------------------------------------
+
+let messageTimer = null
+
+/**
+ * Say something in the status bar, and let it fade on its own.
+ *
+ * Messages never interrupt: they share one quiet line at the bottom of the
+ * window, so nothing moves and nothing has to be dismissed.
+ */
+function say(text, kind) {
+  clearTimeout(messageTimer)
+  state.message = { text, kind }
+  messageTimer = setTimeout(() => {
+    if (state.message?.text === text) state.message = null
+  }, MESSAGE_TTL[kind])
+}
+
 export function notify(message) {
-  state.error = null
-  state.notice = message
+  say(message, 'info')
 }
 
 export function fail(error) {
-  state.notice = null
-  state.error = typeof error === 'string' ? error : (error?.message || String(error))
+  say(typeof error === 'string' ? error : (error?.message || String(error)), 'error')
 }
 
 export function dismiss() {
-  state.notice = null
-  state.error = null
+  clearTimeout(messageTimer)
+  state.message = null
 }
 
-/** Run an action, surfacing its failure in the banner instead of the console. */
+/** Run an action, surfacing its failure in the status bar instead of the console. */
 export async function attempt(action, success = null) {
   try {
     const result = await action()
@@ -51,6 +70,8 @@ export async function attempt(action, success = null) {
     return undefined
   }
 }
+
+// --- Loading ----------------------------------------------------------------
 
 async function load(loader, fallback) {
   try {
@@ -90,6 +111,58 @@ export async function refreshPreferences() {
   return state.preferences
 }
 
+// --- The command line, installed when first needed ---------------------------
+
+/** Create the launcher's own qibocal-report environment, or update it. */
+export async function installQibocal(upgrade = false) {
+  const info = await desktop.installQibocal(upgrade)
+  mergeProcess(info)
+  return info
+}
+
+/** Whoever is waiting for the command line to exist: settled by `mergeProcess`. */
+const awaitingSetup = []
+
+/**
+ * Make sure the command line is there, installing it if it is not.
+ *
+ * Nothing is installed on opening the application: the first server,
+ * notebook or invitation that needs qibocal-report starts the installation,
+ * and goes on by itself once it is done — with a word in the status bar
+ * meanwhile, and the output in Running.
+ */
+export async function ensureQibocal() {
+  if (hasQibocal.value) return
+  if (!state.environment?.python) {
+    throw new Error('No Python 3.10 or newer was found to install qibocal-report with; see Configuration.')
+  }
+  if (!installing.value) await installQibocal(false)
+  await new Promise((resolve, reject) => awaitingSetup.push({ resolve, reject }))
+}
+
+/** Run something that needs the command line, installing it first if needed. */
+export async function withQibocal(action) {
+  await ensureQibocal()
+  return action()
+}
+
+async function settleSetup(info) {
+  await refreshEnvironment()
+  const waiting = awaitingSetup.splice(0)
+  if (hasQibocal.value) {
+    if (waiting.length) notify('qibocal-report is installed; carrying on.')
+    waiting.forEach(entry => entry.resolve())
+    return
+  }
+  const reason = info.status === 'failed'
+    ? 'The installation of qibocal-report failed; its output is in Running.'
+    : 'qibocal-report is still missing after the installation; see Running.'
+  waiting.forEach(entry => entry.reject(new Error(reason)))
+  if (!waiting.length) fail(reason)
+}
+
+// --- Processes ----------------------------------------------------------------
+
 /**
  * Remember how a server was started, so the same instance can be brought up
  * again from the system menu without filling the form a second time.
@@ -117,7 +190,7 @@ const pending = new Map()
 
 /** Start a report server and keep its options for the next time. */
 export async function startServer(options, { url = null } = {}) {
-  const info = await desktop.startServer(options)
+  const info = await withQibocal(() => desktop.startServer(options))
   mergeProcess(info)
   if (!url && !info.url && options.ssh) {
     pending.set(info.id, options)
@@ -125,6 +198,13 @@ export async function startServer(options, { url = null } = {}) {
   }
   const address = url || info.url || `http://${options.host || '127.0.0.1'}:${options.port}`
   await rememberLaunch(address, options)
+  return info
+}
+
+/** Open a notebook session, installing the command line first if needed. */
+export async function startNotebook(options) {
+  const info = await withQibocal(() => desktop.startNotebook(options))
+  mergeProcess(info)
   return info
 }
 
@@ -145,20 +225,13 @@ export function unregisteredServers() {
   return runningServers().filter(process => !registered.has(serverUrl(process.url)))
 }
 
-/** Create the launcher's own Qibocal environment, or update it. */
-export async function installQibocal(upgrade = false) {
-  const info = await desktop.installQibocal(upgrade)
-  mergeProcess(info)
-  return info
-}
-
 function mergeProcess(info) {
   const index = state.processes.findIndex(process => process.id === info.id)
   if (index >= 0) state.processes[index] = info
   else state.processes.push(info)
 
   // An installation that ended changed what the launcher can find.
-  if (info.kind === 'setup' && info.status !== 'running') refreshEnvironment()
+  if (info.kind === 'setup' && info.status !== 'running') settleSetup(info)
 
   const waiting = pending.get(info.id)
   if (!waiting) return
@@ -197,27 +270,9 @@ export async function initialize() {
     refreshConfigEntries(),
     refreshPreferences()
   ])
-  await installIfMissing()
 }
 
-/**
- * Nothing to click on first run: when no Qibocal is found and a Python is,
- * the launcher installs its own in the background. Once per session — a
- * failed attempt is left in Running for the user to read, not retried.
- */
-let offered = false
-export async function installIfMissing() {
-  if (offered || !isDesktop) return
-  const environment = state.environment
-  if (!environment || environment.executable || !environment.python || installing.value) return
-  offered = true
-  try {
-    await installQibocal(false)
-    notify('No Qibocal was found: installing it now. The progress is in Running.')
-  } catch (error) {
-    fail(error)
-  }
-}
+// --- The dashboard and the registered servers ------------------------------------
 
 /**
  * Hand the configured servers over to the bundled dashboard and open it.

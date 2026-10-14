@@ -149,7 +149,7 @@ import FormField from '../components/FormField.vue'
 import PathPicker from '../components/PathPicker.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { desktop } from '../bridge.js'
-import { state, attempt, fail, notify, refreshNotebooks } from '../state.js'
+import { state, attempt, fail, notify, refreshNotebooks, startNotebook } from '../state.js'
 import {
   NOTEBOOK_FIELDS,
   defaultNotebookOptions,
@@ -192,7 +192,7 @@ function choose(name) {
 async function start() {
   starting.value = true
   try {
-    await desktop.startNotebook({ connection: selected.value, ...normalized.value.options })
+    await startNotebook({ connection: selected.value, ...normalized.value.options })
     notify('Opening the notebook session; its address appears in the output.')
     router.push({ name: 'processes' })
   } catch (error) {
