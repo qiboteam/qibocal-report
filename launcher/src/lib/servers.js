@@ -1,4 +1,7 @@
 import { normalizeUrl } from '../../../frontend/src/utils/url.js'
+import { ADJECTIVES, SCIENTISTS, generateServerName } from '../../../frontend/src/utils/names.js'
+
+export { ADJECTIVES, SCIENTISTS }
 
 export const DASHBOARD_SERVERS_KEY = 'qibocal_report_servers'
 export const DASHBOARD_ACTIVE_KEY = 'qibocal_active_server_id'
@@ -65,19 +68,11 @@ export function serverCommand(options = {}) {
 }
 
 /**
- * A name for the next server, the way the dashboard names the ones added
- * there: "Server N", counting the ones already known and skipping any number
- * a renamed server left in use.
+ * A name for the next server: an adjective and a scientist, as the command
+ * line and the dashboard name theirs, avoiding the ones already in use.
  */
-export function suggestServerName(taken = []) {
-  const names = new Set(
-    (Array.isArray(taken) ? taken : [])
-      .map(name => (typeof name === 'string' ? name.trim() : ''))
-      .filter(Boolean)
-  )
-  let number = names.size + 1
-  while (names.has(`Server ${number}`)) number += 1
-  return `Server ${number}`
+export function suggestServerName(taken = [], random = Math.random) {
+  return generateServerName(taken, random)
 }
 
 /** Identifiers of the servers published to the dashboard only while they run. */

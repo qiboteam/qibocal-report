@@ -1,5 +1,6 @@
 import { reactive, computed, watch } from 'vue'
 import { CLIENT_LAYOUT_KEYS, parseClientServer, parseClientState } from './utils/clientState.js'
+import { generateServerName } from './utils/names.js'
 import {
   normalizeUrl as utilsNormalizeUrl,
   getActiveServerUrl as utilsGetActiveServerUrl,
@@ -532,7 +533,7 @@ export async function addServer(urlOrObj, name = null, description = null, avata
   const existing = state.servers.find(s => normalizeUrl(s.url) === cleanUrl)
   if (existing) return existing
   const id = `srv-${Math.random().toString(36).substring(2, 10)}`
-  const fallbackName = payload.name || `Server ${state.servers.length + 1}`
+  const fallbackName = payload.name || generateServerName(state.servers.map(server => server.name))
   const created = parseClientServer({
     id,
     name: fallbackName,

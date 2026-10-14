@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  ADJECTIVES,
   DASHBOARD_ACTIVE_KEY,
   DASHBOARD_SERVERS_KEY,
+  SCIENTISTS,
   mergeDashboardServers,
   serverCommand,
   suggestServerName,
@@ -124,12 +126,12 @@ test('synchronising takes the running servers along', () => {
   assert.equal(storage.getItem(DASHBOARD_ACTIVE_KEY), 'tmp-p1')
 })
 
-test('the next server is named by counting, skipping names in use', () => {
-  assert.equal(suggestServerName(), 'Server 1')
-  assert.equal(suggestServerName(['Lab', 'Cluster']), 'Server 3')
-  assert.equal(suggestServerName(['Server 1', 'Server 2']), 'Server 3')
-  assert.equal(suggestServerName(['Server 2', ' ']), 'Server 3', 'blank names do not count')
-  assert.equal(suggestServerName(['Server 2']), 'Server 3')
+test('the next server is named as the command line names its own', () => {
+  const [adjective, scientist] = suggestServerName().split('-')
+  assert.ok(ADJECTIVES.includes(adjective))
+  assert.ok(SCIENTISTS.includes(scientist))
+  const first = `${ADJECTIVES[0]}-${SCIENTISTS[0]}`
+  assert.notEqual(suggestServerName([first], () => 0), first, 'a name in use is not suggested again')
 })
 
 test('a local server is started with a host and a port', () => {
