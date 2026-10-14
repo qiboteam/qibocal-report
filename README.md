@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/qiboteam/qibo/main/doc/source/_static/qibo_logo_dark.svg" alt="Qibo Logo" width="300" style="margin: 1.2rem 0;" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/qibocal_logo_light.svg" />
+  <img src="docs/assets/qibocal_logo_dark.svg" alt="Qibocal" width="300" style="margin: 1.2rem 0;" />
+</picture>
 
 **Modern, lightweight web application and high-throughput server to explore, analyze, and manage [Qibocal](https://github.com/qiboteam/qibocal) calibration reports interactively.**
 
