@@ -36,14 +36,15 @@
     -->
     <footer class="lx-status" role="status" aria-live="polite">
       <div class="px-5 h-full flex items-center gap-5">
-        <router-link to="/settings" class="truncate shrink-0 max-w-[40%] hover:text-[#3b107e] transition" :title="versionTitle">
-          {{ versionLabel }}
+        <router-link to="/settings" class="inline-flex items-center gap-2 truncate shrink-0 max-w-[40%]" :title="versionTitle">
+          <span class="lx-dot" :class="dotClass" />
+          <span class="truncate">{{ versionLabel }}</span>
         </router-link>
 
         <router-link
           v-if="installing"
           to="/processes"
-          class="inline-flex items-center gap-1.5 shrink-0 hover:text-[#3b107e] transition"
+          class="inline-flex items-center gap-1.5 shrink-0"
           title="Follow the installation in Running"
         >
           <Loader2 class="w-3 h-3 lx-spin" />
@@ -51,12 +52,15 @@
         </router-link>
 
         <div class="ml-auto flex items-center gap-2 min-w-0 relative">
-          <span
+          <!-- The latest message, leading to the section it is about when it has one. -->
+          <component
+            :is="state.message?.link ? 'router-link' : 'span'"
             v-if="state.message"
+            :to="state.message.link || undefined"
             class="truncate"
             :class="state.message.kind === 'error' ? 'lx-status-error' : ''"
             :title="state.message.text"
-          >{{ state.message.text }}</span>
+          >{{ state.message.text }}</component>
 
           <button
             v-if="state.notifications.length"
@@ -74,7 +78,7 @@
           <div v-if="open && state.notifications.length" class="lx-notices" role="list">
             <div class="lx-notices-head">
               <span>Notifications</span>
-              <button type="button" class="hover:text-[#3b107e]" @click="clearAll">Clear all</button>
+              <button type="button" class="hover:text-[#3b107e] transition" @click="clearAll">Clear all</button>
             </div>
             <div
               v-for="entry in state.notifications"
@@ -84,7 +88,12 @@
               role="listitem"
             >
               <span class="lx-notice-time">{{ time(entry.at) }}</span>
-              <span class="lx-notice-text">{{ entry.text }}</span>
+              <span class="lx-notice-text">
+                {{ entry.text }}
+                <router-link v-if="entry.link" :to="entry.link" class="lx-notice-link" @click="open = false">
+                  {{ sectionTitle(entry.link) }} <ArrowRight class="w-3 h-3" />
+                </router-link>
+              </span>
               <button type="button" class="lx-notice-close" :aria-label="`Dismiss: ${entry.text}`" @click="dismissNotification(entry.id)">
                 <X class="w-3 h-3" />
               </button>
@@ -99,9 +108,10 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, Loader2, X } from 'lucide-vue-next'
+import { ArrowRight, Bell, Loader2, X } from 'lucide-vue-next'
 import LauncherLogo from './components/LauncherLogo.vue'
 import { installMenu } from './menu.js'
+import { sections } from './router.js'
 import {
   state,
   dismiss,
@@ -131,6 +141,15 @@ const versionLabel = computed(() => {
   return `qibocal-report ${version || ''}${held ? ` · ${held}` : ''}`.replace(/\s+/g, ' ').trim()
 })
 const versionTitle = computed(() => state.environment?.executable || 'Configuration')
+/** Found, being installed, or missing: green, amber, red. */
+const dotClass = computed(() =>
+  hasQibocal.value ? 'bg-emerald-500' : installing.value ? 'bg-amber-400' : 'bg-red-400'
+)
+
+/** The title of the section a notification points at. */
+function sectionTitle(link) {
+  return sections.find(section => section.name === link?.name)?.title || 'Open'
+}
 
 function time(at) {
   return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

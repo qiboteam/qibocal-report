@@ -45,9 +45,9 @@ let counter = 0
  * until it fades, and all of them stay in the list behind the counter
  * next to it, each until dismissed. Nothing moves on the page.
  */
-function say(text, kind) {
+function say(text, kind, link = null) {
   counter += 1
-  const entry = { id: counter, text, kind, at: Date.now() }
+  const entry = { id: counter, text, kind, at: Date.now(), link: toRoute(link) }
   state.notifications.unshift(entry)
   if (state.notifications.length > NOTIFICATION_LIMIT) state.notifications.length = NOTIFICATION_LIMIT
   clearTimeout(messageTimer)
@@ -57,12 +57,22 @@ function say(text, kind) {
   }, MESSAGE_TTL[kind])
 }
 
-export function notify(message) {
-  say(message, 'info')
+/**
+ * The section a message is about, as a route: a name such as `processes`,
+ * or a full route location; nothing when the message belongs nowhere.
+ */
+function toRoute(link) {
+  if (!link) return null
+  return typeof link === 'string' ? { name: link } : link
 }
 
-export function fail(error) {
-  say(typeof error === 'string' ? error : (error?.message || String(error)), 'error')
+/** Say something, optionally pointing at the section it is about. */
+export function notify(message, link = null) {
+  say(message, 'info', link)
+}
+
+export function fail(error, link = null) {
+  say(typeof error === 'string' ? error : (error?.message || String(error)), 'error', link)
 }
 
 export function dismissNotification(id) {
@@ -76,14 +86,17 @@ export function dismiss() {
   state.notifications = []
 }
 
-/** Run an action, surfacing its failure in the status bar instead of the console. */
-export async function attempt(action, success = null) {
+/**
+ * Run an action, surfacing its failure in the status bar instead of the
+ * console; `link` is the section both the success and the failure concern.
+ */
+export async function attempt(action, success = null, link = null) {
   try {
     const result = await action()
-    if (success) notify(typeof success === 'function' ? success(result) : success)
+    if (success) notify(typeof success === 'function' ? success(result) : success, link)
     return result
   } catch (error) {
-    fail(error)
+    fail(error, link)
     return undefined
   }
 }
@@ -151,6 +164,7 @@ const awaitingSetup = []
 export async function ensureQibocal() {
   if (hasQibocal.value) return
   if (!state.environment?.python) {
+    fail('No Python 3.10 or newer was found to install qibocal-report with.', 'settings')
     throw new Error('No Python 3.10 or newer was found to install qibocal-report with; see Configuration.')
   }
   if (!installing.value) await installQibocal(false)
@@ -167,7 +181,7 @@ async function settleSetup(info) {
   await refreshEnvironment()
   const waiting = awaitingSetup.splice(0)
   if (hasQibocal.value) {
-    if (waiting.length) notify('qibocal-report is installed; carrying on.')
+    notify(waiting.length ? 'qibocal-report is installed; carrying on.' : 'qibocal-report is installed.', 'settings')
     waiting.forEach(entry => entry.resolve())
     return
   }
@@ -175,7 +189,7 @@ async function settleSetup(info) {
     ? 'The installation of qibocal-report failed; its output is in Running.'
     : 'qibocal-report is still missing after the installation; see Running.'
   waiting.forEach(entry => entry.reject(new Error(reason)))
-  if (!waiting.length) fail(reason)
+  if (!waiting.length) fail(reason, 'processes')
 }
 
 // --- Processes ----------------------------------------------------------------

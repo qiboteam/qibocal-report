@@ -441,7 +441,8 @@ async function launch(register) {
     notify(
       options.ssh
         ? `Starting ${options.name} on ${options.ssh}; the tunnel address appears in Running.`
-        : `Starting ${options.name} on http://${options.host}:${options.port}.`
+        : `Starting ${options.name} on http://${options.host}:${options.port}.`,
+      'processes'
     )
     // The next server gets a name of its own.
     form.name = freshName()
@@ -460,7 +461,8 @@ async function relaunch(server) {
   if (!options) return
   const started = await attempt(
     () => startServer(options, { url: server.url }),
-    `Starting ${server.name || server.url} again.`
+    `Starting ${server.name || server.url} again.`,
+    'processes'
   )
   if (started) router.push({ name: 'processes' })
 }
@@ -474,7 +476,8 @@ async function register() {
   const name = form.name.trim() || freshName()
   const added = await attempt(
     () => registerServer({ name, url: form.url, description: `Server at ${form.url}` }),
-    `${name} registered.`
+    `${name} registered.`,
+    'servers'
   )
   if (added) {
     form.url = ''
@@ -490,12 +493,13 @@ async function keep(process) {
       url: process.url,
       description: `Started by the launcher: ${process.detail}`
     }),
-    `${process.label} registered.`
+    `${process.label} registered.`,
+    'servers'
   )
 }
 
 async function forget(server) {
-  await attempt(() => forgetServer(server.id), `${server.name || server.url} removed.`)
+  await attempt(() => forgetServer(server.id), `${server.name || server.url} removed.`, 'servers')
 }
 
 async function toggleInvite(server) {
@@ -518,7 +522,7 @@ async function createInvite(server) {
       serverUrl: server.url,
       expiresInHours: Number(invite.hours) || 24
     }))
-    notify('Invitation link created.')
+    notify('Invitation link created.', 'servers')
   } catch (error) {
     fail(error)
   } finally {

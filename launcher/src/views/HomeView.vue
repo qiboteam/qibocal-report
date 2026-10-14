@@ -9,7 +9,7 @@
       </p>
     </div>
 
-    <div class="grid gap-3 sm:grid-cols-2 mb-4">
+    <div class="grid gap-3 sm:grid-cols-2">
       <button
         type="button"
         class="bm-card text-left p-5 flex items-start gap-3.5 hover:-translate-y-px transition"
@@ -47,60 +47,21 @@
       </router-link>
     </div>
 
-    <div class="bm-card p-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
-      <span class="inline-flex items-center gap-1.5">
-        <Loader2 v-if="installing" class="w-3.5 h-3.5 lx-spin text-[#833dff]" />
-        <span v-else class="w-1.5 h-1.5 rounded-full" :class="hasQibocal ? 'bg-emerald-500' : 'bg-amber-500'" />
-        <span class="font-medium text-gray-700">
-          {{ hasQibocal ? state.environment.version || 'qibocal-report available' : installing ? 'Installing qibocal-report' : 'qibocal-report not installed' }}
-        </span>
-      </span>
-      <code v-if="hasQibocal" class="text-[11px] text-gray-500 truncate max-w-xs">
-        {{ state.environment.executable }}
-      </code>
-      <span v-else-if="installing" class="text-gray-500">
-        In the background, in an environment of the launcher's own; the progress is in Running.
-      </span>
-      <span v-else class="text-gray-500">
-        Installed the first time a server, a notebook or an invitation needs it.
-      </span>
-      <button
-        v-if="!hasQibocal && !installing && state.environment?.python"
-        type="button"
-        class="ml-auto px-2.5 py-1 rounded-lg bg-[#833dff] text-white font-medium hover:bg-[#722ce6] transition"
-        @click="install"
-      >
-        Install it now
-      </button>
-      <router-link
-        v-else
-        to="/settings"
-        class="ml-auto px-2.5 py-1 rounded-lg bg-[#ebe0ff] text-[#3b107e] font-medium hover:bg-[#dfceff] transition"
-      >
-        {{ hasQibocal ? 'Change' : 'Configuration' }}
-      </router-link>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { LayoutDashboard, Loader2 } from 'lucide-vue-next'
+import { LayoutDashboard } from 'lucide-vue-next'
 import { sections } from '../router.js'
 import { sectionIcons } from '../icons.js'
-import { state, attempt, hasQibocal, installQibocal, installing, openDashboard } from '../state.js'
+import { state, openDashboard } from '../state.js'
 
-const router = useRouter()
 const others = sections.filter(section => section.name !== 'home')
 
 const running = computed(() => state.processes.filter(process => process.status === 'running').length)
 const connections = computed(() => Object.keys(state.notebooks || {}).length)
 
-async function install() {
-  const started = await attempt(() => installQibocal(false))
-  if (started) router.push({ name: 'processes' })
-}
 
 function badge(name) {
   if (name === 'servers' && state.servers.length) return `${state.servers.length} registered`

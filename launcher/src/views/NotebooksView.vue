@@ -193,7 +193,7 @@ async function start() {
   starting.value = true
   try {
     await startNotebook({ connection: selected.value, ...normalized.value.options })
-    notify('Opening the notebook session; its address appears in the output.')
+    notify('Opening the notebook session; its address appears in the output.', 'processes')
     router.push({ name: 'processes' })
   } catch (error) {
     fail(error)
@@ -205,7 +205,8 @@ async function start() {
 async function save() {
   const saved = await attempt(
     () => desktop.saveNotebook(saveName.value, normalized.value.options),
-    `Connection '${saveName.value}' saved.`
+    `Connection '${saveName.value}' saved.`,
+    'notebooks'
   )
   if (saved === undefined) return
   state.notebooks = saved
@@ -213,7 +214,7 @@ async function save() {
 }
 
 async function remove(name) {
-  const left = await attempt(() => desktop.removeNotebook(name), `Connection '${name}' removed.`)
+  const left = await attempt(() => desktop.removeNotebook(name), `Connection '${name}' removed.`, 'notebooks')
   if (left === undefined) return
   state.notebooks = left
   choose(null)

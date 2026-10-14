@@ -353,7 +353,7 @@ async function saveVersion() {
   if (!spec) return
   const { package: _current, ...rest } = state.preferences || {}
   const settings = spec === defaultSpec(environment.value) ? rest : { ...rest, package: spec }
-  const saved = await attempt(() => desktop.savePreferences(settings), `Version saved: ${describeSpec(spec, environment.value)}.`)
+  const saved = await attempt(() => desktop.savePreferences(settings), `Version saved: ${describeSpec(spec, environment.value)}.`, 'settings')
   if (saved === undefined) return
   state.preferences = saved
   await refreshEnvironment()
@@ -384,14 +384,14 @@ async function pickExecutable(directory) {
       : chooseFile('Choose the qibocal executable')
   )
   if (!picked) return
-  const updated = await attempt(() => desktop.setExecutable(picked), 'Qibocal installation updated.')
+  const updated = await attempt(() => desktop.setExecutable(picked), 'qibocal-report installation updated.', 'settings')
   if (!updated) return
   state.environment = updated
   await refreshPreferences()
 }
 
 async function clearExecutable() {
-  const updated = await attempt(() => desktop.setExecutable(null), 'Back to the launcher\'s own installation.')
+  const updated = await attempt(() => desktop.setExecutable(null), 'Back to the launcher\'s own installation.', 'settings')
   if (!updated) return
   state.environment = updated
   await refreshPreferences()
@@ -401,7 +401,8 @@ async function removeChosen() {
   const names = [...chosen.value]
   const removed = await attempt(
     () => desktop.removeConfigEntries(names),
-    files => (files.length ? `Removed ${files.length} file(s).` : 'Nothing to remove.')
+    files => (files.length ? `Removed ${files.length} file(s).` : 'Nothing to remove.'),
+    'settings'
   )
   if (removed === undefined) return
   chosen.value = []

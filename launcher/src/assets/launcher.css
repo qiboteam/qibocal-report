@@ -419,8 +419,29 @@
   color: #9a9aa0;
 }
 
-.lx-status-error {
+/* Links in the bar are as grey as the rest: a little darker on hover, never blue. */
+.lx-status a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 50ms ease;
+}
+
+.lx-status a:hover {
+  color: #6b6b72;
+}
+
+.lx-status-error,
+.lx-status a.lx-status-error {
   color: #b45309;
+}
+
+/* The state of the command line, before its name: found, being installed, missing. */
+.lx-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: none;
 }
 
 /* The count of what was said, a small pill that opens the list. */
@@ -505,6 +526,20 @@
   color: #b45309;
 }
 
+/* The way to the section a notification is about, after its text. */
+.lx-notice-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+  color: var(--accent-primary);
+  white-space: nowrap;
+}
+
+.lx-notice-link:hover {
+  color: #3b107e;
+}
+
 .lx-notice-close {
   flex: none;
   color: #a6a6ac;
@@ -530,7 +565,9 @@ body {
   overscroll-behavior: none;
 }
 
-body.lx-launcher,
+/* Every level has to have a height, or the one below resolves to "auto". */
+html.lx-launcher,
+html.lx-launcher > body,
 body.lx-launcher > #app {
   height: 100%;
 }
