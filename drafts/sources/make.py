@@ -176,6 +176,54 @@ def notches_inner(count=5, shift=0):
     return "\n".join(parts)
 
 
+def _bezier(p0, p1, p2, p3, t):
+    u = 1 - t
+    return tuple(u**3 * a + 3 * u**2 * t * b + 3 * u * t**2 * c + t**3 * d
+                 for a, b, c, d in zip(p0, p1, p2, p3))
+
+
+def sky_polygon():
+    """The counter above the mountain, sampled: the inner arc, then the flank."""
+    points = []
+    # Inner arc of the ring from the flank's left end over the top to its right end.
+    for i in range(121):
+        angle = 172.0 + (400.5 - 172.0) * i / 120
+        points.append(polar(CX, CY, R_IN, angle))
+    # The flank, right to left: the two cubics of Q_SKY.
+    for i in range(41):
+        points.append(_bezier((165.39, 68.63), (161.79, 65.07), (156.75, 62.91), (152.03, 62.91), i / 40))
+    for i in range(1, 41):
+        points.append(_bezier((152.03, 62.91), (150.27, 62.91), (148.83, 63.07), (147.47, 63.43), i / 40))
+    return points
+
+
+def inside(point, polygon):
+    x, y = point
+    hit = False
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            hit = not hit
+    return hit
+
+
+def notches_full():
+    """Ticks all the way round at the same pitch, minus those the mountain covers."""
+    sky = sky_polygon()
+    parts = []
+    for i in range(-10, 11):
+        angle = 270 + 17.5 * i
+        depth = 3.0 if i % 2 == 0 else 1.8
+        x1, y1 = polar(CX, CY, R_IN + 0.4, angle)
+        x2, y2 = polar(CX, CY, R_IN - depth, angle)
+        xm, ym = polar(CX, CY, R_IN - depth / 2, angle)
+        # Keep a tick only when its visible part lies in the sky, with a margin.
+        clear = all(inside((x, y + 0.8), sky) for x, y in ((x2, y2), (xm, ym)))
+        if clear:
+            parts.append(f'<path d="M {fmt(x1, y1)} L {fmt(x2, y2)}" stroke="{{color}}" stroke-width="1.5"/>')
+    print("full round keeps", len(parts), "ticks")
+    return "\n".join(parts)
+
+
 def ruler(x_start, x_end, y_at, count):
     """Ticks standing on the slope: the mountain, measured."""
     parts = []
@@ -235,7 +283,7 @@ SQUARE_MOTIFS = {
     "A-gauge-ticks": ticks_outside_square(),
     "B-bezel-notches": notches_square(),
     "B2-inner-notches": notches_inner(),
-    "B2-n9": notches_inner(9), "B2-n9-left": notches_inner(9, -1),
+    "B2-n9-left": notches_inner(9, -1), "B2-full": notches_full(),
     "C-measured-slope": ruler(166, 184, lambda x: 77.2, 3),
     "D-summit-point": summit_point(),
     "E-reticle": crosshair(),
@@ -284,8 +332,8 @@ MOTIFS = {
     "A-gauge-ticks": (ticks_outside(), ticks_outside()),
     "B-bezel-notches": (notches(), notches()),
     "B2-inner-notches": (notches_inner(), notches_inner()),
-    "B2-n9": (notches_inner(9), notches_inner(9)),
     "B2-n9-left": (notches_inner(9, -1), notches_inner(9, -1)),
+    "B2-full": (notches_full(), notches_full()),
     "C-measured-slope": (ruler(175, 220, slope_y, 7), ruler(166, 184, lambda x: 77.2, 3)),
     "D-summit-point": (summit_point(), summit_point()),
     "E-reticle": (crosshair(), crosshair()),

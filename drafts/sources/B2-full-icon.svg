@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" rx="113" fill="#833dff"/><g transform="translate(-1241.5 -333) scale(9.5)"><path fill-rule="evenodd" d="M 180.6,76.6 c -3.4,-0.8 -7.5,-2.4 -10.81,-5.13 2.4,-2.48 3.56,-5.56 3.56,-9.48 0,-8.84 -6.71135,-15.283251 -15.67135,-15.283251 -8.88,0 -15.76,6.68 -15.76,15.28 0,8.52 7.08,15.32 16,15.32 3,0 6.15135,-1.036749 8.23135,-2.476749 2.52,1.72 4.44,2.4 7,2.4 0.16,0 0.4,0 0.72,-0.04 z M 165.39484,68.6276 c -3.6,-3.56 -8.64,-5.72 -13.36,-5.72 -1.76,0 -3.2,0.16 -4.56,0.52 -0.08,-0.72 -0.08,-1.04 -0.08,-1.4 0,-5.72 4.4,-10.04 10.2,-10.04 5.84,0 10.2,4.36 10.2,10.24 0,2.68 -0.8,4.76 -2.4,6.4 z" fill="#ffffff"/>
+<path d="M 147.040 61.538 L 149.238 61.634" stroke="#ffffff" stroke-width="1.5"/>
 <path d="M 147.669 58.375 L 150.864 59.537" stroke="#ffffff" stroke-width="1.5"/>
 <path d="M 149.220 55.547 L 150.966 56.886" stroke="#ffffff" stroke-width="1.5"/>
 <path d="M 151.550 53.317 L 153.500 56.102" stroke="#ffffff" stroke-width="1.5"/>
@@ -7,4 +8,7 @@
 <path d="M 160.817 51.891 L 160.156 53.989" stroke="#ffffff" stroke-width="1.5"/>
 <path d="M 163.710 53.317 L 161.760 56.102" stroke="#ffffff" stroke-width="1.5"/>
 <path d="M 166.040 55.547 L 164.294 56.886" stroke="#ffffff" stroke-width="1.5"/>
-<path d="M 167.591 58.375 L 164.396 59.537" stroke="#ffffff" stroke-width="1.5"/></g></svg>
+<path d="M 167.591 58.375 L 164.396 59.537" stroke="#ffffff" stroke-width="1.5"/>
+<path d="M 168.220 61.538 L 166.022 61.634" stroke="#ffffff" stroke-width="1.5"/>
+<path d="M 167.869 64.743 L 164.585 63.863" stroke="#ffffff" stroke-width="1.5"/>
+<path d="M 166.570 67.695 L 164.714 66.513" stroke="#ffffff" stroke-width="1.5"/></g></svg>
