@@ -179,6 +179,10 @@
         >
           <FolderOpen class="w-3.5 h-3.5" /> Reveal
         </button>
+        <button type="button" class="lx-action" :disabled="!chosen.length" @click="removeChosen">
+          <Trash2 class="w-3.5 h-3.5" /> Delete selected
+          <info-tip text="Removes the files ticked below, the way qibocal config clean does. Deleting auth.json signs every user out and clears the administrators." />
+        </button>
       </div>
 
       <config-file
@@ -190,14 +194,6 @@
         @saved="reload"
       />
 
-      <div class="flex flex-wrap items-center gap-2 px-1 pt-1">
-        <button type="button" class="lx-action" :disabled="!chosen.length" @click="removeChosen">
-          <Trash2 class="w-3.5 h-3.5" /> Delete selected
-        </button>
-        <span class="lx-help !mt-0">
-          Deleting <code class="lx-mono">auth.json</code> signs every user out and clears the administrators.
-        </span>
-      </div>
     </section>
 
     <section class="bm-card p-5">
@@ -236,6 +232,7 @@ import {
 import { useRouter } from 'vue-router'
 import ConfigFile from '../components/ConfigFile.vue'
 import FormField from '../components/FormField.vue'
+import InfoTip from '../components/InfoTip.vue'
 import { chooseDirectory, chooseFile, desktop, openExternal, revealInFileManager } from '../bridge.js'
 import {
   state,

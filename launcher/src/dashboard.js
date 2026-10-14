@@ -11,10 +11,28 @@ import App from '@dashboard/App.vue'
 import { router } from '@dashboard/router.js'
 import LauncherOverlay from './components/LauncherOverlay.vue'
 import { desktop } from './bridge.js'
+import { TEMPORARY_PREFIX } from './lib/servers.js'
 import { installMenu } from './menu.js'
 import { sections } from './router.js'
 
 import './styles.js'
+
+/**
+ * What the dashboard may ask of the desktop, set before it mounts.
+ *
+ * The dashboard's server list is `servers.json` here, not the browser's
+ * storage: whatever it saves is written to the file the command line and
+ * the launcher read — except the servers the launcher started for a look,
+ * which are published to the dashboard while they run and never registered.
+ */
+window.qibocalDesktop = {
+  saveServers: servers =>
+    desktop.saveServers(
+      (Array.isArray(servers) ? servers : []).filter(
+        server => !(typeof server?.id === 'string' && server.id.startsWith(TEMPORARY_PREFIX))
+      )
+    )
+}
 
 createApp(App).use(router).mount('#app')
 

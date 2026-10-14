@@ -50,7 +50,7 @@ The home page opens onto every section, and each of them is one jump away — fr
 - **Notebooks** (`Cmd/Ctrl+4`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
 - **Configuration** (`Cmd/Ctrl+5`): install or update Qibocal, and edit the files shared with the command line.
 
-The header carries no navigation of its own: the logo in the top-left corner returns to the home page, the button in the top-right opens the dashboard, and everything else is in the **Go** menu, which works from the dashboard too. Whatever the launcher has to say — a server starting, a link copied, something that failed — is said in the status bar along the bottom edge, in one quiet line that fades by itself; nothing pops up over the page, and nothing has to be dismissed. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
+The header carries no navigation of its own: the logo in the top-left corner returns to the home page, the button in the top-right opens the dashboard, and everything else is in the **Go** menu, which works from the dashboard too. Whatever the launcher has to say — a server starting, a link copied, something that failed — is said in the status bar along the bottom edge, which blends into the page: the latest message appears in the bottom-right corner and fades by itself, and the counter next to it opens the list of everything said, each entry with a cross to dismiss it. Nothing pops up over the page. The bottom-left corner names the `qibocal-report` the launcher drives, with its version and, for its own installation, the commit or release it holds; it leads to **Configuration**. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
 
 ---
 
@@ -161,10 +161,10 @@ A click on a file opens it on its contents: the registered servers, the saved co
 
 `auth.json` is editable too, behind a warning: it holds the users, the invitations and the signing keys, and changing the keys signs everyone out exactly as deleting the file does.
 
-Files can also be revealed in the system file manager, and the ones ticked deleted — the graphical counterpart of `qibocal config clean`. Deleting `auth.json` signs every user out and clears the administrators, exactly as it does from the command line.
+The directory can be revealed in the system file manager, and the files ticked deleted with **Delete selected** next to it — the graphical counterpart of `qibocal config clean`. Deleting `auth.json` signs every user out and clears the administrators, exactly as it does from the command line; the circled *i* on the button says so.
 
 ---
 
 ## 🔗 Relationship with the web client
 
-The dashboard inside the application and the one at <https://qibo.science/qibocal-report> are the same application, built from the same sources. The launcher only adds what a browser cannot do, and a way back: on **Report Servers** — the only page with room for it — the logo appears in the top-left corner, in the same position it occupies everywhere else, and returns to the launcher. The **Go** menu and its shortcuts work from the dashboard as well. Servers registered by the launcher are published to the embedded dashboard, so an instance started in one section is immediately browsable in the other.
+The dashboard inside the application and the one at <https://qibo.science/qibocal-report> are the same application, built from the same sources. The launcher only adds what a browser cannot do, and a way back: on **Report Servers** — the only page with room for it — the logo appears in the top-left corner, in the same position it occupies everywhere else, and returns to the launcher. The **Go** menu and its shortcuts work from the dashboard as well. The two halves share one list of servers, `servers.json`: an instance started or registered in the launcher is browsable in the dashboard at once, and a server added, renamed or removed in the dashboard's own **Report Servers** page is written to the same file, where the launcher and the command line find it. Only the servers started for a look, without registering, stay out of the file: the dashboard shows them while they run.

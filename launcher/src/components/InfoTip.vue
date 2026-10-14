@@ -3,13 +3,14 @@
 
   Always-visible text under a field is for one line; anything longer goes
   here, shown on hover or focus and readable by assistive technology through
-  the button's label.
+  the label. The trigger is not a button, so the tip can also sit inside
+  one, right after its text.
 -->
 <template>
   <span class="lx-tip">
-    <button type="button" class="lx-tip-button" :aria-label="text">
+    <span class="lx-tip-button" tabindex="0" role="img" :aria-label="text">
       <Info class="w-3.5 h-3.5" />
-    </button>
+    </span>
     <span class="lx-tip-bubble" role="tooltip">{{ text }}</span>
   </span>
 </template>

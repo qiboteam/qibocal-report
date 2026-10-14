@@ -464,8 +464,25 @@ export async function apiFetch(path, options = {}) {
 
 // --- Server Management ---
 
+/**
+ * Persist the server list.
+ *
+ * In the browser the list lives in localStorage. Inside the desktop
+ * launcher it is `servers.json`, the file the command line reads too: the
+ * launcher page exposes `window.qibocalDesktop.saveServers` before mounting
+ * this application, and every change made here is written through it, so a
+ * server added, renamed or removed in the dashboard is the launcher's at
+ * once. localStorage is still written, as the cache the next visit starts
+ * from.
+ */
 export function saveStoredServers(servers) {
   localStorage.setItem(SERVERS_STORAGE_KEY, JSON.stringify(servers))
+  const desktop = typeof window !== 'undefined' ? window.qibocalDesktop : null
+  if (typeof desktop?.saveServers === 'function') {
+    Promise.resolve(desktop.saveServers(servers)).catch(error => {
+      console.warn('The desktop launcher could not save the servers', error)
+    })
+  }
 }
 
 export async function fetchServers() {

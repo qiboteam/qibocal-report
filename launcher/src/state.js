@@ -17,8 +17,10 @@ export const state = reactive({
   configEntries: [],
   preferences: {},
   logs: {},
-  /** The one line of the status bar: `{ text, kind }`, or null when quiet. */
-  message: null
+  /** The latest thing said, shown in the status bar until it fades; null when quiet. */
+  message: null,
+  /** Everything said so far, newest first, each until dismissed. */
+  notifications: []
 })
 
 export const hasQibocal = computed(() => Boolean(state.environment?.executable))
@@ -30,19 +32,28 @@ export const installing = computed(() =>
 
 // --- Messages ---------------------------------------------------------------
 
+/** How many notifications are kept, newest first. */
+const NOTIFICATION_LIMIT = 50
+
 let messageTimer = null
+let counter = 0
 
 /**
  * Say something in the status bar, and let it fade on its own.
  *
- * Messages never interrupt: they share one quiet line at the bottom of the
- * window, so nothing moves and nothing has to be dismissed.
+ * Messages never interrupt: the latest shows in the bottom-right corner
+ * until it fades, and all of them stay in the list behind the counter
+ * next to it, each until dismissed. Nothing moves on the page.
  */
 function say(text, kind) {
+  counter += 1
+  const entry = { id: counter, text, kind, at: Date.now() }
+  state.notifications.unshift(entry)
+  if (state.notifications.length > NOTIFICATION_LIMIT) state.notifications.length = NOTIFICATION_LIMIT
   clearTimeout(messageTimer)
-  state.message = { text, kind }
+  state.message = entry
   messageTimer = setTimeout(() => {
-    if (state.message?.text === text) state.message = null
+    if (state.message?.id === entry.id) state.message = null
   }, MESSAGE_TTL[kind])
 }
 
@@ -54,9 +65,15 @@ export function fail(error) {
   say(typeof error === 'string' ? error : (error?.message || String(error)), 'error')
 }
 
+export function dismissNotification(id) {
+  state.notifications = state.notifications.filter(entry => entry.id !== id)
+  if (state.message?.id === id) state.message = null
+}
+
 export function dismiss() {
   clearTimeout(messageTimer)
   state.message = null
+  state.notifications = []
 }
 
 /** Run an action, surfacing its failure in the status bar instead of the console. */
