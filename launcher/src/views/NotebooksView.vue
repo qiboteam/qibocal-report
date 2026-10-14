@@ -48,13 +48,15 @@
           </button>
         </div>
 
+        <!-- Nothing is required: empty, the session is a local one. -->
         <div class="grid gap-4 sm:grid-cols-2">
           <form-field
-            v-for="field in NOTEBOOK_FIELDS"
+            v-for="field in primaryFields"
             v-slot="{ id }"
             :key="field.name"
             :label="field.label"
             :help="field.help"
+            :info="field.info"
             :error="errors[field.name]"
             :warning="warnings[field.name]"
           >
@@ -62,17 +64,6 @@
               v-if="field.type === 'choice'"
               v-model="values[field.name]"
               :options="field.options"
-            />
-            <div v-else-if="field.type === 'number'" class="flex items-center gap-2">
-              <input :id="id" v-model="values[field.name]" type="number" min="1" class="lx-input lx-mono" />
-              <span class="text-[11px] text-gray-400 shrink-0">{{ field.unit }}</span>
-            </div>
-            <path-picker
-              v-else-if="field.name === 'workdir' && !values.ssh"
-              :id="id"
-              v-model="values[field.name]"
-              title="Choose the working directory"
-              :placeholder="field.placeholder"
             />
             <input
               v-else
@@ -84,6 +75,41 @@
             />
           </form-field>
         </div>
+
+        <details class="lx-more">
+          <summary><ChevronRight class="lx-chevron w-3.5 h-3.5" /> More options</summary>
+          <div class="lx-more-body grid gap-4 sm:grid-cols-2">
+            <form-field
+              v-for="field in advancedFields"
+              v-slot="{ id }"
+              :key="field.name"
+              :label="field.label"
+              :help="field.help"
+              :info="field.info"
+              :error="errors[field.name]"
+              :warning="warnings[field.name]"
+            >
+              <div v-if="field.type === 'number'" class="flex items-center gap-2">
+                <input :id="id" v-model="values[field.name]" type="number" min="1" class="lx-input lx-mono" />
+                <span class="text-[11px] text-gray-400 shrink-0">{{ field.unit }}</span>
+              </div>
+              <path-picker
+                v-else-if="field.name === 'workdir' && !values.ssh"
+                :id="id"
+                v-model="values[field.name]"
+                title="Choose the working directory"
+              />
+              <input
+                v-else
+                :id="id"
+                v-model.trim="values[field.name]"
+                type="text"
+                class="lx-input lx-mono"
+                :placeholder="field.placeholder"
+              />
+            </form-field>
+          </div>
+        </details>
 
         <div class="flex flex-wrap items-center gap-2.5 mt-5">
           <button
@@ -101,14 +127,10 @@
               type="text"
               class="lx-input w-40"
               placeholder="Connection name"
+              aria-label="Connection name"
             />
-            <button
-              type="button"
-              class="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#ebe0ff] text-[#3b107e] hover:bg-[#dfceff] transition disabled:opacity-40"
-              :disabled="!saveName || !valid"
-              @click="save"
-            >
-              Save
+            <button type="button" class="lx-action" :disabled="!saveName || !valid" @click="save">
+              <Bookmark class="w-3.5 h-3.5" /> Save
             </button>
           </div>
 
@@ -122,7 +144,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Trash2 } from 'lucide-vue-next'
+import { Bookmark, ChevronRight, Trash2 } from 'lucide-vue-next'
 import FormField from '../components/FormField.vue'
 import PathPicker from '../components/PathPicker.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
@@ -137,6 +159,9 @@ import {
 } from '../lib/notebooks.js'
 
 const router = useRouter()
+
+const primaryFields = NOTEBOOK_FIELDS.filter(field => !field.advanced)
+const advancedFields = NOTEBOOK_FIELDS.filter(field => field.advanced)
 
 const selected = ref(null)
 const saveName = ref('')

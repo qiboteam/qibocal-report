@@ -42,14 +42,141 @@
   box-shadow: 0 0 0 2px rgba(131, 61, 255, 0.2);
 }
 
+/*
+ * A required control is white and outlined, so that it reads as something
+ * to fill in; the grey of an optional one says the default will do.
+ */
+.lx-input.is-required,
+.lx-select.is-required {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #d4d4d8;
+}
+
+.lx-input.is-required:focus,
+.lx-select.is-required:focus {
+  box-shadow: inset 0 0 0 1px #d4d4d8, 0 0 0 2px rgba(131, 61, 255, 0.2);
+}
+
 .lx-input::placeholder {
   color: #a6a6ac;
+}
+
+.lx-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.lx-label-row .lx-label {
+  margin-bottom: 0;
+}
+
+/* "required", next to the label, in the voice of the help text. */
+.lx-tag {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #8a8a90;
+  background: #efeff1;
+  padding: 1px 6px;
+  border-radius: 999px;
 }
 
 .lx-help {
   font-size: 11px;
   color: #8a8a90;
   margin-top: 3px;
+}
+
+/* The circled i, and the bubble it opens on hover or focus. */
+.lx-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.lx-tip-button {
+  display: inline-flex;
+  color: #a6a6ac;
+  cursor: help;
+  border-radius: 999px;
+  transition: color 50ms ease;
+}
+
+.lx-tip-button:hover,
+.lx-tip-button:focus-visible {
+  color: var(--accent-primary);
+  outline: none;
+}
+
+.lx-tip-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 18rem;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #1f1f23;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  visibility: hidden;
+  z-index: 30;
+  transition: opacity 80ms ease;
+  pointer-events: none;
+}
+
+.lx-tip:hover .lx-tip-bubble,
+.lx-tip:focus-within .lx-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* The optional settings of a form, folded until they are wanted. */
+.lx-more {
+  margin-top: 16px;
+  border-top: 1px solid #ececef;
+  padding-top: 10px;
+}
+
+.lx-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.lx-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lx-more > summary:hover {
+  color: #3b107e;
+}
+
+.lx-more > summary .lx-chevron {
+  color: #a6a6ac;
+  transition: transform 80ms ease;
+}
+
+.lx-more[open] > summary .lx-chevron {
+  transform: rotate(90deg);
+}
+
+.lx-more > .lx-more-body {
+  margin-top: 12px;
 }
 
 .lx-error {

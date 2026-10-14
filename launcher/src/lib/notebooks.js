@@ -9,44 +9,16 @@ export const NOTEBOOK_FIELDS = [
     name: 'ssh',
     label: 'SSH destination',
     type: 'text',
-    placeholder: 'user@login-node',
-    help: 'SSH options followed by a host or user@host. Leave empty to run locally.'
+    placeholder: 'user@host',
+    help: 'Empty: a local session.',
+    info: 'SSH options followed by a host or user@host, the way ssh takes them. Host aliases, agent authentication and jump hosts from the SSH configuration all work; the destination comes last.'
   },
   {
     name: 'queue',
     label: 'SLURM partition',
     type: 'text',
-    placeholder: 'mychip',
-    help: 'Submit the session to this partition on the access node.'
-  },
-  {
-    name: 'slurm',
-    label: 'Extra srun options',
-    type: 'text',
-    placeholder: '--time 02:00:00 --mem 8G',
-    help: 'Passed verbatim to srun when a partition is selected.'
-  },
-  {
-    name: 'workdir',
-    label: 'Working directory',
-    type: 'text',
-    placeholder: '/shared/calibration',
-    help: 'Directory the notebook starts from on the access node.'
-  },
-  {
-    name: 'venv',
-    label: 'Kernel environment',
-    type: 'text',
-    placeholder: 'qibocal',
-    default: 'qibocal',
-    help: 'Environment name or path on the computing node.'
-  },
-  {
-    name: 'subnet',
-    label: 'Computing node subnet',
-    type: 'text',
-    placeholder: '192.168.0.0/24',
-    help: 'Restrict SLURM computing-node addresses to this network.'
+    help: 'Empty: no SLURM, the session runs on the access node.',
+    info: 'Submit the session to this partition with srun: the notebook then runs on a computing node, reached through a second tunnel from the access node.'
   },
   {
     name: 'marimo',
@@ -59,12 +31,49 @@ export const NOTEBOOK_FIELDS = [
     ]
   },
   {
+    name: 'slurm',
+    label: 'Extra srun options',
+    type: 'text',
+    advanced: true,
+    placeholder: '--time 02:00:00 --mem 8G',
+    help: 'Passed to srun verbatim.',
+    info: 'Only once a partition is selected; time limits, memory and GPUs go here, as srun takes them.'
+  },
+  {
+    name: 'workdir',
+    label: 'Working directory',
+    type: 'text',
+    advanced: true,
+    help: 'Default: where the login lands.',
+    info: 'Directory the notebook starts from on the access node, which is also the root of its file browser.'
+  },
+  {
+    name: 'venv',
+    label: 'Kernel environment',
+    type: 'text',
+    advanced: true,
+    default: 'qibocal',
+    help: 'Default: qibocal',
+    info: 'An environment name, resolved under ~/.cache/qibocal/envs on the computing node, or an absolute path there. Created, with the notebook and a kernel, when missing.'
+  },
+  {
+    name: 'subnet',
+    label: 'Computing node subnet',
+    type: 'text',
+    advanced: true,
+    placeholder: '192.168.0.0/24',
+    help: 'Empty: any address the computing node reports.',
+    info: 'A network, in CIDR notation, that the address of the SLURM computing node must belong to, for nodes with several interfaces.'
+  },
+  {
     name: 'timeout',
     label: 'Startup timeout',
     type: 'number',
+    advanced: true,
     default: 300,
     unit: 'seconds',
-    help: 'How long to wait for the session and its tunnels to answer.'
+    help: 'Default: 300 seconds.',
+    info: 'How long to wait for the session and its tunnels to answer, environment preparation included.'
   }
 ]
 

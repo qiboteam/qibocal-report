@@ -109,7 +109,8 @@ def remote_server_options(command):
             click.option(
                 "-w",
                 "--workdir",
-                help="Working directory on the remote host.",
+                help="Working directory on the remote host (default: a fresh "
+                "temporary directory).",
             ),
             click.option(
                 "--venv",

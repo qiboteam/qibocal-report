@@ -14,7 +14,7 @@ Installers for the three desktop platforms are attached to every [release](https
 | Linux | `.deb`, `.AppImage` | The AppImage needs no installation |
 | Windows | `-setup.exe`, `.msi` | The installer sets the application up for the current user |
 
-The launcher drives the `qibocal` command line, it does not replace it: install Qibocal as usual (see [Getting Started](user-guide/quickstart)) and the launcher will find it.
+The launcher drives the `qibocal` command line, it does not replace it — and it installs it itself, in an environment of its own, the first time it is asked to (see [Installing Qibocal](#installing-qibocal)). A Python 3.10 or newer on the machine is all it needs.
 
 ### Opening an unsigned build
 
@@ -48,34 +48,37 @@ The home page opens onto every section, and each of them is one jump away — fr
 - **Servers** (`Cmd/Ctrl+2`): one form for a new server, wherever it runs — here, on another machine, or already reachable — and the registered ones with their invitations.
 - **Running** (`Cmd/Ctrl+3`): the live output of everything the launcher started, with graceful stop.
 - **Notebooks** (`Cmd/Ctrl+4`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
-- **Configuration** (`Cmd/Ctrl+5`): pick the Qibocal installation and edit the files shared with the command line.
+- **Configuration** (`Cmd/Ctrl+5`): install or update Qibocal, and edit the files shared with the command line.
 
 The header carries no navigation of its own: the logo in the top-left corner returns to the home page, the button in the top-right opens the dashboard, and everything else is in the **Go** menu, which works from the dashboard too. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
 
 ---
 
-## ⚙️ Finding Qibocal
+## ⚙️ Installing Qibocal
 
-The launcher looks for the `qibocal` command line, in order, in:
+**Configuration → Install Qibocal** — offered on the home page too, while it is missing — creates an environment of the launcher's own and installs `qibocal-report` into it, with the progress shown in **Running**. The environment lives in `~/.cache/qibocal/envs/launcher` (or `$XDG_CACHE_HOME/qibocal/envs/launcher`), next to the ones the notebook sessions make, and **Update** brings it up to date later. All this needs is a Python 3.10 or newer on the machine: the launcher looks on the `PATH` and in the usual places — Homebrew, `/usr/local`, the python.org installers, pyenv — and says so when it finds none.
 
-1. the installation explicitly chosen in **Configuration**;
-2. the `QIBOCAL_EXECUTABLE` environment variable;
-3. the `PATH`;
-4. the usual places — `~/.local/bin`, pipx environments, `.venv` folders, `/usr/local/bin`, `/opt/homebrew/bin`.
+The launcher then uses, in order:
 
-A graphical application does not inherit the shell environment on macOS, so the first run often needs the installation to be pointed out once, in **Configuration → Choose environment…**. A virtual environment folder is enough: the launcher looks inside its `bin` (or `Scripts`) directory. The choice is remembered in `launcher.json`, next to the other configuration files.
+1. the environment chosen in the developer options;
+2. its own installation;
+3. the `QIBOCAL_EXECUTABLE` environment variable;
+4. the `PATH`;
+5. the usual places — `~/.local/bin`, pipx environments, `.venv` folders, `/usr/local/bin`, `/opt/homebrew/bin`.
+
+The **developer options**, folded under the installation, are for a checkout of `qibocal-report`: **Choose environment…** and **Choose executable…** point the launcher at an environment that already has Qibocal — a virtual environment folder is enough, the launcher looks inside its `bin` (or `Scripts`) directory — and **Detect again** goes back to its own installation. **Package to install** changes what Install and Update put in the managed environment: a pinned version, a pre-release, a different distribution. The choices are remembered in `launcher.json`, next to the other configuration files.
 
 ---
 
 ## 🚀 A new server
 
-**Servers → New server** is one form, whatever the server turns out to be. It opens on a **Name** — *Server 1*, *Server 2*, … suggested the way the dashboard numbers the servers added there, and free to overwrite — and on where the server runs:
+**Servers → New server** is one form, whatever the server turns out to be. It opens on a **Name** — drawn as the command line draws them, an adjective and a scientist such as *zen-bohr*, and free to overwrite — and on where the server runs:
 
 - **This machine** runs `qibocal` here.
 - **Another machine** reaches a host over SSH, prepares an environment there, and tunnels the server back.
 - **Already running** registers an address, starting nothing: any Qibocal report server you can reach.
 
-The fields below follow that choice, so what does not apply is not there. The command about to be run is spelled out under the form, so the equivalent command line is never a mystery.
+The fields below follow that choice, so what does not apply is not there, and they keep one convention throughout the launcher: a field that is **required** says so next to its label and is drawn white and outlined; the grey ones are optional, with their default stated underneath, and the circled *i* holds the longer explanation. What is rarely changed sits under **More options**, folded. The command about to be run is spelled out under the form, so the equivalent command line is never a mystery.
 
 **Start** is the default and starts the server for a look: it shows up in **Running** and in the dashboard as long as it runs, and in a *Running, not registered* list on this page, with a **Register** button in case it turns out to be worth keeping. **Start and register** writes it to `servers.json` straight away — the same file `qibocal` reads, so a server started from the command line shows up in the launcher, and the other way around.
 
@@ -87,7 +90,7 @@ The fields below follow that choice, so what does not apply is not there. The co
 | Developer | `qibocal report dev` | Live interface with hot reloading |
 | Client | `qibocal report client` | Browse other servers, serving none |
 
-The **Reports directory** is optional: left empty, the shared one is served — `~/.local/share/qibocal/reports`, or `$XDG_DATA_HOME/qibocal/reports`, created when it is not there yet — which is where runs go when they have no better home. Pick the address with the host and port fields; **Free port** asks the operating system for one nobody is listening on. The **User accounts** switch is the `--auth` flag: it enables authentication and produces the initial administrator invitation, which appears in the output of the running server.
+The **Reports directory** is optional: left empty, the shared one is served — `~/.local/share/qibocal/reports`, or `$XDG_DATA_HOME/qibocal/reports`, created when it is not there yet — which is where runs go when they have no better home. Under **More options**, the host and port fields pick the address, and **Free port** asks the operating system for one nobody is listening on; the **User accounts** switch is the `--auth` flag: it enables authentication and produces the initial administrator invitation, which appears in the output of the running server. The server starts from a fresh temporary directory, since it writes nothing where it starts.
 
 ### On another machine
 
@@ -96,8 +99,10 @@ The form becomes `qibocal report server --ssh …`: the server runs where the ca
 - **SSH destination** — options and a `user@host` destination, the way `qibocal notebook connect` takes them. Host aliases, agent authentication and jump hosts from the SSH configuration all work; the destination must come last.
 - **Reports directory** — a path on *that* machine, typed rather than browsed, since the file dialog only sees this one. Optional here too: empty, the shared reports directory *of that machine* is served, created when missing.
 - **Server environment** — a name resolved under `~/.cache/qibocal/envs/`, or an absolute path. If it does not exist it is created and the package is installed into it; if it exists without Qibocal, the package is added. Nothing else in it is touched. This is the same rule, and the same cache, the notebook sessions use.
-- **Working directory** — where to move before starting, for relative paths.
+- **Working directory** — where to move before starting, for relative paths; a fresh temporary directory by default.
 - **Package to install** — `qibocal-report` by default; a pinned version or a different distribution is accepted.
+
+The last three sit under **More options**: their defaults are the right ones for a first try.
 
 There are no host and port fields: the remote server binds to its own loopback on a free port, and the launcher opens an SSH tunnel to it, so the address that ends up in **Running** and in `servers.json` is a local one. Nothing is exposed on the remote network. Stopping the process closes the tunnel and the remote server with it.
 
@@ -120,14 +125,17 @@ Every registered server offers:
 
 ## 📓 Notebook sessions
 
-**Notebooks** is the graphical face of `qibocal notebook`. Every option of the command line is a control:
+**Notebooks** is the graphical face of `qibocal notebook`. Every option of the command line is a control, and none is required — empty, the session is a local one:
 
 - **SSH destination** — empty for a local session.
-- **SLURM partition** and **extra srun options**.
+- **SLURM partition**, and **Interface**: JupyterLab or Marimo.
+
+Under **More options**, with their defaults:
+
+- **Extra srun options**.
 - **Working directory**, chosen with the file browser for local sessions.
-- **Kernel environment** on the computing node.
+- **Kernel environment** on the computing node, `qibocal` by default, under the same `~/.cache/qibocal/envs/` as the launcher's own environment.
 - **Computing node subnet**, validated the way Python's `ip_network` validates it: a network with host bits set is refused before the command is run.
-- **Interface**: JupyterLab or Marimo.
 - **Startup timeout**.
 
 Named connections are read from and written to `notebooks.json`, the file `qibocal notebook add` manages, so a connection saved here is usable as `qibocal notebook connect <name>`. Only the options that differ from the defaults are stored.

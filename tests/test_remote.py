@@ -401,3 +401,26 @@ def test_the_worker_creates_the_shared_directory_when_none_is_named(monkeypatch,
     # A named directory, on the other hand, has to be there already.
     with pytest.raises(report_worker.WorkerError, match="No report directory"):
         report_worker.reports_directory(str(tmp_path / "absent"))
+
+
+def test_the_worker_starts_from_a_temporary_directory_by_default(monkeypatch, tmp_path):
+    """Nothing is written where the server starts, so the home folder is spared."""
+    monkeypatch.setenv("QIBOCAL_REPORT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
+    (tmp_path / "tmp").mkdir()
+    import tempfile
+
+    tempfile.tempdir = None
+    seen = {}
+
+    def stop_here(*_args, **_kwargs):
+        seen["cwd"] = Path.cwd()
+        raise report_worker.Stopped()
+
+    monkeypatch.setattr(report_worker, "ensure_qibocal", stop_here)
+    try:
+        report_worker.run({"timeout": 5})
+    finally:
+        tempfile.tempdir = None
+    assert seen["cwd"].parent == (tmp_path / "tmp").resolve()
+    assert seen["cwd"].name.startswith("qibocal-report-")

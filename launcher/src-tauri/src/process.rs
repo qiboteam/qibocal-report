@@ -464,7 +464,14 @@ pub fn start_server(
         "client" => {}
         other => return Err(format!("Unknown server mode '{other}'.")),
     }
-    let working_directory = None;
+    // A local server writes nothing where it starts: a fresh temporary
+    // directory keeps it out of the reports and out of the home folder, as
+    // the worker does on a remote host.
+    let working_directory = if ssh.is_none() {
+        Some(scratch_directory()?)
+    } else {
+        None
+    };
     if ssh.is_none() {
         arguments.push("--host".to_string());
         arguments.push(options.host.clone());
@@ -541,6 +548,18 @@ pub struct NotebookOptions {
     pub marimo: Option<bool>,
     pub timeout: Option<f64>,
     pub subnet: Option<String>,
+}
+
+/// A fresh directory under the system temporary folder, for a process to start from.
+fn scratch_directory() -> Result<PathBuf, String> {
+    let path = std::env::temp_dir().join(format!(
+        "qibocal-launcher-{}-{}",
+        std::process::id(),
+        now_millis()
+    ));
+    std::fs::create_dir_all(&path)
+        .map_err(|error| format!("Could not create '{}': {error}", path.display()))?;
+    Ok(path)
 }
 
 fn push_text(arguments: &mut Vec<String>, flag: &str, value: Option<String>) {

@@ -13,6 +13,7 @@ import os
 import shlex
 import signal
 import sys
+import tempfile
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -142,8 +143,14 @@ def run(options):
         for sig in (signal.SIGTERM, signal.SIGINT):
             handlers[sig] = signal.signal(sig, lambda *_: runtime.stop.set())
         monitor_stdin(runtime.stop)
-        if options.get("workdir"):
-            os.chdir(Path(options["workdir"]).expanduser())
+        # The server writes nothing where it starts, so without a working
+        # directory a fresh temporary one keeps it out of the home folder.
+        workdir = options.get("workdir")
+        os.chdir(
+            Path(workdir).expanduser()
+            if workdir
+            else tempfile.mkdtemp(prefix="qibocal-report-")
+        )
         directory = reports_directory(options.get("directory"))
         packages = shlex.split(options.get("install") or "qibocal-report")
         if not packages:
