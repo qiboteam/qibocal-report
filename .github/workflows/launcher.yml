@@ -4,6 +4,14 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+  # Changing the launcher, or this very workflow, rebuilds everything: the
+  # installers are the only way to tell whether the desktop application still
+  # builds on the three platforms.
+  pull_request:
+    paths:
+      - "launcher/**"
+      - "frontend/**"
+      - ".github/workflows/launcher.yml"
 
 # Only the release event needs to write, to attach the installers.
 permissions:
