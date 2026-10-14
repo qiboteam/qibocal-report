@@ -43,8 +43,8 @@
       </details>
     </section>
 
-    <section class="bm-card p-5">
-      <div class="flex flex-wrap items-center gap-2 mb-3">
+    <section class="space-y-2.5">
+      <div class="flex flex-wrap items-center gap-2 px-1">
         <h2 class="text-sm font-semibold text-gray-900">Shared configuration</h2>
         <code class="lx-mono text-gray-400 truncate">{{ environment?.configDirectory }}</code>
         <button
@@ -57,32 +57,16 @@
         </button>
       </div>
 
-      <table class="w-full text-xs">
-        <tbody>
-          <tr v-for="entry in state.configEntries" :key="entry.name" class="border-t border-gray-100 first:border-0">
-            <td class="py-2 pr-3">
-              <label class="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  class="mt-0.5 accent-[#833dff]"
-                  :disabled="!entry.exists"
-                  :checked="chosen.includes(entry.name)"
-                  @change="toggle(entry.name)"
-                />
-                <span>
-                  <span class="block font-medium text-gray-900">{{ entry.name }}</span>
-                  <span class="block lx-help !mt-0">{{ entry.description }}</span>
-                </span>
-              </label>
-            </td>
-            <td class="py-2 text-right text-gray-400 whitespace-nowrap">
-              {{ entry.exists ? size(entry.size) : 'not created' }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <config-file
+        v-for="entry in state.configEntries"
+        :key="entry.name"
+        :entry="entry"
+        :selected="chosen.includes(entry.name)"
+        @toggle="toggle"
+        @saved="reload"
+      />
 
-      <div class="flex items-center gap-2 mt-4">
+      <div class="flex flex-wrap items-center gap-2 px-1 pt-1">
         <button type="button" class="lx-action" :disabled="!chosen.length" @click="removeChosen">
           <Trash2 class="w-3.5 h-3.5" /> Delete selected
         </button>
@@ -102,7 +86,7 @@
         <div class="flex gap-2">
           <dt class="text-gray-400 w-20 shrink-0">Reports</dt>
           <dd>
-            <button type="button" class="text-[#833dff] hover:underline" @click="openExternal(WEB_FRONTEND)">
+            <button type="button" class="text-[#833dff] hover:text-[#6b21a8] transition" @click="openExternal(WEB_FRONTEND)">
               {{ WEB_FRONTEND }}
             </button>
           </dd>
@@ -115,6 +99,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { FolderOpen, RotateCcw, Terminal, Trash2 } from 'lucide-vue-next'
+import ConfigFile from '../components/ConfigFile.vue'
 import { chooseDirectory, chooseFile, desktop, openExternal, revealInFileManager } from '../bridge.js'
 import {
   state,
@@ -134,10 +119,9 @@ const platform = ref({ os: '—', arch: '' })
 const environment = computed(() => state.environment)
 const preferredExecutable = computed(() => state.preferences?.executable || null)
 
-function size(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+/** A saved file may hold servers, connections or preferences: refresh them all. */
+async function reload() {
+  await Promise.all([refreshConfigEntries(), refreshServers(), refreshNotebooks(), refreshPreferences()])
 }
 
 function toggle(name) {
@@ -174,7 +158,7 @@ async function removeChosen() {
   )
   if (removed === undefined) return
   chosen.value = []
-  await Promise.all([refreshConfigEntries(), refreshServers(), refreshNotebooks(), refreshPreferences()])
+  await reload()
 }
 
 async function reveal(path) {

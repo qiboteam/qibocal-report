@@ -108,6 +108,57 @@ pub fn config_directory() -> String {
     config_dir().display().to_string()
 }
 
+/// One configuration file, as the editor sees it.
+#[derive(Serialize)]
+pub struct ConfigDocument {
+    pub name: String,
+    pub path: String,
+    pub exists: bool,
+    /// The file verbatim, pretty-printed when it holds JSON, empty when absent.
+    pub text: String,
+}
+
+fn document(name: &str, path: &Path) -> Result<ConfigDocument, String> {
+    // A file that is not valid JSON comes back verbatim rather than as an
+    // error: editing it as text is the only way to repair it from here.
+    let text = match fs::read_to_string(path) {
+        Ok(contents) => match serde_json::from_str::<Value>(&contents) {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|error| format!("Could not format '{}': {error}", path.display()))?,
+            Err(_) => contents,
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) => {
+            return Err(format!("Could not read '{}': {error}", path.display()));
+        }
+    };
+    Ok(ConfigDocument {
+        name: name.to_string(),
+        path: path.display().to_string(),
+        exists: path.exists(),
+        text,
+    })
+}
+
+#[tauri::command]
+pub fn read_config_file(name: String) -> Result<ConfigDocument, String> {
+    let path = config_file(&name)?;
+    document(&name, &path)
+}
+
+/// Replace a configuration file, refusing anything that is not valid JSON.
+///
+/// The parser message is passed on as it is: it names the line and the column,
+/// which is what an editor needs to point at the mistake.
+#[tauri::command]
+pub fn write_config_file(name: String, text: String) -> Result<ConfigDocument, String> {
+    let path = config_file(&name)?;
+    let value: Value = serde_json::from_str(&text)
+        .map_err(|error| format!("'{name}' must contain valid JSON: {error}"))?;
+    write_json(&path, &value)?;
+    document(&name, &path)
+}
+
 #[tauri::command]
 pub fn remove_config_entries(names: Vec<String>) -> Result<Vec<String>, String> {
     let mut removed = Vec::new();

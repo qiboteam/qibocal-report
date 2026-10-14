@@ -28,6 +28,8 @@ export const desktop = {
 
   configEntries: () => call('config_entries'),
   configDirectory: () => call('config_directory'),
+  readConfigFile: name => call('read_config_file', { name }),
+  writeConfigFile: (name, text) => call('write_config_file', { name, text }),
   removeConfigEntries: names => call('remove_config_entries', { names }),
   preferences: () => call('preferences'),
   savePreferences: settings => call('save_preferences', { settings }),

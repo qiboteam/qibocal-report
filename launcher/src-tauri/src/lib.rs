@@ -28,6 +28,8 @@ pub fn run() {
             qibocal::platform_summary,
             settings::config_entries,
             settings::config_directory,
+            settings::read_config_file,
+            settings::write_config_file,
             settings::remove_config_entries,
             settings::list_servers,
             settings::save_servers,
