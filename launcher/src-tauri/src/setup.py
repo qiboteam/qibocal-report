@@ -54,20 +54,35 @@ def main():
             python = Path(shared["ensure_environment"](runtime, path))
             executable = path / "bin" / "qibocal"
 
-        if upgrade or not executable.is_file():
+        marker = path / "qibocal-launcher.json"
+        try:
+            held = json.loads(marker.read_text(encoding="utf-8")).get("package")
+        except (OSError, ValueError, AttributeError):
+            held = None
+
+        if has_pip(python):
+            pip = [str(python), "-m", "pip", "install"]
+        else:
+            pip = [sys.executable, "-m", "pip", "--python", str(python), "install"]
+
+        if not executable.is_file():
             print(f"Installing {', '.join(packages)} in: {path}", flush=True)
-            if has_pip(python):
-                command = [str(python), "-m", "pip", "install", "--upgrade", *packages]
-            else:
-                command = [sys.executable, "-m", "pip", "--python", str(python), "install", "--upgrade", *packages]
-            runtime.command(command)
+            runtime.command([*pip, "--upgrade", *packages])
+        elif upgrade or held != packages[0]:
+            # A branch or commit archive carries the same version number as
+            # the one installed, so pip would call it satisfied and change
+            # nothing: the package itself is put back by force, on its own,
+            # and the dependencies brought up to date after it.
+            print(f"Replacing {held or 'what is installed'} with {', '.join(packages)} in: {path}", flush=True)
+            runtime.command([*pip, "--upgrade", "--force-reinstall", "--no-deps", *packages])
+            runtime.command([*pip, "--upgrade", *packages])
         if not executable.is_file():
             raise WorkerError(
                 f"{path} has no qibocal after installing {', '.join(packages)}; "
                 "check the version chosen in the developer options"
             )
         # Which requirement the environment holds, for the launcher to show.
-        (path / "qibocal-launcher.json").write_text(
+        marker.write_text(
             json.dumps({"package": packages[0], "packages": packages}, indent=2) + "\n",
             encoding="utf-8",
         )
