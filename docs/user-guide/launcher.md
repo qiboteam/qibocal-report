@@ -1,6 +1,6 @@
 # User Guide: Desktop Launcher
 
-The **Qibocal Launcher** is the desktop application that does what a web page is not allowed to do: reach the machine it runs on. It starts report servers and notebook sessions, manages the configuration shared with the command line, re-issues administrator invitations — and embeds the very same dashboard that is deployed on the web, so there is no context switch between launching an instance and browsing its reports.
+The **Qibocal Launcher** is the desktop application that does what a web page is not allowed to do: reach the machine it runs on. It starts report servers and notebook sessions, here or on another machine over SSH, edits the configuration shared with the command line, re-issues administrator invitations — and embeds the very same dashboard that is deployed on the web, so there is no context switch between launching an instance and browsing its reports.
 
 ---
 
@@ -42,15 +42,15 @@ Maintainers who do hold the credentials only have to set the repository secrets 
 
 ## 🏠 Sections
 
-The home page opens onto every section, and each of them is one jump away — through the top navigation, or through the **Go** system menu with its keyboard shortcuts.
+The home page opens onto every section, and each of them is one jump away — from its card, or from the **Go** system menu with its keyboard shortcuts.
 
 - **Dashboard** (`Cmd/Ctrl+D`): the complete report browser, with the servers the launcher knows already connected.
-- **Servers**: start a server on this machine, register a reachable one, re-issue administrator invitations.
-- **Running**: the live output of everything the launcher started, with graceful stop.
-- **Notebooks**: open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
-- **Configuration**: pick the Qibocal installation and inspect the files shared with the command line.
+- **Servers** (`Cmd/Ctrl+2`): start a server here or on another machine, register a reachable one, re-issue administrator invitations.
+- **Running** (`Cmd/Ctrl+3`): the live output of everything the launcher started, with graceful stop.
+- **Notebooks** (`Cmd/Ctrl+4`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
+- **Configuration** (`Cmd/Ctrl+5`): pick the Qibocal installation and edit the files shared with the command line.
 
-The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
+The header carries no navigation of its own: the logo in the top-left corner returns to the home page, the button in the top-right opens the dashboard, and everything else is in the **Go** menu, which works from the dashboard too. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
 
 ---
 
@@ -82,6 +82,20 @@ Pick the reports directory with the file browser, and the address with the host 
 The command about to be run is spelled out under the form, so the equivalent command line is never a mystery.
 
 Starting a server registers it in `servers.json`, which is the same file `qibocal` reads — a server started from the command line shows up in the launcher, and the other way around.
+
+### On another machine
+
+**Run it on another machine** turns the reports mode into `qibocal report server --ssh …`: the server runs where the calibration runs are, and only its address is brought back.
+
+- **SSH destination** — options and a `user@host` destination, the way `qibocal notebook connect` takes them. Host aliases, agent authentication and jump hosts from the SSH configuration all work; the destination must come last.
+- **Reports directory** — a path on *that* machine, typed rather than browsed, since the file dialog only sees this one.
+- **Server environment** — a name resolved under `~/.cache/qibocal/envs/`, or an absolute path. If it does not exist it is created and the package is installed into it; if it exists without Qibocal, the package is added. Nothing else in it is touched. This is the same rule, and the same cache, the notebook sessions use.
+- **Working directory** — where to move before starting, for relative paths.
+- **Package to install** — `qibocal-report` by default; a pinned version or a different distribution is accepted.
+
+The host and port fields disappear: the remote server binds to its own loopback on a free port, and the launcher opens an SSH tunnel to it, so the address that ends up in **Running** and in `servers.json` is a local one. Nothing is exposed on the remote network. Stopping the process closes the tunnel and the remote server with it.
+
+The remote machine needs an OpenSSH server and `python3` 3.10 or later — not Qibocal, which is what the environment step installs.
 
 ---
 
@@ -127,10 +141,14 @@ Opening a session runs it with `--no-interactive`: the address appears in **Runn
 | `auth.json` | Users, invitations and signing keys |
 | `launcher.json` | Launcher preferences |
 
-Files can be revealed in the system file manager, and selected ones deleted — the graphical counterpart of `qibocal config clean`. Deleting `auth.json` signs every user out and clears the administrators, exactly as it does from the command line.
+**Edit** opens a file on its contents: the registered servers, the saved connections, the users, the preferences — one row per entry, named as the rest of the application names it. Expanding a row turns it into fields, and an entry can be added or removed. **Edit as JSON** swaps the fields for the text of the file, checked as it is typed, with **Save** out of reach while the JSON is broken — which is also how a file the editor cannot structure is repaired. Saving replaces the file in one step and reloads the sections that read it, so a server renamed here is renamed in **Servers** at once; **Revert** goes back to what is on disk.
+
+`auth.json` is editable too, behind a warning: it holds the users, the invitations and the signing keys, and changing the keys signs everyone out exactly as deleting the file does.
+
+Files can also be revealed in the system file manager, and selected ones deleted — the graphical counterpart of `qibocal config clean`. Deleting `auth.json` signs every user out and clears the administrators, exactly as it does from the command line.
 
 ---
 
 ## 🔗 Relationship with the web client
 
-The dashboard inside the application and the one at <https://qibo.science/qibocal-report> are the same application, built from the same sources. The launcher only adds what a browser cannot do, and a bar to step back into it. Servers registered by the launcher are published to the embedded dashboard, so an instance started in one section is immediately browsable in the other.
+The dashboard inside the application and the one at <https://qibo.science/qibocal-report> are the same application, built from the same sources. The launcher only adds what a browser cannot do, and a way back: on **Report Servers** — the only page with room for it — the logo appears in the top-left corner, in the same position it occupies everywhere else, and returns to the launcher. The **Go** menu and its shortcuts work from the dashboard as well. Servers registered by the launcher are published to the embedded dashboard, so an instance started in one section is immediately browsable in the other.

@@ -61,16 +61,31 @@ qibocal report server [DIRECTORY] [OPTIONS]
 ```
 
 #### Arguments
-- `DIRECTORY`: Target folder containing Qibocal calibration run folders. Defaults to `.` (current working directory).
+- `DIRECTORY`: Target folder containing Qibocal calibration run folders. Defaults to `.` (current working directory). With `--ssh`, it is read on the remote host and not checked here.
 
 #### Options
 - `--host TEXT`: Host address to bind to. Default: `localhost`.
 - `--port INTEGER`: Port to listen on. Default: `8000`.
+- `--auth / --no-auth`: Enable user authentication and role management, printing the initial administrator invitation. Default: `--no-auth`.
 - `--help`: Show help message and exit.
+
+#### Remote options
+With `--ssh`, the server runs on another machine and its address is tunnelled back; `--host` and `--port` no longer apply, since the remote server binds to its own loopback on a free port and the local end of the tunnel is what gets registered in `servers.json`.
+
+- `--ssh TEXT`: SSH options followed by a host or `user@host` destination, as in `qibocal notebook connect`. The destination must be the last argument; do not include a remote command.
+- `-w, --workdir DIRECTORY`: Working directory on the remote host.
+- `--venv NAME_OR_PATH`: Environment on the remote host. Default: `qibocal`. Names resolve under `$XDG_CACHE_HOME/qibocal/envs/` (fallback `~/.cache/qibocal/envs/`), the same place the notebook sessions use; a missing environment is created, and an existing one without Qibocal has it installed.
+- `--install TEXT`: Packages installed in that environment when it has no `qibocal`. Default: `qibocal-report`.
+- `--timeout SECONDS`: Startup timeout, environment preparation included. Default: `300`.
+
+The remote host needs an OpenSSH server and `python3` 3.10 or later; Qibocal itself is installed by the environment step. The other remote options are refused without `--ssh`.
 
 #### Example
 ```bash
 qibocal report server /data/calibration_runs --host 0.0.0.0 --port 8080
+
+# On the machine that holds the runs, in a dedicated environment:
+qibocal report server /shared/calibration --ssh myuser@login --venv mychip --auth
 ```
 
 ---

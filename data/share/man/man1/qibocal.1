@@ -241,8 +241,36 @@ qibocal notebook remove mychip
 .SH REPORT COMMANDS
 .TP
 .BR "qibocal report server" " [DIRECTORY]"
-Serve reports and the embedded web app. Directory defaults to the current
-directory. Options: \-\-host (localhost), \-\-port (8000), \-\-auth/\-\-no-auth.
+Serve reports and the embedded web app, here or on another machine.
+Directory defaults to the current directory.
+Options: \-\-host (localhost), \-\-port (8000), \-\-auth/\-\-no-auth,
+and the remote options below.
+.RS
+.PP
+With
+.BI \-\-ssh " TEXT"
+the directory is read on that host and the server is tunnelled back here:
+the destination comes last, as for
+.BR "qibocal notebook connect" ,
+the remote server binds to its own loopback on a free port, and the local end
+of the tunnel is the address registered in servers.json. \-\-host and \-\-port
+then do not apply. The remote host needs an OpenSSH server and python3 (3.10+).
+.PP
+.BR \-w ", " \-\-workdir " " \fIDIRECTORY\fR
+sets the remote working directory.
+.BI \-\-venv " NAME_OR_PATH"
+selects the remote environment (default: qibocal), resolved under
+.BR $XDG_CACHE_HOME/qibocal/envs/
+(fallback:
+.BR ~/.cache/qibocal/envs/ )
+as the notebook sessions resolve it; a missing environment is created, and an
+existing one without qibocal has it installed.
+.BI \-\-install " TEXT"
+names the packages installed in that case (default: qibocal-report), and
+.BI \-\-timeout " SECONDS"
+bounds the startup, environment preparation included (default: 300).
+These options are refused without \-\-ssh.
+.RE
 .TP
 .B qibocal report client
 Serve the standalone report client. Options: \-\-host (127.0.0.1),

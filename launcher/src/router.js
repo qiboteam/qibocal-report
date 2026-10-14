@@ -26,7 +26,7 @@ export const sections = [
     title: 'Servers',
     icon: 'Server',
     accelerator: 'CmdOrCtrl+2',
-    summary: 'Start a report server on this machine, or register one to reach.'
+    summary: 'Start a report server here or on another machine, or register one to reach.'
   },
   {
     name: 'processes',
@@ -53,7 +53,7 @@ export const sections = [
     title: 'Configuration',
     icon: 'Settings',
     accelerator: 'CmdOrCtrl+5',
-    summary: 'Pick the Qibocal installation and inspect the shared configuration.'
+    summary: 'Pick the Qibocal installation and edit the shared configuration.'
   }
 ]
 

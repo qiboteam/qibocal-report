@@ -19,6 +19,7 @@ launcher/
 │   ├── state.js        reactive store, native events, toasts
 │   ├── menu.js         the system menu, built from the sections
 │   ├── router.js       the sections, shared by router, home page and menu
+│   ├── dashboard.js    the embedded page: the menu again, and the overlay
 │   ├── lib/            pure logic, covered by `pnpm run test`
 │   ├── components/
 │   └── views/
@@ -29,6 +30,13 @@ launcher/
     │   └── process.rs  the supervisor of long-running processes
     └── icon.svg        source of the icon set
 ```
+
+There is no navigation bar: the header holds the logo on the left and the
+dashboard button on the right, and the sections are reached through the **Go**
+menu `menu.js` builds from `router.js`. `dashboard.js` installs that same menu
+on the embedded page — where the window has navigated away from `index.html`,
+so the launcher's own callbacks are gone — and mounts `LauncherOverlay.vue`,
+the way back, on the one dashboard route with room for it.
 
 The dashboard is **not** forked: `dashboard.html` mounts `../frontend/src`
 through the `@dashboard` alias, with the same stylesheet and the same UnoCSS

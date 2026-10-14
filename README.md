@@ -25,7 +25,7 @@ sessions to exploring results and organizing runs across report servers.
 - **Search & Filters**: Find calibration runs by title, platform, author, protocol, tag, or date.
 - **Statistics Dashboard**: Follow calibration activity over time and explore trends across protocols, authors, and platforms.
 - **Batch Actions**: Organize multiple runs at once by updating tags and authors, or deleting reports.
-- **Desktop Launcher**: Start servers and notebook sessions, manage local configuration, and browse reports from a single cross-platform application.
+- **Desktop Launcher**: Start servers and notebook sessions, here or on another machine over SSH, edit the local configuration, and browse reports from a single cross-platform application.
 
 ## 🚀 Quick Start
 
@@ -47,6 +47,17 @@ qibocal report server ./sample_data --port 8000
 ```
 
 Open your browser at **`http://localhost:8000`**.
+
+The runs often live on another machine. Add `--ssh` and the server starts there
+instead, in a managed environment, and is tunnelled back to a local address:
+
+```bash
+qibocal report server /shared/calibration --ssh myuser@login --venv mychip
+```
+
+The remote host only needs an OpenSSH server and Python 3.10+; the environment
+is created and `qibocal-report` installed into it on first use, exactly as for
+notebook sessions.
 
 ### Interactive Notebooks
 
