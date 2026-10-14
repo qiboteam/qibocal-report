@@ -129,7 +129,7 @@ def letter_l(x):
 
 def cal_paths():
     c, x = letter_c(223.3)
-    a, x = letter_a(x + 1.0)
+    a, x = letter_a(x + 0.0)
     l, x = letter_l(x + 3.0)
     return [c, *a, l], x
 
@@ -157,7 +157,7 @@ def notches():
     return "\n".join(parts)
 
 
-def notches_inner(count=5):
+def notches_inner(count=5, shift=0):
     """The graduation drawn inside the bezel: ticks on the inner edge of the ring.
 
     The five original ticks keep their positions; more ticks extend the ruler
@@ -166,7 +166,8 @@ def notches_inner(count=5):
     """
     parts = []
     half = (count - 1) // 2
-    for i in range(-half, half + 1):
+    # A shift moves the whole run along the ring, one pitch per unit.
+    for i in range(-half + shift, half + shift + 1):
         angle = 270 + 17.5 * i
         depth = 3.0 if i % 2 == 0 else 1.8
         x1, y1 = polar(CX, CY, R_IN + 0.4, angle)
@@ -234,7 +235,7 @@ SQUARE_MOTIFS = {
     "A-gauge-ticks": ticks_outside_square(),
     "B-bezel-notches": notches_square(),
     "B2-inner-notches": notches_inner(),
-    "B2-n7": notches_inner(7), "B2-n9": notches_inner(9), "B2-n11": notches_inner(11),
+    "B2-n9": notches_inner(9), "B2-n9-left": notches_inner(9, -1),
     "C-measured-slope": ruler(166, 184, lambda x: 77.2, 3),
     "D-summit-point": summit_point(),
     "E-reticle": crosshair(),
@@ -283,9 +284,8 @@ MOTIFS = {
     "A-gauge-ticks": (ticks_outside(), ticks_outside()),
     "B-bezel-notches": (notches(), notches()),
     "B2-inner-notches": (notches_inner(), notches_inner()),
-    "B2-n7": (notches_inner(7), notches_inner(7)),
     "B2-n9": (notches_inner(9), notches_inner(9)),
-    "B2-n11": (notches_inner(11), notches_inner(11)),
+    "B2-n9-left": (notches_inner(9, -1), notches_inner(9, -1)),
     "C-measured-slope": (ruler(175, 220, slope_y, 7), ruler(166, 184, lambda x: 77.2, 3)),
     "D-summit-point": (summit_point(), summit_point()),
     "E-reticle": (crosshair(), crosshair()),
