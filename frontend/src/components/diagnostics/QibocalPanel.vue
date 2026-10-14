@@ -145,7 +145,7 @@ watch(
 <style scoped>
 .qibocal-panel { display: flex; flex: 1; min-height: 0; overflow: auto; }
 .qibocal-settings { width: 340px; flex-shrink: 0; padding: 16px; overflow-y: auto; }
-.installed-branch { color: #c8a8ff; text-decoration: underline; overflow-wrap: anywhere; }
+.installed-branch { color: #c8a8ff; overflow-wrap: anywhere; }
 .installed-branch:hover { color: #e1d0ff; }
 .source-heading { margin: 0 0 8px; font-size: 11px; font-weight: 600; }
 .version-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }

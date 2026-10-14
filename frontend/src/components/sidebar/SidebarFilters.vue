@@ -5,7 +5,7 @@
       <span class="text-xs font-bold uppercase tracking-wider text-gray-800">Filters</span>
       <button
         @click="$emit('reset-filters')"
-        class="text-[11px] text-[#833dff] hover:underline font-semibold cursor-pointer shrink-0 bg-transparent hover:bg-transparent border-0 shadow-none p-0"
+        class="text-[11px] text-[#833dff] hover:text-[#6b21a8] font-semibold cursor-pointer shrink-0 bg-transparent hover:bg-transparent border-0 shadow-none p-0 transition"
       >
         Clear All
       </button>
@@ -147,7 +147,7 @@
           v-if="selectedFolder"
           type="button"
           @click="$emit('clear-folder')"
-          class="text-[10px] text-[#833dff] hover:underline font-semibold cursor-pointer bg-transparent border-0 p-0"
+          class="text-[10px] text-[#833dff] hover:text-[#6b21a8] font-semibold cursor-pointer bg-transparent border-0 p-0 transition"
         >
           Clear
         </button>

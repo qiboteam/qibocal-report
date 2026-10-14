@@ -42,7 +42,7 @@
             :href="swaggerUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="inline-flex items-center gap-1 text-xs font-semibold text-[#833dff] hover:underline"
+            class="inline-flex items-center gap-1 text-xs font-semibold text-[#833dff] hover:text-[#6b21a8] transition"
           >
             Interactive Swagger UI ↗
           </a>
@@ -281,12 +281,14 @@ article tr:nth-child(even) {
 
 article a {
   color: #833dff;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  font-weight: 500;
 }
 
 article a:hover {
   color: #6b21a8;
+  background: #f4ecff;
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px #f4ecff;
 }
 
 article hr {

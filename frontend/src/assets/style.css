@@ -52,6 +52,17 @@ button {
   padding: 0;
 }
 
+/*
+ * Nothing is underlined: a rule under every actionable word clutters a page
+ * made of them. Colour marks what is actionable, and hovering confirms it.
+ */
+a,
+a:hover,
+button,
+button:hover {
+  text-decoration: none;
+}
+
 h1 {
   font-family: Georgia, Cambria, "Times New Roman", Times, serif;
   font-weight: 600;
