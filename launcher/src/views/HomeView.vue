@@ -49,19 +49,20 @@
 
     <div class="bm-card p-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
       <span class="inline-flex items-center gap-1.5">
-        <span class="w-1.5 h-1.5 rounded-full" :class="hasQibocal ? 'bg-emerald-500' : 'bg-amber-500'" />
+        <Loader2 v-if="installing" class="w-3.5 h-3.5 lx-spin text-[#833dff]" />
+        <span v-else class="w-1.5 h-1.5 rounded-full" :class="hasQibocal ? 'bg-emerald-500' : 'bg-amber-500'" />
         <span class="font-medium text-gray-700">
-          {{ hasQibocal ? state.environment.version || 'Qibocal available' : 'Qibocal not found' }}
+          {{ hasQibocal ? state.environment.version || 'Qibocal available' : installing ? 'Installing Qibocal' : 'Qibocal not installed' }}
         </span>
       </span>
       <code v-if="hasQibocal" class="text-[11px] text-gray-500 truncate max-w-xs">
         {{ state.environment.executable }}
       </code>
       <span v-else-if="installing" class="text-gray-500">
-        Installing it now; the progress is in Running.
+        In the background, in an environment of the launcher's own; the progress is in Running.
       </span>
       <span v-else class="text-gray-500">
-        The launcher installs it for you, in an environment of its own.
+        The launcher installs it on its own when it starts; if that failed, the output is in Running.
       </span>
       <button
         v-if="!hasQibocal && !installing && state.environment?.python"
@@ -85,19 +86,16 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { LayoutDashboard } from 'lucide-vue-next'
+import { LayoutDashboard, Loader2 } from 'lucide-vue-next'
 import { sections } from '../router.js'
 import { sectionIcons } from '../icons.js'
-import { state, attempt, hasQibocal, installQibocal, openDashboard } from '../state.js'
+import { state, attempt, hasQibocal, installQibocal, installing, openDashboard } from '../state.js'
 
 const router = useRouter()
 const others = sections.filter(section => section.name !== 'home')
 
 const running = computed(() => state.processes.filter(process => process.status === 'running').length)
 const connections = computed(() => Object.keys(state.notebooks || {}).length)
-const installing = computed(() =>
-  state.processes.some(process => process.kind === 'setup' && process.status === 'running')
-)
 
 async function install() {
   const started = await attempt(() => installQibocal(false))

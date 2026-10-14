@@ -14,7 +14,7 @@ Installers for the three desktop platforms are attached to every [release](https
 | Linux | `.deb`, `.AppImage` | The AppImage needs no installation |
 | Windows | `-setup.exe`, `.msi` | The installer sets the application up for the current user |
 
-The launcher drives the `qibocal` command line, it does not replace it — and it installs it itself, in an environment of its own, the first time it is asked to (see [Installing Qibocal](#installing-qibocal)). A Python 3.10 or newer on the machine is all it needs.
+The launcher drives the `qibocal` command line, it does not replace it — and it installs it itself, in an environment of its own, the first time it starts (see [Installing Qibocal](#installing-qibocal)). A Python 3.10 or newer on the machine is all it needs.
 
 ### Opening an unsigned build
 
@@ -56,7 +56,9 @@ The header carries no navigation of its own: the logo in the top-left corner ret
 
 ## ⚙️ Installing Qibocal
 
-**Configuration → Install Qibocal** — offered on the home page too, while it is missing — creates an environment of the launcher's own and installs `qibocal-report` into it, with the progress shown in **Running**. The environment lives in `~/.cache/qibocal/envs/launcher` (or `$XDG_CACHE_HOME/qibocal/envs/launcher`), next to the ones the notebook sessions make, and **Update** brings it up to date later. All this needs is a Python 3.10 or newer on the machine: the launcher looks on the `PATH` and in the usual places — Homebrew, `/usr/local`, the python.org installers, pyenv — and says so when it finds none.
+Nothing to do: when the launcher starts and finds no Qibocal, it installs one in the background, in an environment of its own, and says so with a spinner in the header while it works — the output is in **Running**, as for everything else it starts. The environment lives in `~/.cache/qibocal/envs/launcher` (or `$XDG_CACHE_HOME/qibocal/envs/launcher`), next to the ones the notebook sessions make. All this needs is a Python 3.10 or newer on the machine: the launcher looks on the `PATH` and in the usual places — Homebrew, `/usr/local`, the python.org installers, pyenv — and says so, in **Configuration**, when it finds none. Should the installation fail, the same page offers **Install Qibocal** to try again, and **Update** reinstalls the chosen version with its dependencies brought up to date.
+
+Until `qibocal-report` has a release on PyPI, what gets installed is the **`main` branch**, from the repository archive — no `git` is needed. A server installed that way serves its API without the bundled web page, which is no loss here: the launcher's own dashboard is the client.
 
 The launcher then uses, in order:
 
@@ -66,7 +68,7 @@ The launcher then uses, in order:
 4. the `PATH`;
 5. the usual places — `~/.local/bin`, pipx environments, `.venv` folders, `/usr/local/bin`, `/opt/homebrew/bin`.
 
-The **developer options**, folded under the installation, are for a checkout of `qibocal-report`: **Choose environment…** and **Choose executable…** point the launcher at an environment that already has Qibocal — a virtual environment folder is enough, the launcher looks inside its `bin` (or `Scripts`) directory — and **Detect again** goes back to its own installation. **Package to install** changes what Install and Update put in the managed environment: a pinned version, a pre-release, a different distribution. The choices are remembered in `launcher.json`, next to the other configuration files.
+The **developer options**, folded under the installation, hold two things. **Version** picks what goes into the launcher's environment — the releases on PyPI, the branches and the tags of the repository, fetched when the page opens, or *something else*: any requirement `pip install` accepts, a local checkout included. **Save version** stores the choice in `launcher.json`, and the button above becomes **Switch to …** while the installed version differs from the chosen one. **Another environment** is for a checkout of `qibocal-report`: **Choose environment…** and **Choose executable…** point the launcher at an environment that already has Qibocal — a virtual environment folder is enough, the launcher looks inside its `bin` (or `Scripts`) directory — and **Detect again** goes back to its own installation. Both choices live in `launcher.json`, next to the other configuration files.
 
 ---
 

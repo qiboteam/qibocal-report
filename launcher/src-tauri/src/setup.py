@@ -64,8 +64,13 @@ def main():
         if not executable.is_file():
             raise WorkerError(
                 f"{path} has no qibocal after installing {', '.join(packages)}; "
-                "check the package name in the developer options"
+                "check the version chosen in the developer options"
             )
+        # Which requirement the environment holds, for the launcher to show.
+        (path / "qibocal-launcher.json").write_text(
+            json.dumps({"package": packages[0], "packages": packages}, indent=2) + "\n",
+            encoding="utf-8",
+        )
         print(f"Qibocal is ready: {executable}", flush=True)
     except (WorkerError, OSError) as error:
         print(f"Setup failed: {error}", file=sys.stderr, flush=True)

@@ -6,14 +6,26 @@
         away, with their accelerators, and the home page lists them again
         with the figures a navigation bar cannot show.
       -->
-      <div class="max-w-5xl mx-auto px-5 h-14 flex items-center">
-        <router-link to="/" class="lx-logo" title="Launcher home" aria-label="Launcher home">
+      <div class="max-w-5xl mx-auto px-5 h-14 flex items-center gap-3">
+        <router-link to="/" class="lx-logo" title="Qibocal home" aria-label="Qibocal home">
           <launcher-logo />
+        </router-link>
+
+        <!-- Qibocal being installed in the background: said here, on every page. -->
+        <router-link
+          v-if="installing"
+          to="/processes"
+          class="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#f7f5ff] text-[11px] font-medium text-[#3b107e] hover:bg-[#ebe0ff] transition"
+          title="Follow the installation in Running"
+        >
+          <Loader2 class="w-3.5 h-3.5 lx-spin" />
+          Installing Qibocal…
         </router-link>
 
         <button
           type="button"
-          class="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs"
+          :class="{ 'ml-auto': !installing }"
           @click="openDashboard()"
         >
           Dashboard
@@ -42,7 +54,7 @@
 <script setup>
 import { onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { X } from 'lucide-vue-next'
+import { Loader2, X } from 'lucide-vue-next'
 import LauncherLogo from './components/LauncherLogo.vue'
 import { installMenu } from './menu.js'
 import {
@@ -50,6 +62,7 @@ import {
   dismiss,
   fail,
   initialize,
+  installing,
   openDashboard,
   recallLaunch,
   startServer

@@ -23,8 +23,14 @@ use tauri::{AppHandle, State};
 use crate::process::{ProcessInfo, Supervisor};
 use crate::settings;
 
-/// What goes into the managed environment, unless a preference says otherwise.
-pub const DEFAULT_PACKAGE: &str = "qibocal-report";
+/// What goes into the managed environment, unless a preference says otherwise:
+/// the main branch, installed from its archive, until there is a release on
+/// PyPI. Kept in step with `DEFAULT_SPEC` in `src/lib/versions.js`.
+pub const DEFAULT_PACKAGE: &str =
+    "qibocal-report @ https://github.com/qiboteam/qibocal-report/archive/refs/heads/main.tar.gz";
+
+/// Written by `setup.py` next to the environment: which requirement it holds.
+const MARKER: &str = "qibocal-launcher.json";
 
 /// The driver run to create or update the managed environment, and the
 /// worker it borrows from: both written to the cache before every run, so
@@ -49,8 +55,16 @@ pub struct Environment {
     /// A Python the managed environment can be created with, if any.
     pub python: Option<String>,
     pub python_version: Option<String>,
-    /// The packages the managed environment is given.
+    /// The requirement the managed environment is given on the next install.
     pub package: String,
+    /// The requirement it was last installed from, if it exists.
+    pub managed_package: Option<String>,
+}
+
+fn managed_package() -> Option<String> {
+    let text = fs::read_to_string(managed_environment().join(MARKER)).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    value.get("package")?.as_str().map(str::to_string)
 }
 
 fn cache_home() -> PathBuf {
@@ -164,11 +178,11 @@ pub fn install_qibocal(
         fs::write(&path, contents)
             .map_err(|error| format!("Could not write '{}': {error}", path.display()))?;
     }
+    // One pip requirement, spaces included ("name @ url" is one argument).
     let package = package_preference();
-    let packages: Vec<&str> = package.split_whitespace().collect();
     let options = json!({
         "path": managed_environment().display().to_string(),
-        "packages": packages,
+        "packages": [package],
         "upgrade": upgrade.unwrap_or(false),
         "timeout": 1800,
     });
@@ -397,6 +411,7 @@ pub fn environment() -> Environment {
         python: python.as_ref().map(|(path, _)| path.display().to_string()),
         python_version: python.map(|(_, version)| version),
         package: package_preference(),
+        managed_package: managed_package(),
     }
 }
 

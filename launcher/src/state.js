@@ -20,6 +20,11 @@ export const state = reactive({
 
 export const hasQibocal = computed(() => Boolean(state.environment?.executable))
 
+/** Whether the launcher is installing or updating its own Qibocal right now. */
+export const installing = computed(() =>
+  state.processes.some(process => process.kind === 'setup' && process.status === 'running')
+)
+
 export function notify(message) {
   state.error = null
   state.notice = message
@@ -192,6 +197,26 @@ export async function initialize() {
     refreshConfigEntries(),
     refreshPreferences()
   ])
+  await installIfMissing()
+}
+
+/**
+ * Nothing to click on first run: when no Qibocal is found and a Python is,
+ * the launcher installs its own in the background. Once per session — a
+ * failed attempt is left in Running for the user to read, not retried.
+ */
+let offered = false
+export async function installIfMissing() {
+  if (offered || !isDesktop) return
+  const environment = state.environment
+  if (!environment || environment.executable || !environment.python || installing.value) return
+  offered = true
+  try {
+    await installQibocal(false)
+    notify('No Qibocal was found: installing it now. The progress is in Running.')
+  } catch (error) {
+    fail(error)
+  }
 }
 
 /**
