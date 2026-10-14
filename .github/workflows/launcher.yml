@@ -140,9 +140,14 @@ jobs:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           if [ -z "$CERTIFICATE" ] || [ -z "$SIGNING_IDENTITY" ]; then
-            echo "::warning::No Apple Developer ID configured: the build will"\
-                 "be unsigned, and macOS will refuse it until the user allows"\
-                 "it in System Settings → Privacy & Security."
+            # Ad-hoc signing convinces nobody, and Gatekeeper still refuses
+            # the download, but it seals the bundle instead of shipping an
+            # application whose only signature is the one the linker left on
+            # its executable.
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::No Apple Developer ID configured: the build is"\
+                 "only ad-hoc signed, and macOS will refuse it until the user"\
+                 "allows it in System Settings → Privacy & Security."
             exit 0
           fi
           # The certificate is base64, which some tools wrap over several
