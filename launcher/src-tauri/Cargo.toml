@@ -26,9 +26,12 @@ dirs = "6"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# The application is a thin shell around the web view: the fat LTO of the
+# Tauri template costs tens of minutes of linking on a build machine and buys
+# back a few hundred kilobytes.
 [profile.release]
-codegen-units = 1
-lto = true
+codegen-units = 16
+lto = "thin"
 opt-level = "s"
 panic = "abort"
 strip = true

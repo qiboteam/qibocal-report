@@ -4,9 +4,9 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-  # Changing the launcher, or this very workflow, rebuilds everything: the
-  # installers are the only way to tell whether the desktop application still
-  # builds on the three platforms.
+  # Changing the launcher, or this very workflow, rebuilds it: compiling the
+  # application is the only way to tell whether it still builds at all. Pull
+  # requests only build Linux, releases and manual runs all three.
   pull_request:
     paths:
       - "launcher/**"
@@ -22,25 +22,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  plan:
+    name: Platforms
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.platforms.outputs.matrix }}
+    steps:
+      - name: Pick the platforms to build
+        id: platforms
+        shell: bash
+        run: |
+          linux='{"label":"Linux","os":"ubuntu-22.04","target":"","bundles":"deb,appimage"}'
+          macos='{"label":"macOS","os":"macos-14","target":"universal-apple-darwin","bundles":"app,dmg"}'
+          windows='{"label":"Windows","os":"windows-latest","target":"","bundles":"nsis,msi"}'
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            include="$linux"
+          else
+            include="$macos,$linux,$windows"
+          fi
+          echo "matrix={\"include\":[$include]}" >> "$GITHUB_OUTPUT"
+
   build:
     name: ${{ matrix.label }}
+    needs: plan
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - label: macOS
-            os: macos-14
-            target: universal-apple-darwin
-            bundles: app,dmg
-          - label: Linux
-            os: ubuntu-22.04
-            target: ""
-            bundles: deb,appimage
-          - label: Windows
-            os: windows-latest
-            target: ""
-            bundles: nsis,msi
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     steps:
       - name: Checkout repository
