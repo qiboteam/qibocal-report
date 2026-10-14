@@ -53,7 +53,7 @@ export const sections = [
     title: 'Configuration',
     icon: 'Settings',
     accelerator: 'CmdOrCtrl+5',
-    summary: 'Pick the Qibocal installation and edit the shared configuration.'
+    summary: 'Install or update Qibocal, and edit the shared configuration.'
   }
 ]
 

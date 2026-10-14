@@ -57,14 +57,26 @@
       <code v-if="hasQibocal" class="text-[11px] text-gray-500 truncate max-w-xs">
         {{ state.environment.executable }}
       </code>
-      <span v-else class="text-gray-500">
-        Install Qibocal, or point the launcher at an existing environment.
+      <span v-else-if="installing" class="text-gray-500">
+        Installing it now; the progress is in Running.
       </span>
+      <span v-else class="text-gray-500">
+        The launcher installs it for you, in an environment of its own.
+      </span>
+      <button
+        v-if="!hasQibocal && !installing && state.environment?.python"
+        type="button"
+        class="ml-auto px-2.5 py-1 rounded-lg bg-[#833dff] text-white font-medium hover:bg-[#722ce6] transition"
+        @click="install"
+      >
+        Install Qibocal
+      </button>
       <router-link
+        v-else
         to="/settings"
         class="ml-auto px-2.5 py-1 rounded-lg bg-[#ebe0ff] text-[#3b107e] font-medium hover:bg-[#dfceff] transition"
       >
-        {{ hasQibocal ? 'Change' : 'Locate Qibocal' }}
+        {{ hasQibocal ? 'Change' : 'Configuration' }}
       </router-link>
     </div>
   </div>
@@ -72,15 +84,25 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { LayoutDashboard } from 'lucide-vue-next'
 import { sections } from '../router.js'
 import { sectionIcons } from '../icons.js'
-import { state, hasQibocal, openDashboard } from '../state.js'
+import { state, attempt, hasQibocal, installQibocal, openDashboard } from '../state.js'
 
+const router = useRouter()
 const others = sections.filter(section => section.name !== 'home')
 
 const running = computed(() => state.processes.filter(process => process.status === 'running').length)
 const connections = computed(() => Object.keys(state.notebooks || {}).length)
+const installing = computed(() =>
+  state.processes.some(process => process.kind === 'setup' && process.status === 'running')
+)
+
+async function install() {
+  const started = await attempt(() => installQibocal(false))
+  if (started) router.push({ name: 'processes' })
+}
 
 function badge(name) {
   if (name === 'servers' && state.servers.length) return `${state.servers.length} registered`

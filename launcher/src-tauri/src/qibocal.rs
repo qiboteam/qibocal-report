@@ -1,30 +1,202 @@
-//! Locate the `qibocal` command line and run its short-lived subcommands.
+//! Install the `qibocal` command line, locate it, and run its short-lived
+//! subcommands.
 //!
-//! Desktop applications started from a launcher do not inherit the shell
-//! `PATH`, so a plain lookup is not enough: the preferred interpreter can be
-//! stored in `launcher.json`, and a list of usual virtual environment layouts
-//! is probed before giving up.
+//! The launcher keeps an environment of its own, under the cache directory
+//! the notebook sessions use for theirs, and installs `qibocal-report` into
+//! it on request — a Python 3.10 or newer on the machine is all it needs.
+//! Developers who run a checkout can point it at their own environment
+//! instead: that choice is stored in `launcher.json` and wins over the
+//! managed one. Desktop applications started from a launcher do not inherit
+//! the shell `PATH`, so a plain lookup comes last, after the usual virtual
+//! environment layouts.
 
+use std::collections::HashSet;
+use std::fs;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Serialize;
 use serde_json::{json, Value};
+use tauri::{AppHandle, State};
 
+use crate::process::{ProcessInfo, Supervisor};
 use crate::settings;
+
+/// What goes into the managed environment, unless a preference says otherwise.
+pub const DEFAULT_PACKAGE: &str = "qibocal-report";
+
+/// The driver run to create or update the managed environment, and the
+/// worker it borrows from: both written to the cache before every run, so
+/// the files on disk are always the ones this build was made with.
+const SETUP_SCRIPT: &str = include_str!("setup.py");
+const WORKER_SOURCE: &str = include_str!("../../../src/qibocal_report/notebook_worker.py");
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Environment {
     /// Absolute path of the resolved interpreter, when one was found.
     pub executable: Option<String>,
-    /// How it was found: `preference`, `environment`, `path` or `well-known`.
+    /// How it was found: `preference`, `managed`, `environment`, `path` or `well-known`.
     pub source: Option<String>,
     pub version: Option<String>,
     pub config_directory: String,
     /// Locations that were probed, to make a missing installation diagnosable.
     pub searched: Vec<String>,
+    /// The environment the launcher installs and updates itself.
+    pub managed: String,
+    pub managed_ready: bool,
+    /// A Python the managed environment can be created with, if any.
+    pub python: Option<String>,
+    pub python_version: Option<String>,
+    /// The packages the managed environment is given.
+    pub package: String,
+}
+
+fn cache_home() -> PathBuf {
+    std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
+        .or_else(|| dirs::home_dir().map(|home| home.join(".cache")))
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+/// Where the launcher keeps the environment it installs itself: the folder
+/// the notebook sessions use for theirs, under the launcher's own name.
+pub fn managed_environment() -> PathBuf {
+    cache_home().join("qibocal").join("envs").join("launcher")
+}
+
+fn launcher_cache() -> PathBuf {
+    cache_home().join("qibocal").join("launcher")
+}
+
+fn package_preference() -> String {
+    settings::launcher_preferences()
+        .get("package")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(DEFAULT_PACKAGE)
+        .to_string()
+}
+
+fn python_candidates() -> Vec<PathBuf> {
+    let names: &[&str] = if cfg!(windows) {
+        &["python.exe", "python3.exe"]
+    } else {
+        &["python3.13", "python3.12", "python3.11", "python3.10", "python3", "python"]
+    };
+    let mut directories: Vec<PathBuf> =
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).collect();
+    for absolute in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
+        directories.push(PathBuf::from(absolute));
+    }
+    if let Some(home) = dirs::home_dir() {
+        directories.push(home.join(".pyenv/shims"));
+        directories.push(home.join(".local/bin"));
+    }
+    // Installers from python.org, on macOS.
+    if let Ok(entries) = fs::read_dir("/Library/Frameworks/Python.framework/Versions") {
+        for entry in entries.flatten() {
+            directories.push(entry.path().join("bin"));
+        }
+    }
+    directories
+        .into_iter()
+        // The system Python of macOS is a stub that offers to install the
+        // developer tools, and too old in any case.
+        .filter(|directory| !(cfg!(target_os = "macos") && directory == Path::new("/usr/bin")))
+        .flat_map(|directory| names.iter().map(move |name| directory.join(name)))
+        .filter(|candidate| candidate.is_file())
+        .collect()
+}
+
+fn python_version(path: &Path) -> Option<(u32, u32)> {
+    let mut command = Command::new(path);
+    configure(&mut command);
+    let output = command
+        .args(["-c", "import sys; print(sys.version_info[0], sys.version_info[1])"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut parts = text.split_whitespace();
+    Some((parts.next()?.parse().ok()?, parts.next()?.parse().ok()?))
+}
+
+/// A Python new enough for qibocal-report, with its version.
+pub fn find_python() -> Result<(PathBuf, String), String> {
+    let mut seen = HashSet::new();
+    for candidate in python_candidates() {
+        let Ok(real) = fs::canonicalize(&candidate) else {
+            continue;
+        };
+        if !seen.insert(real) {
+            continue;
+        }
+        if let Some((major, minor)) = python_version(&candidate) {
+            if (major, minor) >= (3, 10) {
+                return Ok((candidate, format!("{major}.{minor}")));
+            }
+        }
+    }
+    Err("No Python 3.10 or newer was found. Install one from python.org or with the \
+         system package manager, then try again."
+        .to_string())
+}
+
+/// Create the managed environment, or update what is installed in it.
+#[tauri::command]
+pub fn install_qibocal(
+    app: AppHandle,
+    supervisor: State<Supervisor>,
+    upgrade: Option<bool>,
+) -> Result<ProcessInfo, String> {
+    let (python, _) = find_python()?;
+    let cache = launcher_cache();
+    fs::create_dir_all(&cache)
+        .map_err(|error| format!("Could not create '{}': {error}", cache.display()))?;
+    for (name, contents) in [("notebook_worker.py", WORKER_SOURCE), ("setup.py", SETUP_SCRIPT)] {
+        let path = cache.join(name);
+        fs::write(&path, contents)
+            .map_err(|error| format!("Could not write '{}': {error}", path.display()))?;
+    }
+    let package = package_preference();
+    let packages: Vec<&str> = package.split_whitespace().collect();
+    let options = json!({
+        "path": managed_environment().display().to_string(),
+        "packages": packages,
+        "upgrade": upgrade.unwrap_or(false),
+        "timeout": 1800,
+    });
+    let arguments = vec![
+        "-u".to_string(),
+        cache.join("setup.py").display().to_string(),
+        options.to_string(),
+    ];
+    let mut command = Command::new(&python);
+    configure(&mut command);
+    let display = std::iter::once(python.display().to_string())
+        .chain(arguments.clone())
+        .collect();
+    supervisor.spawn_command(
+        &app,
+        "setup",
+        if upgrade.unwrap_or(false) {
+            "Updating Qibocal".to_string()
+        } else {
+            "Installing Qibocal".to_string()
+        },
+        format!("{package} in {}", managed_environment().display()),
+        command,
+        arguments,
+        display,
+        None,
+        None,
+    )
 }
 
 fn program_names() -> Vec<&'static str> {
@@ -98,6 +270,12 @@ pub fn resolve() -> (Option<(PathBuf, String)>, Vec<String>) {
         }
     }
 
+    let managed = managed_environment();
+    searched.push(managed.display().to_string());
+    if let Some(resolved) = normalize_candidate(&managed) {
+        return (Some((resolved, "managed".to_string())), searched);
+    }
+
     if let Some(value) = std::env::var("QIBOCAL_EXECUTABLE")
         .ok()
         .filter(|value| !value.is_empty())
@@ -136,10 +314,22 @@ pub fn executable() -> Result<PathBuf, String> {
         .0
         .map(|(path, _)| path)
         .ok_or_else(|| {
-            "No 'qibocal' command line was found. Install qibocal-report, or select the \
-             interpreter in the Configuration section."
+            "Qibocal is not installed yet. Install it from the Configuration section, or \
+             point the launcher at an environment that has it."
                 .to_string()
         })
+}
+
+/// The environment every Python process is started with.
+fn configure(command: &mut Command) {
+    command.env("PYTHONUNBUFFERED", "1");
+    command.env("PYTHONIOENCODING", "utf-8");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW: never flash a console behind the interface.
+        command.creation_flags(0x0800_0000);
+    }
 }
 
 /// Build a command that can find its own siblings (python, uvicorn, pnpm).
@@ -154,14 +344,7 @@ pub fn command(program: &Path) -> Command {
             command.env("PATH", path);
         }
     }
-    command.env("PYTHONUNBUFFERED", "1");
-    command.env("PYTHONIOENCODING", "utf-8");
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW: never flash a console behind the interface.
-        command.creation_flags(0x0800_0000);
-    }
+    configure(&mut command);
     command
 }
 
@@ -201,12 +384,19 @@ pub fn environment() -> Environment {
             .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
             .filter(|version| !version.is_empty())
     });
+    let managed = managed_environment();
+    let python = find_python().ok();
     Environment {
         executable: executable.map(|path| path.display().to_string()),
         source,
         version,
         config_directory: settings::config_dir().display().to_string(),
         searched,
+        managed_ready: normalize_candidate(&managed).is_some(),
+        managed: managed.display().to_string(),
+        python: python.as_ref().map(|(path, _)| path.display().to_string()),
+        python_version: python.map(|(_, version)| version),
+        package: package_preference(),
     }
 }
 

@@ -26,10 +26,19 @@ launcher/
 └── src-tauri/
     ├── src/
     │   ├── settings.rs config files shared with the CLI
-    │   ├── qibocal.rs  interpreter discovery and short-lived CLI calls
+    │   ├── qibocal.rs  installing, finding and calling the command line
+    │   ├── setup.py    creates the launcher's own environment, run by qibocal.rs
     │   └── process.rs  the supervisor of long-running processes
     └── icon.svg        source of the icon set
 ```
+
+The launcher installs `qibocal-report` itself, into
+`~/.cache/qibocal/envs/launcher`, with the first Python 3.10+ it finds.
+`setup.py` does the work, and borrows the environment code of
+`src/qibocal_report/notebook_worker.py`, which `qibocal.rs` embeds at build
+time with `include_str!` — the Rust crate therefore depends on the Python
+package tree being where it is in this repository. Pointing the launcher at a
+different environment is a developer option, stored in `launcher.json`.
 
 There is no navigation bar: the header holds the logo on the left and the
 dashboard button on the right, and the sections are reached through the **Go**

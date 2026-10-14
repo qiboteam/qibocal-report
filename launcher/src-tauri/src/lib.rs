@@ -22,6 +22,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             qibocal::environment,
             qibocal::set_executable,
+            qibocal::install_qibocal,
             qibocal::free_port,
             qibocal::administrators,
             qibocal::reissue_invite,

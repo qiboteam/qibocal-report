@@ -23,6 +23,7 @@ function call(command, args) {
 export const desktop = {
   environment: () => call('environment'),
   setExecutable: path => call('set_executable', { path }),
+  installQibocal: upgrade => call('install_qibocal', { upgrade }),
   freePort: () => call('free_port'),
   platform: () => call('platform_summary'),
 

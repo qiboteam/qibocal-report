@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
-use std::process::{Child, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -159,6 +159,7 @@ impl Supervisor {
         }
     }
 
+    /// Start a `qibocal` subcommand under supervision.
     pub fn spawn(
         &self,
         app: &AppHandle,
@@ -170,7 +171,37 @@ impl Supervisor {
         url: Option<String>,
     ) -> Result<ProcessInfo, String> {
         let program = qibocal::executable()?;
-        let mut command = qibocal::command(&program);
+        let command = qibocal::command(&program);
+        let display = std::iter::once(program.display().to_string())
+            .chain(arguments.clone())
+            .collect();
+        self.spawn_command(
+            app,
+            kind,
+            label,
+            detail,
+            command,
+            arguments,
+            display,
+            working_directory,
+            url,
+        )
+    }
+
+    /// Start any program under supervision; `display` is the command as shown.
+    #[allow(clippy::too_many_arguments)]
+    pub fn spawn_command(
+        &self,
+        app: &AppHandle,
+        kind: &str,
+        label: String,
+        detail: String,
+        mut command: Command,
+        arguments: Vec<String>,
+        display: Vec<String>,
+        working_directory: Option<PathBuf>,
+        url: Option<String>,
+    ) -> Result<ProcessInfo, String> {
         command
             .args(&arguments)
             .stdin(Stdio::null())
@@ -179,9 +210,10 @@ impl Supervisor {
         if let Some(directory) = working_directory {
             command.current_dir(directory);
         }
+        let program = display.first().cloned().unwrap_or_default();
         let mut child = command
             .spawn()
-            .map_err(|error| format!("Could not start '{}': {error}", program.display()))?;
+            .map_err(|error| format!("Could not start '{program}': {error}"))?;
 
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
@@ -192,9 +224,7 @@ impl Supervisor {
             kind: kind.to_string(),
             label,
             detail,
-            command: std::iter::once(program.display().to_string())
-                .chain(arguments)
-                .collect(),
+            command: display,
             url,
             status: "running".to_string(),
             exit_code: None,
@@ -418,7 +448,6 @@ pub fn start_server(
         .filter(|value| !value.is_empty());
 
     let mut arguments = vec!["report".to_string(), options.mode.clone()];
-    let mut working_directory = None;
     match options.mode.as_str() {
         "server" | "dev" => {
             // No directory is the shared one, which the command line locates
@@ -426,12 +455,8 @@ pub fn start_server(
             // there — unless it belongs to the other machine over SSH, where
             // only the worker can tell.
             if let Some(directory) = &directory {
-                if ssh.is_none() {
-                    let path = PathBuf::from(directory);
-                    if !path.is_dir() {
-                        return Err(format!("'{directory}' is not a directory."));
-                    }
-                    working_directory = Some(path);
+                if ssh.is_none() && !PathBuf::from(directory).is_dir() {
+                    return Err(format!("'{directory}' is not a directory."));
                 }
                 arguments.push(directory.clone());
             }
@@ -439,6 +464,7 @@ pub fn start_server(
         "client" => {}
         other => return Err(format!("Unknown server mode '{other}'.")),
     }
+    let working_directory = None;
     if ssh.is_none() {
         arguments.push("--host".to_string());
         arguments.push(options.host.clone());

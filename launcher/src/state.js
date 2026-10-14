@@ -140,10 +140,20 @@ export function unregisteredServers() {
   return runningServers().filter(process => !registered.has(serverUrl(process.url)))
 }
 
+/** Create the launcher's own Qibocal environment, or update it. */
+export async function installQibocal(upgrade = false) {
+  const info = await desktop.installQibocal(upgrade)
+  mergeProcess(info)
+  return info
+}
+
 function mergeProcess(info) {
   const index = state.processes.findIndex(process => process.id === info.id)
   if (index >= 0) state.processes[index] = info
   else state.processes.push(info)
+
+  // An installation that ended changed what the launcher can find.
+  if (info.kind === 'setup' && info.status !== 'running') refreshEnvironment()
 
   const waiting = pending.get(info.id)
   if (!waiting) return
