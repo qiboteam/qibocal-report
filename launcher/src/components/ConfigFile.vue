@@ -8,28 +8,37 @@
 -->
 <template>
   <section class="bm-card overflow-hidden">
-    <header class="flex flex-wrap items-center gap-x-3 gap-y-1 p-4">
-      <label class="flex items-center gap-2.5 cursor-pointer">
-        <input
-          type="checkbox"
-          class="accent-[#833dff]"
-          :disabled="!entry.exists"
-          :checked="selected"
-          @change="$emit('toggle', entry.name)"
-        />
-        <span>
-          <span class="block text-sm font-medium text-gray-900">{{ entry.name }}</span>
-          <span class="block lx-help !mt-0">{{ entry.description }}</span>
-        </span>
-      </label>
-
-      <span class="ml-auto text-xs text-gray-400 whitespace-nowrap">
+    <!--
+      The whole header opens the file, the way an entry row opens an entry;
+      the checkbox, for deletion, is the one spot that does not.
+    -->
+    <header
+      class="lx-row gap-x-3"
+      :class="{ 'is-open': open }"
+      role="button"
+      :aria-expanded="open"
+      tabindex="0"
+      @click="toggleOpen"
+      @keydown.enter.prevent="toggleOpen"
+      @keydown.space.prevent="toggleOpen"
+    >
+      <input
+        type="checkbox"
+        class="accent-[#833dff]"
+        :disabled="!entry.exists"
+        :checked="selected"
+        title="Select for deletion"
+        @click.stop
+        @change="$emit('toggle', entry.name)"
+      />
+      <span class="min-w-0 flex-1">
+        <span class="block text-sm font-medium text-gray-900">{{ entry.name }}</span>
+        <span class="block lx-help !mt-0">{{ entry.description }}</span>
+      </span>
+      <span class="text-xs text-gray-400 whitespace-nowrap">
         {{ entry.exists ? size(entry.size) : 'not created' }}
       </span>
-      <button type="button" class="lx-action" @click="toggleOpen">
-        <component :is="open ? ChevronUp : ChevronDown" class="w-3.5 h-3.5" />
-        {{ open ? 'Close' : 'Edit' }}
-      </button>
+      <ChevronRight class="lx-chevron w-4 h-4" />
     </header>
 
     <div v-if="open" class="border-t border-gray-100 p-4 space-y-3">
@@ -41,97 +50,99 @@
 
       <!-- A file that could not be structured has no value, only its text. -->
       <template v-if="!loading && (raw || value !== null)">
-        <!-- Entries -->
-        <div v-if="!raw" class="space-y-2">
-          <p v-if="!entries.length" class="text-xs text-gray-500">
+        <!-- Entries: a list whose rows unfold in place -->
+        <div v-if="!raw" class="lx-list">
+          <p v-if="!entries.length" class="px-3 py-2.5 text-xs text-gray-500">
             No {{ shape.entry }} yet.
           </p>
 
-          <article
-            v-for="item in entries"
-            :key="item.key"
-            class="rounded-xl bg-[#fafafa]"
-          >
-            <div class="flex items-center gap-2 px-3 py-2">
-              <button
-                type="button"
-                class="flex-1 min-w-0 text-left"
-                @click="expanded = expanded === item.key ? null : item.key"
-              >
+          <article v-for="item in entries" :key="item.key">
+            <button
+              type="button"
+              class="lx-row"
+              :class="{ 'is-open': expanded === item.key }"
+              :aria-expanded="expanded === item.key"
+              @click="expanded = expanded === item.key ? null : item.key"
+            >
+              <ChevronRight class="lx-chevron w-3.5 h-3.5" />
+              <span class="min-w-0 flex-1">
                 <span class="block text-xs font-medium text-gray-900 truncate">{{ item.title }}</span>
                 <span class="block lx-mono text-gray-500 truncate">{{ item.subtitle }}</span>
-              </button>
-              <button type="button" class="lx-action" :title="`Remove this ${shape.entry}`" @click="remove(item.key)">
-                <Trash2 class="w-3.5 h-3.5" />
-              </button>
-              <component
-                :is="expanded === item.key ? ChevronUp : ChevronDown"
-                class="w-3.5 h-3.5 text-gray-400 shrink-0"
-              />
-            </div>
+              </span>
+            </button>
 
-            <div v-if="expanded === item.key" class="px-3 pb-3 pt-1 grid gap-3 sm:grid-cols-2">
-              <form-field
-                v-if="shape.kind === 'map'"
-                v-slot="{ id }"
-                class="sm:col-span-2"
-                label="Name"
-                help="How this entry is referred to everywhere else."
-              >
-                <input
-                  :id="id"
-                  class="lx-input lx-mono"
-                  :value="item.key"
-                  @change="rename(item.key, $event.target.value)"
-                />
-              </form-field>
+            <div v-if="expanded === item.key" class="lx-nested">
+              <div class="grid gap-3 sm:grid-cols-2">
+                <form-field
+                  v-if="shape.kind === 'map'"
+                  v-slot="{ id }"
+                  class="sm:col-span-2"
+                  label="Name"
+                  help="How this entry is referred to everywhere else."
+                >
+                  <input
+                    :id="id"
+                    class="lx-input lx-mono"
+                    :value="item.key"
+                    @change="rename(item.key, $event.target.value)"
+                  />
+                </form-field>
 
-              <form-field
-                v-for="field in fieldsOf(item)"
-                :key="`${item.key}:${field.name}`"
-                v-slot="{ id }"
-                :class="field.type === 'json' ? 'sm:col-span-2' : ''"
-                :label="field.label"
-                :help="field.help"
-                :error="jsonErrors[`${item.key}:${field.name}`]"
-              >
-                <toggle-switch
-                  v-if="field.type === 'boolean'"
-                  label=""
-                  :model-value="Boolean(field.value)"
-                  @update:model-value="set(item.key, field.name, $event)"
-                />
-                <input
-                  v-else-if="field.type === 'number'"
-                  :id="id"
-                  type="number"
-                  class="lx-input lx-mono"
-                  :value="field.value"
-                  @change="set(item.key, field.name, number($event.target.value))"
-                />
-                <textarea
-                  v-else-if="field.type === 'json'"
-                  :id="id"
-                  rows="4"
-                  class="lx-input lx-mono"
-                  :value="json(field.value)"
-                  @input="setJson(item.key, field.name, $event.target.value)"
-                />
-                <input
-                  v-else
-                  :id="id"
-                  type="text"
-                  class="lx-input"
-                  :class="{ 'lx-mono': field.mono }"
-                  :value="field.value ?? ''"
-                  @change="set(item.key, field.name, $event.target.value)"
-                />
-              </form-field>
+                <form-field
+                  v-for="field in fieldsOf(item)"
+                  :key="`${item.key}:${field.name}`"
+                  v-slot="{ id }"
+                  :class="field.type === 'json' ? 'sm:col-span-2' : ''"
+                  :label="field.label"
+                  :help="field.help"
+                  :error="jsonErrors[`${item.key}:${field.name}`]"
+                >
+                  <toggle-switch
+                    v-if="field.type === 'boolean'"
+                    label=""
+                    :model-value="Boolean(field.value)"
+                    @update:model-value="set(item.key, field.name, $event)"
+                  />
+                  <input
+                    v-else-if="field.type === 'number'"
+                    :id="id"
+                    type="number"
+                    class="lx-input lx-mono"
+                    :value="field.value"
+                    @change="set(item.key, field.name, number($event.target.value))"
+                  />
+                  <textarea
+                    v-else-if="field.type === 'json'"
+                    :id="id"
+                    rows="4"
+                    class="lx-input lx-mono"
+                    :value="json(field.value)"
+                    @input="setJson(item.key, field.name, $event.target.value)"
+                  />
+                  <input
+                    v-else
+                    :id="id"
+                    type="text"
+                    class="lx-input"
+                    :class="{ 'lx-mono': field.mono }"
+                    :value="field.value ?? ''"
+                    @change="set(item.key, field.name, $event.target.value)"
+                  />
+                </form-field>
+              </div>
+
+              <!-- Removing belongs with the thing removed, not next to every row. -->
+              <div class="flex justify-end mt-3">
+                <button type="button" class="lx-action is-danger" @click="remove(item.key)">
+                  <Trash2 class="w-3.5 h-3.5" /> Remove this {{ shape.entry }}
+                </button>
+              </div>
             </div>
           </article>
 
-          <button v-if="shape.template" type="button" class="lx-action" @click="add">
-            <Plus class="w-3.5 h-3.5" /> Add a {{ shape.entry }}
+          <button v-if="shape.template" type="button" class="lx-row text-xs text-gray-500" @click="add">
+            <Plus class="w-3.5 h-3.5 shrink-0 text-gray-400" />
+            Add a {{ shape.entry }}
           </button>
         </div>
 
@@ -155,12 +166,7 @@
         <button type="button" class="lx-action ml-auto" :disabled="!dirty" @click="load">
           <RotateCcw class="w-3.5 h-3.5" /> Revert
         </button>
-        <button
-          type="button"
-          class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] transition disabled:opacity-40"
-          :disabled="!dirty || saving || Boolean(rawError)"
-          @click="save"
-        >
+        <button type="button" class="lx-primary" :disabled="!dirty || saving || Boolean(rawError)" @click="save">
           {{ saving ? 'Saving…' : 'Save' }}
         </button>
       </div>
@@ -170,7 +176,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { Braces, ChevronDown, ChevronUp, Plus, RotateCcw, Trash2 } from 'lucide-vue-next'
+import { Braces, ChevronRight, Plus, RotateCcw, Trash2 } from 'lucide-vue-next'
 import FormField from './FormField.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import { desktop } from '../bridge.js'

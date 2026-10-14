@@ -147,11 +147,11 @@ Opening a session runs it with `--no-interactive`: the address appears in **Runn
 | `auth.json` | Users, invitations and signing keys |
 | `launcher.json` | Launcher preferences |
 
-**Edit** opens a file on its contents: the registered servers, the saved connections, the users, the preferences — one row per entry, named as the rest of the application names it. Expanding a row turns it into fields, and an entry can be added or removed. **Edit as JSON** swaps the fields for the text of the file, checked as it is typed, with **Save** out of reach while the JSON is broken — which is also how a file the editor cannot structure is repaired. Saving replaces the file in one step and reloads the sections that read it, so a server renamed here is renamed in **Servers** at once; **Revert** goes back to what is on disk.
+A click on a file opens it on its contents: the registered servers, the saved connections, the users, the preferences — one row per entry, named as the rest of the application names it. A click on a row unfolds it into fields, marked by the accent line down its left, where the entry is edited or removed; the last row adds one. **Edit as JSON** swaps the fields for the text of the file, checked as it is typed, with **Save** out of reach while the JSON is broken — which is also how a file the editor cannot structure is repaired. Saving replaces the file in one step and reloads the sections that read it, so a server renamed here is renamed in **Servers** at once; **Revert** goes back to what is on disk.
 
 `auth.json` is editable too, behind a warning: it holds the users, the invitations and the signing keys, and changing the keys signs everyone out exactly as deleting the file does.
 
-Files can also be revealed in the system file manager, and selected ones deleted — the graphical counterpart of `qibocal config clean`. Deleting `auth.json` signs every user out and clears the administrators, exactly as it does from the command line.
+Files can also be revealed in the system file manager, and the ones ticked deleted — the graphical counterpart of `qibocal config clean`. Deleting `auth.json` signs every user out and clears the administrators, exactly as it does from the command line.
 
 ---
 
