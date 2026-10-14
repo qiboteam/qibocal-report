@@ -30,7 +30,7 @@ Q_SKY = (
 )
 # The same outline, with the slope cut short just past the ring: the Q alone.
 Q_OUTER_SHORT = (
-    "M 184.5,76.9 c -4.2,-0.9 -10.3,-2.6 -14.71,-5.43 "
+    "M 180.6,76.6 c -3.4,-0.8 -7.5,-2.4 -10.81,-5.13 "
     "2.4,-2.48 3.56,-5.56 3.56,-9.48 0,-8.84 -6.71135,-15.283251 -15.67135,-15.283251 "
     "-8.88,0 -15.76,6.68 -15.76,15.28 0,8.52 7.08,15.32 16,15.32 3,0 6.15135,-1.036749 "
     "8.23135,-2.476749 2.52,1.72 4.44,2.4 7,2.4 0.16,0 0.4,0 0.72,-0.04 z"
@@ -113,23 +113,24 @@ def letter_a(x):
     bar_y = 69.0
     # The bar spans the counter, with a little overlap into the legs.
     frac = (bar_y - (TOP + rise)) / (BASE - (TOP + rise))
-    left = xm - frac * (xm - (x + t)) - 1.0
-    right = xm + frac * ((x + w - t) - xm) + 1.0
+    left = xm - frac * (xm - (x + t)) - 3.0
+    right = xm + frac * ((x + w - t) - xm) + 3.0
     bar = f"M {fmt(left, bar_y)} H {fmt(right)} V {fmt(bar_y + 3.4)} H {fmt(left)} Z"
     return [f"{outer} {inner}", bar], x + w
 
 
 def letter_l(x):
     w, t = 12.2, STEM
-    stem = f"M {fmt(x, TOP)} H {fmt(x + t)} V {fmt(BASE)} H {fmt(x)} Z"
-    foot = f"M {fmt(x, BASE - 3.6)} H {fmt(x + w)} V {fmt(BASE)} H {fmt(x)} Z"
-    return f"{stem} {foot}", x + w
+    return (
+        f"M {fmt(x, TOP)} H {fmt(x + t)} V {fmt(BASE - 3.6)} H {fmt(x + w)} "
+        f"V {fmt(BASE)} H {fmt(x)} Z"
+    ), x + w
 
 
 def cal_paths():
     c, x = letter_c(223.3)
-    a, x = letter_a(x + 1.2)
-    l, x = letter_l(x + 2.4)
+    a, x = letter_a(x + 1.5)
+    l, x = letter_l(x + 3.0)
     return [c, *a, l], x
 
 
@@ -153,6 +154,17 @@ def notches():
         x1, y1 = polar(CX, CY, R_OUT + 0.3, angle)
         x2, y2 = polar(CX, CY, R_OUT - depth, angle)
         parts.append(f'<path d="M {fmt(x1, y1)} L {fmt(x2, y2)}" stroke="{{bg}}" stroke-width="1.5"/>')
+    return "\n".join(parts)
+
+
+def notches_inner():
+    """The graduation drawn inside the bezel: ticks on the inner edge of the ring."""
+    parts = []
+    for angle in (235, 252.5, 270, 287.5, 305):
+        depth = 3.0 if angle in (235, 270, 305) else 1.8
+        x1, y1 = polar(CX, CY, R_IN + 0.4, angle)
+        x2, y2 = polar(CX, CY, R_IN - depth, angle)
+        parts.append(f'<path d="M {fmt(x1, y1)} L {fmt(x2, y2)}" stroke="{{color}}" stroke-width="1.5"/>')
     return "\n".join(parts)
 
 
@@ -214,6 +226,7 @@ def notches_square():
 SQUARE_MOTIFS = {
     "A-gauge-ticks": ticks_outside_square(),
     "B-bezel-notches": notches_square(),
+    "B2-inner-notches": notches_inner(),
     "C-measured-slope": ruler(166, 184, lambda x: 77.2, 3),
     "D-summit-point": summit_point(),
     "E-reticle": crosshair(),
@@ -261,6 +274,7 @@ def render(name, markup):
 MOTIFS = {
     "A-gauge-ticks": (ticks_outside(), ticks_outside()),
     "B-bezel-notches": (notches(), notches()),
+    "B2-inner-notches": (notches_inner(), notches_inner()),
     "C-measured-slope": (ruler(175, 220, slope_y, 7), ruler(166, 184, lambda x: 77.2, 3)),
     "D-summit-point": (summit_point(), summit_point()),
     "E-reticle": (crosshair(), crosshair()),
@@ -272,17 +286,17 @@ for name, (word_motif, icon_motif) in MOTIFS.items():
     render(f"{name}-wordmark", svg(1520, 420, "translate(-1400 -420) scale(10)", body))
     # Icon: the Q alone, slope cut short, on the purple plate and in black.
     icon = q_glyph(short=True) + "\n" + icon_motif
-    render(f"{name}-icon", svg(512, 512, "translate(-1294.4 -334.4) scale(9.5)", icon, bg="#833dff", color="#ffffff", rounded=True))
-    render(f"{name}-icon-black", svg(512, 512, "translate(-1294.4 -334.4) scale(9.5)", icon))
+    render(f"{name}-icon", svg(512, 512, "translate(-1241.5 -333) scale(9.5)", icon, bg="#833dff", color="#ffffff", rounded=True))
+    render(f"{name}-icon-black", svg(512, 512, "translate(-1241.5 -333) scale(9.5)", icon))
     square = q_glyph(square=True) + "\n" + SQUARE_MOTIFS[name]
-    render(f"{name}-icon-square", svg(512, 512, "translate(-1294.4 -334.4) scale(9.5)", square, bg="#833dff", color="#ffffff", rounded=True))
-    render(f"{name}-icon-square-black", svg(512, 512, "translate(-1294.4 -334.4) scale(9.5)", square))
+    render(f"{name}-icon-square", svg(512, 512, "translate(-1241.5 -333) scale(9.5)", square, bg="#833dff", color="#ffffff", rounded=True))
+    render(f"{name}-icon-square-black", svg(512, 512, "translate(-1241.5 -333) scale(9.5)", square))
 
 # The two ways the slope can meet the longer word.
 body, end = wordmark(MOTIFS["A-gauge-ticks"][0], extended_slope=True)
 render("slope-continued-wordmark", svg(1520, 420, "translate(-1400 -420) scale(10)", body))
 body, end = wordmark("")
 render("plain-wordmark", svg(1520, 420, "translate(-1400 -420) scale(10)", body))
-render("plain-icon", svg(512, 512, "translate(-1294.4 -334.4) scale(9.5)", q_glyph(short=True), bg="#833dff", color="#ffffff", rounded=True))
-render("plain-icon-square", svg(512, 512, "translate(-1294.4 -334.4) scale(9.5)", q_glyph(square=True), bg="#833dff", color="#ffffff", rounded=True))
+render("plain-icon", svg(512, 512, "translate(-1241.5 -333) scale(9.5)", q_glyph(short=True), bg="#833dff", color="#ffffff", rounded=True))
+render("plain-icon-square", svg(512, 512, "translate(-1241.5 -333) scale(9.5)", q_glyph(square=True), bg="#833dff", color="#ffffff", rounded=True))
 print(sorted(p.name for p in OUT.iterdir()))
