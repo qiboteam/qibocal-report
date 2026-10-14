@@ -1,4 +1,4 @@
-//! Qibocal Launcher: a thin desktop shell around the `qibocal` command line.
+//! Qibocal: a thin desktop shell around the `qibocal` command line.
 //!
 //! The Rust side only does what a browser cannot: find the interpreter, read
 //! and write the shared configuration files, and supervise long-running

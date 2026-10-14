@@ -181,7 +181,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          app="launcher/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Qibocal Launcher.app"
+          app="launcher/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Qibocal.app"
           if [ ! -d "$app" ]; then
             echo "::warning::$app not found, skipping the assessment."
             exit 0

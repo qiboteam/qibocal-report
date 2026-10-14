@@ -16,7 +16,7 @@ async function build({ goTo, openDashboard, launchServer, servers }) {
   const items = []
 
   items.push(await Submenu.new({
-    text: 'Qibocal Launcher',
+    text: 'Qibocal',
     items: [
       await MenuItem.new({
         id: 'menu-dashboard',

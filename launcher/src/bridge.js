@@ -13,7 +13,7 @@ import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 export const isDesktop = typeof window !== 'undefined' &&
   Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
 
-const UNAVAILABLE = 'This action needs the Qibocal Launcher application window.'
+const UNAVAILABLE = 'This action needs the Qibocal desktop application window.'
 
 function call(command, args) {
   if (!isDesktop) return Promise.reject(new Error(UNAVAILABLE))

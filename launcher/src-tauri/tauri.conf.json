@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Qibocal Launcher",
+  "productName": "Qibocal",
   "version": "0.1.0",
-  "identifier": "science.qibo.qibocal.launcher",
+  "identifier": "science.qibo.qibocal",
   "build": {
     "beforeDevCommand": "pnpm run dev",
     "beforeBuildCommand": "pnpm run build",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Qibocal Launcher",
+        "title": "Qibocal",
         "width": 1180,
         "height": 840,
         "minWidth": 920,

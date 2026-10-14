@@ -1,9 +1,9 @@
-# Qibocal Launcher
+# Qibocal, the desktop application
 
-The desktop application: it spawns `qibocal` processes, manages the
-configuration shared with the command line, and embeds the web dashboard so
-there is no context switch between starting an instance and browsing its
-reports.
+Named after the command line it drives, there being nothing else to confuse it
+with: it spawns `qibocal` processes, edits the configuration shared with them,
+and embeds the web dashboard so there is no context switch between starting an
+instance and browsing its reports.
 
 The user-facing documentation lives in
 [`docs/user-guide/launcher.md`](../docs/user-guide/launcher.md).
