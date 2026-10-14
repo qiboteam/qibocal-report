@@ -242,9 +242,17 @@ qibocal notebook remove mychip
 .TP
 .BR "qibocal report server" " [DIRECTORY]"
 Serve reports and the embedded web app, here or on another machine.
-Directory defaults to the current directory.
+Without a directory, the shared reports directory is served:
+.BR $QIBOCAL_REPORT_DATA_DIR/reports ,
+.B $XDG_DATA_HOME/qibocal/reports
+or
+.BR ~/.local/share/qibocal/reports ,
+created when missing. A named directory has to exist.
 Options: \-\-host (localhost), \-\-port (8000), \-\-auth/\-\-no-auth,
-and the remote options below.
+.BI \-\-name " TEXT"
+(the name the server is registered under),
+\-\-register/\-\-no-register (whether it goes into servers.json at all;
+default: register), and the remote options below.
 .RS
 .PP
 With
@@ -277,9 +285,13 @@ Serve the standalone report client. Options: \-\-host (127.0.0.1),
 \-\-port (8000), \-\-reload.
 .TP
 .BR "qibocal report dev" " [DIRECTORY]"
-Run backend and Vite development servers. Options: \-\-host (localhost),
+Run backend and Vite development servers. The directory defaults to the
+shared reports directory, as for
+.BR "qibocal report server" .
+Options: \-\-host (localhost),
 \-\-port (8000), \-\-frontend-port (5173), \-\-reload/\-\-no-reload,
-\-\-auth/\-\-no-auth. Requires the frontend sources and Node.js.
+\-\-auth/\-\-no-auth, \-\-name, \-\-register/\-\-no-register.
+Requires the frontend sources and Node.js.
 .TP
 .BR "qibocal report export" " [OUTPUT_DIR]"
 Export the static report client (default: ./dist).

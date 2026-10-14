@@ -27,7 +27,7 @@ def test_defaults_are_the_documented_ones():
     options = load_options({"ssh": "me@node"})
     assert options.venv == "qibocal"
     assert options.install == "qibocal-report"
-    assert options.directory == "."
+    assert options.directory is None, "the shared directory of the remote host"
     assert options.timeout == 300.0
     assert options.auth is False
 
@@ -338,3 +338,66 @@ def test_waiting_for_a_message_gives_up(monkeypatch):
 
     with pytest.raises(click.ClickException, match="Timed out waiting for report"):
         _wait_message(MagicMock(), queue.Queue(), time.monotonic() - 1, "report")
+
+
+def test_the_name_and_the_registration_travel_with_the_options():
+    captured = {}
+    with patch("qibocal_report.remote.launch", lambda options: captured.update(o=options)):
+        result = CliRunner().invoke(
+            main,
+            ["report", "server", "--ssh", "me@node", "--name", "Lab", "--no-register"],
+        )
+    assert result.exit_code == 0, result.output
+    assert captured["o"].name == "Lab"
+    assert captured["o"].registered is False
+    assert captured["o"].directory is None
+
+
+def test_the_worker_is_not_told_how_the_server_is_registered():
+    command = worker_command(
+        load_options({"ssh": "me@node", "name": "Lab", "registered": False})
+    )
+    remote = shlex.split(command[-1])
+    options = json.loads(remote[-1])
+    assert "name" not in options
+    assert "registered" not in options
+    assert options["directory"] is None
+
+
+def test_a_server_that_is_not_to_be_registered_is_left_alone(monkeypatch):
+    def refuse(**_):
+        raise AssertionError("add_server must not be called")
+
+    monkeypatch.setattr("qibocal_report.config.add_server", refuse)
+    register("http://127.0.0.1:1", load_options({"ssh": "me@node", "registered": False}), "me@node")
+
+
+def test_the_given_name_wins_over_the_generated_one(monkeypatch):
+    recorded = {}
+    monkeypatch.setattr(
+        "qibocal_report.config.add_server",
+        lambda **values: recorded.update(values) or values,
+    )
+    register("http://127.0.0.1:1", load_options({"ssh": "me@node", "name": "Lab"}), "me@node")
+    assert recorded["name"] == "Lab"
+    assert "shared reports directory" in recorded["description"]
+
+
+def test_the_worker_and_the_package_agree_on_the_shared_directory(monkeypatch, tmp_path):
+    from qibocal_report import config
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "share"))
+    monkeypatch.delenv("QIBOCAL_REPORT_DATA_DIR", raising=False)
+    assert report_worker.reports_path() == config.get_reports_dir(create=False)
+    monkeypatch.setenv("QIBOCAL_REPORT_DATA_DIR", str(tmp_path / "data"))
+    assert report_worker.reports_path() == config.get_reports_dir(create=False)
+
+
+def test_the_worker_creates_the_shared_directory_when_none_is_named(monkeypatch, tmp_path):
+    monkeypatch.setenv("QIBOCAL_REPORT_DATA_DIR", str(tmp_path / "data"))
+    directory = report_worker.reports_directory(None)
+    assert directory == tmp_path / "data" / "reports"
+    assert directory.is_dir()
+    # A named directory, on the other hand, has to be there already.
+    with pytest.raises(report_worker.WorkerError, match="No report directory"):
+        report_worker.reports_directory(str(tmp_path / "absent"))

@@ -45,7 +45,7 @@ Maintainers who do hold the credentials only have to set the repository secrets 
 The home page opens onto every section, and each of them is one jump away — from its card, or from the **Go** system menu with its keyboard shortcuts.
 
 - **Dashboard** (`Cmd/Ctrl+D`): the complete report browser, with the servers the launcher knows already connected.
-- **Servers** (`Cmd/Ctrl+2`): start a server here or on another machine, register a reachable one, re-issue administrator invitations.
+- **Servers** (`Cmd/Ctrl+2`): one form for a new server, wherever it runs — here, on another machine, or already reachable — and the registered ones with their invitations.
 - **Running** (`Cmd/Ctrl+3`): the live output of everything the launcher started, with graceful stop.
 - **Notebooks** (`Cmd/Ctrl+4`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
 - **Configuration** (`Cmd/Ctrl+5`): pick the Qibocal installation and edit the files shared with the command line.
@@ -67,33 +67,39 @@ A graphical application does not inherit the shell environment on macOS, so the 
 
 ---
 
-## 🚀 Starting a server
+## 🚀 A new server
 
-**Servers → Start a server here** covers the three serving modes, each mapping onto a command:
+**Servers → New server** is one form, whatever the server turns out to be. It opens on a **Name** — *Server 1*, *Server 2*, … suggested the way the dashboard numbers the servers added there, and free to overwrite — and on where the server runs:
+
+- **This machine** runs `qibocal` here.
+- **Another machine** reaches a host over SSH, prepares an environment there, and tunnels the server back.
+- **Already running** registers an address, starting nothing: any Qibocal report server you can reach.
+
+The fields below follow that choice, so what does not apply is not there. The command about to be run is spelled out under the form, so the equivalent command line is never a mystery.
+
+**Start** is the default and starts the server for a look: it shows up in **Running** and in the dashboard as long as it runs, and in a *Running, not registered* list on this page, with a **Register** button in case it turns out to be worth keeping. **Start and register** writes it to `servers.json` straight away — the same file `qibocal` reads, so a server started from the command line shows up in the launcher, and the other way around.
+
+### On this machine
 
 | Mode | Command | Use |
 | --- | --- | --- |
 | Reports | `qibocal report server` | Serve a directory of calibration runs |
-| Client | `qibocal report client` | Browse other servers, serving none |
 | Developer | `qibocal report dev` | Live interface with hot reloading |
+| Client | `qibocal report client` | Browse other servers, serving none |
 
-Pick the reports directory with the file browser, and the address with the host and port fields — **Free port** asks the operating system for one nobody is listening on. The **User accounts** switch is the `--auth` flag: it enables authentication and produces the initial administrator invitation, which appears in the output of the running server.
-
-The command about to be run is spelled out under the form, so the equivalent command line is never a mystery.
-
-Starting a server registers it in `servers.json`, which is the same file `qibocal` reads — a server started from the command line shows up in the launcher, and the other way around.
+The **Reports directory** is optional: left empty, the shared one is served — `~/.local/share/qibocal/reports`, or `$XDG_DATA_HOME/qibocal/reports`, created when it is not there yet — which is where runs go when they have no better home. Pick the address with the host and port fields; **Free port** asks the operating system for one nobody is listening on. The **User accounts** switch is the `--auth` flag: it enables authentication and produces the initial administrator invitation, which appears in the output of the running server.
 
 ### On another machine
 
-**Run it on another machine** turns the reports mode into `qibocal report server --ssh …`: the server runs where the calibration runs are, and only its address is brought back.
+The form becomes `qibocal report server --ssh …`: the server runs where the calibration runs are, and only its address is brought back.
 
 - **SSH destination** — options and a `user@host` destination, the way `qibocal notebook connect` takes them. Host aliases, agent authentication and jump hosts from the SSH configuration all work; the destination must come last.
-- **Reports directory** — a path on *that* machine, typed rather than browsed, since the file dialog only sees this one.
+- **Reports directory** — a path on *that* machine, typed rather than browsed, since the file dialog only sees this one. Optional here too: empty, the shared reports directory *of that machine* is served, created when missing.
 - **Server environment** — a name resolved under `~/.cache/qibocal/envs/`, or an absolute path. If it does not exist it is created and the package is installed into it; if it exists without Qibocal, the package is added. Nothing else in it is touched. This is the same rule, and the same cache, the notebook sessions use.
 - **Working directory** — where to move before starting, for relative paths.
 - **Package to install** — `qibocal-report` by default; a pinned version or a different distribution is accepted.
 
-The host and port fields disappear: the remote server binds to its own loopback on a free port, and the launcher opens an SSH tunnel to it, so the address that ends up in **Running** and in `servers.json` is a local one. Nothing is exposed on the remote network. Stopping the process closes the tunnel and the remote server with it.
+There are no host and port fields: the remote server binds to its own loopback on a free port, and the launcher opens an SSH tunnel to it, so the address that ends up in **Running** and in `servers.json` is a local one. Nothing is exposed on the remote network. Stopping the process closes the tunnel and the remote server with it.
 
 The remote machine needs an OpenSSH server and `python3` 3.10 or later — not Qibocal, which is what the environment step installs.
 

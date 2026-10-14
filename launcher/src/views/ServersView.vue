@@ -3,68 +3,124 @@
     <div>
       <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Servers</h1>
       <p class="mt-1 text-xs text-gray-500">
-        Start a report server on this machine, or register one you can already reach.
+        A report server runs here, on another machine over SSH, or is already running somewhere you can reach.
       </p>
     </div>
 
-    <!-- Start a server here -->
+    <!--
+      One form for every new server. Where it runs decides which fields make
+      sense; starting it for a look is the default, registering it a choice.
+    -->
     <section class="bm-card p-5">
       <div class="flex flex-wrap items-center gap-3 mb-4">
-        <h2 class="text-sm font-semibold text-gray-900">Start a server here</h2>
-        <segmented-control v-model="form.mode" :options="modes" class="ml-auto" />
+        <h2 class="text-sm font-semibold text-gray-900">New server</h2>
+        <segmented-control v-model="where" :options="places" class="ml-auto" />
       </div>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <form-field
-          v-if="form.mode !== 'client'"
           v-slot="{ id }"
-          class="sm:col-span-2"
-          label="Reports directory"
-          :error="errors.directory"
-          :help="remote
-            ? 'The folder holding the calibration runs, on the other machine.'
-            : 'The folder holding the calibration runs to serve.'"
+          label="Name"
+          help="How the server is listed here and in the dashboard."
         >
-          <path-picker
-            v-if="!remote"
-            :id="id"
-            v-model="form.directory"
-            title="Choose the reports directory"
-            placeholder="/path/to/calibrations"
-          />
           <input
-            v-else
             :id="id"
-            v-model.trim="form.directory"
+            v-model="form.name"
             type="text"
-            class="lx-input lx-mono"
-            placeholder="/shared/calibrations"
+            class="lx-input"
+            :placeholder="suggested"
+            @input="nameTouched = true"
           />
         </form-field>
 
-        <form-field v-if="!remote" v-slot="{ id }" label="Host">
-          <input :id="id" v-model.trim="form.host" type="text" class="lx-input lx-mono" placeholder="localhost" />
+        <!-- This machine -->
+        <template v-if="where === 'local'">
+          <form-field label="Mode" :help="modeHelp">
+            <segmented-control v-model="form.mode" :options="modes" />
+          </form-field>
+
+          <form-field
+            v-if="form.mode !== 'client'"
+            v-slot="{ id }"
+            class="sm:col-span-2"
+            label="Reports directory"
+            help="The folder holding the calibration runs. Left empty, the shared reports directory is served — ~/.local/share/qibocal/reports, created when missing."
+          >
+            <path-picker
+              :id="id"
+              v-model="form.directory"
+              title="Choose the reports directory"
+              placeholder="shared reports directory"
+            />
+          </form-field>
+
+          <form-field v-slot="{ id }" label="Host">
+            <input :id="id" v-model.trim="form.host" type="text" class="lx-input lx-mono" placeholder="localhost" />
+          </form-field>
+
+          <form-field v-slot="{ id }" label="Port" :error="errors.port">
+            <div class="flex items-center gap-2">
+              <input :id="id" v-model="form.port" type="number" min="1" max="65535" class="lx-input lx-mono" />
+              <button
+                type="button"
+                class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#ebe0ff] text-[#3b107e] hover:bg-[#dfceff] transition"
+                title="Pick a port nobody is listening on"
+                @click="pickFreePort"
+              >
+                Free port
+              </button>
+            </div>
+          </form-field>
+
+          <form-field v-if="form.mode === 'dev'" v-slot="{ id }" label="Frontend port" help="Where Vite serves the live interface.">
+            <input :id="id" v-model="form.frontendPort" type="number" min="1" max="65535" class="lx-input lx-mono" />
+          </form-field>
+        </template>
+
+        <!-- Another machine -->
+        <template v-else-if="where === 'ssh'">
+          <form-field
+            v-slot="{ id }"
+            label="SSH destination"
+            help="SSH options followed by a host or user@host, as ssh takes them."
+            :error="errors.ssh"
+          >
+            <input :id="id" v-model.trim="form.ssh" type="text" class="lx-input lx-mono" placeholder="user@login-node" />
+          </form-field>
+
+          <form-field
+            v-slot="{ id }"
+            class="sm:col-span-2"
+            label="Reports directory"
+            help="A path on that machine. Left empty, its shared reports directory is served — ~/.local/share/qibocal/reports there, created when missing."
+          >
+            <input :id="id" v-model.trim="form.directory" type="text" class="lx-input lx-mono" placeholder="shared reports directory" />
+          </form-field>
+
+          <form-field
+            v-for="field in remoteFields"
+            :key="field.name"
+            v-slot="{ id }"
+            :class="field.wide ? 'sm:col-span-2' : ''"
+            :label="field.label"
+            :help="field.help"
+          >
+            <input :id="id" v-model.trim="form[field.name]" type="text" class="lx-input lx-mono" :placeholder="field.placeholder" />
+          </form-field>
+        </template>
+
+        <!-- Already running -->
+        <form-field
+          v-else
+          v-slot="{ id }"
+          label="Address"
+          help="Any reachable Qibocal report server."
+          :error="errors.url"
+        >
+          <input :id="id" v-model.trim="form.url" type="text" class="lx-input lx-mono" placeholder="https://reports.example.org" />
         </form-field>
 
-        <form-field v-if="!remote" v-slot="{ id }" label="Port" :error="errors.port">
-          <div class="flex items-center gap-2">
-            <input :id="id" v-model="form.port" type="number" min="1" max="65535" class="lx-input lx-mono" />
-            <button
-              type="button"
-              class="shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#ebe0ff] text-[#3b107e] hover:bg-[#dfceff] transition"
-              title="Pick a port nobody is listening on"
-              @click="pickFreePort"
-            >
-              Free port
-            </button>
-          </div>
-        </form-field>
-
-        <form-field v-if="form.mode === 'dev'" v-slot="{ id }" label="Frontend port" help="Where Vite serves the live interface.">
-          <input :id="id" v-model="form.frontendPort" type="number" min="1" max="65535" class="lx-input lx-mono" />
-        </form-field>
-
-        <div v-if="form.mode !== 'client'" class="flex items-end">
+        <div v-if="where !== 'reachable' && form.mode !== 'client'" class="flex items-end sm:col-span-2">
           <toggle-switch
             v-model="form.auth"
             label="User accounts"
@@ -73,66 +129,54 @@
         </div>
       </div>
 
-      <!-- Somewhere else entirely -->
-      <div v-if="form.mode === 'server'" class="mt-4 pt-4 border-t border-gray-100">
-        <toggle-switch
-          v-model="elsewhere"
-          label="Run it on another machine"
-          help="Reach the host over SSH, prepare an environment there, and tunnel the server back."
-        />
-
-        <div v-if="elsewhere" class="grid gap-4 sm:grid-cols-2 mt-4">
-          <form-field
-            v-for="field in remoteFields"
-            :key="field.name"
-            v-slot="{ id }"
-            :class="field.wide ? 'sm:col-span-2' : ''"
-            :label="field.label"
-            :help="field.help"
-            :error="field.name === 'ssh' ? errors.ssh : ''"
-          >
-            <input
-              :id="id"
-              v-model.trim="form[field.name]"
-              type="text"
-              class="lx-input lx-mono"
-              :placeholder="field.placeholder"
-            />
-          </form-field>
-        </div>
-      </div>
-
       <div class="flex flex-wrap items-center gap-2.5 mt-5">
-        <button
-          type="button"
-          class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs disabled:opacity-40"
-          :disabled="starting"
-          @click="launch"
-        >
-          {{ starting ? 'Starting…' : 'Start server' }}
-        </button>
-        <span class="lx-mono text-gray-400 truncate">{{ preview }}</span>
+        <template v-if="where === 'reachable'">
+          <button type="button" class="lx-primary" :disabled="!form.url" @click="register">
+            Register
+          </button>
+          <span class="lx-help !mt-0">Nothing is started: the address is added to the servers the dashboard knows.</span>
+        </template>
+        <template v-else>
+          <button type="button" class="lx-primary" :disabled="starting" @click="launch(false)">
+            {{ starting ? 'Starting…' : 'Start' }}
+          </button>
+          <button
+            type="button"
+            class="lx-action"
+            :disabled="starting"
+            title="Start it, and keep it in servers.json for next time"
+            @click="launch(true)"
+          >
+            <Bookmark class="w-3.5 h-3.5" /> Start and register
+          </button>
+          <span class="lx-mono text-gray-400 truncate">{{ preview }}</span>
+        </template>
       </div>
     </section>
 
-    <!-- Register a reachable server -->
-    <section class="bm-card p-5">
-      <h2 class="text-sm font-semibold text-gray-900 mb-3">Register a server</h2>
-      <form class="grid gap-3 sm:grid-cols-[2fr_1fr_auto] sm:items-end" @submit.prevent="register">
-        <form-field v-slot="{ id }" label="Address" help="Any reachable Qibocal report server.">
-          <input :id="id" v-model.trim="draft.url" type="text" class="lx-input lx-mono" placeholder="https://reports.example.org" />
-        </form-field>
-        <form-field v-slot="{ id }" label="Name" help="Optional label.">
-          <input :id="id" v-model.trim="draft.name" type="text" class="lx-input" placeholder="Cluster reports" />
-        </form-field>
-        <button
-          type="submit"
-          class="px-3.5 py-2 rounded-lg text-xs font-medium bg-[#ebe0ff] text-[#3b107e] hover:bg-[#dfceff] transition disabled:opacity-40"
-          :disabled="!draft.url"
-        >
-          Register
-        </button>
-      </form>
+    <!-- Started for a look: around only while they run -->
+    <section v-if="temporary.length" class="space-y-2.5">
+      <div class="flex items-center gap-2 px-1">
+        <h2 class="text-sm font-semibold text-gray-900">Running, not registered</h2>
+        <span class="text-xs text-gray-400">{{ temporary.length }}</span>
+      </div>
+      <article v-for="process in temporary" :key="process.id" class="bm-card p-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-gray-900 truncate">{{ process.label }}</p>
+          <p class="lx-mono text-gray-500 truncate">{{ process.url }}</p>
+        </div>
+        <div class="ml-auto flex flex-wrap items-center gap-1.5">
+          <button type="button" class="lx-action" @click="openDashboard(process.url)">
+            <LayoutDashboard class="w-3.5 h-3.5" /> Open
+          </button>
+          <button type="button" class="lx-action" title="Keep it in servers.json" @click="keep(process)">
+            <Bookmark class="w-3.5 h-3.5" /> Register
+          </button>
+          <button type="button" class="lx-action" title="Open in the browser" @click="openExternal(process.url)">
+            <ExternalLink class="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </article>
     </section>
 
     <!-- Registered servers -->
@@ -151,7 +195,7 @@
       </div>
 
       <p v-if="!state.servers.length" class="bm-card p-5 text-xs text-gray-500">
-        No server registered yet. Starting one above adds it automatically.
+        No server registered yet. Starting one with <em>Start and register</em>, or registering a reachable address, adds it here.
       </p>
 
       <article v-for="server in state.servers" :key="server.id" class="bm-card p-4">
@@ -205,12 +249,7 @@
           <form-field v-slot="{ id }" label="Valid for" help="Hours.">
             <input :id="id" v-model="invite.hours" type="number" min="1" class="lx-input lx-mono w-24" />
           </form-field>
-          <button
-            type="button"
-            class="px-3.5 py-2 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] transition disabled:opacity-40"
-            :disabled="invite.busy"
-            @click="createInvite(server)"
-          >
+          <button type="button" class="lx-primary py-2" :disabled="invite.busy" @click="createInvite(server)">
             {{ invite.busy ? 'Working…' : 'Create link' }}
           </button>
 
@@ -236,7 +275,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Copy, ExternalLink, KeyRound, LayoutDashboard, Play, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { Bookmark, Copy, ExternalLink, KeyRound, LayoutDashboard, Play, RefreshCw, Trash2 } from 'lucide-vue-next'
 import FormField from '../components/FormField.vue'
 import PathPicker from '../components/PathPicker.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
@@ -252,28 +291,29 @@ import {
   refreshServers,
   registerServer,
   forgetServer,
-  startServer
+  runningServers,
+  startServer,
+  unregisteredServers
 } from '../state.js'
-import { serverCommand, serverUrl } from '../lib/servers.js'
+import { serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
 
 const route = useRoute()
 const router = useRouter()
 
+const places = [
+  { value: 'local', label: 'This machine', help: 'Run qibocal here.' },
+  { value: 'ssh', label: 'Another machine', help: 'Reach a host over SSH, prepare an environment there, and tunnel the server back.' },
+  { value: 'reachable', label: 'Already running', help: 'Register an address, starting nothing.' }
+]
+
 const modes = [
   { value: 'server', label: 'Reports', help: 'Serve a directory of calibration runs.' },
-  { value: 'client', label: 'Client', help: 'Browse other servers, serving none.' },
-  { value: 'dev', label: 'Developer', help: 'Live interface with hot reloading.' }
+  { value: 'dev', label: 'Developer', help: 'Live interface with hot reloading.' },
+  { value: 'client', label: 'Client', help: 'Browse other servers, serving none.' }
 ]
 
 // Worded like the matching notebook options, which describe the same things.
 const remoteFields = [
-  {
-    name: 'ssh',
-    label: 'SSH destination',
-    wide: true,
-    placeholder: 'user@login-node',
-    help: 'SSH options followed by a host or user@host.'
-  },
   {
     name: 'venv',
     label: 'Server environment',
@@ -295,7 +335,9 @@ const remoteFields = [
   }
 ]
 
+const where = ref('local')
 const form = reactive({
+  name: '',
   mode: 'server',
   directory: '',
   host: 'localhost',
@@ -305,33 +347,41 @@ const form = reactive({
   ssh: '',
   venv: '',
   workdir: '',
-  install: ''
+  install: '',
+  url: ''
 })
-const draft = reactive({ url: '', name: '' })
+const nameTouched = ref(false)
 const invite = reactive({ serverId: null, username: '', hours: 24, busy: false, result: null })
 const administrators = ref([])
 const starting = ref(false)
-const elsewhere = ref(false)
 
-/** Only a reports server travels, and only once a destination is given. */
-const remote = computed(() => form.mode === 'server' && elsewhere.value && Boolean(form.ssh.trim()))
+const temporary = computed(() => unregisteredServers())
+
+/** The next free "Server N", counting registered and running ones alike. */
+const suggested = computed(() =>
+  suggestServerName([
+    ...state.servers.map(server => server.name),
+    ...runningServers().map(process => process.label)
+  ])
+)
+const modeHelp = computed(() => modes.find(mode => mode.value === form.mode)?.help || '')
 
 const errors = computed(() => {
   const found = {}
-  if (form.mode !== 'client' && !form.directory.trim()) {
-    found.directory = 'Choose the directory holding the calibration runs.'
-  }
-  if (form.mode === 'server' && elsewhere.value && !form.ssh.trim()) {
+  if (where.value === 'ssh' && !form.ssh.trim()) {
     found.ssh = 'Name the machine to reach, as ssh would.'
   }
+  if (where.value === 'reachable' && form.url && !serverUrl(form.url)) {
+    found.url = 'Enter the address of the report server.'
+  }
   const port = Number(form.port)
-  if (!remote.value && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+  if (where.value === 'local' && (!Number.isInteger(port) || port < 1 || port > 65535)) {
     found.port = 'Enter a port between 1 and 65535.'
   }
   return found
 })
 
-const preview = computed(() => serverCommand(launchOptions()))
+const preview = computed(() => serverCommand(launchOptions(false)))
 
 function processFor(server) {
   const url = serverUrl(server.url)
@@ -346,15 +396,18 @@ async function pickFreePort() {
 }
 
 /** Exactly what `start_server` receives, and what the preview describes. */
-function launchOptions() {
-  const away = remote.value
+function launchOptions(register) {
+  const away = where.value === 'ssh'
+  const mode = away ? 'server' : form.mode
   return {
-    mode: form.mode,
-    directory: form.mode === 'client' ? null : form.directory.trim(),
+    mode,
+    name: form.name.trim() || suggested.value,
+    register,
+    directory: mode === 'client' ? null : form.directory.trim() || null,
     host: form.host.trim() || 'localhost',
     port: Number(form.port),
     auth: form.auth,
-    frontendPort: form.mode === 'dev' ? Number(form.frontendPort) : null,
+    frontendPort: mode === 'dev' ? Number(form.frontendPort) : null,
     ssh: away ? form.ssh.trim() : null,
     venv: away ? form.venv.trim() || null : null,
     workdir: away ? form.workdir.trim() || null : null,
@@ -362,23 +415,25 @@ function launchOptions() {
   }
 }
 
-async function launch() {
+async function launch(register) {
   const problem = Object.values(errors.value)[0]
   if (problem) {
     fail(problem)
     return
   }
   starting.value = true
-  const options = launchOptions()
+  const options = launchOptions(register)
   try {
     await startServer(options)
     notify(
       options.ssh
-        ? `Starting the report server on ${options.ssh}; the tunnel address appears in Running.`
-        : `Starting the ${form.mode} server on http://${options.host}:${options.port}.`
+        ? `Starting ${options.name} on ${options.ssh}; the tunnel address appears in Running.`
+        : `Starting ${options.name} on http://${options.host}:${options.port}.`
     )
+    // The next server gets the next name, unless one was chosen by hand.
+    if (!nameTouched.value) form.name = ''
     // The command line registers the instance itself, once it is up.
-    setTimeout(refreshServers, 1500)
+    if (register) setTimeout(refreshServers, 1500)
     router.push({ name: 'processes' })
   } catch (error) {
     fail(error)
@@ -398,14 +453,32 @@ async function relaunch(server) {
 }
 
 async function register() {
+  const problem = errors.value.url
+  if (problem) {
+    fail(problem)
+    return
+  }
+  const name = form.name.trim() || suggested.value
   const added = await attempt(
-    () => registerServer({ name: draft.name || undefined, url: draft.url, description: `Server at ${draft.url}` }),
-    'Server registered.'
+    () => registerServer({ name, url: form.url, description: `Server at ${form.url}` }),
+    `${name} registered.`
   )
   if (added) {
-    draft.url = ''
-    draft.name = ''
+    form.url = ''
+    if (!nameTouched.value) form.name = ''
   }
+}
+
+/** Keep a server that was started for a look. */
+async function keep(process) {
+  await attempt(
+    () => registerServer({
+      name: process.label,
+      url: process.url,
+      description: `Started by the launcher: ${process.detail}`
+    }),
+    `${process.label} registered.`
+  )
 }
 
 async function forget(server) {
@@ -455,8 +528,11 @@ function applyQuery() {
   if (!server) return
   const remembered = recallLaunch(server.url)
   if (!remembered) return
+  // Whether it was registered is settled: the server is in the list.
+  const { register: _registered, ...options } = remembered
   Object.assign(form, {
-    ...remembered,
+    ...options,
+    name: remembered.name || server.name || '',
     directory: remembered.directory || '',
     frontendPort: remembered.frontendPort || 5173,
     ssh: remembered.ssh || '',
@@ -464,7 +540,8 @@ function applyQuery() {
     workdir: remembered.workdir || '',
     install: remembered.install || ''
   })
-  elsewhere.value = Boolean(remembered.ssh)
+  nameTouched.value = Boolean(form.name)
+  where.value = remembered.ssh ? 'ssh' : 'local'
 }
 
 onMounted(() => {

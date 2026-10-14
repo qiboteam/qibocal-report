@@ -40,12 +40,22 @@ class RemoteServerOptions(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     ssh: str = Field(min_length=1)
-    directory: str = "."
+    # None is the shared reports directory of the remote host, which the
+    # worker alone can locate.
+    directory: str | None = Field(default=None, min_length=1)
     venv: str = Field(default="qibocal", min_length=1)
     workdir: str | None = Field(default=None, min_length=1)
     install: str = Field(default="qibocal-report", min_length=1)
     auth: bool = False
     timeout: float = Field(default=300.0, gt=0, allow_inf_nan=False)
+    # How the tunnelled address is registered here; the worker never sees these.
+    name: str | None = Field(default=None, min_length=1)
+    registered: bool = True
+
+    @property
+    def served(self) -> str:
+        """The directory, as spoken of in messages."""
+        return self.directory or "the shared reports directory"
 
 
 def load_options(values: dict) -> RemoteServerOptions:
@@ -76,7 +86,7 @@ def worker_command(options: RemoteServerOptions) -> list[str]:
         "-u",
         "-c",
         worker_source(),
-        json.dumps(options.model_dump(exclude={"ssh"})),
+        json.dumps(options.model_dump(exclude={"ssh", "name", "registered"})),
     ]
     return [*ssh_base(arguments), destination, shlex.join(remote)]
 
@@ -97,12 +107,17 @@ def ssh_base(arguments: list[str]) -> list[str]:
 
 def register(url: str, options: RemoteServerOptions, destination: str) -> None:
     """Make the tunnelled server a dashboard entry, as a local one becomes."""
-    directory = Path(options.directory).name or options.directory
+    if not options.registered:
+        return
+    if options.directory:
+        directory = Path(options.directory).name or options.directory
+    else:
+        directory = "reports"
     try:
         config.add_server(
             url=url,
-            name=f"{destination}-{directory}",
-            description=f"Serving reports from {options.directory} on {destination}",
+            name=options.name or f"{destination}-{directory}",
+            description=f"Serving reports from {options.served} on {destination}",
             avatar="quantum-ring",
         )
     except OSError as exc:
@@ -176,7 +191,7 @@ def launch(options: RemoteServerOptions) -> None:
         output.console.print(
             Panel(
                 Text(
-                    f"Reports from {options.directory} on {destination} are ready.\n"
+                    f"Reports from {options.served} on {destination} are ready.\n"
                     "Open the URL below, or pick the server in the dashboard.\n"
                     "Press Ctrl+C to stop the server and its tunnel."
                 ),

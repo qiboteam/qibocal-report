@@ -373,11 +373,16 @@ fn monitor(app: AppHandle, id: String) {
 pub struct ServerOptions {
     /// `server`, `dev` or `client`.
     pub mode: String,
+    /// None serves the shared reports directory of the machine it runs on.
     pub directory: Option<String>,
     pub host: String,
     pub port: u16,
     pub auth: bool,
     pub frontend_port: Option<u16>,
+    /// How the server is called, in the process list and in `servers.json`.
+    pub name: Option<String>,
+    /// False starts it for a look, without touching `servers.json`.
+    pub register: Option<bool>,
     /// Set to run `report server` on another machine, over SSH.
     pub ssh: Option<String>,
     pub workdir: Option<String>,
@@ -401,25 +406,35 @@ pub fn start_server(
         return Err("Only 'report server' can run on another machine.".to_string());
     }
 
+    let directory = options
+        .directory
+        .clone()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let name = options
+        .name
+        .clone()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
     let mut arguments = vec!["report".to_string(), options.mode.clone()];
     let mut working_directory = None;
     match options.mode.as_str() {
         "server" | "dev" => {
-            let directory = options
-                .directory
-                .clone()
-                .filter(|value| !value.trim().is_empty())
-                .ok_or_else(|| "Choose the directory holding the calibration runs.".to_string())?;
-            // Over SSH the directory belongs to the other machine, and only
-            // the worker can tell whether it is there.
-            if ssh.is_none() {
-                let path = PathBuf::from(&directory);
-                if !path.is_dir() {
-                    return Err(format!("'{directory}' is not a directory."));
+            // No directory is the shared one, which the command line locates
+            // and creates on the machine it runs on. A named one has to be
+            // there — unless it belongs to the other machine over SSH, where
+            // only the worker can tell.
+            if let Some(directory) = &directory {
+                if ssh.is_none() {
+                    let path = PathBuf::from(directory);
+                    if !path.is_dir() {
+                        return Err(format!("'{directory}' is not a directory."));
+                    }
+                    working_directory = Some(path);
                 }
-                working_directory = Some(path);
+                arguments.push(directory.clone());
             }
-            arguments.push(directory);
         }
         "client" => {}
         other => return Err(format!("Unknown server mode '{other}'.")),
@@ -432,6 +447,10 @@ pub fn start_server(
     }
     if options.mode != "client" {
         arguments.push(if options.auth { "--auth" } else { "--no-auth" }.to_string());
+        push_text(&mut arguments, "--name", name.clone());
+        if options.register == Some(false) {
+            arguments.push("--no-register".to_string());
+        }
     }
     if options.mode == "dev" {
         if let Some(port) = options.frontend_port {
@@ -452,18 +471,19 @@ pub fn start_server(
         }
     }
 
-    let detail = options
-        .directory
-        .clone()
-        .unwrap_or_else(|| "Multi-server client".to_string());
+    let served = match (&options.mode[..], &directory) {
+        ("client", _) => "Multi-server client".to_string(),
+        (_, Some(directory)) => directory.clone(),
+        (_, None) => "shared reports directory".to_string(),
+    };
     match ssh {
         // The tunnel picks its own local port, so wait for the address the
         // command prints instead of guessing one.
         Some(ssh) => supervisor.spawn(
             &app,
             "server",
-            format!("ssh {ssh}"),
-            detail,
+            name.unwrap_or_else(|| format!("ssh {ssh}")),
+            format!("ssh {ssh} · {served}"),
             arguments,
             None,
             None,
@@ -473,8 +493,8 @@ pub fn start_server(
             supervisor.spawn(
                 &app,
                 "server",
-                url.clone(),
-                detail,
+                name.unwrap_or_else(|| url.clone()),
+                format!("{url} · {served}"),
                 arguments,
                 working_directory,
                 Some(url),

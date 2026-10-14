@@ -1,3 +1,4 @@
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -528,3 +529,34 @@ def test_admin_invite_empty_instance(tmp_path, monkeypatch):
     assert data["username"] is None
     assert data["role"] == "admin"
     assert "/#/invite?token=" in data["invite_url"]
+
+
+def test_server_without_a_directory_serves_the_shared_one(tmp_path, monkeypatch):
+    monkeypatch.setenv("QIBOCAL_REPORT_DATA_DIR", str(tmp_path / "data"))
+    with patch("qibocal_report.cli.uvicorn.run") as mock_uvicorn:
+        result = CliRunner().invoke(main, ["report", "server", "--port", "8003"])
+        assert result.exit_code == 0, result.output
+        assert mock_uvicorn.called
+    served = tmp_path / "data" / "reports"
+    assert served.is_dir()
+    assert os.environ["QIBOCAL_REPORT_DIR"] == str(served)
+
+
+def test_server_registration_can_be_declined_and_named(tmp_path):
+    from qibocal_report import config
+
+    sample_dir = tmp_path / "sample"
+    sample_dir.mkdir()
+    with patch("qibocal_report.cli.uvicorn.run"):
+        result = CliRunner().invoke(
+            main, ["report", "server", str(sample_dir), "--port", "8004", "--no-register"]
+        )
+        assert result.exit_code == 0, result.output
+        assert not any("8004" in s["url"] for s in config.load_servers())
+
+        result = CliRunner().invoke(
+            main, ["report", "server", str(sample_dir), "--port", "8005", "--name", "Lab"]
+        )
+        assert result.exit_code == 0, result.output
+    registered = [s for s in config.load_servers() if "8005" in s["url"]]
+    assert registered and registered[0]["name"] == "Lab"

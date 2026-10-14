@@ -132,6 +132,40 @@ def remote_server_options(command):
     return command
 
 
+def registration_options(command):
+    """How a server shows up in `servers.json`, if at all.
+
+    The launcher starts most servers for a single look; those have no business
+    in the configuration, hence `--no-register`.
+    """
+    for option in reversed(
+        [
+            click.option(
+                "--name",
+                help="Name the server is registered under (default: generated).",
+            ),
+            click.option(
+                "--register/--no-register",
+                default=True,
+                help="Add the server to servers.json, where the dashboard "
+                "finds it (default: --register).",
+            ),
+        ]
+    ):
+        command = option(command)
+    return command
+
+
+def reports_directory(directory: str | None) -> Path:
+    """The directory to serve: the one named, or the shared one, created on demand."""
+    if directory is None:
+        return config.get_reports_dir()
+    path = Path(directory)
+    if not path.is_dir():
+        raise click.UsageError(f"Directory '{directory}' does not exist.")
+    return path.resolve()
+
+
 @main.group(name="notebook")
 def notebook():
     """Connect to notebooks and manage registered connections."""
@@ -280,7 +314,7 @@ def report():
 
 
 @report.command(name="server")
-@click.argument("directory", default=".", type=click.Path(file_okay=False))
+@click.argument("directory", required=False, type=click.Path(file_okay=False))
 @click.option("--host", default="localhost", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
 @click.option(
@@ -288,25 +322,45 @@ def report():
     default=False,
     help="Enable user authentication and role management.",
 )
+@registration_options
 @remote_server_options
-def server(directory: str, host: str, port: int, auth: bool, ssh: str | None, **remote):
-    """Start the FastAPI backend server, here or on another machine."""
+def server(
+    directory: str | None,
+    host: str,
+    port: int,
+    auth: bool,
+    name: str | None,
+    register: bool,
+    ssh: str | None,
+    **remote,
+):
+    """Start the FastAPI backend server, here or on another machine.
+
+    DIRECTORY holds the calibration runs to serve. Left out, the shared
+    reports directory is served — $XDG_DATA_HOME/qibocal/reports, created
+    when missing — on whichever machine the server runs.
+    """
     if ssh:
         from qibocal_report.remote import launch, load_options
 
         launch(
             load_options(
-                {"ssh": ssh, "directory": directory, "auth": auth, **remote}
+                {
+                    "ssh": ssh,
+                    "directory": directory,
+                    "auth": auth,
+                    "name": name,
+                    "registered": register,
+                    **remote,
+                }
             )
         )
         return
-    for name, value in remote.items():
+    for flag, value in remote.items():
         if value is not None:
-            raise click.UsageError(f"--{name} only applies together with --ssh.")
+            raise click.UsageError(f"--{flag} only applies together with --ssh.")
     # The directory is only ours to check when the server runs here.
-    if not Path(directory).is_dir():
-        raise click.UsageError(f"Directory '{directory}' does not exist.")
-    dir_path = Path(directory).resolve()
+    dir_path = reports_directory(directory)
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
     set_report_root(dir_path, is_original=True)
@@ -321,12 +375,13 @@ def server(directory: str, host: str, port: int, auth: bool, ssh: str | None, **
         initial_token = None
 
     url = f"http://{host}:{port}"
-    config.add_server(
-        url=url,
-        name=f"local-{dir_path.name}",
-        description=f"Serving reports from {dir_path}",
-        avatar="quantum-ring",
-    )
+    if register:
+        config.add_server(
+            url=url,
+            name=name or f"local-{dir_path.name}",
+            description=f"Serving reports from {dir_path}",
+            avatar="quantum-ring",
+        )
 
     console = Console()
     auth_lines = ""
@@ -361,11 +416,7 @@ def server(directory: str, host: str, port: int, auth: bool, ssh: str | None, **
 
 
 @report.command(name="dev")
-@click.argument(
-    "directory",
-    default=".",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True),
-)
+@click.argument("directory", required=False, type=click.Path(file_okay=False))
 @click.option("--host", default="localhost", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Backend port to listen on.")
 @click.option(
@@ -381,16 +432,22 @@ def server(directory: str, host: str, port: int, auth: bool, ssh: str | None, **
     default=False,
     help="Enable user authentication and role management.",
 )
+@registration_options
 def dev(
-    directory: str,
+    directory: str | None,
     host: str,
     port: int,
     frontend_port: int,
     reload: bool = True,
     auth: bool = False,
+    name: str | None = None,
+    register: bool = True,
 ):
-    """Serve Qibocal reports in developer mode with live Vite HMR."""
-    dir_path = Path(directory).resolve()
+    """Serve Qibocal reports in developer mode with live Vite HMR.
+
+    DIRECTORY defaults to the shared reports directory, as for `report server`.
+    """
+    dir_path = reports_directory(directory)
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
     set_report_root(dir_path, is_original=True)
@@ -441,13 +498,13 @@ def dev(
     frontend_url = f"http://{host}:{frontend_port}"
     os.environ["QIBOCAL_FRONTEND_URL"] = frontend_url
 
-    # Register this server in configuration
-    config.add_server(
-        url=backend_url,
-        name=f"local-{dir_path.name}-dev",
-        description=f"Serving reports (dev mode) from {dir_path}",
-        avatar="quantum-ring",
-    )
+    if register:
+        config.add_server(
+            url=backend_url,
+            name=name or f"local-{dir_path.name}-dev",
+            description=f"Serving reports (dev mode) from {dir_path}",
+            avatar="quantum-ring",
+        )
 
     console = Console()
     dev_title = "[bold magenta]⚛️  Qibocal Report (Developer Mode)[/bold magenta]"
@@ -498,11 +555,7 @@ def dev(
 
 
 @report.command(name="develop", hidden=True)
-@click.argument(
-    "directory",
-    default=".",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True),
-)
+@click.argument("directory", required=False, type=click.Path(file_okay=False))
 @click.option("--host", default="localhost", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Backend port to listen on.")
 @click.option(
@@ -518,15 +571,18 @@ def dev(
     default=False,
     help="Enable user authentication and role management.",
 )
+@registration_options
 @click.pass_context
 def develop_alias(
     ctx,
-    directory: str,
+    directory: str | None,
     host: str,
     port: int,
     frontend_port: int,
     reload: bool,
     auth: bool,
+    name: str | None,
+    register: bool,
 ):
     """Backward-compatible alias for 'dev'."""
     ctx.forward(dev)

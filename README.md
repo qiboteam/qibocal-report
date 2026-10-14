@@ -46,7 +46,9 @@ Point `qibocal report server` to any directory containing Qibocal calibration ru
 qibocal report server ./sample_data --port 8000
 ```
 
-Open your browser at **`http://localhost:8000`**.
+Open your browser at **`http://localhost:8000`**. Without a directory, the
+shared one under `~/.local/share/qibocal/reports` is served, and created if
+it is not there yet.
 
 The runs often live on another machine. Add `--ssh` and the server starts there
 instead, in a managed environment, and is tunnelled back to a local address:

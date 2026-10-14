@@ -127,6 +127,19 @@ export function processById(id) {
   return state.processes.find(process => process.id === id) || null
 }
 
+/** The report servers the launcher is running right now, address known. */
+export function runningServers() {
+  return state.processes.filter(
+    process => process.kind === 'server' && process.status === 'running' && serverUrl(process.url)
+  )
+}
+
+/** Running servers that are in no configuration file: started for a look. */
+export function unregisteredServers() {
+  const registered = new Set(state.servers.map(server => serverUrl(server.url)))
+  return runningServers().filter(process => !registered.has(serverUrl(process.url)))
+}
+
 function mergeProcess(info) {
   const index = state.processes.findIndex(process => process.id === info.id)
   if (index >= 0) state.processes[index] = info
@@ -178,7 +191,7 @@ export async function initialize() {
  * dashboard reads the instances the launcher just registered.
  */
 export function openDashboard(preferredUrl = null) {
-  syncDashboardServers(state.servers, { preferredUrl })
+  syncDashboardServers(state.servers, { preferredUrl, running: runningServers() })
   const target = new URL('dashboard.html', window.location.href)
   if (preferredUrl) target.hash = '#/dashboard'
   window.location.href = target.href

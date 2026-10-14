@@ -6,8 +6,10 @@ import {
   DASHBOARD_SERVERS_KEY,
   mergeDashboardServers,
   serverCommand,
+  suggestServerName,
   syncDashboardServers,
-  toDashboardServer
+  toDashboardServer,
+  toTemporaryServer
 } from '../src/lib/servers.js'
 
 function createStorage(initial = {}) {
@@ -96,10 +98,56 @@ test('unreadable storage does not stop the synchronisation', () => {
   assert.equal(storage.getItem(DASHBOARD_ACTIVE_KEY), 'one')
 })
 
+test('a running, unregistered server is published only while it runs', () => {
+  const process = { id: 'p1', kind: 'server', status: 'running', url: 'http://localhost:8000/', label: 'Server 1' }
+  const temporary = toTemporaryServer(process)
+  assert.equal(temporary.id, 'tmp-p1')
+  assert.equal(temporary.name, 'Server 1')
+  assert.equal(toTemporaryServer({ id: 'p2' }), null, 'no address, nothing to browse')
+
+  const stale = { id: 'tmp-old', name: 'Gone', url: 'http://localhost:9999' }
+  const merged = mergeDashboardServers([{ id: 'srv', url: 'http://a.example' }], [stale], [process])
+  assert.deepEqual(merged.map(server => server.id), ['srv', 'tmp-p1'], 'the stale one is dropped, the running one added last')
+})
+
+test('a registered address is not published twice when it also runs', () => {
+  const process = { id: 'p1', url: 'http://localhost:8000', label: 'Server 1' }
+  const merged = mergeDashboardServers([{ id: 'srv', url: 'http://localhost:8000/' }], [], [process])
+  assert.deepEqual(merged.map(server => server.id), ['srv'])
+})
+
+test('synchronising takes the running servers along', () => {
+  const storage = createStorage()
+  syncDashboardServers([], { storage, running: [{ id: 'p1', url: 'http://localhost:8000', label: 'Look' }] })
+  const published = JSON.parse(storage.getItem(DASHBOARD_SERVERS_KEY))
+  assert.deepEqual(published.map(server => server.name), ['Look'])
+  assert.equal(storage.getItem(DASHBOARD_ACTIVE_KEY), 'tmp-p1')
+})
+
+test('the next server is named by counting, skipping names in use', () => {
+  assert.equal(suggestServerName(), 'Server 1')
+  assert.equal(suggestServerName(['Lab', 'Cluster']), 'Server 3')
+  assert.equal(suggestServerName(['Server 1', 'Server 2']), 'Server 3')
+  assert.equal(suggestServerName(['Server 2', ' ']), 'Server 3', 'blank names do not count')
+  assert.equal(suggestServerName(['Server 2']), 'Server 3')
+})
+
 test('a local server is started with a host and a port', () => {
   assert.equal(
     serverCommand({ mode: 'server', directory: '/data/runs', host: 'localhost', port: 8000 }),
     'qibocal report server /data/runs --host localhost --port 8000 --no-auth'
+  )
+})
+
+test('the name and the registration are passed on, the directory left out when empty', () => {
+  assert.equal(
+    serverCommand({ mode: 'server', directory: '  ', port: 8000, name: 'Server 1', register: false }),
+    "qibocal report server --host localhost --port 8000 --no-auth --name 'Server 1' --no-register"
+  )
+  assert.equal(
+    serverCommand({ mode: 'client', port: 8000, name: 'Server 1', register: false }),
+    'qibocal report client --host localhost --port 8000',
+    'the client registers nothing, so it takes neither flag'
   )
 })
 

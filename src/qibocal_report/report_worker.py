@@ -47,6 +47,32 @@ def announce(port):
     print(READY_PREFIX + json.dumps({"port": port}), flush=True)
 
 
+def reports_path():
+    """The shared reports directory of this host, as ``config.get_reports_dir`` names it.
+
+    Spelled out again because the worker runs where the package is not
+    installed yet; the two must agree, and a test holds them to it.
+    """
+    custom = os.environ.get("QIBOCAL_REPORT_DATA_DIR")
+    if custom:
+        return Path(custom) / "reports"
+    root = os.environ.get("XDG_DATA_HOME")
+    base = Path(root) if root else Path.home() / ".local" / "share"
+    return base / "qibocal" / "reports"
+
+
+def reports_directory(given):
+    """The directory to serve: the one named, which must exist, or the shared one."""
+    if given:
+        directory = Path(given).expanduser()
+        if not directory.is_dir():
+            raise WorkerError(f"No report directory {directory} on this host")
+        return directory
+    directory = reports_path()
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
 def has_pip(runtime, python):
     """Whether the environment can install on its own, or needs an external pip."""
     return json.loads(
@@ -118,9 +144,7 @@ def run(options):
         monitor_stdin(runtime.stop)
         if options.get("workdir"):
             os.chdir(Path(options["workdir"]).expanduser())
-        directory = Path(options.get("directory") or ".").expanduser()
-        if not directory.is_dir():
-            raise WorkerError(f"No report directory {directory} on this host")
+        directory = reports_directory(options.get("directory"))
         packages = shlex.split(options.get("install") or "qibocal-report")
         if not packages:
             raise WorkerError("--install must name at least one package")

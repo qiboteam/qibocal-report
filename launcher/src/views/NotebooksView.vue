@@ -88,7 +88,7 @@
         <div class="flex flex-wrap items-center gap-2.5 mt-5">
           <button
             type="button"
-            class="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs disabled:opacity-40"
+            class="lx-primary"
             :disabled="!valid || starting"
             @click="start"
           >
