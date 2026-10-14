@@ -9,10 +9,14 @@ export default defineConfig({
   ],
   content: {
     // The dashboard sources live outside this package: scan them explicitly,
-    // or the embedded pages would come up unstyled.
+    // or the embedded pages would come up unstyled. These globs are the only
+    // place where plain JavaScript modules are searched for classes; widening
+    // the transform pipeline to `.js` instead would hand every dependency to
+    // the extractor, single-line bundles included, and never come back.
     filesystem: ['*.html', 'src/**/*.{vue,js}', '../frontend/src/**/*.{vue,js}'],
-    // The dashboard also keeps utility classes in plain JavaScript modules.
-    pipeline: { include: [/\.(vue|js)($|\?)/] }
+    pipeline: {
+      exclude: [/[\\/]node_modules[\\/]/, /[\\/]src-tauri[\\/]/, /[\\/]dist[\\/]/]
+    }
   },
   theme: {
     duration: {

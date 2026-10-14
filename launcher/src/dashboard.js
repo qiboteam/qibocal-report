@@ -9,9 +9,7 @@ import App from '@dashboard/App.vue'
 import { router } from '@dashboard/router.js'
 import LauncherBar from './components/LauncherBar.vue'
 
-import 'virtual:uno.css'
-import '@dashboard/assets/style.css'
-import './assets/launcher.css'
+import './styles.js'
 
 createApp(App).use(router).mount('#app')
 createApp(LauncherBar).mount('#launcher-bar')
