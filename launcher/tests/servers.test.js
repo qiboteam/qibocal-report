@@ -5,6 +5,7 @@ import {
   DASHBOARD_ACTIVE_KEY,
   DASHBOARD_SERVERS_KEY,
   mergeDashboardServers,
+  serverCommand,
   syncDashboardServers,
   toDashboardServer
 } from '../src/lib/servers.js'
@@ -93,4 +94,51 @@ test('unreadable storage does not stop the synchronisation', () => {
   const servers = syncDashboardServers([{ id: 'one', url: 'http://one.example' }], { storage })
   assert.equal(servers.length, 1)
   assert.equal(storage.getItem(DASHBOARD_ACTIVE_KEY), 'one')
+})
+
+test('a local server is started with a host and a port', () => {
+  assert.equal(
+    serverCommand({ mode: 'server', directory: '/data/runs', host: 'localhost', port: 8000 }),
+    'qibocal report server /data/runs --host localhost --port 8000 --no-auth'
+  )
+})
+
+test('the developer mode carries the frontend port, the client no directory', () => {
+  assert.equal(
+    serverCommand({ mode: 'dev', directory: '/data', port: 8000, auth: true, frontendPort: 5174 }),
+    'qibocal report dev /data --host localhost --port 8000 --auth --frontend-port 5174'
+  )
+  assert.equal(serverCommand({ mode: 'client', port: 9000 }), 'qibocal report client --host localhost --port 9000')
+})
+
+test('a remote server replaces the address with the SSH options', () => {
+  assert.equal(
+    serverCommand({
+      mode: 'server',
+      directory: '/shared/runs',
+      port: 8000,
+      auth: true,
+      ssh: 'me@login-node',
+      venv: 'qibocal',
+      workdir: '/shared',
+      install: 'qibocal-report',
+      timeout: 600
+    }),
+    'qibocal report server /shared/runs --auth --ssh me@login-node ' +
+      '--workdir /shared --venv qibocal --install qibocal-report --timeout 600'
+  )
+})
+
+test('the remote options are left out without a destination', () => {
+  assert.equal(
+    serverCommand({ mode: 'server', directory: '/data', port: 8000, ssh: '  ', venv: 'qibocal' }),
+    'qibocal report server /data --host localhost --port 8000 --no-auth'
+  )
+})
+
+test('an argument that would be split is quoted', () => {
+  assert.equal(
+    serverCommand({ mode: 'server', directory: '/data/my runs', port: 8000, ssh: '-J bastion me@node' }),
+    "qibocal report server '/data/my runs' --no-auth --ssh '-J bastion me@node'"
+  )
 })

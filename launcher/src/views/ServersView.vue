@@ -21,21 +21,32 @@
           class="sm:col-span-2"
           label="Reports directory"
           :error="errors.directory"
-          help="The folder holding the calibration runs to serve."
+          :help="remote
+            ? 'The folder holding the calibration runs, on the other machine.'
+            : 'The folder holding the calibration runs to serve.'"
         >
           <path-picker
+            v-if="!remote"
             :id="id"
             v-model="form.directory"
             title="Choose the reports directory"
             placeholder="/path/to/calibrations"
           />
+          <input
+            v-else
+            :id="id"
+            v-model.trim="form.directory"
+            type="text"
+            class="lx-input lx-mono"
+            placeholder="/shared/calibrations"
+          />
         </form-field>
 
-        <form-field v-slot="{ id }" label="Host">
+        <form-field v-if="!remote" v-slot="{ id }" label="Host">
           <input :id="id" v-model.trim="form.host" type="text" class="lx-input lx-mono" placeholder="localhost" />
         </form-field>
 
-        <form-field v-slot="{ id }" label="Port" :error="errors.port">
+        <form-field v-if="!remote" v-slot="{ id }" label="Port" :error="errors.port">
           <div class="flex items-center gap-2">
             <input :id="id" v-model="form.port" type="number" min="1" max="65535" class="lx-input lx-mono" />
             <button
@@ -59,6 +70,35 @@
             label="User accounts"
             help="Enables authentication and issues an administrator invitation."
           />
+        </div>
+      </div>
+
+      <!-- Somewhere else entirely -->
+      <div v-if="form.mode === 'server'" class="mt-4 pt-4 border-t border-gray-100">
+        <toggle-switch
+          v-model="elsewhere"
+          label="Run it on another machine"
+          help="Reach the host over SSH, prepare an environment there, and tunnel the server back."
+        />
+
+        <div v-if="elsewhere" class="grid gap-4 sm:grid-cols-2 mt-4">
+          <form-field
+            v-for="field in remoteFields"
+            :key="field.name"
+            v-slot="{ id }"
+            :class="field.wide ? 'sm:col-span-2' : ''"
+            :label="field.label"
+            :help="field.help"
+            :error="field.name === 'ssh' ? errors.ssh : ''"
+          >
+            <input
+              :id="id"
+              v-model.trim="form[field.name]"
+              type="text"
+              class="lx-input lx-mono"
+              :placeholder="field.placeholder"
+            />
+          </form-field>
         </div>
       </div>
 
@@ -214,7 +254,7 @@ import {
   forgetServer,
   startServer
 } from '../state.js'
-import { serverUrl } from '../lib/servers.js'
+import { serverCommand, serverUrl } from '../lib/servers.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -225,30 +265,73 @@ const modes = [
   { value: 'dev', label: 'Developer', help: 'Live interface with hot reloading.' }
 ]
 
-const form = reactive({ mode: 'server', directory: '', host: 'localhost', port: 8000, auth: false, frontendPort: 5173 })
+// Worded like the matching notebook options, which describe the same things.
+const remoteFields = [
+  {
+    name: 'ssh',
+    label: 'SSH destination',
+    wide: true,
+    placeholder: 'user@login-node',
+    help: 'SSH options followed by a host or user@host.'
+  },
+  {
+    name: 'venv',
+    label: 'Server environment',
+    placeholder: 'qibocal',
+    help: 'Environment name or path on the remote host. It is created when missing.'
+  },
+  {
+    name: 'workdir',
+    label: 'Working directory',
+    placeholder: '/shared/calibration',
+    help: 'Directory the server starts from on the remote host.'
+  },
+  {
+    name: 'install',
+    label: 'Package to install',
+    wide: true,
+    placeholder: 'qibocal-report',
+    help: 'Installed in the environment when it does not already provide qibocal.'
+  }
+]
+
+const form = reactive({
+  mode: 'server',
+  directory: '',
+  host: 'localhost',
+  port: 8000,
+  auth: false,
+  frontendPort: 5173,
+  ssh: '',
+  venv: '',
+  workdir: '',
+  install: ''
+})
 const draft = reactive({ url: '', name: '' })
 const invite = reactive({ serverId: null, username: '', hours: 24, busy: false, result: null })
 const administrators = ref([])
 const starting = ref(false)
+const elsewhere = ref(false)
+
+/** Only a reports server travels, and only once a destination is given. */
+const remote = computed(() => form.mode === 'server' && elsewhere.value && Boolean(form.ssh.trim()))
 
 const errors = computed(() => {
   const found = {}
   if (form.mode !== 'client' && !form.directory.trim()) {
     found.directory = 'Choose the directory holding the calibration runs.'
   }
+  if (form.mode === 'server' && elsewhere.value && !form.ssh.trim()) {
+    found.ssh = 'Name the machine to reach, as ssh would.'
+  }
   const port = Number(form.port)
-  if (!Number.isInteger(port) || port < 1 || port > 65535) found.port = 'Enter a port between 1 and 65535.'
+  if (!remote.value && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+    found.port = 'Enter a port between 1 and 65535.'
+  }
   return found
 })
 
-const preview = computed(() => {
-  const parts = ['qibocal', 'report', form.mode]
-  if (form.mode !== 'client' && form.directory) parts.push(form.directory)
-  parts.push('--host', form.host || 'localhost', '--port', String(form.port))
-  if (form.mode !== 'client') parts.push(form.auth ? '--auth' : '--no-auth')
-  if (form.mode === 'dev') parts.push('--frontend-port', String(form.frontendPort))
-  return parts.join(' ')
-})
+const preview = computed(() => serverCommand(launchOptions()))
 
 function processFor(server) {
   const url = serverUrl(server.url)
@@ -262,6 +345,23 @@ async function pickFreePort() {
   if (port) form.port = port
 }
 
+/** Exactly what `start_server` receives, and what the preview describes. */
+function launchOptions() {
+  const away = remote.value
+  return {
+    mode: form.mode,
+    directory: form.mode === 'client' ? null : form.directory.trim(),
+    host: form.host.trim() || 'localhost',
+    port: Number(form.port),
+    auth: form.auth,
+    frontendPort: form.mode === 'dev' ? Number(form.frontendPort) : null,
+    ssh: away ? form.ssh.trim() : null,
+    venv: away ? form.venv.trim() || null : null,
+    workdir: away ? form.workdir.trim() || null : null,
+    install: away ? form.install.trim() || null : null
+  }
+}
+
 async function launch() {
   const problem = Object.values(errors.value)[0]
   if (problem) {
@@ -269,17 +369,14 @@ async function launch() {
     return
   }
   starting.value = true
-  const options = {
-    mode: form.mode,
-    directory: form.mode === 'client' ? null : form.directory.trim(),
-    host: form.host.trim() || 'localhost',
-    port: Number(form.port),
-    auth: form.auth,
-    frontendPort: form.mode === 'dev' ? Number(form.frontendPort) : null
-  }
+  const options = launchOptions()
   try {
     await startServer(options)
-    notify(`Starting the ${form.mode} server on http://${options.host}:${options.port}.`)
+    notify(
+      options.ssh
+        ? `Starting the report server on ${options.ssh}; the tunnel address appears in Running.`
+        : `Starting the ${form.mode} server on http://${options.host}:${options.port}.`
+    )
     // The command line registers the instance itself, once it is up.
     setTimeout(refreshServers, 1500)
     router.push({ name: 'processes' })
@@ -361,8 +458,13 @@ function applyQuery() {
   Object.assign(form, {
     ...remembered,
     directory: remembered.directory || '',
-    frontendPort: remembered.frontendPort || 5173
+    frontendPort: remembered.frontendPort || 5173,
+    ssh: remembered.ssh || '',
+    venv: remembered.venv || '',
+    workdir: remembered.workdir || '',
+    install: remembered.install || ''
   })
+  elsewhere.value = Boolean(remembered.ssh)
 }
 
 onMounted(() => {

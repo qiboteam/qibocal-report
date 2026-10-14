@@ -19,6 +19,44 @@ export function serverUrl(value) {
   return ADDRESS.test(url) ? url : ''
 }
 
+function quote(value) {
+  return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${String(value).replace(/'/g, "'\\''")}'`
+}
+
+/**
+ * The command the launcher runs for a set of start options.
+ *
+ * It is both what the form shows under the button and, word for word, what
+ * `process.rs::start_server` assembles — the two cannot drift while this is the
+ * only place that spells the flags out.
+ */
+export function serverCommand(options = {}) {
+  const mode = options.mode || 'server'
+  const ssh = typeof options.ssh === 'string' ? options.ssh.trim() : ''
+  const parts = ['qibocal', 'report', mode]
+  if (mode !== 'client' && options.directory) parts.push(options.directory)
+  if (!ssh) {
+    parts.push('--host', options.host || 'localhost', '--port', String(options.port ?? 8000))
+  }
+  if (mode !== 'client') parts.push(options.auth ? '--auth' : '--no-auth')
+  if (mode === 'dev') parts.push('--frontend-port', String(options.frontendPort ?? 5173))
+  // Without a destination the rest of the remote options mean nothing, and
+  // the command line refuses them: they go together or not at all.
+  if (ssh) {
+    for (const [flag, value] of [
+      ['--ssh', ssh],
+      ['--workdir', options.workdir],
+      ['--venv', options.venv],
+      ['--install', options.install]
+    ]) {
+      const text = typeof value === 'string' ? value.trim() : ''
+      if (text) parts.push(flag, text)
+    }
+    if (options.timeout) parts.push('--timeout', String(options.timeout))
+  }
+  return parts.map(quote).join(' ')
+}
+
 function stringMap(value, arrays) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {}
   return Object.fromEntries(

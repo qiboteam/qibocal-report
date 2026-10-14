@@ -378,6 +378,12 @@ pub struct ServerOptions {
     pub port: u16,
     pub auth: bool,
     pub frontend_port: Option<u16>,
+    /// Set to run `report server` on another machine, over SSH.
+    pub ssh: Option<String>,
+    pub workdir: Option<String>,
+    pub venv: Option<String>,
+    pub install: Option<String>,
+    pub timeout: Option<f64>,
 }
 
 #[tauri::command]
@@ -386,6 +392,15 @@ pub fn start_server(
     supervisor: State<Supervisor>,
     options: ServerOptions,
 ) -> Result<ProcessInfo, String> {
+    let ssh = options
+        .ssh
+        .clone()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if ssh.is_some() && options.mode != "server" {
+        return Err("Only 'report server' can run on another machine.".to_string());
+    }
+
     let mut arguments = vec!["report".to_string(), options.mode.clone()];
     let mut working_directory = None;
     match options.mode.as_str() {
@@ -395,20 +410,26 @@ pub fn start_server(
                 .clone()
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| "Choose the directory holding the calibration runs.".to_string())?;
-            let path = PathBuf::from(&directory);
-            if !path.is_dir() {
-                return Err(format!("'{directory}' is not a directory."));
+            // Over SSH the directory belongs to the other machine, and only
+            // the worker can tell whether it is there.
+            if ssh.is_none() {
+                let path = PathBuf::from(&directory);
+                if !path.is_dir() {
+                    return Err(format!("'{directory}' is not a directory."));
+                }
+                working_directory = Some(path);
             }
-            working_directory = Some(path);
             arguments.push(directory);
         }
         "client" => {}
         other => return Err(format!("Unknown server mode '{other}'.")),
     }
-    arguments.push("--host".to_string());
-    arguments.push(options.host.clone());
-    arguments.push("--port".to_string());
-    arguments.push(options.port.to_string());
+    if ssh.is_none() {
+        arguments.push("--host".to_string());
+        arguments.push(options.host.clone());
+        arguments.push("--port".to_string());
+        arguments.push(options.port.to_string());
+    }
     if options.mode != "client" {
         arguments.push(if options.auth { "--auth" } else { "--no-auth" }.to_string());
     }
@@ -418,21 +439,48 @@ pub fn start_server(
             arguments.push(port.to_string());
         }
     }
+    // Without a destination the rest of the remote options mean nothing, and
+    // the command line refuses them: they go together or not at all.
+    if ssh.is_some() {
+        push_text(&mut arguments, "--ssh", ssh.clone());
+        push_text(&mut arguments, "--workdir", options.workdir.clone());
+        push_text(&mut arguments, "--venv", options.venv.clone());
+        push_text(&mut arguments, "--install", options.install.clone());
+        if let Some(timeout) = options.timeout {
+            arguments.push("--timeout".to_string());
+            arguments.push(format!("{timeout}"));
+        }
+    }
 
-    let url = format!("http://{}:{}", options.host, options.port);
     let detail = options
         .directory
         .clone()
         .unwrap_or_else(|| "Multi-server client".to_string());
-    supervisor.spawn(
-        &app,
-        "server",
-        url.clone(),
-        detail,
-        arguments,
-        working_directory,
-        Some(url),
-    )
+    match ssh {
+        // The tunnel picks its own local port, so wait for the address the
+        // command prints instead of guessing one.
+        Some(ssh) => supervisor.spawn(
+            &app,
+            "server",
+            format!("ssh {ssh}"),
+            detail,
+            arguments,
+            None,
+            None,
+        ),
+        None => {
+            let url = format!("http://{}:{}", options.host, options.port);
+            supervisor.spawn(
+                &app,
+                "server",
+                url.clone(),
+                detail,
+                arguments,
+                working_directory,
+                Some(url),
+            )
+        }
+    }
 }
 
 #[derive(Deserialize)]

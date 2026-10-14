@@ -91,6 +91,47 @@ def notebook_options(*, hidden: bool = False):
     return decorate
 
 
+def remote_server_options(command):
+    """The flags that move `report server` onto another machine.
+
+    They are named after the notebook ones on purpose: a host reachable by
+    `qibocal notebook connect --ssh … --venv …` serves reports with the same
+    two words.
+    """
+    for option in reversed(
+        [
+            click.option(
+                "--ssh",
+                help="SSH options followed by a host or user@host destination. "
+                "Given, DIRECTORY is read on that host and the server is "
+                "tunnelled back here.",
+            ),
+            click.option(
+                "-w",
+                "--workdir",
+                help="Working directory on the remote host.",
+            ),
+            click.option(
+                "--venv",
+                help="Environment name or path on the remote host "
+                "(default: qibocal). It is created when missing.",
+            ),
+            click.option(
+                "--install",
+                help="Packages installed in the remote environment when it "
+                "has no qibocal (default: qibocal-report).",
+            ),
+            click.option(
+                "--timeout",
+                type=click.FloatRange(min=0, min_open=True),
+                help="Remote startup timeout in seconds (default: 300).",
+            ),
+        ]
+    ):
+        command = option(command)
+    return command
+
+
 @main.group(name="notebook")
 def notebook():
     """Connect to notebooks and manage registered connections."""
@@ -239,11 +280,7 @@ def report():
 
 
 @report.command(name="server")
-@click.argument(
-    "directory",
-    default=".",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True),
-)
+@click.argument("directory", default=".", type=click.Path(file_okay=False))
 @click.option("--host", default="localhost", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
 @click.option(
@@ -251,8 +288,24 @@ def report():
     default=False,
     help="Enable user authentication and role management.",
 )
-def server(directory: str, host: str, port: int, auth: bool):
-    """Start the FastAPI backend server."""
+@remote_server_options
+def server(directory: str, host: str, port: int, auth: bool, ssh: str | None, **remote):
+    """Start the FastAPI backend server, here or on another machine."""
+    if ssh:
+        from qibocal_report.remote import launch, load_options
+
+        launch(
+            load_options(
+                {"ssh": ssh, "directory": directory, "auth": auth, **remote}
+            )
+        )
+        return
+    for name, value in remote.items():
+        if value is not None:
+            raise click.UsageError(f"--{name} only applies together with --ssh.")
+    # The directory is only ours to check when the server runs here.
+    if not Path(directory).is_dir():
+        raise click.UsageError(f"Directory '{directory}' does not exist.")
     dir_path = Path(directory).resolve()
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)

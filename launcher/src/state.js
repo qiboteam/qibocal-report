@@ -101,10 +101,23 @@ export function recallLaunch(url) {
   return (key && state.preferences.launches?.[key]) || null
 }
 
+/**
+ * Launches still waiting for an address, by process.
+ *
+ * A server started over SSH is reached through a tunnel whose local port is
+ * only known once the command line prints it, so its options are kept here
+ * until `mergeProcess` sees that address go by.
+ */
+const pending = new Map()
+
 /** Start a report server and keep its options for the next time. */
 export async function startServer(options, { url = null } = {}) {
   const info = await desktop.startServer(options)
   mergeProcess(info)
+  if (!url && !info.url && options.ssh) {
+    pending.set(info.id, options)
+    return info
+  }
   const address = url || info.url || `http://${options.host || '127.0.0.1'}:${options.port}`
   await rememberLaunch(address, options)
   return info
@@ -118,6 +131,15 @@ function mergeProcess(info) {
   const index = state.processes.findIndex(process => process.id === info.id)
   if (index >= 0) state.processes[index] = info
   else state.processes.push(info)
+
+  const waiting = pending.get(info.id)
+  if (!waiting) return
+  if (info.url) {
+    pending.delete(info.id)
+    rememberLaunch(info.url, waiting)
+  } else if (info.status !== 'running') {
+    pending.delete(info.id)
+  }
 }
 
 export async function loadLog(id) {
