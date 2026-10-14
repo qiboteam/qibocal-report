@@ -16,8 +16,9 @@
       </div>
     </div>
 
-    <div v-else class="grid gap-4 lg:grid-cols-[18rem_1fr] items-start">
-      <aside class="space-y-2">
+    <!-- minmax(0, 1fr): the output column may shrink below its content, which wraps. -->
+    <div v-else class="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)] items-start">
+      <aside class="space-y-2 min-w-0">
         <button
           v-for="process in ordered"
           :key="process.id"
@@ -36,13 +37,13 @@
         </button>
       </aside>
 
-      <section v-if="current" class="bm-card p-4 flex flex-col" style="min-height: 26rem">
+      <section v-if="current" class="bm-card p-4 flex flex-col min-w-0" style="min-height: 26rem">
         <header class="flex flex-wrap items-center gap-2 mb-3">
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1 basis-64">
             <h2 class="text-sm font-medium text-gray-900 truncate">{{ current.label }}</h2>
-            <code class="lx-mono text-gray-400 truncate block">{{ current.command.join(' ') }}</code>
+            <code class="lx-mono text-gray-400 truncate block" :title="current.command.join(' ')">{{ current.command.join(' ') }}</code>
           </div>
-          <div class="ml-auto flex items-center gap-1.5">
+          <div class="ml-auto flex items-center gap-1.5 shrink-0">
             <button v-if="current.url" type="button" class="lx-action" @click="openDashboard(current.url)">
               <LayoutDashboard class="w-3.5 h-3.5" /> Dashboard
             </button>
