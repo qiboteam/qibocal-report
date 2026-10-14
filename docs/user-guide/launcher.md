@@ -14,9 +14,29 @@ Installers for the three desktop platforms are attached to every [release](https
 | Linux | `.deb`, `.AppImage` | The AppImage needs no installation |
 | Windows | `-setup.exe`, `.msi` | The installer sets the application up for the current user |
 
-The builds are unsigned: macOS asks for a confirmation in **System Settings → Privacy & Security** the first time, Windows SmartScreen offers *More info → Run anyway*.
-
 The launcher drives the `qibocal` command line, it does not replace it: install Qibocal as usual (see [Getting Started](user-guide/quickstart)) and the launcher will find it.
+
+### Opening an unsigned build
+
+Signing an application for macOS requires a paid Apple Developer ID, and one for Windows a certificate from a commercial authority. Until the project holds them, the published installers are unsigned, and both systems refuse them on first launch — the application is intact, the operating system simply has nobody to check it with.
+
+On **macOS**, the first attempt is met with *"Qibocal Launcher" Not Opened — Apple could not verify "Qibocal Launcher" is free of malware*. Only **Done** and **Move to Bin** are offered, and the application is *not* the one to insist with:
+
+1. press **Done**;
+2. open **System Settings → Privacy & Security** and scroll to the security section, where *"Qibocal Launcher" was blocked to protect your Mac* now appears;
+3. press **Open Anyway**, and confirm.
+
+The same can be done in one command, which drops the quarantine flag the browser attached to the download:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Qibocal Launcher.app"
+```
+
+Either way the answer is remembered: subsequent launches open directly.
+
+On **Windows**, SmartScreen shows *Windows protected your PC*: choose **More info → Run anyway**. On **Linux** nothing is in the way — the `.deb` and the AppImage install and run as they are.
+
+Maintainers who do hold the credentials only have to set the repository secrets `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD` and `APPLE_SIGNING_IDENTITY` — plus `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID` for notarization: the build workflow picks them up on its own, and the installers it publishes then open with a double click.
 
 ---
 

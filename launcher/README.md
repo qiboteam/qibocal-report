@@ -63,3 +63,10 @@ them for all three, on demand and on every release.
 - Processes are stopped with a signal, not a kill, and only killed if they are
   still around a few seconds later: `qibocal notebook connect` needs that window
   to close its SSH tunnels and remote workers.
+- The published builds are unsigned, so macOS and Windows block them on first
+  launch; the way around it is in
+  [the user guide](../docs/user-guide/launcher.md#opening-an-unsigned-build).
+  The workflow signs and notarizes the macOS bundle as soon as the secrets
+  `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
+  `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID` exist, and warns in the job
+  summary while they do not.

@@ -122,10 +122,72 @@ jobs:
         working-directory: launcher
         timeout-minutes: 10
 
+      # Without a Developer ID signature and Apple's notarization, macOS
+      # refuses a downloaded application outright — "Apple could not verify
+      # … is free of malware" — and only a trip through System Settings
+      # opens it. The credentials are repository secrets, and the step is
+      # skipped when they are missing: an unsigned build is still useful, a
+      # half-configured one only fails. See docs/user-guide/launcher.md.
+      - name: Enable Apple code signing and notarization
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ACCOUNT: ${{ secrets.APPLE_ID }}
+          APPLE_ACCOUNT_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$CERTIFICATE" ] || [ -z "$SIGNING_IDENTITY" ]; then
+            echo "::warning::No Apple Developer ID configured: the build will"\
+                 "be unsigned, and macOS will refuse it until the user allows"\
+                 "it in System Settings → Privacy & Security."
+            exit 0
+          fi
+          # The certificate is base64, which some tools wrap over several
+          # lines: pass it through the delimited form, which takes either.
+          {
+            echo "APPLE_CERTIFICATE<<APPLE_CERTIFICATE_EOF"
+            echo "$CERTIFICATE"
+            echo "APPLE_CERTIFICATE_EOF"
+            echo "APPLE_CERTIFICATE_PASSWORD=$CERTIFICATE_PASSWORD"
+            echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY"
+          } >> "$GITHUB_ENV"
+          # Notarization needs the application signed first, and a few minutes
+          # of waiting on Apple's service.
+          if [ -n "$APPLE_ACCOUNT" ]; then
+            {
+              echo "APPLE_ID=$APPLE_ACCOUNT"
+              echo "APPLE_PASSWORD=$APPLE_ACCOUNT_PASSWORD"
+              echo "APPLE_TEAM_ID=$TEAM_ID"
+            } >> "$GITHUB_ENV"
+          else
+            echo "::warning::Signing without notarizing: macOS still refuses"\
+                 "downloaded applications it cannot check with Apple."
+          fi
+
       - name: Build the installers
         run: pnpm tauri build --bundles ${{ matrix.bundles }} ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
         working-directory: launcher
         timeout-minutes: 45
+
+      - name: Report what macOS will make of the result
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="launcher/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Qibocal Launcher.app"
+          if [ ! -d "$app" ]; then
+            echo "::warning::$app not found, skipping the assessment."
+            exit 0
+          fi
+          codesign --display --verbose=2 "$app" 2>&1 || true
+          if spctl --assess --type execute "$app" 2>&1; then
+            echo "Gatekeeper accepts this build: it opens with a double click."
+          else
+            echo "::warning::Unsigned or un-notarized build: macOS will refuse it"\
+                 "until the user allows it in System Settings → Privacy & Security."
+          fi
 
       - name: Collect the installers
         id: collect
