@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
-  DEFAULT_SPEC,
+  MAIN_SPEC,
   archiveSpec,
+  defaultSpec,
   describeSpec,
   parseRefs,
   parseReleases,
@@ -12,26 +13,31 @@ import {
   versionOptions
 } from '../src/lib/versions.js'
 
-test('the default is the main branch, installed from its archive', () => {
-  assert.equal(
-    DEFAULT_SPEC,
-    'qibocal-report @ https://github.com/qiboteam/qibocal-report/archive/refs/heads/main.tar.gz'
-  )
-  assert.deepEqual(parseSpec(DEFAULT_SPEC), { kind: 'branch', ref: 'main' })
-  assert.deepEqual(parseSpec(''), { kind: 'branch', ref: 'main' }, 'nothing chosen is the default')
+const COMMIT = 'abc1234def5678abc1234def5678abc1234def56'
+const build = { defaultPackage: archiveSpec('commit', COMMIT), buildCommit: COMMIT }
+
+test('the default is the commit the launcher was built from, a bare archive URL', () => {
+  assert.equal(defaultSpec(build), `https://github.com/qiboteam/qibocal-report/archive/${COMMIT}.tar.gz`)
+  assert.ok(!defaultSpec(build).includes(' '), 'one word, for the remote worker')
+  assert.deepEqual(parseSpec(defaultSpec(build)), { kind: 'commit', ref: COMMIT })
+  assert.equal(defaultSpec(null), MAIN_SPEC, 'without a known commit, the main branch')
+  assert.deepEqual(parseSpec(''), { kind: 'branch', ref: 'main' })
 })
 
-test('releases, tags and hand-typed requirements are told apart', () => {
+test('releases, branches, tags and hand-typed requirements are told apart', () => {
   assert.deepEqual(parseSpec(releaseSpec('0.2.0')), { kind: 'release', ref: '0.2.0' })
   assert.deepEqual(parseSpec(archiveSpec('tag', 'v0.1.0')), { kind: 'tag', ref: 'v0.1.0' })
   assert.deepEqual(parseSpec(archiveSpec('branch', 'feature/x')), { kind: 'branch', ref: 'feature/x' })
+  assert.deepEqual(parseSpec(`qibocal-report @ ${archiveSpec('branch', 'main')}`), { kind: 'branch', ref: 'main' }, 'the named form is read too')
   assert.deepEqual(parseSpec('/home/me/checkout'), { kind: 'other', ref: '/home/me/checkout' })
 })
 
 test('a requirement is described briefly', () => {
   assert.equal(describeSpec(releaseSpec('0.2.0')), '0.2.0 (PyPI)')
-  assert.equal(describeSpec(DEFAULT_SPEC), 'branch main')
+  assert.equal(describeSpec(MAIN_SPEC), 'branch main')
   assert.equal(describeSpec(archiveSpec('tag', 'v1')), 'tag v1')
+  assert.equal(describeSpec(archiveSpec('commit', COMMIT)), 'commit abc1234')
+  assert.equal(describeSpec(archiveSpec('commit', COMMIT), build), 'commit abc1234 (this build)')
   assert.equal(describeSpec('  something==1 '), 'something==1')
 })
 
@@ -53,9 +59,17 @@ test('main leads the branches, the rest keep their order', () => {
   assert.deepEqual(parseRefs([{ name: 'feature/b' }, { name: 'main' }, { name: 'dev' }, {}]), ['main', 'feature/b', 'dev'])
 })
 
-test('the picker keeps the current choice even when the lists lack it', () => {
-  const options = versionOptions({ releases: ['0.1.0'], branches: ['main'], tags: [], current: archiveSpec('tag', 'v9') })
-  assert.deepEqual(options.map(option => option.label), ['0.1.0 (PyPI)', 'branch main', 'tag v9'])
-  const known = versionOptions({ branches: ['main'], current: DEFAULT_SPEC })
-  assert.equal(known.length, 1, 'a choice the lists know is not repeated')
+test('the picker leads with this build and keeps the current choice', () => {
+  const options = versionOptions({
+    releases: ['0.1.0'],
+    branches: ['main'],
+    current: archiveSpec('tag', 'v9'),
+    environment: build
+  })
+  assert.deepEqual(
+    options.map(option => option.label),
+    ['commit abc1234 (this build)', '0.1.0 (PyPI)', 'branch main', 'tag v9']
+  )
+  const known = versionOptions({ branches: ['main'], current: MAIN_SPEC })
+  assert.equal(known.length, 1, 'a choice the lists know is not repeated, nor is the default')
 })

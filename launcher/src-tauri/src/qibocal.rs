@@ -23,11 +23,20 @@ use tauri::{AppHandle, State};
 use crate::process::{ProcessInfo, Supervisor};
 use crate::settings;
 
+/// The commit this build was made from, when the build knew it (see build.rs).
+pub const BUILD_COMMIT: Option<&str> = option_env!("QIBOCAL_BUILD_COMMIT");
+
 /// What goes into the managed environment, unless a preference says otherwise:
-/// the main branch, installed from its archive, until there is a release on
-/// PyPI. Kept in step with `DEFAULT_SPEC` in `src/lib/versions.js`.
-pub const DEFAULT_PACKAGE: &str =
-    "qibocal-report @ https://github.com/qiboteam/qibocal-report/archive/refs/heads/main.tar.gz";
+/// the very commit this launcher is built from, installed from its archive —
+/// no git needed, and a command line that takes exactly the flags the
+/// launcher passes. Without a known commit, the main branch. A bare URL, so
+/// it survives being split into words by the remote worker.
+pub fn default_package() -> String {
+    match BUILD_COMMIT {
+        Some(commit) => format!("https://github.com/qiboteam/qibocal-report/archive/{commit}.tar.gz"),
+        None => "https://github.com/qiboteam/qibocal-report/archive/refs/heads/main.tar.gz".to_string(),
+    }
+}
 
 /// Written by `setup.py` next to the environment: which requirement it holds.
 const MARKER: &str = "qibocal-launcher.json";
@@ -57,6 +66,9 @@ pub struct Environment {
     pub python_version: Option<String>,
     /// The requirement the managed environment is given on the next install.
     pub package: String,
+    /// What that requirement is when nothing was chosen: this build's commit.
+    pub default_package: String,
+    pub build_commit: Option<String>,
     /// The requirement it was last installed from, if it exists.
     pub managed_package: Option<String>,
 }
@@ -91,8 +103,8 @@ fn package_preference() -> String {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or(DEFAULT_PACKAGE)
-        .to_string()
+        .map(str::to_string)
+        .unwrap_or_else(default_package)
 }
 
 fn python_candidates() -> Vec<PathBuf> {
@@ -200,9 +212,9 @@ pub fn install_qibocal(
         &app,
         "setup",
         if upgrade.unwrap_or(false) {
-            "Updating Qibocal".to_string()
+            "Updating qibocal-report".to_string()
         } else {
-            "Installing Qibocal".to_string()
+            "Installing qibocal-report".to_string()
         },
         format!("{package} in {}", managed_environment().display()),
         command,
@@ -328,8 +340,8 @@ pub fn executable() -> Result<PathBuf, String> {
         .0
         .map(|(path, _)| path)
         .ok_or_else(|| {
-            "Qibocal is not installed yet. Install it from the Configuration section, or \
-             point the launcher at an environment that has it."
+            "qibocal-report is not installed yet. The launcher installs it when it is first \
+             needed; the Configuration section can also point it at an environment that has it."
                 .to_string()
         })
 }
@@ -411,6 +423,8 @@ pub fn environment() -> Environment {
         python: python.as_ref().map(|(path, _)| path.display().to_string()),
         python_version: python.map(|(_, version)| version),
         package: package_preference(),
+        default_package: default_package(),
+        build_commit: BUILD_COMMIT.map(str::to_string),
         managed_package: managed_package(),
     }
 }

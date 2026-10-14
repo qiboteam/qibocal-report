@@ -2,10 +2,12 @@
  * Which qibocal-report goes into the launcher's own environment.
  *
  * The choice is a pip requirement, stored as `package` in `launcher.json`:
- * a release from PyPI, or a branch or tag of the repository installed from
- * its archive — no git needed on the machine. Until the first release, the
- * default is the main branch. The lists come from PyPI and the GitHub API,
- * fetched by the interface; everything here is pure and tested.
+ * a release from PyPI, or the archive of a commit, branch or tag of the
+ * repository — a bare URL, so no git is needed and the remote worker, which
+ * splits its `--install` into words, gets one word. Without a choice, the
+ * launcher installs the commit it was built from, which the native side
+ * reports. The lists come from PyPI and the GitHub API, fetched by the
+ * interface; everything here is pure and tested.
  */
 
 export const PROJECT = 'qibocal-report'
@@ -14,43 +16,56 @@ export const PYPI_URL = `https://pypi.org/pypi/${PROJECT}/json`
 export const BRANCHES_URL = `https://api.github.com/repos/${REPOSITORY}/branches?per_page=100`
 export const TAGS_URL = `https://api.github.com/repos/${REPOSITORY}/tags?per_page=100`
 
-const ARCHIVE = `https://github.com/${REPOSITORY}/archive/refs`
+const ARCHIVE = `https://github.com/${REPOSITORY}/archive`
 
-/** A branch or tag, as pip installs it: the archive of that ref. */
+/** A branch, tag or commit, as pip installs it: the archive of that ref. */
 export function archiveSpec(kind, ref) {
+  if (kind === 'commit') return `${ARCHIVE}/${ref}.tar.gz`
   const folder = kind === 'tag' ? 'tags' : 'heads'
-  return `${PROJECT} @ ${ARCHIVE}/${folder}/${encodeURIComponent(ref)}.tar.gz`
+  return `${ARCHIVE}/refs/${folder}/${encodeURIComponent(ref)}.tar.gz`
 }
 
 export function releaseSpec(version) {
   return `${PROJECT}==${version}`
 }
 
-/** What the launcher installs when nothing was chosen. Kept in step with qibocal.rs. */
-export const DEFAULT_SPEC = archiveSpec('branch', 'main')
+/** The last resort, when even the native side knows no commit: the main branch. */
+export const MAIN_SPEC = archiveSpec('branch', 'main')
+
+/** What the launcher installs when nothing was chosen: this build's commit. */
+export function defaultSpec(environment) {
+  const spec = environment?.defaultPackage
+  return typeof spec === 'string' && spec.trim() ? spec.trim() : MAIN_SPEC
+}
 
 /**
  * The choice behind a requirement: `{ kind, ref }` with kind `release`,
- * `branch`, `tag` or `other` — the last for anything typed by hand.
+ * `branch`, `tag`, `commit` or `other` — the last for anything typed by hand.
  */
 export function parseSpec(spec) {
   const text = typeof spec === 'string' ? spec.trim() : ''
-  if (!text) return parseSpec(DEFAULT_SPEC)
+  if (!text) return parseSpec(MAIN_SPEC)
   const release = text.match(new RegExp(`^${PROJECT}\\s*==\\s*([^\\s;]+)$`))
   if (release) return { kind: 'release', ref: release[1] }
-  const archive = text.match(new RegExp(`^${PROJECT}\\s*@\\s*${ARCHIVE}/(heads|tags)/(.+)\\.tar\\.gz$`))
+  const bare = text.replace(new RegExp(`^${PROJECT}\\s*@\\s*`), '')
+  const archive = bare.match(new RegExp(`^${ARCHIVE}/(?:refs/(heads|tags)/)?(.+)\\.tar\\.gz$`))
   if (archive) {
-    return { kind: archive[1] === 'tags' ? 'tag' : 'branch', ref: decodeURIComponent(archive[2]) }
+    const kind = archive[1] === 'tags' ? 'tag' : archive[1] === 'heads' ? 'branch' : 'commit'
+    return { kind, ref: decodeURIComponent(archive[2]) }
   }
   return { kind: 'other', ref: text }
 }
 
 /** A short label for a requirement, for the lists and the status line. */
-export function describeSpec(spec) {
+export function describeSpec(spec, environment = null) {
   const { kind, ref } = parseSpec(spec)
   if (kind === 'release') return `${ref} (PyPI)`
   if (kind === 'branch') return `branch ${ref}`
   if (kind === 'tag') return `tag ${ref}`
+  if (kind === 'commit') {
+    const short = ref.slice(0, 7)
+    return environment?.buildCommit === ref ? `commit ${short} (this build)` : `commit ${short}`
+  }
   return ref
 }
 
@@ -87,18 +102,24 @@ export function parseRefs(list) {
 }
 
 /**
- * The options offered by the picker: every release, branch and tag, with the
- * current choice kept even when the lists do not know it.
+ * The options offered by the picker: this build first, then every release,
+ * branch and tag, with the current choice kept even when the lists do not
+ * know it.
  */
-export function versionOptions({ releases = [], branches = [], tags = [], current = '' } = {}) {
+export function versionOptions({ releases = [], branches = [], tags = [], current = '', environment = null } = {}) {
+  const label = spec => describeSpec(spec, environment)
   const options = [
-    ...releases.map(version => ({ spec: releaseSpec(version), kind: 'release', label: describeSpec(releaseSpec(version)) })),
-    ...branches.map(name => ({ spec: archiveSpec('branch', name), kind: 'branch', label: describeSpec(archiveSpec('branch', name)) })),
-    ...tags.map(name => ({ spec: archiveSpec('tag', name), kind: 'tag', label: describeSpec(archiveSpec('tag', name)) }))
+    ...releases.map(version => ({ spec: releaseSpec(version), kind: 'release', label: label(releaseSpec(version)) })),
+    ...branches.map(name => ({ spec: archiveSpec('branch', name), kind: 'branch', label: label(archiveSpec('branch', name)) })),
+    ...tags.map(name => ({ spec: archiveSpec('tag', name), kind: 'tag', label: label(archiveSpec('tag', name)) }))
   ]
+  const build = defaultSpec(environment)
+  if (!options.some(option => option.spec === build)) {
+    options.unshift({ spec: build, kind: parseSpec(build).kind, label: label(build) })
+  }
   const chosen = typeof current === 'string' ? current.trim() : ''
   if (chosen && !options.some(option => option.spec === chosen)) {
-    options.push({ spec: chosen, kind: parseSpec(chosen).kind, label: describeSpec(chosen) })
+    options.push({ spec: chosen, kind: parseSpec(chosen).kind, label: label(chosen) })
   }
   return options
 }

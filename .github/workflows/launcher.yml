@@ -172,10 +172,16 @@ jobs:
                  "downloaded applications it cannot check with Apple."
           fi
 
+      # The launcher installs the qibocal-report it is built from, so the
+      # command line it drives takes the flags it passes: build.rs reads the
+      # commit — the branch head of a pull request, not its merge commit,
+      # which the archive endpoint does not serve.
       - name: Build the installers
         run: pnpm tauri build --bundles ${{ matrix.bundles }} ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
         working-directory: launcher
         timeout-minutes: 45
+        env:
+          QIBOCAL_BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Report what macOS will make of the result
         if: runner.os == 'macOS'

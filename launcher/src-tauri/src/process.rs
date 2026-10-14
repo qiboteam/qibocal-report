@@ -497,7 +497,18 @@ pub fn start_server(
         push_text(&mut arguments, "--ssh", ssh.clone());
         push_text(&mut arguments, "--workdir", options.workdir.clone());
         push_text(&mut arguments, "--venv", options.venv.clone());
-        push_text(&mut arguments, "--install", options.install.clone());
+        // The remote environment gets the same qibocal-report as this
+        // launcher, unless told otherwise: the command line's own default is
+        // the PyPI release, which may not exist yet.
+        push_text(
+            &mut arguments,
+            "--install",
+            options
+                .install
+                .clone()
+                .filter(|value| !value.trim().is_empty())
+                .or_else(|| Some(qibocal::default_package())),
+        );
         if let Some(timeout) = options.timeout {
             arguments.push("--timeout".to_string());
             arguments.push(format!("{timeout}"));

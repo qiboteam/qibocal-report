@@ -48,7 +48,8 @@ export const CONFIG_SHAPES = {
     kind: 'map',
     entry: 'preference',
     known: [
-      { name: 'executable', label: 'Qibocal executable', type: 'text', mono: true },
+      { name: 'executable', label: 'qibocal-report executable', type: 'text', mono: true },
+      { name: 'package', label: 'qibocal-report to install', type: 'text', mono: true },
       { name: 'launches', label: 'Remembered server launches', type: 'json' }
     ]
   },
