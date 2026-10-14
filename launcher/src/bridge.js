@@ -1,0 +1,83 @@
+/**
+ * The only place that talks to the native side.
+ *
+ * Every call degrades to a clear error when the interface is opened in a plain
+ * browser (`pnpm run dev` without the window), so the pages can still be
+ * styled and reviewed outside the desktop application.
+ */
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
+import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
+
+export const isDesktop = typeof window !== 'undefined' &&
+  Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
+
+const UNAVAILABLE = 'This action needs the Qibocal Launcher application window.'
+
+function call(command, args) {
+  if (!isDesktop) return Promise.reject(new Error(UNAVAILABLE))
+  return invoke(command, args)
+}
+
+export const desktop = {
+  environment: () => call('environment'),
+  setExecutable: path => call('set_executable', { path }),
+  freePort: () => call('free_port'),
+  platform: () => call('platform_summary'),
+
+  configEntries: () => call('config_entries'),
+  configDirectory: () => call('config_directory'),
+  removeConfigEntries: names => call('remove_config_entries', { names }),
+  preferences: () => call('preferences'),
+  savePreferences: settings => call('save_preferences', { settings }),
+
+  listServers: () => call('list_servers'),
+  saveServers: servers => call('save_servers', { servers }),
+
+  listNotebooks: () => call('list_notebooks'),
+  saveNotebook: (name, options) => call('save_notebook', { name, options }),
+  removeNotebook: name => call('remove_notebook', { name }),
+
+  startServer: options => call('start_server', { options }),
+  startNotebook: options => call('start_notebook', { options }),
+  processes: () => call('processes'),
+  processLog: id => call('process_log', { id }),
+  stopProcess: id => call('stop_process', { id }),
+  forgetProcess: id => call('forget_process', { id }),
+
+  administrators: () => call('administrators'),
+  reissueInvite: request => call('reissue_invite', { request })
+}
+
+/** Subscribe to a launcher event, returning an unsubscribe function. */
+export async function subscribe(event, handler) {
+  if (!isDesktop) return () => {}
+  return listen(event, message => handler(message.payload))
+}
+
+export async function chooseDirectory(title, defaultPath = null) {
+  if (!isDesktop) throw new Error(UNAVAILABLE)
+  const selected = await openFileDialog({ directory: true, multiple: false, title, defaultPath })
+  return typeof selected === 'string' ? selected : null
+}
+
+export async function chooseFile(title, defaultPath = null) {
+  if (!isDesktop) throw new Error(UNAVAILABLE)
+  const selected = await openFileDialog({ directory: false, multiple: false, title, defaultPath })
+  return typeof selected === 'string' ? selected : null
+}
+
+/** Open an address in the user's own browser, not inside the application. */
+export async function openExternal(url) {
+  if (!isDesktop) {
+    window.open(url, '_blank', 'noopener')
+    return
+  }
+  await openUrl(url)
+}
+
+export async function revealInFileManager(path) {
+  if (!isDesktop) throw new Error(UNAVAILABLE)
+  await revealItemInDir(path)
+}

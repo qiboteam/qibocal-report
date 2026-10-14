@@ -25,6 +25,7 @@ sessions to exploring results and organizing runs across report servers.
 - **Search & Filters**: Find calibration runs by title, platform, author, protocol, tag, or date.
 - **Statistics Dashboard**: Follow calibration activity over time and explore trends across protocols, authors, and platforms.
 - **Batch Actions**: Organize multiple runs at once by updating tags and authors, or deleting reports.
+- **Desktop Launcher**: Start servers and notebook sessions, manage local configuration, and browse reports from a single cross-platform application.
 
 ## 🚀 Quick Start
 
@@ -106,6 +107,26 @@ hosts without server-side routing. The deployment path is preserved: for example
 the hosted documentation is at
 [`https://qibo.science/qibocal-report/#/docs`](https://qibo.science/qibocal-report/#/docs).
 Static exports also work at other subpaths without configuring the router.
+
+### 6. Desktop Launcher
+
+The [launcher](launcher/) is a desktop application that does what the web page cannot: it
+reaches the machine it runs on. It starts report servers and notebook sessions,
+manages the configuration shared with the CLI, re-issues administrator
+invitations, and embeds the very same dashboard, so launching an instance and
+browsing its reports happen in one application.
+
+Installers for macOS, Linux and Windows are attached to every
+[release](https://github.com/qiboteam/qibocal-report/releases), and
+[`.github/workflows/launcher.yml`](.github/workflows/launcher.yml) also builds
+them on demand. To run it from the sources:
+
+```bash
+cd launcher
+pnpm install
+pnpm run icons   # generates the application icons from icon.svg
+pnpm run app     # or `pnpm run app:build` for the installers
+```
 
 ## 📖 Documentation
 

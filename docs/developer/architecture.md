@@ -78,3 +78,24 @@ Provides two distinct operational modes:
 ### 4. Charting: Plotly.js
 - Visualizations rendered client-side using `plotly.js-dist-min`.
 - Fully responsive containers with automatic layout recalculation on sidebar collapse or window resize.
+
+---
+
+## 🖥️ Desktop Launcher (`launcher/`)
+
+The launcher is a **Tauri v2** application: a Rust core around the same web
+frontend, built as a separate package so the SPA keeps being deployed on its own.
+
+### 1. Native Core (`src-tauri/src/`)
+- `settings.rs` reads and writes the configuration directory shared with the CLI (`servers.json`, `notebooks.json`, `auth.json`, `launcher.json`), replacing files atomically.
+- `qibocal.rs` resolves the `qibocal` executable — explicit preference, `QIBOCAL_EXECUTABLE`, `PATH`, then the usual virtual-environment layouts — and runs the short-lived commands (`report admin list`, `report admin invite`).
+- `process.rs` supervises the long-running ones, streaming their output to the interface through the `launcher://log` and `launcher://process` events, and stopping them with a signal followed, only if needed, by a kill.
+
+### 2. Embedded Dashboard
+- `dashboard.html` is a second page of the same bundle mounting `frontend/src` verbatim through the `@dashboard` alias, with the frontend's stylesheet and UnoCSS theme.
+- Both pages share one origin inside the window, hence one `localStorage`: the launcher publishes the configured servers to the key the dashboard already reads, which is how a server started from the desktop is immediately browsable.
+- The backend answers with `Access-Control-Allow-Origin: *`, so the embedded pages reach local instances from the application origin.
+
+### 3. Interface
+- The sections are declared once (`src/router.js`) and drive the router, the home page and the system menu, which is built in JavaScript through `@tauri-apps/api/menu`.
+- All native access goes through `src/bridge.js`, which degrades to an explanatory error in a plain browser, keeping the pages reviewable with `pnpm run dev`.

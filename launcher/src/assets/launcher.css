@@ -1,0 +1,175 @@
+/*
+ * A handful of controls the web frontend has no equivalent for: graphical
+ * selectors, labelled fields and the desktop bar. Everything else comes from
+ * the frontend stylesheet, so the two halves look like one application.
+ */
+
+.lx-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.lx-input,
+.lx-select {
+  width: 100%;
+  background: #f4f4f5;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text-main);
+  font-family: inherit;
+  transition: box-shadow 50ms ease, background-color 50ms ease;
+}
+
+.lx-select {
+  border: 0;
+  outline: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #9a9aa0 50%),
+    linear-gradient(135deg, #9a9aa0 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
+
+.lx-input:focus,
+.lx-select:focus {
+  background-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(131, 61, 255, 0.2);
+}
+
+.lx-input::placeholder {
+  color: #a6a6ac;
+}
+
+.lx-help {
+  font-size: 11px;
+  color: #8a8a90;
+  margin-top: 3px;
+}
+
+.lx-error {
+  font-size: 11px;
+  color: #b91c1c;
+  margin-top: 3px;
+}
+
+.lx-warning {
+  font-size: 11px;
+  color: #a16207;
+  margin-top: 3px;
+}
+
+/* Segmented control: the graphical stand-in for mutually exclusive flags. */
+.lx-segment {
+  display: inline-flex;
+  background: #efeff1;
+  border-radius: 10px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.lx-segment > button {
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 50ms ease;
+}
+
+.lx-segment > button.is-active {
+  background: #ffffff;
+  color: var(--accent-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.lx-segment > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Switch: on/off options such as --auth/--no-auth. */
+.lx-switch {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: #d9d9de;
+  transition: background-color 60ms ease;
+  cursor: pointer;
+  flex: none;
+}
+
+.lx-switch.is-on {
+  background: var(--accent-primary);
+}
+
+.lx-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 60ms ease;
+}
+
+.lx-switch.is-on::after {
+  transform: translateX(14px);
+}
+
+/* Compact row action, next to a server or a running process. */
+.lx-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: #f4f4f5;
+  transition: all 50ms ease;
+  cursor: pointer;
+}
+
+.lx-action:hover {
+  background: var(--accent-light);
+  color: #3b107e;
+}
+
+.lx-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.lx-mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+/* The bar the dashboard page shows, to get back to the launcher. */
+.lx-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 6px 24px rgba(131, 61, 255, 0.16), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
