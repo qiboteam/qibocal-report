@@ -19,6 +19,15 @@ pub fn run() {
             app.manage(process::Supervisor::default());
             Ok(())
         })
+        // Closing the window while something runs: stop it first, then go.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                if !app.state::<process::Supervisor>().request_close(app) {
+                    api.prevent_close();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             qibocal::environment,
             qibocal::set_executable,
@@ -45,14 +54,23 @@ pub fn run() {
             process::process_log,
             process::stop_process,
             process::forget_process,
+            process::quit,
         ])
         .build(tauri::generate_context!())
         .expect("could not start the Qibocal launcher")
-        .run(|app, event| {
+        .run(|app, event| match event {
+            // Quitting the application is the window closing, with the same
+            // wait; `code` is set by the launcher's own exit, which is final.
+            tauri::RunEvent::ExitRequested { api, code: None, .. } => {
+                if !app.state::<process::Supervisor>().request_close(app) {
+                    api.prevent_exit();
+                }
+            }
             // Never leave report servers or notebook tunnels behind.
-            if let tauri::RunEvent::Exit = event {
+            tauri::RunEvent::Exit => {
                 app.state::<process::Supervisor>().shutdown();
             }
+            _ => {}
         });
 }
 

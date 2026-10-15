@@ -59,7 +59,11 @@ Remove a server from the local registry.
 Explicitly save the backend registry to
 `$XDG_CONFIG_HOME/qibocal/servers.json` (fallback:
 `~/.config/qibocal/servers.json`; overridden by `QIBOCAL_REPORT_CONFIG_DIR`).
-Registry mutations already save this file automatically.
+Registry mutations already save this file automatically. The file is written
+as `{"version": 1, "servers": [...]}`; a bare list, the format before versions,
+is still read, and a file declaring another version is ignored and never
+replaced. Registering a server whose name is already registered moves that
+entry to the new address instead of adding a second one.
 
 ---
 

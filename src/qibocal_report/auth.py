@@ -47,6 +47,7 @@ def load_auth_data() -> dict:
     fpath = get_auth_file()
     if not fpath.exists():
         initial = {
+            "version": config.CONFIG_VERSION,
             "secret_key": secrets.token_hex(32),
             "users": [],
             "invites": [],
@@ -56,7 +57,16 @@ def load_auth_data() -> dict:
     try:
         with open(fpath, encoding="utf-8") as f:
             data = json.load(f)
+            if isinstance(data, dict) and not config.is_compatible(data):
+                # Another version's file: read as empty, never written over.
+                return {
+                    "version": config.CONFIG_VERSION,
+                    "secret_key": secrets.token_hex(32),
+                    "users": [],
+                    "invites": [],
+                }
             if isinstance(data, dict):
+                data.setdefault("version", config.CONFIG_VERSION)
                 data.setdefault("users", [])
                 data.setdefault("invites", [])
                 if not data.get("secret_key"):
@@ -66,6 +76,7 @@ def load_auth_data() -> dict:
     except (json.JSONDecodeError, OSError):
         pass
     fallback = {
+        "version": config.CONFIG_VERSION,
         "secret_key": secrets.token_hex(32),
         "users": [],
         "invites": [],
@@ -76,6 +87,8 @@ def load_auth_data() -> dict:
 def save_auth_data(data: dict) -> None:
     """Persist users and invitations to auth file."""
     fpath = get_auth_file()
+    config.guard_write(fpath)
+    data.setdefault("version", config.CONFIG_VERSION)
     fpath.parent.mkdir(parents=True, exist_ok=True)
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)

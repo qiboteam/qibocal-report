@@ -8,7 +8,7 @@
     <div class="py-10 px-4 sm:px-6 lg:px-8">
     <div class="max-w-5xl mx-auto">
       <!-- Top Utility Nav: Back to Dashboard -->
-      <div class="flex items-center justify-between pb-6 mb-6 border-b border-gray-200/60">
+      <div class="flex items-center justify-between gap-3 pb-6 mb-6 border-b border-gray-200/60">
         <router-link
           to="/dashboard"
           class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition cursor-pointer"
@@ -19,6 +19,7 @@
           Back to Dashboard
         </router-link>
 
+        <div class="flex items-center gap-3">
         <button
           @click="loadArchives"
           :disabled="loading"
@@ -35,6 +36,8 @@
           </svg>
           Refresh
         </button>
+        <component :is="desktopBell" v-if="desktopBell" toolbar />
+        </div>
       </div>
 
       <!-- Header -->
@@ -459,6 +462,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { announce, desktopWidget } from '../utils/desktop.js'
 import { apiFetch, isViewer } from '../store.js'
 import { downloadApiFile } from '../utils/apiFiles.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
@@ -470,6 +474,8 @@ const loading = ref(true)
 const actionLoading = ref(false)
 const searchQuery = ref('')
 const toastMessage = ref('')
+/** The launcher's bell, when this page is inside it. */
+const desktopBell = desktopWidget('bell')
 const errorMessage = ref('')
 
 // Peaking Modal state
@@ -557,6 +563,7 @@ function formatBytes(bytes) {
 }
 
 function showToast(msg) {
+  if (announce(msg)) return
   toastMessage.value = msg
   setTimeout(() => {
     if (toastMessage.value === msg) {

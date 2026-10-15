@@ -105,6 +105,69 @@ def get_default_servers() -> list[dict[str, Any]]:
     ]
 
 
+# The format of the configuration files this version reads and writes.
+#
+# Every file is an object carrying a ``version``: ``servers.json`` keeps its
+# entries under ``servers``, ``notebooks.json`` under ``connections``,
+# ``auth.json`` and the launcher's preferences next to the version itself. A
+# file without a version is one written before versions were, and is read as
+# the current format. A file with another version is ignored — read as
+# empty, never overwritten — so that an application of one version does not
+# destroy what another wrote; the launcher lists such files for a migration
+# by hand. There is no automatic migration, on purpose.
+CONFIG_VERSION = 1
+
+
+class IncompatibleConfig(OSError):
+    """A configuration file of another version, which must not be replaced."""
+
+    def __init__(self, path: Path, found: int):
+        super().__init__(
+            f"'{path}' was written by another version of qibocal-report "
+            f"(format {found}; this one reads {CONFIG_VERSION}). "
+            "It is left as it is until migrated by hand."
+        )
+        self.path = path
+        self.found = found
+
+
+def declared_version(data: Any) -> int | None:
+    """The version a document declares, if it is a versioned object."""
+    if isinstance(data, dict):
+        version = data.get("version")
+        if isinstance(version, int) and not isinstance(version, bool):
+            return version
+    return None
+
+
+def is_compatible(data: Any) -> bool:
+    """Whether a document is of this version, or of none."""
+    version = declared_version(data)
+    return version is None or version == CONFIG_VERSION
+
+
+def _read_document(path: Path) -> Any:
+    """The parsed file, ``None`` when absent, unreadable or of another version."""
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (json.JSONDecodeError, OSError):
+        return None
+    return data if is_compatible(data) else None
+
+
+def guard_write(path: Path) -> None:
+    """Refuse to replace a file of another version."""
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (json.JSONDecodeError, OSError):
+        return
+    version = declared_version(data)
+    if version is not None and version != CONFIG_VERSION:
+        raise IncompatibleConfig(path, version)
+
+
 def load_servers() -> list[dict[str, Any]]:
     """Load registered servers from config file."""
     config_file = get_config_file()
@@ -112,23 +175,31 @@ def load_servers() -> list[dict[str, Any]]:
         defaults = get_default_servers()
         save_servers(defaults)
         return defaults
-    try:
-        with open(config_file, encoding="utf-8") as f:
-            data = json.load(f)
-            if isinstance(data, list):
-                return data
-            elif isinstance(data, dict) and "servers" in data:
-                return data["servers"]
-    except (json.JSONDecodeError, OSError):
-        pass
+    data = _read_document(config_file)
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and isinstance(data.get("servers"), list):
+        return data["servers"]
+    if data is None and not is_compatible(_read_raw(config_file)):
+        # Another version's file: there is nothing of ours in it.
+        return []
     return get_default_servers()
 
 
+def _read_raw(path: Path) -> Any:
+    try:
+        with open(path, encoding="utf-8") as stream:
+            return json.load(stream)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 def save_servers(servers: list[dict[str, Any]]) -> None:
-    """Save servers to config file."""
+    """Save servers to config file, in the versioned format."""
     config_file = get_config_file()
+    guard_write(config_file)
     with open(config_file, "w", encoding="utf-8") as f:
-        json.dump(servers, f, indent=2)
+        json.dump({"version": CONFIG_VERSION, "servers": servers}, f, indent=2)
 
 
 def add_server(
@@ -139,7 +210,13 @@ def add_server(
     author_identities: dict[str, list[str]] | None = None,
     protocol_docs: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Register a new server."""
+    """Register a server, or bring the entry of the same name to its address.
+
+    The address identifies a server that is reachable; the name identifies
+    one the launcher starts, which comes up at a new tunnel port each time:
+    an entry of the same name moves to the new address instead of a second
+    entry appearing next to it.
+    """
     servers = load_servers()
     clean_url = url.strip().rstrip("/")
     if not clean_url.startswith(("http://", "https://")):
@@ -148,6 +225,15 @@ def add_server(
     # Check if URL already exists
     for s in servers:
         if s.get("url", "").rstrip("/") == clean_url:
+            return s
+
+    clean_name = name.strip() if name else ""
+    for s in servers:
+        if clean_name and s.get("name") == clean_name:
+            s["url"] = clean_url
+            if description:
+                s["description"] = description.strip()
+            save_servers(servers)
             return s
 
     new_server = {

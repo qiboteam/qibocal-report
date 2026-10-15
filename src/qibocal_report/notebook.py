@@ -144,6 +144,13 @@ def load_connections(*, missing_ok: bool = False) -> dict:
         raise click.ClickException(f"Could not read '{path}': {exc}") from exc
     if not isinstance(connections, dict):
         raise click.ClickException(f"'{path}' must contain a connection-name object.")
+    if not config.is_compatible(connections):
+        # Another version's file: nothing of ours in it, and it is left alone.
+        return {}
+    if "version" in connections or "connections" in connections:
+        connections = connections.get("connections", {})
+        if not isinstance(connections, dict):
+            raise click.ClickException(f"'{path}' must hold its connections in an object.")
     for name, values in connections.items():
         if not isinstance(values, dict):
             raise click.ClickException(
@@ -279,12 +286,17 @@ def write_connections(connections: dict) -> None:
     path = connection_file()
     temporary = None
     try:
+        config.guard_write(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
             mode="w", encoding="utf-8", dir=path.parent, delete=False
         ) as stream:
             temporary = Path(stream.name)
-            json.dump(connections, stream, indent=2)
+            json.dump(
+                {"version": config.CONFIG_VERSION, "connections": connections},
+                stream,
+                indent=2,
+            )
             stream.write("\n")
         temporary.replace(path)
     except OSError as exc:

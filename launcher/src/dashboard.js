@@ -6,14 +6,16 @@
  * launcher, plus the system menu — which belongs to the window, but whose
  * actions die with the page that installed them.
  */
-import { createApp } from 'vue'
+import { createApp, markRaw } from 'vue'
 import App from '@dashboard/App.vue'
 import { router } from '@dashboard/router.js'
 import LauncherOverlay from './components/LauncherOverlay.vue'
+import NotificationBell from './components/NotificationBell.vue'
 import { desktop } from './bridge.js'
 import { launchKeys, serverUrl } from './lib/servers.js'
 import { installMenu } from './menu.js'
 import { sections } from './router.js'
+import { fail, initialize, notify } from './state.js'
 
 import './styles.js'
 
@@ -40,6 +42,14 @@ window.qibocalDesktop = {
     return { running, managed: [...new Set([...running, ...launched])] }
   },
   normalize: serverUrl,
+  /**
+   * What the dashboard has to say goes where everything else is said: the
+   * status bar on its server list, the bell on its other pages, and the
+   * Notifications page — never a toast of its own.
+   */
+  notify: (message, kind = 'info') => (kind === 'error' ? fail(message) : notify(message)),
+  /** Launcher components the dashboard renders in its own toolbars. */
+  widgets: { bell: markRaw(NotificationBell) },
   /** The address of a launcher section, for a link out of the dashboard. */
   launcherUrl: name => {
     const section = sections.find(entry => entry.name === name)
@@ -50,6 +60,10 @@ window.qibocalDesktop = {
 }
 
 createApp(App).use(router).mount('#app')
+
+// The launcher's state — processes, notifications, the command line — is
+// read here too: the status bar, the bell and the closing dialog live on it.
+initialize()
 
 const overlay = createApp(LauncherOverlay)
 overlay.provide('dashboardRoute', router.currentRoute)

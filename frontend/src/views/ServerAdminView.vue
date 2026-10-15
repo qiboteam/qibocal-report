@@ -2,8 +2,8 @@
   <div class="min-h-screen bg-[#f7f7f7] py-10 px-4 sm:px-6 lg:px-8">
     <div class="max-w-5xl mx-auto">
       <!-- Top Nav -->
-      <div class="flex items-center justify-between pb-6 mb-6 border-b border-gray-200/60">
-        <div class="flex items-center gap-4">
+      <div class="flex items-center justify-between gap-3 pb-6 mb-6 border-b border-gray-200/60">
+        <div class="flex items-center gap-4 flex-1 min-w-0">
           <router-link
             to="/servers"
             class="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition"
@@ -38,6 +38,7 @@
           </svg>
           Refresh Data
         </button>
+        <component :is="desktopBell" v-if="desktopBell" toolbar />
       </div>
 
       <!-- Header -->
@@ -477,6 +478,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { announce, desktopWidget } from '../utils/desktop.js'
 import {
   state,
   isAdmin,
@@ -497,6 +499,14 @@ import {
 
 const loading = ref(false)
 const toastMessage = ref('')
+/** The launcher's bell, when this page is inside it. */
+const desktopBell = desktopWidget('bell')
+
+/** Say it through the launcher when there is one; as this page's toast otherwise. */
+function toast(message) {
+  if (announce(message)) return
+  toastMessage.value = message
+}
 const errorMessage = ref('')
 
 const users = ref([])
@@ -586,12 +596,12 @@ async function copyInviteLink(token) {
   try {
     await navigator.clipboard.writeText(text)
     copiedToken.value = token
-    toastMessage.value = 'Invitation token copied to clipboard.'
+    toast('Invitation token copied to clipboard.')
     setTimeout(() => {
       if (copiedToken.value === token) copiedToken.value = null
     }, 3000)
   } catch {
-    toastMessage.value = `Token: ${text}`
+    toast(`Token: ${text}`)
   }
 }
 
@@ -600,12 +610,12 @@ async function copyResetLink(token) {
   try {
     await navigator.clipboard.writeText(text)
     copiedToken.value = token
-    toastMessage.value = 'Password reset token copied to clipboard.'
+    toast('Password reset token copied to clipboard.')
     setTimeout(() => {
       if (copiedToken.value === token) copiedToken.value = null
     }, 3000)
   } catch {
-    toastMessage.value = `Token: ${text}`
+    toast(`Token: ${text}`)
   }
 }
 
@@ -655,7 +665,7 @@ async function handleRoleChange(user, newRole) {
     const res = await apiUpdateUserRole(user.id, newRole)
     if (res.ok) {
       user.role = newRole
-      toastMessage.value = `Role for ${user.username} updated to ${newRole}.`
+      toast(`Role for ${user.username} updated to ${newRole}.`)
     } else {
       const err = await res.json().catch(() => ({}))
       errorMessage.value = err.detail || 'Failed to update user role.'
@@ -671,7 +681,7 @@ async function handleDeleteUser(user) {
     const res = await apiDeleteUser(user.id)
     if (res.ok) {
       users.value = users.value.filter(u => u.id !== user.id)
-      toastMessage.value = `User ${user.username} removed.`
+      toast(`User ${user.username} removed.`)
     } else {
       const err = await res.json().catch(() => ({}))
       errorMessage.value = err.detail || 'Failed to delete user.'
@@ -692,7 +702,7 @@ async function handleGeneratePasswordReset(user) {
       await navigator.clipboard.writeText(resetToken)
       copiedUserInvite.value = user.id
       passwordResets.value.unshift(data)
-      toastMessage.value = `Password reset token copied for ${user.username}.`
+      toast(`Password reset token copied for ${user.username}.`)
       setTimeout(() => {
         copiedUserInvite.value = null
       }, 2000)
@@ -721,7 +731,7 @@ async function handleCreateInvite() {
       const data = await res.json()
       latestCreatedInvite.value = data
       invites.value.unshift(data)
-      toastMessage.value = `Invitation token created with ${data.role} privileges.`
+      toast(`Invitation token created with ${data.role} privileges.`)
     } else {
       const err = await res.json().catch(() => ({}))
       errorMessage.value = err.detail || 'Failed to create invitation.'
@@ -742,7 +752,7 @@ async function handleRevokeInvite(inv) {
       if (latestCreatedInvite.value?.token === inv.token) {
         latestCreatedInvite.value = null
       }
-      toastMessage.value = 'Invitation token revoked.'
+      toast('Invitation token revoked.')
     } else {
       const err = await res.json().catch(() => ({}))
       errorMessage.value = err.detail || 'Failed to revoke invite.'
@@ -758,7 +768,7 @@ async function handleRevokePasswordReset(reset) {
     const res = await apiDeletePasswordReset(reset.token)
     if (res.ok) {
       passwordResets.value = passwordResets.value.filter(p => p.token !== reset.token)
-      toastMessage.value = 'Password reset link revoked.'
+      toast('Password reset link revoked.')
     } else {
       const err = await res.json().catch(() => ({}))
       errorMessage.value = err.detail || 'Failed to revoke password reset link.'

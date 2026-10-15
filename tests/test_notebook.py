@@ -16,6 +16,7 @@ from click.testing import CliRunner
 from rich.console import Console
 
 from qibocal_report.cli import main
+from qibocal_report import config
 from qibocal_report.notebook import (
     READY_PREFIX,
     NotebookOptions,
@@ -31,6 +32,13 @@ from qibocal_report.notebook import (
     stop_process,
 )
 from qibocal_report.notebook_worker import EVENT_PREFIX
+
+
+def stored_connections() -> dict:
+    """The connections as written: inside the versioned envelope."""
+    document = json.loads(connection_file().read_text())
+    assert document["version"] == config.CONFIG_VERSION
+    return document["connections"]
 
 
 @pytest.mark.parametrize("color", [False, True])
@@ -320,7 +328,7 @@ def test_add_options_round_trip(tmp_path, monkeypatch):
         "timeout": 900.0,
         "subnet": "2001:db8::/64",
     }
-    assert json.loads(connection_file().read_text()) == {"chip": values}
+    assert stored_connections() == {"chip": values}
     with patch("qibocal_report.notebook.launch") as mock:
         result = CliRunner().invoke(main, ["notebook", "connect", "chip"])
     assert result.exit_code == 0, result.output
@@ -334,7 +342,7 @@ def test_add_preserves_connections_and_explicit_defaults():
         ["notebook", "add", "new", "--jupyter", "--interactive", "--venv", "qibocal"],
     )
     assert result.exit_code == 0, result.output
-    assert json.loads(connection_file().read_text()) == {
+    assert stored_connections() == {
         "old": {"marimo": True},
         "new": {"marimo": False, "no_interactive": False, "venv": "qibocal"},
     }
@@ -347,7 +355,7 @@ def test_add_interactive_defaults():
         "Options to change"
     )
     assert "Default" in result.output
-    assert json.loads(connection_file().read_text()) == {"local": {}}
+    assert stored_connections() == {"local": {}}
 
 
 def test_add_interactive_selected_options():
@@ -377,14 +385,14 @@ def test_add_interactive_invalid_selection_reprompts():
     )
     assert result.exit_code == 0, result.output
     assert "Choose numbers between 1 and 9" in result.output
-    assert json.loads(connection_file().read_text()) == {"chip": {"queue": "chip"}}
+    assert stored_connections() == {"chip": {"queue": "chip"}}
 
 
 def test_add_options_without_name_prompts_only_for_name():
     result = CliRunner().invoke(main, ["notebook", "add", "--marimo"], input="chip\n")
     assert result.exit_code == 0, result.output
     assert "Options to change" not in result.output
-    assert json.loads(connection_file().read_text()) == {"chip": {"marimo": True}}
+    assert stored_connections() == {"chip": {"marimo": True}}
 
 
 def test_add_name_only_prompts_for_options():
@@ -392,7 +400,7 @@ def test_add_name_only_prompts_for_options():
     assert result.exit_code == 0, result.output
     assert "Connection name" not in result.output
     assert "Options to change" in result.output
-    assert json.loads(connection_file().read_text()) == {"local": {}}
+    assert stored_connections() == {"local": {}}
 
 
 def test_add_duplicate_does_not_overwrite():
@@ -474,7 +482,7 @@ def test_update_preserves_unspecified_settings():
     values.update(
         queue="new", marimo=False, no_interactive=False, subnet="192.168.0.0/24"
     )
-    assert json.loads(connection_file().read_text()) == {
+    assert stored_connections() == {
         "chip": values,
         "other": {"venv": "custom"},
     }
@@ -496,7 +504,7 @@ def test_update_interactive_current_values(named):
     assert "Current" in result.output
     assert "old" in result.output
     assert "Enter keeps current values" in result.output
-    assert json.loads(connection_file().read_text()) == {
+    assert stored_connections() == {
         "chip": {"queue": "new", "marimo": False, "timeout": 900.0}
     }
 
@@ -508,7 +516,7 @@ def test_update_options_without_name():
     )
     assert result.exit_code == 0, result.output
     assert "Options to change" not in result.output
-    assert json.loads(connection_file().read_text()) == {
+    assert stored_connections() == {
         "chip": {"queue": "old", "marimo": True}
     }
 
@@ -526,7 +534,7 @@ def test_update_interactive_no_changes():
     connection_file().write_text('{"chip": {"queue": "old"}}', encoding="utf-8")
     result = CliRunner().invoke(main, ["notebook", "update", "chip"], input="\n")
     assert result.exit_code == 0, result.output
-    assert json.loads(connection_file().read_text()) == {"chip": {"queue": "old"}}
+    assert stored_connections() == {"chip": {"queue": "old"}}
 
 
 @pytest.mark.parametrize(
@@ -559,7 +567,7 @@ def test_remove_immediately_preserves_other_connections(other):
     assert "Removed notebook connection 'chip'" in result.output
     launch.assert_not_called()
     del connections["chip"]
-    assert json.loads(connection_file().read_text()) == connections
+    assert stored_connections() == connections
 
 
 @pytest.mark.parametrize(

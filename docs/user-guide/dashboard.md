@@ -29,6 +29,7 @@ The dashboard provides rich search and faceted filtering:
 - **Interactive Date Histogram**: A timeline bar chart visualizing calibration activity across time. Click any bucket or drag a date range to filter.
 - **Tag / Label Filtering**: Filter reports by custom tags assigned to them.
 - **Active Filter Summary**: A clear banner summarizing all applied filters with one-click clear options.
+- **View menu**: One control in the top-right corner for the three ways of looking at the list — the statistics summary on or off, the order (newest or oldest first), and the layout (table or cards).
 
 ---
 

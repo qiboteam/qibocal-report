@@ -49,19 +49,21 @@ test('a bare host is accepted, as the dashboard accepts it', () => {
   assert.equal(toDashboardServer({ url: 'http://[::1]:8000/' }).url, 'http://[::1]:8000')
 })
 
-test('merging matches on the address and keeps dashboard-only servers', () => {
+test('merging matches on the address; servers.json is the list, the cache only lends', () => {
   const existing = [
-    { id: 'kept', name: 'Remote', url: 'https://reports.example.org', author_identities: { a: ['me'] } },
+    { id: 'gone', name: 'Remote', url: 'https://reports.example.org', author_identities: { a: ['me'] } },
     { id: 'shared', name: 'Stale name', url: 'http://localhost:8000', protocol_docs: { t1: 'doc' } }
   ]
   const merged = mergeDashboardServers(
-    [{ id: 'ignored', name: 'Fresh name', url: 'http://localhost:8000/' }],
+    [
+      { id: 'ignored', name: 'Fresh name', url: 'http://localhost:8000/' },
+      { id: 'twin', name: 'Fresh name', url: 'http://localhost:8000' }
+    ],
     existing
   )
 
-  assert.equal(merged.length, 2)
-  assert.equal(merged[0].id, 'kept')
-  const shared = merged[1]
+  assert.equal(merged.length, 1, 'a cached server the file no longer has does not come back, and a twin address is one')
+  const shared = merged[0]
   assert.equal(shared.id, 'shared', 'the identifier the dashboard already uses survives')
   assert.equal(shared.name, 'Fresh name', 'the label is refreshed from the configuration')
   assert.deepEqual(shared.protocol_docs, { t1: 'doc' }, 'dashboard-only data is preserved')

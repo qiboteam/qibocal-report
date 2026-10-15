@@ -48,6 +48,8 @@ export const desktop = {
   processLog: id => call('process_log', { id }),
   stopProcess: id => call('stop_process', { id }),
   forgetProcess: id => call('forget_process', { id }),
+  /** Close the launcher now; `force` kills what is still running first. */
+  quit: (force = false) => call('quit', { force }),
 
   administrators: () => call('administrators'),
   reissueInvite: request => call('reissue_invite', { request })

@@ -12,11 +12,24 @@
  */
 import { NOTEBOOK_FIELDS, describeConnection } from './notebooks.js'
 
+/**
+ * The format of the configuration files this launcher reads and writes.
+ *
+ * Every file is an object carrying a `version`; `servers.json` keeps its
+ * entries under `servers`, `notebooks.json` under `connections`, the other
+ * two next to the version. A file without a version was written before
+ * versions were, and is read as the current format; a file with another
+ * version is ignored and shown as it is, for a migration by hand.
+ */
+export const CONFIG_VERSION = 1
+
 /** What each known file contains, and how to speak about it. */
 export const CONFIG_SHAPES = {
   'servers.json': {
     kind: 'list',
     entry: 'server',
+    /** The key the entries live under, next to the version. */
+    envelope: 'servers',
     /** Fields shown first, in this order, whether or not they are present. */
     known: [
       { name: 'name', label: 'Name', type: 'text' },
@@ -36,6 +49,7 @@ export const CONFIG_SHAPES = {
   'notebooks.json': {
     kind: 'map',
     entry: 'connection',
+    envelope: 'connections',
     known: NOTEBOOK_FIELDS.map(field => ({
       name: field.name,
       label: field.label,
@@ -72,36 +86,90 @@ export function emptyDocument(file) {
   return shapeOf(file).kind === 'list' ? [] : {}
 }
 
+/** The version a parsed document declares, if any. */
+export function declaredVersion(parsed) {
+  const version = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed.version : undefined
+  return Number.isInteger(version) ? version : null
+}
+
+/** Whether a parsed document is of this version, or of none. */
+export function isCompatible(parsed) {
+  const version = declaredVersion(parsed)
+  return version === null || version === CONFIG_VERSION
+}
+
+/**
+ * The entries of a parsed document, out of their envelope: the bare list or
+ * map of a file without a version, or what sits under the envelope key —
+ * or next to the version — of a versioned one.
+ */
+function unwrap(file, parsed) {
+  const shape = shapeOf(file)
+  const isObject = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+  if (shape.kind === 'list') {
+    if (Array.isArray(parsed)) return parsed
+    if (isObject && (Array.isArray(parsed[shape.envelope]) || parsed[shape.envelope] === undefined) && 'version' in parsed) {
+      return parsed[shape.envelope] || []
+    }
+    if (isObject && Array.isArray(parsed[shape.envelope])) return parsed[shape.envelope]
+    return null
+  }
+  if (!isObject) return null
+  if (shape.envelope) {
+    if (!('version' in parsed) && !(shape.envelope in parsed)) return parsed
+    const inner = parsed[shape.envelope]
+    return inner === undefined ? {} : inner && typeof inner === 'object' && !Array.isArray(inner) ? inner : null
+  }
+  const { version: _version, ...entries } = parsed
+  return entries
+}
+
 /**
  * Parse an editor buffer, answering the error instead of raising it.
  *
- * An empty buffer is the file that was never written, not a mistake.
+ * An empty buffer is the file that was never written, not a mistake. The
+ * value is the entries alone; the envelope is put back by `formatDocument`.
  */
 export function parseDocument(file, text) {
   if (typeof text !== 'string' || !text.trim()) {
-    return { value: emptyDocument(file), error: null }
+    return { value: emptyDocument(file), error: null, version: null }
   }
   let parsed
   try {
     parsed = JSON.parse(text)
   } catch (error) {
-    return { value: null, error: error.message }
+    return { value: null, error: error.message, version: null }
   }
-  const expected = shapeOf(file).kind
-  const found = Array.isArray(parsed) ? 'list' : parsed && typeof parsed === 'object' ? 'map' : 'other'
-  if (found !== expected) {
+  const version = declaredVersion(parsed)
+  if (!isCompatible(parsed)) {
     return {
       value: null,
-      error: expected === 'list'
+      version,
+      error: `${file} was written by another version of Qibocal (format ${version}; this one reads ${CONFIG_VERSION}).`
+    }
+  }
+  const value = unwrap(file, parsed)
+  if (value === null) {
+    return {
+      value: null,
+      version,
+      error: shapeOf(file).kind === 'list'
         ? `${file} must hold a list of entries.`
         : `${file} must hold an object of named entries.`
     }
   }
-  return { value: parsed, error: null }
+  return { value, error: null, version }
 }
 
-export function formatDocument(value) {
-  return `${JSON.stringify(value, null, 2)}\n`
+/** The entries back in their envelope, with the version, as the file is written. */
+export function wrapDocument(file, value) {
+  const shape = shapeOf(file)
+  if (shape.envelope) return { version: CONFIG_VERSION, [shape.envelope]: value }
+  return { version: CONFIG_VERSION, ...(value || {}) }
+}
+
+export function formatDocument(file, value) {
+  return `${JSON.stringify(wrapDocument(file, value), null, 2)}\n`
 }
 
 function firstString(...candidates) {

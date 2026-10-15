@@ -2,6 +2,7 @@ import { ref, watch, onUnmounted } from 'vue'
 import { state, addToHistory, removeFromHistory, getActiveWsUrl, canEdit } from '../store.js'
 import { apiFetch } from '../api.js'
 import { getPlotGenerationErrors } from '../utils/plotGeneration.js'
+import { announce } from '../utils/desktop.js'
 import { createLiveReportSubscription, mergeLiveProtocols, synchronizeLiveProtocols } from '../utils/liveReport.js'
 
 /**
@@ -161,6 +162,8 @@ export function useReportDetail(reportId) {
   )
 
   function showBanner(msg, durationMs = 3500, isError = false) {
+    // Inside the launcher, the message goes where everything is said.
+    if (announce(msg, isError ? 'error' : 'info')) return
     statusBanner.value = msg
     statusBannerError.value = isError
     if (durationMs > 0) {

@@ -58,53 +58,88 @@
               </span>
             </div>
 
-            <!-- Summary / Recap Toggle Button (InspireHEP style) -->
-            <button
-              @click="showRecap = !showRecap"
-              class="px-2.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs border cursor-pointer shrink-0"
-              :class="showRecap ? 'bg-[#ebe0ff] text-[#833dff] border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:text-gray-900'"
-              :title="showRecap ? 'Hide statistics summary' : 'Show statistics summary'"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              <span>Summary</span>
-              <span v-if="hasActiveFilters" class="w-1.5 h-1.5 rounded-full bg-[#833dff]"></span>
-            </button>
-
-            <!-- Sort dropdown -->
-            <select
-              v-model="filters.sort_by"
-              class="text-xs py-2 px-2.5 bg-white border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#833dff] text-gray-700 shadow-xs shrink-0 cursor-pointer"
-            >
-              <option value="date_desc">Newest first</option>
-              <option value="date_asc">Oldest first</option>
-              <option value="platform">Platform A-Z</option>
-            </select>
-
-            <!-- Visualization Mode Switcher: Table vs Cards -->
-            <div class="flex items-center bg-white p-0.5 rounded-xl border border-gray-200 shadow-xs shrink-0">
+            <!--
+              The view: one menu for the three ways of looking at the same
+              list — the summary, the order, the layout — so the corner holds
+              one control instead of three. Closed by a click anywhere else.
+            -->
+            <div ref="viewMenu" class="relative shrink-0">
               <button
-                @click="viewMode = 'table'"
-                class="p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
-                :class="viewMode === 'table' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-500 hover:text-gray-800'"
-                title="Table view (Default)"
+                type="button"
+                @click="viewMenuOpen = !viewMenuOpen"
+                class="px-2.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs border cursor-pointer"
+                :class="viewMenuOpen ? 'bg-[#ebe0ff] text-[#833dff] border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:text-gray-900'"
+                title="Summary, order and layout"
+                :aria-expanded="viewMenuOpen"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                <span>View</span>
+                <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              <button
-                @click="viewMode = 'cards'"
-                class="p-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
-                :class="viewMode === 'cards' ? 'bg-[#ebe0ff] text-[#833dff]' : 'text-gray-500 hover:text-gray-800'"
-                title="Horizontal cards view"
+
+              <div
+                v-if="viewMenuOpen"
+                class="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl border border-gray-200 shadow-lg py-1.5 z-30 text-xs"
+                role="menu"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  :aria-checked="showRecap"
+                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-purple-50 cursor-pointer"
+                  @click="showRecap = !showRecap"
+                >
+                  <span class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0" :class="showRecap ? 'bg-[#833dff] border-[#833dff] text-white' : 'border-gray-300'">
+                    <svg v-if="showRecap" class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                  </span>
+                  <span class="flex-1">Statistics summary</span>
+                  <span v-if="hasActiveFilters" class="w-1.5 h-1.5 rounded-full bg-[#833dff]" title="Filters apply"></span>
+                </button>
+
+                <div class="my-1.5 border-t border-gray-100"></div>
+                <div class="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Order</div>
+                <button
+                  v-for="option in sortOptions"
+                  :key="option.value"
+                  type="button"
+                  role="menuitemradio"
+                  :aria-checked="filters.sort_by === option.value"
+                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-purple-50 cursor-pointer"
+                  :class="filters.sort_by === option.value ? 'text-[#833dff] font-semibold' : 'text-gray-700'"
+                  @click="filters.sort_by = option.value"
+                >
+                  <span class="w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                    <span v-if="filters.sort_by === option.value" class="w-1.5 h-1.5 rounded-full bg-[#833dff]"></span>
+                  </span>
+                  {{ option.label }}
+                </button>
+
+                <div class="my-1.5 border-t border-gray-100"></div>
+                <div class="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Layout</div>
+                <button
+                  v-for="option in layoutOptions"
+                  :key="option.value"
+                  type="button"
+                  role="menuitemradio"
+                  :aria-checked="viewMode === option.value"
+                  class="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-purple-50 cursor-pointer"
+                  :class="viewMode === option.value ? 'text-[#833dff] font-semibold' : 'text-gray-700'"
+                  @click="viewMode = option.value"
+                >
+                  <span class="w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                    <span v-if="viewMode === option.value" class="w-1.5 h-1.5 rounded-full bg-[#833dff]"></span>
+                  </span>
+                  {{ option.label }}
+                </button>
+              </div>
             </div>
+
+            <!-- Inside the launcher: what it has to say, as the rightmost element. -->
+            <component :is="desktopBell" v-if="desktopBell" toolbar />
           </div>
         </div>
 
@@ -360,7 +395,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { desktopWidget } from '../utils/desktop.js'
 import { useRouter, useRoute } from 'vue-router'
 import { state, addToHistory, apiFetch, ensureServersLoaded, resolveAuthor, persistSearchState } from '../store.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
@@ -386,6 +422,25 @@ import PreviewModal from '../components/modals/PreviewModal.vue'
 const router = useRouter()
 const route = useRoute()
 const viewMode = ref('table')
+/** The View menu: open or not, and its element, to tell a click inside from one outside. */
+const viewMenuOpen = ref(false)
+const viewMenu = ref(null)
+const sortOptions = [
+  { value: 'date_desc', label: 'Newest first' },
+  { value: 'date_asc', label: 'Oldest first' }
+]
+const layoutOptions = [
+  { value: 'table', label: 'Table' },
+  { value: 'cards', label: 'Cards' }
+]
+/** The launcher's bell, when this page is inside it. */
+const desktopBell = desktopWidget('bell')
+
+function closeViewMenu(event) {
+  if (!viewMenuOpen.value) return
+  if (event?.type === 'pointerdown' && viewMenu.value?.contains(event.target)) return
+  viewMenuOpen.value = false
+}
 const reports = ref([])
 const filterStats = ref(null)
 const filteredStats = ref(null)
@@ -941,6 +996,17 @@ function syncFiltersFromRoute(query) {
   }
   return changed
 }
+
+onMounted(() => {
+  document.addEventListener('pointerdown', closeViewMenu)
+  window.addEventListener('blur', closeViewMenu)
+  // Ordering by platform was dropped: a report's name is not a way to navigate.
+  if (!sortOptions.some(option => option.value === filters.sort_by)) filters.sort_by = 'date_desc'
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', closeViewMenu)
+  window.removeEventListener('blur', closeViewMenu)
+})
 
 onMounted(async () => {
   loading.value = true

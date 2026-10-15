@@ -1,9 +1,15 @@
-import { reactive, computed } from 'vue'
+import { reactive, computed, watch } from 'vue'
 import { desktop, isDesktop, subscribe } from './bridge.js'
 import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './lib/servers.js'
+import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
 
 export const LOG_EVENT = 'launcher://log'
 export const PROCESS_EVENT = 'launcher://process'
+/** The launcher is closing and waits for processes: show them, offer to force it. */
+export const CLOSING_EVENT = 'launcher://closing'
+
+/** Where the notifications outlive a page change within the window. */
+const session = typeof sessionStorage === 'undefined' ? null : sessionStorage
 
 /** How long a message stays in the status bar, by kind. */
 const MESSAGE_TTL = { info: 6000, error: 15000 }
@@ -20,10 +26,15 @@ export const state = reactive({
   /** The latest thing said, shown in the status bar until it fades; null when quiet. */
   message: null,
   /** Everything said so far, newest first; archived ones are put away, not lost. */
-  notifications: [],
+  notifications: loadNotices(session),
   /** How each process was started, by process id, so a run can be repeated. */
-  launches: {}
+  launches: {},
+  /** The processes the closing launcher waits for; null while it is not closing. */
+  closing: null
 })
+
+// What is said on one page is still there on the other.
+watch(() => state.notifications, notices => storeNotices(session, notices), { deep: true })
 
 /** What is new: said and not yet archived. */
 export const inbox = computed(() => state.notifications.filter(entry => !entry.archived))
@@ -41,7 +52,7 @@ export const installing = computed(() =>
 const NOTIFICATION_LIMIT = 50
 
 let messageTimer = null
-let counter = 0
+let counter = nextNoticeId(state.notifications) - 1
 
 /**
  * Say something in the status bar, and let it fade on its own.
@@ -394,6 +405,9 @@ export async function initialize() {
     if (lines.length > 2000) lines.splice(0, lines.length - 2000)
   })
   await subscribe(PROCESS_EVENT, mergeProcess)
+  await subscribe(CLOSING_EVENT, payload => {
+    state.closing = { ids: Array.isArray(payload?.ids) ? payload.ids : [] }
+  })
 
   await Promise.all([
     refreshEnvironment(),
@@ -439,12 +453,28 @@ export async function openDashboard(preferredUrl = null) {
   window.location.href = target.href
 }
 
-/** Register a server address in `servers.json`, without duplicating it. */
+/**
+ * Close the launcher: `force` kills whatever is still running first.
+ * Without it, the native side waits for the processes it is stopping.
+ */
+export async function quit(force = false) {
+  await desktop.quit(force)
+}
+
+/**
+ * Register a server address in `servers.json`, without duplicating it.
+ *
+ * The address identifies a reachable server; the name identifies one the
+ * launcher starts, which comes up at a new tunnel port each time: an entry
+ * of the same name moves to the new address rather than gaining a twin.
+ */
 export async function registerServer(server) {
   const url = serverUrl(server.url)
   if (!url) throw new Error('Enter the address of the report server.')
   const servers = [...state.servers]
-  const index = servers.findIndex(entry => serverUrl(entry.url) === url)
+  const name = typeof server.name === 'string' ? server.name.trim() : ''
+  let index = servers.findIndex(entry => serverUrl(entry.url) === url)
+  if (index < 0 && name) index = servers.findIndex(entry => entry.name === name)
   const entry = {
     id: servers[index]?.id || `srv-${Math.random().toString(36).slice(2, 10)}`,
     created_at: servers[index]?.created_at || new Date().toISOString(),

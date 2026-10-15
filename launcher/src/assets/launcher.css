@@ -526,6 +526,81 @@
   color: #b45309;
 }
 
+/* Under a bell in a toolbar, the bubble opens downward instead. */
+.lx-notices.is-below {
+  bottom: auto;
+  top: calc(100% + 6px);
+  z-index: 60;
+}
+
+/*
+ * The bell on the dashboard's inner pages: drawn like the controls it sits
+ * among — white, a hair of border, the same radius — with the count on it.
+ */
+.lx-bell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  color: #4b5563;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 50ms ease, background-color 50ms ease, border-color 50ms ease;
+}
+
+.lx-bell:hover,
+.lx-bell.is-open {
+  color: #3b107e;
+  background: var(--accent-light);
+  border-color: #ddd0ff;
+}
+
+.lx-bell .lx-count-badge {
+  min-width: 14px;
+  text-align: center;
+}
+
+/*
+ * The one dialog the launcher has: closing, while what it started is told
+ * to stop. A veil over the page, a card in the middle, nothing else moves.
+ */
+.lx-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(247, 247, 247, 0.82);
+  backdrop-filter: blur(4px);
+}
+
+.lx-dialog {
+  width: 26rem;
+  max-width: calc(100vw - 2.5rem);
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16);
+  padding: 20px 22px;
+  font-size: 12px;
+  color: var(--text-main);
+}
+
+.lx-dialog-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.lx-dialog-row + .lx-dialog-row {
+  border-top: 1px solid #f1f1f3;
+}
+
 /* The last row of the bubble, when the inbox holds more than it shows. */
 .lx-notices-more {
   display: block;

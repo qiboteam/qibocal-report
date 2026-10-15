@@ -1,10 +1,12 @@
 <!--
-  The way back to the launcher, from the dashboard page.
+  What the launcher adds over the dashboard page.
 
-  It is a single mark, laid out exactly where the launcher header puts its
-  own — same column, same height — so stepping between the two halves moves
-  nothing on the screen. It appears on the server list alone: every other
-  dashboard page already fills that corner with its own interface.
+  On the server list: the way back — a single mark, laid out exactly where
+  the launcher header puts its own, same column, same height, so stepping
+  between the two halves moves nothing on the screen — and the status bar
+  the rest of the application speaks from, which that page has room for.
+  Every other dashboard page fills those edges with its own interface, and
+  gets a bell in its toolbar instead. The closing dialog is for all of them.
 -->
 <template>
   <div v-if="onServers" class="lx-overlay">
@@ -20,11 +22,15 @@
       </button>
     </div>
   </div>
+  <status-bar v-if="onServers" />
+  <closing-dialog />
 </template>
 
 <script setup>
 import { computed, inject } from 'vue'
+import ClosingDialog from './ClosingDialog.vue'
 import LauncherLogo from './LauncherLogo.vue'
+import StatusBar from './StatusBar.vue'
 
 // The dashboard router's current route, handed over by `dashboard.js`: the
 // overlay is a second application on the same page, not a second router.

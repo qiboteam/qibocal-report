@@ -171,6 +171,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
             </button>
+            <component :is="desktopBell" v-if="desktopBell" toolbar />
           </div>
         </div>
 
@@ -238,6 +239,10 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { desktopWidget } from '../utils/desktop.js'
+
+/** The launcher's bell, when this page is inside it. */
+const desktopBell = desktopWidget('bell')
 import { GalleryHorizontalEnd, ChevronLeft, ChevronRight, Home } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canEdit, canManageQibocal } from '../store.js'

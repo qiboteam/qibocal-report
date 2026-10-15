@@ -18,6 +18,88 @@ const KNOWN_FILES: [(&str, &str); 4] = [
     ("launcher.json", "Launcher preferences"),
 ];
 
+/// The format of each file this version of the launcher reads and writes.
+///
+/// Every file is an object carrying a `version`; `servers.json` keeps its
+/// entries under `servers`, `notebooks.json` under `connections`, the other
+/// two next to the version. A file without a version is the one written
+/// before versions were — read as the current format. A file with another
+/// version is ignored, listed in Configuration as it is, for a migration by
+/// hand: there is no automatic one.
+pub const CONFIG_VERSION: u64 = 1;
+
+/// What a file on disk is, as far as the version goes.
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Compatibility {
+    /// The version the file declares; none for a file without one, or absent.
+    pub version: Option<u64>,
+    pub expected: u64,
+    pub compatible: bool,
+}
+
+/// The version a document declares, if any.
+fn declared_version(value: &Value) -> Option<u64> {
+    value.as_object()?.get("version")?.as_u64()
+}
+
+fn compatibility(value: Option<&Value>) -> Compatibility {
+    let version = value.and_then(declared_version);
+    Compatibility {
+        version,
+        expected: CONFIG_VERSION,
+        compatible: version.map_or(true, |found| found == CONFIG_VERSION),
+    }
+}
+
+/// The error a write into an incompatible file answers with.
+fn incompatible(name: &str, found: u64) -> String {
+    format!(
+        "{name} was written by another version of Qibocal (format {found}; this one reads {CONFIG_VERSION}). \
+         It is left as it is until migrated by hand, in Configuration."
+    )
+}
+
+/// Read a known file, answering nothing for one of another version.
+///
+/// `Err` is a file that cannot be read or parsed; an incompatible one is
+/// not an error, it is simply not there for this version of the launcher.
+fn read_compatible(path: &Path) -> Result<Option<Value>, String> {
+    let value = read_json(path)?;
+    Ok(match compatibility(value.as_ref()).compatible {
+        true => value,
+        false => None,
+    })
+}
+
+/// Refuse to replace a file of another version: that is a migration's job.
+fn guard_write(name: &str, path: &Path) -> Result<(), String> {
+    let found = read_json(path).ok().flatten();
+    let state = compatibility(found.as_ref());
+    match (state.compatible, state.version) {
+        (false, Some(found)) => Err(incompatible(name, found)),
+        _ => Ok(()),
+    }
+}
+
+/// The entries of a document: under `key` in the versioned object, or the
+/// bare list or map of the unversioned one.
+fn entries_of(value: Value, key: &str) -> Value {
+    match value {
+        Value::Object(mut object) if object.contains_key("version") || object.contains_key(key) => {
+            object.remove(key).unwrap_or(Value::Null)
+        }
+        other => other,
+    }
+}
+
+fn versioned(key: &str, entries: Value) -> Value {
+    let mut object = Map::new();
+    object.insert("version".to_string(), Value::from(CONFIG_VERSION));
+    object.insert(key.to_string(), entries);
+    Value::Object(object)
+}
+
 pub fn config_dir() -> PathBuf {
     if let Some(custom) = non_empty_env("QIBOCAL_REPORT_CONFIG_DIR") {
         return PathBuf::from(custom);
@@ -82,6 +164,10 @@ pub struct ConfigEntry {
     pub description: String,
     pub exists: bool,
     pub size: u64,
+    /// The version the file declares, and whether this launcher reads it.
+    pub version: Option<u64>,
+    pub expected: u64,
+    pub compatible: bool,
 }
 
 #[tauri::command]
@@ -92,12 +178,16 @@ pub fn config_entries() -> Vec<ConfigEntry> {
         .map(|(name, description)| {
             let path = directory.join(name);
             let metadata = fs::metadata(&path).ok();
+            let state = compatibility(read_json(&path).ok().flatten().as_ref());
             ConfigEntry {
                 name: (*name).to_string(),
                 path: path.display().to_string(),
                 description: (*description).to_string(),
                 exists: metadata.is_some(),
                 size: metadata.map(|data| data.len()).unwrap_or(0),
+                version: state.version,
+                expected: state.expected,
+                compatible: state.compatible,
             }
         })
         .collect()
@@ -176,13 +266,8 @@ pub fn remove_config_entries(names: Vec<String>) -> Result<Vec<String>, String> 
 #[tauri::command]
 pub fn list_servers() -> Result<Vec<Value>, String> {
     let path = config_file("servers.json")?;
-    Ok(match read_json(&path)? {
+    Ok(match read_compatible(&path)?.map(|value| entries_of(value, "servers")) {
         Some(Value::Array(servers)) => servers,
-        // `qibocal` historically also accepted `{"servers": [...]}`.
-        Some(Value::Object(mut wrapper)) => match wrapper.remove("servers") {
-            Some(Value::Array(servers)) => servers,
-            _ => Vec::new(),
-        },
         _ => Vec::new(),
     })
 }
@@ -190,14 +275,15 @@ pub fn list_servers() -> Result<Vec<Value>, String> {
 #[tauri::command]
 pub fn save_servers(servers: Vec<Value>) -> Result<Vec<Value>, String> {
     let path = config_file("servers.json")?;
-    write_json(&path, &Value::Array(servers.clone()))?;
+    guard_write("servers.json", &path)?;
+    write_json(&path, &versioned("servers", Value::Array(servers.clone())))?;
     Ok(servers)
 }
 
 #[tauri::command]
 pub fn list_notebooks() -> Result<Map<String, Value>, String> {
     let path = config_file("notebooks.json")?;
-    match read_json(&path)? {
+    match read_compatible(&path)?.map(|value| entries_of(value, "connections")) {
         Some(Value::Object(connections)) => Ok(connections),
         Some(_) => Err(format!(
             "'{}' must contain a connection-name object.",
@@ -205,6 +291,12 @@ pub fn list_notebooks() -> Result<Map<String, Value>, String> {
         )),
         None => Ok(Map::new()),
     }
+}
+
+fn write_notebooks(connections: &Map<String, Value>) -> Result<(), String> {
+    let path = config_file("notebooks.json")?;
+    guard_write("notebooks.json", &path)?;
+    write_json(&path, &versioned("connections", Value::Object(connections.clone())))
 }
 
 #[tauri::command]
@@ -217,10 +309,7 @@ pub fn save_notebook(name: String, options: Value) -> Result<Map<String, Value>,
     }
     let mut connections = list_notebooks()?;
     connections.insert(name, options);
-    write_json(
-        &config_file("notebooks.json")?,
-        &Value::Object(connections.clone()),
-    )?;
+    write_notebooks(&connections)?;
     Ok(connections)
 }
 
@@ -230,25 +319,26 @@ pub fn remove_notebook(name: String) -> Result<Map<String, Value>, String> {
     if connections.remove(&name).is_none() {
         return Err(format!("Notebook connection '{name}' is not registered."));
     }
-    write_json(
-        &config_file("notebooks.json")?,
-        &Value::Object(connections.clone()),
-    )?;
+    write_notebooks(&connections)?;
     Ok(connections)
 }
 
+/// The preferences, the version they were written under left out.
 pub fn launcher_preferences() -> Map<String, Value> {
-    match config_file("launcher.json").and_then(|path| read_json(&path)) {
-        Ok(Some(Value::Object(preferences))) => preferences,
+    match config_file("launcher.json").and_then(|path| read_compatible(&path)) {
+        Ok(Some(Value::Object(mut preferences))) => {
+            preferences.remove("version");
+            preferences
+        }
         _ => Map::new(),
     }
 }
 
-pub fn store_launcher_preferences(preferences: Map<String, Value>) -> Result<(), String> {
-    write_json(
-        &config_file("launcher.json")?,
-        &Value::Object(preferences),
-    )
+pub fn store_launcher_preferences(mut preferences: Map<String, Value>) -> Result<(), String> {
+    let path = config_file("launcher.json")?;
+    guard_write("launcher.json", &path)?;
+    preferences.insert("version".to_string(), Value::from(CONFIG_VERSION));
+    write_json(&path, &Value::Object(preferences))
 }
 
 #[tauri::command]

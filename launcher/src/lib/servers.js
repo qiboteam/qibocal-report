@@ -264,29 +264,35 @@ export function toDashboardServer(server, fallbackIndex = 0) {
  * instances it already shares.
  */
 export function mergeDashboardServers(configured, existing = []) {
-  const merged = Array.isArray(existing) ? existing.filter(server => serverUrl(server?.url)) : []
-  const byUrl = new Map(merged.map((server, index) => [serverUrl(server.url), index]))
-
+  // servers.json is the list; the browser's copy only lends what it keeps
+  // of each entry — its identifier, the author identities, the protocol
+  // documentation — and nothing it has that the file has not: an entry
+  // forgotten in the file, or left over from an earlier tunnel address,
+  // must not come back from the cache into the file at the next save.
+  const cached = new Map(
+    (Array.isArray(existing) ? existing : [])
+      .filter(server => serverUrl(server?.url))
+      .map(server => [serverUrl(server.url), server])
+  )
+  const merged = []
+  const seen = new Set()
   ;(Array.isArray(configured) ? configured : []).forEach((server, index) => {
     const candidate = toDashboardServer(server, index)
-    if (!candidate) return
-    const position = byUrl.get(candidate.url)
-    if (position === undefined) {
-      byUrl.set(candidate.url, merged.length)
-      merged.push(candidate)
-      return
-    }
-    const current = merged[position]
-    merged[position] = {
-      ...candidate,
-      id: current.id || candidate.id,
-      author_identities: Object.keys(current.author_identities ?? {}).length
-        ? current.author_identities
-        : candidate.author_identities,
-      protocol_docs: Object.keys(current.protocol_docs ?? {}).length
-        ? current.protocol_docs
-        : candidate.protocol_docs
-    }
+    if (!candidate || seen.has(candidate.url)) return
+    seen.add(candidate.url)
+    const current = cached.get(candidate.url)
+    merged.push(current
+      ? {
+          ...candidate,
+          id: current.id || candidate.id,
+          author_identities: Object.keys(current.author_identities ?? {}).length
+            ? current.author_identities
+            : candidate.author_identities,
+          protocol_docs: Object.keys(current.protocol_docs ?? {}).length
+            ? current.protocol_docs
+            : candidate.protocol_docs
+        }
+      : candidate)
   })
 
   return merged.map((server, index) => ({

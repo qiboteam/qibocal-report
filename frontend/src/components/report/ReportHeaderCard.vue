@@ -1,12 +1,11 @@
 <template>
   <div class="bm-card p-6 border border-gray-100">
+    <!--
+      The platform leads: the report's identifier — a folder name, of use
+      only to find it on disk — is in the bottom-right corner, small and
+      light, where the eye goes last.
+    -->
     <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-100">
-      <div>
-        <h1 class="text-xl sm:text-2xl font-bold font-mono text-gray-900">
-          {{ report.id }}
-        </h1>
-      </div>
-
       <div class="flex items-center gap-2 flex-wrap">
         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
           {{ report.platform }}
@@ -17,7 +16,9 @@
         >
           Pre-cached
         </span>
+      </div>
 
+      <div class="flex items-center gap-2 flex-wrap">
         <a
           href="https://qibo.science/qibocal/stable/protocols/"
           target="_blank"
@@ -155,6 +156,16 @@
           &times;
         </button>
       </span>
+    </div>
+
+    <!-- The identifier, last and least: bottom right, in the metadata's grey. -->
+    <div class="mt-2.5 flex justify-end">
+      <h1
+        class="font-mono text-[11px] font-normal text-gray-400 select-all truncate max-w-full m-0"
+        :title="`Report ${report.id}`"
+      >
+        {{ report.id }}
+      </h1>
     </div>
   </div>
 </template>

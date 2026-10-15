@@ -186,14 +186,34 @@
       </div>
 
       <config-file
-        v-for="entry in state.configEntries"
+        v-for="entry in readable"
         :key="entry.name"
         :entry="entry"
         :selected="chosen.includes(entry.name)"
         @toggle="toggle"
         @saved="reload"
       />
+    </section>
 
+    <!--
+      Files of another version: written by a newer or older Qibocal, they
+      are ignored rather than migrated — the formats still change too often
+      for an automatic migration to be worth its history — and kept here,
+      as they are, so nothing is lost and a migration by hand is possible.
+    -->
+    <section v-if="unknown.length" class="space-y-2.5">
+      <div class="flex flex-wrap items-center gap-2 px-1">
+        <h2 class="text-sm font-semibold text-gray-900">Unknown configuration</h2>
+        <info-tip text="Every file declares the format it was written in. One of another format is left as it is, and read by nothing, until it is migrated by hand: open it, edit the JSON, and declare the current format." />
+      </div>
+      <config-file
+        v-for="entry in unknown"
+        :key="entry.name"
+        :entry="entry"
+        :selected="chosen.includes(entry.name)"
+        @toggle="toggle"
+        @saved="reload"
+      />
     </section>
 
     <section class="bm-card p-5">
@@ -266,6 +286,9 @@ const platform = ref({ os: '—', arch: '' })
 
 const environment = computed(() => state.environment)
 const preferredExecutable = computed(() => state.preferences?.executable || null)
+/** The files this version reads, and the ones of another format, listed apart. */
+const readable = computed(() => state.configEntries.filter(entry => entry.compatible !== false))
+const unknown = computed(() => state.configEntries.filter(entry => entry.compatible === false))
 
 const sourceLabel = computed(() => ({
   managed: 'the launcher\'s own installation',

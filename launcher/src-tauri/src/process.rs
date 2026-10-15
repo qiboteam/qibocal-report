@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -24,6 +24,8 @@ const STOP_GRACE: Duration = Duration::from_secs(6);
 
 pub const LOG_EVENT: &str = "launcher://log";
 pub const PROCESS_EVENT: &str = "launcher://process";
+/// The launcher is closing and waits for these processes: the interface shows them.
+pub const CLOSING_EVENT: &str = "launcher://closing";
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,6 +60,15 @@ struct Entry {
 pub struct Supervisor {
     entries: Mutex<HashMap<String, Entry>>,
     counter: AtomicU64,
+    /// Set once the launcher was asked to close: the next request forces it.
+    closing: AtomicBool,
+}
+
+/// What the interface is told when the launcher closes: whom it waits for.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosingEvent {
+    pub ids: Vec<String>,
 }
 
 fn now_millis() -> u64 {
@@ -188,6 +199,22 @@ impl Supervisor {
         if let Some(info) = changed {
             let _ = app.emit(PROCESS_EVENT, info);
         }
+        // The last process the closing launcher waited for: it may go now.
+        if self.closing.load(Ordering::SeqCst) && self.running().is_empty() {
+            app.exit(0);
+        }
+    }
+
+    /// The processes still alive, by id.
+    pub fn running(&self) -> Vec<String> {
+        let Ok(entries) = self.entries.lock() else {
+            return Vec::new();
+        };
+        entries
+            .iter()
+            .filter(|(_, entry)| entry.child.is_some())
+            .map(|(id, _)| id.clone())
+            .collect()
     }
 
     /// Start a `qibocal` subcommand under supervision.
@@ -291,8 +318,12 @@ impl Supervisor {
     }
 
     /// Ask the process to stop, leaving it time to clean up tunnels and workers.
-    pub fn stop(&self, id: &str) -> Result<(), String> {
-        let pid = {
+    ///
+    /// Nothing waits here: the process is told, the interface hears that it
+    /// is stopping, and a thread of its own kills it should the grace period
+    /// run out. The monitor reports the end, as for any other exit.
+    pub fn stop(&self, app: &AppHandle, id: &str) -> Result<(), String> {
+        let (pid, info) = {
             let mut entries = self
                 .entries
                 .lock()
@@ -301,43 +332,84 @@ impl Supervisor {
                 .get_mut(id)
                 .ok_or_else(|| format!("Process '{id}' is not managed by the launcher."))?;
             match entry.child.as_ref() {
+                Some(child) if entry.info.status == "stopping" => (child.id(), None),
                 Some(child) => {
                     entry.info.status = "stopping".to_string();
-                    child.id()
+                    (child.id(), Some(entry.info.clone()))
                 }
                 None => return Ok(()),
             }
         };
+        let Some(info) = info else {
+            // Asked twice: the first request is still being honoured.
+            return Ok(());
+        };
+        let _ = app.emit(PROCESS_EVENT, info);
 
         terminate(pid);
 
-        let deadline = SystemTime::now() + STOP_GRACE;
-        loop {
-            std::thread::sleep(Duration::from_millis(100));
-            let finished = {
-                let Ok(mut entries) = self.entries.lock() else {
-                    return Ok(());
+        let app = app.clone();
+        let id = id.to_string();
+        std::thread::spawn(move || {
+            let deadline = SystemTime::now() + STOP_GRACE;
+            while SystemTime::now() < deadline {
+                std::thread::sleep(Duration::from_millis(100));
+                let supervisor = app.state::<Supervisor>();
+                let Ok(entries) = supervisor.entries.lock() else {
+                    return;
                 };
-                match entries.get_mut(id).and_then(|entry| entry.child.as_mut()) {
-                    Some(child) => matches!(child.try_wait(), Ok(Some(_)) | Err(_)),
-                    None => true,
+                if entries.get(&id).map_or(true, |entry| entry.child.is_none()) {
+                    return;
                 }
-            };
-            if finished {
-                return Ok(());
             }
-            if SystemTime::now() >= deadline {
-                break;
-            }
-        }
+            app.state::<Supervisor>().kill(&id);
+        });
+        Ok(())
+    }
 
+    /// End a process at once, without the grace period.
+    fn kill(&self, id: &str) {
         if let Ok(mut entries) = self.entries.lock() {
             if let Some(child) = entries.get_mut(id).and_then(|entry| entry.child.as_mut()) {
                 let _ = child.kill();
                 let _ = child.wait();
             }
         }
-        Ok(())
+    }
+
+    /// Stop everything gracefully; nothing waits.
+    pub fn stop_all(&self, app: &AppHandle) {
+        for id in self.running() {
+            let _ = self.stop(app, &id);
+        }
+    }
+
+    /// Kill everything at once.
+    pub fn kill_all(&self) {
+        for id in self.running() {
+            self.kill(&id);
+        }
+    }
+
+    /// Whether the launcher may close now.
+    ///
+    /// The first request stops everything gracefully and tells the interface
+    /// whom it waits for, answering no: the launcher goes when the last
+    /// process has gone. A second request — the window closed again, the
+    /// application quit again — is read as "force close": everything is
+    /// killed, and the launcher goes now.
+    pub fn request_close(&self, app: &AppHandle) -> bool {
+        let running = self.running();
+        if running.is_empty() {
+            return true;
+        }
+        if self.closing.swap(true, Ordering::SeqCst) {
+            self.kill_all();
+            return true;
+        }
+        let _ = app.emit(CLOSING_EVENT, ClosingEvent { ids: running });
+        self.stop_all(app);
+        false
     }
 
     pub fn forget(&self, id: &str) -> Result<(), String> {
@@ -356,21 +428,10 @@ impl Supervisor {
         }
     }
 
-    /// Terminate every managed process, used when the launcher quits.
+    /// Nothing outlives the window: what is still there when the launcher
+    /// exits — after the graceful stop, or a forced close — is killed.
     pub fn shutdown(&self) {
-        let running: Vec<String> = {
-            let Ok(entries) = self.entries.lock() else {
-                return;
-            };
-            entries
-                .iter()
-                .filter(|(_, entry)| entry.child.is_some())
-                .map(|(id, _)| id.clone())
-                .collect()
-        };
-        for id in running {
-            let _ = self.stop(&id);
-        }
+        self.kill_all();
     }
 }
 
@@ -673,9 +734,22 @@ pub fn process_log(supervisor: State<Supervisor>, id: String) -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn stop_process(supervisor: State<Supervisor>, id: String) -> Result<Option<ProcessInfo>, String> {
-    supervisor.stop(&id)?;
+pub fn stop_process(
+    app: AppHandle,
+    supervisor: State<Supervisor>,
+    id: String,
+) -> Result<Option<ProcessInfo>, String> {
+    supervisor.stop(&app, &id)?;
     Ok(supervisor.snapshot(&id))
+}
+
+/// Close the launcher from the interface: "Force close" kills what is left.
+#[tauri::command]
+pub fn quit(app: AppHandle, supervisor: State<Supervisor>, force: bool) {
+    if force {
+        supervisor.kill_all();
+    }
+    app.exit(0);
 }
 
 #[tauri::command]

@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen bg-[#f7f7f7] py-10 px-4 sm:px-6 lg:px-8">
+  <!-- Inside the launcher, the status bar runs along the bottom edge: room for it. -->
+  <div class="min-h-screen bg-[#f7f7f7] py-10 px-4 sm:px-6 lg:px-8" :class="{ 'pb-16': desktop }">
     <div class="max-w-3xl mx-auto">
       <!-- Top Utility Nav: Documentation, Dashboard (if auth), and Server Admin (if admin) -->
       <div class="flex items-center justify-between pb-6 mb-6 border-b border-gray-200/60">
@@ -238,6 +239,7 @@ import {
   importClientState
 } from '../store.js'
 import { parseClientState } from '../utils/clientState.js'
+import { announce } from '../utils/desktop.js'
 import { parseServerAndInvite, normalizeUrl } from '../utils/url.js'
 import ServerCard from '../components/ServerCard.vue'
 import ServerModal from '../components/ServerModal.vue'
@@ -248,6 +250,12 @@ const modalOpen = ref(false)
 const editingServer = ref(null)
 const toastMessage = ref('')
 const stateFileInput = ref(null)
+
+/** Say it through the launcher when there is one; as this page's toast otherwise. */
+function toast(message) {
+  if (announce(message)) return
+  toastMessage.value = message
+}
 const loadingClientState = ref(false)
 
 function showError(error) {
@@ -265,7 +273,7 @@ function saveClientState() {
     link.download = 'qibocal-report-client.json'
     link.click()
     state.auth.errorMessage = ''
-    toastMessage.value = 'Client state saved without sign-in sessions.'
+    toast('Client state saved without sign-in sessions.')
   } catch (error) {
     showError(error)
   } finally {
@@ -283,7 +291,7 @@ async function loadClientState(event) {
     importClientState(saved)
     modalOpen.value = false
     editingServer.value = null
-    toastMessage.value = 'Client state loaded. Sign in again to authenticated servers.'
+    toast('Client state loaded. Sign in again to authenticated servers.')
   } catch (error) {
     showError(error)
   } finally {
@@ -386,7 +394,7 @@ function onDragEnd() {
 
 function handleDirectoryChanged({ server, dirInfo }) {
   const targetName = dirInfo?.relative_current || 'root'
-  toastMessage.value = `Folder for "${server?.name || 'Server'}" set to ${targetName}.`
+  toast(`Folder for "${server?.name || 'Server'}" set to ${targetName}.`)
   fetchServers()
 }
 
@@ -421,7 +429,7 @@ async function handleQuickAdd() {
         }
         state.auth.showRegisterModal = true
       } else {
-        toastMessage.value = `Server '${targetServer.name}' connected.`
+        toast(`Server '${targetServer.name}' connected.`)
       }
     }
   } catch (error) {
@@ -464,7 +472,7 @@ async function selectAndNavigate(server) {
 
 function handleLogout(server) {
   logoutActiveServer(server)
-  toastMessage.value = `Logged out of "${server.name}". Click the server to sign in again.`
+  toast(`Logged out of "${server.name}". Click the server to sign in again.`)
 }
 
 function openEditModal(server) {
@@ -477,12 +485,12 @@ async function saveModalServer(updatedData) {
     if (updatedData.id) {
       const updated = await updateServer(updatedData.id, updatedData)
       if (!updated) throw new Error('Server is no longer registered.')
-      toastMessage.value = `Server updated.`
+      toast(`Server updated.`)
     } else {
       const created = await addServer(updatedData)
       if (created) {
         setActiveServer(created)
-        toastMessage.value = `Server registered.`
+        toast(`Server registered.`)
       }
     }
     modalOpen.value = false
@@ -496,7 +504,7 @@ async function handleDelete(server) {
     try {
       if (!await deleteServer(server.id)) throw new Error('Server is no longer registered.')
       state.auth.errorMessage = ''
-      toastMessage.value = `Server removed from this browser.`
+      toast(`Server removed from this browser.`)
     } catch (error) {
       showError(error)
     }
