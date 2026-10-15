@@ -736,13 +736,13 @@ def test_launch_composes_layers(ssh, slurm, capsys):
     assert "ssh" not in remote_options
     assert (
         wait_tunnel.call_args.args[0]
-        == f"http://127.0.0.1:{9000 if ssh else 8123}/lab?token=secret"
+        == f"http://localhost:{9000 if ssh else 8123}/lab?token=secret"
     )
     browser.assert_not_called()
     assert stop.call_args_list[-1].args[0] is process
     output = capsys.readouterr()
     assert output.out == (
-        f"http://127.0.0.1:{9000 if ssh else 8123}/lab?token=secret\n"
+        f"http://localhost:{9000 if ssh else 8123}/lab?token=secret\n"
     )
     assert "Notebook ready" in output.err
     assert "Press Ctrl+C" in output.err
@@ -761,7 +761,7 @@ def test_launch_opens_browser(marimo):
     ):
         launch(NotebookOptions(marimo=marimo))
     query_key = "access_token" if marimo else "token"
-    browser.assert_called_once_with(f"http://127.0.0.1:8123/lab?{query_key}=secret")
+    browser.assert_called_once_with(f"http://localhost:8123/lab?{query_key}=secret")
 
 
 def test_launch_startup_failure_cleans_up():

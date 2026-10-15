@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/qiboteam/qibo/main/doc/source/_static/qibo_logo_dark.svg" alt="Qibo Logo" width="300" style="margin: 1.2rem 0;" />
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/qibocal_logo_light.svg" />
+  <img src="docs/assets/qibocal_logo_dark.svg" alt="Qibocal" width="300" style="margin: 1.2rem 0;" />
+</picture>
 
 **Modern, lightweight web application and high-throughput server to explore, analyze, and manage [Qibocal](https://github.com/qiboteam/qibocal) calibration reports interactively.**
 
@@ -25,6 +28,7 @@ sessions to exploring results and organizing runs across report servers.
 - **Search & Filters**: Find calibration runs by title, platform, author, protocol, tag, or date.
 - **Statistics Dashboard**: Follow calibration activity over time and explore trends across protocols, authors, and platforms.
 - **Batch Actions**: Organize multiple runs at once by updating tags and authors, or deleting reports.
+- **Desktop Launcher**: Start servers and notebook sessions, here or on another machine over SSH, edit the local configuration, and browse reports from a single cross-platform application.
 
 ## 🚀 Quick Start
 
@@ -45,7 +49,20 @@ Point `qibocal report server` to any directory containing Qibocal calibration ru
 qibocal report server ./sample_data --port 8000
 ```
 
-Open your browser at **`http://localhost:8000`**.
+Open your browser at **`http://localhost:8000`**. Without a directory, the
+shared one under `~/.local/share/qibocal/reports` is served, and created if
+it is not there yet.
+
+The runs often live on another machine. Add `--ssh` and the server starts there
+instead, in a managed environment, and is tunnelled back to a local address:
+
+```bash
+qibocal report server /shared/calibration --ssh myuser@login --venv mychip
+```
+
+The remote host only needs an OpenSSH server and Python 3.10+; the environment
+is created and `qibocal-report` installed into it on first use, exactly as for
+notebook sessions.
 
 ### Interactive Notebooks
 
@@ -106,6 +123,26 @@ hosts without server-side routing. The deployment path is preserved: for example
 the hosted documentation is at
 [`https://qibo.science/qibocal-report/#/docs`](https://qibo.science/qibocal-report/#/docs).
 Static exports also work at other subpaths without configuring the router.
+
+### 6. Desktop Launcher
+
+The [launcher](launcher/) is a desktop application that does what the web page cannot: it
+reaches the machine it runs on. It starts report servers and notebook sessions,
+manages the configuration shared with the CLI, re-issues administrator
+invitations, and embeds the very same dashboard, so launching an instance and
+browsing its reports happen in one application.
+
+Installers for macOS, Linux and Windows are attached to every
+[release](https://github.com/qiboteam/qibocal-report/releases), and
+[`.github/workflows/launcher.yml`](.github/workflows/launcher.yml) also builds
+them on demand. To run it from the sources:
+
+```bash
+cd launcher
+pnpm install
+pnpm run icons   # generates the application icons from icon.svg
+pnpm run app     # or `pnpm run app:build` for the installers
+```
 
 ## 📖 Documentation
 

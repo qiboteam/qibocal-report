@@ -61,16 +61,36 @@ qibocal report server [DIRECTORY] [OPTIONS]
 ```
 
 #### Arguments
-- `DIRECTORY`: Target folder containing Qibocal calibration run folders. Defaults to `.` (current working directory).
+- `DIRECTORY`: Target folder containing Qibocal calibration run folders. Left out, the shared reports directory is served — `$QIBOCAL_REPORT_DATA_DIR/reports`, `$XDG_DATA_HOME/qibocal/reports` or `~/.local/share/qibocal/reports` — created when missing. A named directory has to exist. With `--ssh`, both rules apply on the remote host, and nothing is checked here.
 
 #### Options
 - `--host TEXT`: Host address to bind to. Default: `localhost`.
 - `--port INTEGER`: Port to listen on. Default: `8000`.
+- `--auth / --no-auth`: Enable user authentication and role management, printing the initial administrator invitation. Default: `--no-auth`.
+- `--name TEXT`: Name the server is registered under. Default: generated from the directory.
+- `--register / --no-register`: Add the server to `servers.json`, where the dashboard finds it. `--no-register` starts it for a look and leaves the configuration alone. Default: `--register`.
 - `--help`: Show help message and exit.
+
+#### Remote options
+With `--ssh`, the server runs on another machine and its address is tunnelled back; `--host` and `--port` no longer apply, since the remote server binds to its own loopback on a free port and the local end of the tunnel is what gets registered in `servers.json`.
+
+- `--ssh TEXT`: SSH options followed by a host or `user@host` destination, as in `qibocal notebook connect`. The destination must be the last argument; do not include a remote command.
+- `-w, --workdir DIRECTORY`: Working directory on the remote host. Default: a fresh temporary directory, since the server writes nothing where it starts.
+- `--venv NAME_OR_PATH`: Environment on the remote host. Default: `qibocal`. Names resolve under `$XDG_CACHE_HOME/qibocal/envs/` (fallback `~/.cache/qibocal/envs/`), the same place the notebook sessions use; a missing environment is created, and an existing one without Qibocal has it installed.
+- `--install TEXT`: Packages installed in that environment when it has no `qibocal`. Default: `qibocal-report`.
+- `--timeout SECONDS`: Startup timeout, environment preparation included. Default: `300`.
+
+The remote host needs an OpenSSH server and `python3` 3.10 or later; Qibocal itself is installed by the environment step. The other remote options are refused without `--ssh`.
 
 #### Example
 ```bash
 qibocal report server /data/calibration_runs --host 0.0.0.0 --port 8080
+
+# The shared reports directory, under a name of your own, kept out of servers.json:
+qibocal report server --name "Scratch" --no-register
+
+# On the machine that holds the runs, in a dedicated environment:
+qibocal report server /shared/calibration --ssh myuser@login --venv mychip --auth
 ```
 
 ---
@@ -103,13 +123,15 @@ qibocal report dev [DIRECTORY] [OPTIONS]
 ```
 
 #### Arguments
-- `DIRECTORY`: Target calibration folder. Defaults to `.`.
+- `DIRECTORY`: Target calibration folder. Left out, the shared reports directory is served, as for `qibocal report server`.
 
 #### Options
 - `--host TEXT`: Host address to bind to. Default: `localhost`.
 - `--port INTEGER`: Backend API port. Default: `8000`.
 - `--frontend-port INTEGER`: Frontend Vite dev server port. Default: `5173`.
 - `--reload / --no-reload`: Toggle backend auto-reload. Default: `--reload`.
+- `--auth / --no-auth`: Enable user authentication. Default: `--no-auth`.
+- `--name TEXT`, `--register / --no-register`: As for `qibocal report server`.
 - `--help`: Show help message and exit.
 
 #### Aliases
@@ -199,5 +221,7 @@ qibocal report admin invite alice_admin --json
 | `QIBOCAL_FRONTEND_URL` | Used by developer mode to proxy requests to the Vite dev server. | Unset |
 | `QIBOCAL_REPORT_CONFIG_DIR` | Override the directory containing server configurations and the default authentication database. | `$XDG_CONFIG_HOME/qibocal/`, falling back to `~/.config/qibocal/` |
 | `XDG_CONFIG_HOME` | Default configuration root. | `~/.config/` |
+| `QIBOCAL_REPORT_DATA_DIR` | Override the data directory, whose `reports/` subfolder is served when no directory is named. | `$XDG_DATA_HOME/qibocal/`, falling back to `~/.local/share/qibocal/` |
+| `XDG_DATA_HOME` | Default data root. | `~/.local/share/` |
 | `QIBOCAL_AUTH_FILE` | Custom authentication database path; also removed by `qibocal config clean`. | `auth.json` in the configuration directory |
 | `HOME` | Determines the fallback configuration root when `XDG_CONFIG_HOME` is unset or empty. | User home |

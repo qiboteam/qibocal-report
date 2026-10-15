@@ -93,10 +93,42 @@
         <button @click="toastMessage = ''" class="border-0 text-purple-600 hover:text-purple-900 text-sm font-bold leading-none bg-transparent">&times;</button>
       </div>
 
+      <!--
+        Inside the desktop launcher the list has two parts: the servers the
+        launcher manages — started by it, shown only while they run — and
+        those registered independently. In a browser there is one list.
+      -->
+      <template v-if="desktop">
+        <div class="flex items-center justify-between mb-3 px-0.5">
+          <h2 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            Managed by the launcher ({{ managedServers.length }})
+          </h2>
+          <span class="text-[10px] text-gray-400 font-medium">Running now</span>
+        </div>
+        <div v-if="managedServers.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-8">
+          <server-card
+            v-for="server in managedServers"
+            :key="server.id"
+            :server="server"
+            :is-active="server.id === activeServer?.id"
+            @select="selectAndNavigate"
+            @logout="handleLogout"
+            @edit="openEditModal"
+            @delete="handleDelete"
+            @administer="navigateToAdmin"
+          />
+        </div>
+        <p v-else class="mb-8 px-4 py-5 text-xs text-gray-500 bg-white rounded-2xl border border-gray-100 shadow-xs">
+          No server of the launcher's is running. Start one in its
+          <a :href="launcherServersUrl" class="font-medium text-[#833dff] hover:text-[#6b21a8] transition">Servers</a>
+          section and it appears here.
+        </p>
+      </template>
+
       <!-- Section Label with Drag Hint -->
       <div class="flex items-center justify-between mb-3 px-0.5">
         <h2 class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-          Registered Instances ({{ servers.length }})
+          {{ desktop ? 'Registered independently' : 'Registered Instances' }} ({{ servers.length }})
         </h2>
         <span v-if="servers.length > 1" class="text-[10px] text-gray-400 flex items-center gap-1 font-medium">
           <svg class="w-3 h-3 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
@@ -189,7 +221,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   state,
@@ -263,8 +295,46 @@ async function loadClientState(event) {
 const draggedIndex = ref(null)
 const dropTargetIndex = ref(null)
 
-const servers = computed(() => state.servers)
 const activeServer = computed(() => state.activeServer)
+
+// --- The desktop launcher's view of the servers ---------------------------
+// `window.qibocalDesktop` exists only inside the launcher: it tells which
+// registered addresses the launcher manages, and which of them run now.
+const desktop = typeof window !== 'undefined' && typeof window.qibocalDesktop?.managedServers === 'function'
+const runningUrls = ref(new Set())
+const managedUrls = ref(new Set())
+const launcherServersUrl = computed(() =>
+  (desktop && typeof window.qibocalDesktop.launcherUrl === 'function') ? window.qibocalDesktop.launcherUrl('servers') : '#'
+)
+
+const same = (left, right) => {
+  const normalize = window.qibocalDesktop?.normalize || normalizeUrl
+  return normalize(left) === normalize(right)
+}
+const inSet = (set, url) => [...set].some(entry => same(entry, url))
+
+/** The launcher's own servers, while they run; the inactive ones are hidden. */
+const managedServers = computed(() =>
+  desktop ? state.servers.filter(server => inSet(runningUrls.value, server.url)) : []
+)
+/** Everything else: registered here, in the browser, or by hand. */
+const servers = computed(() =>
+  desktop ? state.servers.filter(server => !inSet(managedUrls.value, server.url)) : state.servers
+)
+
+async function syncWithLauncher() {
+  if (!desktop) return
+  try {
+    const { running = [], managed = [] } = await window.qibocalDesktop.managedServers()
+    runningUrls.value = new Set(running)
+    managedUrls.value = new Set(managed)
+  } catch (error) {
+    console.warn('The desktop launcher did not answer about its servers', error)
+  }
+}
+
+onMounted(syncWithLauncher)
+onActivated(syncWithLauncher)
 
 function onDragStart(e, index) {
   draggedIndex.value = index

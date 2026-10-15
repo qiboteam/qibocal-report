@@ -50,6 +50,15 @@ DOCS_NAVIGATION = [
                     "Interactive charts, protocol timings, downloads, and PDF printing"
                 ),
             },
+            {
+                "id": "user-guide/launcher",
+                "path": "user-guide/launcher",
+                "title": "Desktop Launcher",
+                "description": (
+                    "Starting servers and notebooks, invitations, and local"
+                    " configuration from the desktop application"
+                ),
+            },
         ],
     },
     {

@@ -59,6 +59,32 @@ def get_config_dir(*, create: bool = True) -> Path:
     return path
 
 
+def get_data_dir(*, create: bool = True) -> Path:
+    """Return the data directory, optionally creating it.
+
+    Configuration describes servers; data is what they serve. The two follow
+    the matching XDG conventions: ``$XDG_CONFIG_HOME`` for the first,
+    ``$XDG_DATA_HOME`` (``~/.local/share``) for the second.
+    """
+    custom_dir = os.environ.get("QIBOCAL_REPORT_DATA_DIR")
+    if custom_dir:
+        path = Path(custom_dir)
+    else:
+        root = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+        path = root / "qibocal"
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_reports_dir(*, create: bool = True) -> Path:
+    """The directory served when none is named, created on first use."""
+    path = get_data_dir(create=create) / "reports"
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def get_config_file(*, create: bool = True) -> Path:
     """Return path to servers.json."""
     return get_config_dir(create=create) / "servers.json"

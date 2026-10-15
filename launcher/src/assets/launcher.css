@@ -1,0 +1,721 @@
+/*
+ * A handful of controls the web frontend has no equivalent for: graphical
+ * selectors, labelled fields, nested lists. Everything else comes from
+ * the frontend stylesheet, so the two halves look like one application.
+ */
+
+.lx-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.lx-input,
+.lx-select {
+  width: 100%;
+  background: #f4f4f5;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text-main);
+  font-family: inherit;
+  transition: box-shadow 50ms ease, background-color 50ms ease;
+}
+
+.lx-select {
+  border: 0;
+  outline: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #9a9aa0 50%),
+    linear-gradient(135deg, #9a9aa0 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 28px;
+}
+
+.lx-input:focus,
+.lx-select:focus {
+  background-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(131, 61, 255, 0.2);
+}
+
+/*
+ * A required control is white and outlined, so that it reads as something
+ * to fill in; the grey of an optional one says the default will do.
+ */
+.lx-input.is-required,
+.lx-select.is-required {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #d4d4d8;
+}
+
+.lx-input.is-required:focus,
+.lx-select.is-required:focus {
+  box-shadow: inset 0 0 0 1px #d4d4d8, 0 0 0 2px rgba(131, 61, 255, 0.2);
+}
+
+.lx-input::placeholder {
+  color: #a6a6ac;
+}
+
+.lx-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.lx-label-row .lx-label {
+  margin-bottom: 0;
+}
+
+/* "required", next to the label, in the voice of the help text. */
+.lx-tag {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #8a8a90;
+  background: #efeff1;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.lx-help {
+  font-size: 11px;
+  color: #8a8a90;
+  margin-top: 3px;
+}
+
+/* The circled i, and the bubble it opens on hover or focus. */
+.lx-tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.lx-tip-button {
+  display: inline-flex;
+  color: #a6a6ac;
+  cursor: help;
+  border-radius: 999px;
+  transition: color 50ms ease;
+}
+
+.lx-tip-button:hover,
+.lx-tip-button:focus-visible {
+  color: var(--accent-primary);
+  outline: none;
+}
+
+.lx-tip-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 18rem;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #1f1f23;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  visibility: hidden;
+  z-index: 30;
+  transition: opacity 80ms ease;
+  pointer-events: none;
+}
+
+.lx-tip:hover .lx-tip-bubble,
+.lx-tip:focus-within .lx-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* The optional settings of a form, folded until they are wanted. */
+.lx-more {
+  margin-top: 16px;
+  border-top: 1px solid #ececef;
+  padding-top: 10px;
+}
+
+.lx-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.lx-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lx-more > summary:hover {
+  color: #3b107e;
+}
+
+.lx-more > summary .lx-chevron {
+  color: #a6a6ac;
+  transition: transform 80ms ease;
+}
+
+.lx-more[open] > summary .lx-chevron {
+  transform: rotate(90deg);
+}
+
+.lx-more > .lx-more-body {
+  margin-top: 12px;
+}
+
+.lx-error {
+  font-size: 11px;
+  color: #b91c1c;
+  margin-top: 3px;
+}
+
+.lx-warning {
+  font-size: 11px;
+  color: #a16207;
+  margin-top: 3px;
+}
+
+/* Segmented control: the graphical stand-in for mutually exclusive flags. */
+.lx-segment {
+  display: inline-flex;
+  background: #efeff1;
+  border-radius: 10px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.lx-segment > button {
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 50ms ease;
+}
+
+.lx-segment > button.is-active {
+  background: #ffffff;
+  color: var(--accent-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.lx-segment > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Switch: on/off options such as --auth/--no-auth. */
+.lx-switch {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: #d9d9de;
+  transition: background-color 60ms ease;
+  cursor: pointer;
+  flex: none;
+}
+
+.lx-switch.is-on {
+  background: var(--accent-primary);
+}
+
+.lx-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 60ms ease;
+}
+
+.lx-switch.is-on::after {
+  transform: translateX(14px);
+}
+
+/* Compact row action, next to a server or a running process. */
+.lx-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: #f4f4f5;
+  transition: all 50ms ease;
+  cursor: pointer;
+}
+
+.lx-action:hover {
+  background: var(--accent-light);
+  color: #3b107e;
+}
+
+.lx-action:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The one action that removes something: it only turns red when meant. */
+.lx-action.is-danger:hover {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* The main action of a form: one per form, purple. */
+.lx-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+  background: var(--accent-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: all 50ms ease;
+  cursor: pointer;
+}
+
+.lx-primary:hover {
+  background: #722ce6;
+}
+
+.lx-primary:active {
+  transform: scale(0.98);
+}
+
+.lx-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
+
+/*
+ * Nested entries of a configuration file: a list whose rows unfold in place,
+ * the open one marked by an accent line, so the levels read at a glance.
+ */
+.lx-list {
+  border: 1px solid #ececef;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.lx-list > * + * {
+  border-top: 1px solid #ececef;
+}
+
+.lx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 50ms ease;
+}
+
+.lx-row:hover {
+  background: #f7f5ff;
+}
+
+.lx-row.is-open {
+  background: #f7f5ff;
+}
+
+.lx-row .lx-chevron {
+  flex: none;
+  color: #a6a6ac;
+  transition: transform 80ms ease;
+}
+
+.lx-row.is-open .lx-chevron {
+  transform: rotate(90deg);
+  color: var(--accent-primary);
+}
+
+.lx-nested {
+  margin: 0 12px 12px 22px;
+  padding: 10px 0 0 14px;
+  border-left: 2px solid var(--accent-light);
+}
+
+.lx-mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+/* The wordmark, in the corner of every launcher page and of the server list. */
+.lx-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 8px;
+  margin-left: -8px;
+  border-radius: 10px;
+  color: #000000;
+  cursor: pointer;
+  transition: background-color 60ms ease, color 60ms ease;
+}
+
+.lx-logo:hover {
+  background: var(--accent-light);
+  color: var(--accent-primary);
+}
+
+/* The inlined SVG takes its height from the wrapper and keeps its proportions. */
+.lx-logo-svg {
+  display: inline-flex;
+  align-items: center;
+}
+
+.lx-logo-svg > svg {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+
+/*
+ * The status bar: the one place the launcher speaks from. The page's own
+ * colour and no edge, so it blends into a page that fits the window; on top
+ * of everything, so it stays in sight on one that does not; low contrast,
+ * the size of a section description — readable, not outstanding.
+ */
+.lx-status {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30px;
+  z-index: 70;
+  background: #f7f7f7;
+  font-size: 12px;
+  color: #9a9aa0;
+}
+
+/* Links in the bar are as grey as the rest: a little darker on hover, never blue. */
+.lx-status a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 50ms ease;
+}
+
+.lx-status a:hover {
+  color: #6b6b72;
+}
+
+.lx-status-error,
+.lx-status a.lx-status-error {
+  color: #b45309;
+}
+
+/* The state of the command line, before its name: found, being installed, missing. */
+.lx-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: none;
+}
+
+/* The count of what was said, a small pill that opens the list. */
+.lx-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #8a8a90;
+  background: #ececef;
+  cursor: pointer;
+  transition: background-color 50ms ease, color 50ms ease;
+}
+
+.lx-count:hover,
+.lx-count.is-open {
+  background: var(--accent-light);
+  color: #3b107e;
+}
+
+.lx-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* The list of notifications, opening upward from the corner. */
+.lx-notices {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  width: 24rem;
+  max-width: calc(100vw - 2.5rem);
+  max-height: 50vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+  color: var(--text-main);
+  font-size: 12px;
+}
+
+.lx-notices-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #ececef;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.lx-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 12px;
+}
+
+.lx-notice + .lx-notice {
+  border-top: 1px solid #f1f1f3;
+}
+
+.lx-notice-time {
+  flex: none;
+  color: #a6a6ac;
+  font-variant-numeric: tabular-nums;
+}
+
+.lx-notice-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lx-notice.is-error .lx-notice-text {
+  color: #b45309;
+}
+
+/* The last row of the bubble, when the inbox holds more than it shows. */
+.lx-notices-more {
+  display: block;
+  padding: 8px 12px;
+  border-top: 1px solid #ececef;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-primary);
+  text-align: center;
+}
+
+.lx-notices-more:hover {
+  background: #f7f5ff;
+  color: #3b107e;
+}
+
+/*
+ * The notifications page: rows in the application's own text, the time as
+ * a distance from now in the voice of the help text, the actions at the end.
+ */
+.lx-inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+}
+
+.lx-inbox-row + .lx-inbox-row {
+  border-top: 1px solid #f1f1f3;
+}
+
+.lx-inbox-icon {
+  flex: none;
+  color: #a6a6ac;
+}
+
+.lx-inbox-row.is-error .lx-inbox-icon {
+  color: #d97706;
+}
+
+.lx-inbox-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.lx-inbox-text.is-link {
+  cursor: pointer;
+}
+
+.lx-inbox-text.is-link:hover {
+  color: #3b107e;
+}
+
+.lx-inbox-time {
+  flex: none;
+  font-size: 11px;
+  color: #a6a6ac;
+  white-space: nowrap;
+}
+
+.lx-inbox-actions {
+  flex: none;
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 50ms ease;
+}
+
+.lx-inbox-row:hover .lx-inbox-actions,
+.lx-inbox-actions:focus-within {
+  opacity: 1;
+}
+
+.lx-inbox-actions .lx-action {
+  padding: 3px 6px;
+}
+
+/* An entry about a section is the way there: the whole text, not a word of it. */
+.lx-notice-text.is-link {
+  cursor: pointer;
+  border-radius: 6px;
+  margin: -3px -6px;
+  padding: 3px 6px;
+  transition: background-color 50ms ease, color 50ms ease;
+}
+
+.lx-notice-text.is-link:hover {
+  background: #f7f5ff;
+  color: #3b107e;
+}
+
+.lx-notice-close {
+  flex: none;
+  color: #a6a6ac;
+  opacity: 0;
+  transition: opacity 50ms ease, color 50ms ease;
+}
+
+.lx-notice:hover .lx-notice-close,
+.lx-notice-close:focus-visible {
+  opacity: 1;
+}
+
+.lx-notice-close:hover {
+  color: #991b1b;
+}
+
+/*
+ * A run of a process: the header is the control, the output unfolds below it
+ * and starts folded, so a page of several servers stays a page.
+ */
+.lx-run > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 0;
+}
+
+.lx-run > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lx-run > summary .lx-chevron {
+  color: #a6a6ac;
+  transition: transform 80ms ease;
+}
+
+.lx-run[open] > summary .lx-chevron {
+  transform: rotate(90deg);
+}
+
+/*
+ * No rubber band: the document never scrolls, the page does, in one axis
+ * only when its content asks for it, and it stops where the content stops.
+ */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Every level has to have a height, or the one below resolves to "auto". */
+html.lx-launcher,
+html.lx-launcher > body,
+body.lx-launcher > #app {
+  height: 100%;
+}
+
+body.lx-launcher {
+  overflow: hidden;
+}
+
+body.lx-launcher > #app {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+}
+
+/* Something is happening in the background: a quiet spinner, no modal. */
+.lx-spin {
+  animation: lx-spin 900ms linear infinite;
+}
+
+@keyframes lx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * The dashboard page has no header of its own to hold it, so the mark is laid
+ * over the page, in the column the launcher header uses — and only there,
+ * leaving every click through to the interface underneath.
+ */
+.lx-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.lx-overlay .lx-logo {
+  pointer-events: auto;
+}

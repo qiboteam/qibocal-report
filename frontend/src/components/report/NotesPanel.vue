@@ -7,7 +7,7 @@
       <p v-if="loading" class="text-xs text-gray-500" role="status">Loading comments...</p>
       <p v-if="error" class="text-xs text-red-700" role="alert">
         {{ error }}
-        <button v-if="!saving" type="button" class="underline cursor-pointer ml-2" @click="loadNotes">Reload comments</button>
+        <button v-if="!saving" type="button" class="font-semibold cursor-pointer ml-2 hover:text-red-900 transition" @click="loadNotes">Reload comments</button>
       </p>
       <ol v-if="notes.length" class="space-y-3">
         <li v-for="(note, index) in notes" :key="index" class="rounded-xl bg-gray-50 p-3">

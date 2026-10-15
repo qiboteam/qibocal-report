@@ -20,3 +20,11 @@ dist/
 # Node
 frontend/node_modules/
 frontend/dist/
+launcher/node_modules/
+launcher/dist/
+
+# Launcher desktop application
+launcher/src-tauri/target/
+launcher/src-tauri/gen/
+# Generated from icon.svg by `pnpm run icons`
+launcher/src-tauri/icons/

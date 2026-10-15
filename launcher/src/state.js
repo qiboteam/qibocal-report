@@ -1,0 +1,478 @@
+import { reactive, computed } from 'vue'
+import { desktop, isDesktop, subscribe } from './bridge.js'
+import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './lib/servers.js'
+
+export const LOG_EVENT = 'launcher://log'
+export const PROCESS_EVENT = 'launcher://process'
+
+/** How long a message stays in the status bar, by kind. */
+const MESSAGE_TTL = { info: 6000, error: 15000 }
+
+export const state = reactive({
+  ready: false,
+  environment: null,
+  servers: [],
+  notebooks: {},
+  processes: [],
+  configEntries: [],
+  preferences: {},
+  logs: {},
+  /** The latest thing said, shown in the status bar until it fades; null when quiet. */
+  message: null,
+  /** Everything said so far, newest first; archived ones are put away, not lost. */
+  notifications: [],
+  /** How each process was started, by process id, so a run can be repeated. */
+  launches: {}
+})
+
+/** What is new: said and not yet archived. */
+export const inbox = computed(() => state.notifications.filter(entry => !entry.archived))
+
+export const hasQibocal = computed(() => Boolean(state.environment?.executable))
+
+/** Whether the launcher is installing or updating its own qibocal-report right now. */
+export const installing = computed(() =>
+  state.processes.some(process => process.kind === 'setup' && process.status === 'running')
+)
+
+// --- Messages ---------------------------------------------------------------
+
+/** How many notifications are kept, newest first. */
+const NOTIFICATION_LIMIT = 50
+
+let messageTimer = null
+let counter = 0
+
+/**
+ * Say something in the status bar, and let it fade on its own.
+ *
+ * Messages never interrupt: the latest shows in the bottom-right corner
+ * until it fades, and all of them stay in the list behind the counter
+ * next to it, each until dismissed. Nothing moves on the page.
+ */
+function say(text, kind, link = null) {
+  counter += 1
+  const entry = { id: counter, text, kind, at: Date.now(), link: toRoute(link), archived: false }
+  state.notifications.unshift(entry)
+  if (state.notifications.length > NOTIFICATION_LIMIT) state.notifications.length = NOTIFICATION_LIMIT
+  clearTimeout(messageTimer)
+  state.message = entry
+  messageTimer = setTimeout(() => {
+    if (state.message?.id === entry.id) state.message = null
+  }, MESSAGE_TTL[kind])
+}
+
+/**
+ * The section a message is about, as a route: a name such as `processes`,
+ * or a full route location; nothing when the message belongs nowhere.
+ */
+function toRoute(link) {
+  if (!link) return null
+  return typeof link === 'string' ? { name: link } : link
+}
+
+/** Say something, optionally pointing at the section it is about. */
+export function notify(message, link = null) {
+  say(message, 'info', link)
+}
+
+export function fail(error, link = null) {
+  say(typeof error === 'string' ? error : (error?.message || String(error)), 'error', link)
+}
+
+export function dismissNotification(id) {
+  state.notifications = state.notifications.filter(entry => entry.id !== id)
+  if (state.message?.id === id) state.message = null
+}
+
+/** Put an entry away, as GitHub marks a notification done: out of the inbox, kept. */
+export function archiveNotification(id) {
+  const entry = state.notifications.find(item => item.id === id)
+  if (entry) entry.archived = true
+  if (state.message?.id === id) state.message = null
+}
+
+export function unarchiveNotification(id) {
+  const entry = state.notifications.find(item => item.id === id)
+  if (entry) entry.archived = false
+}
+
+export function archiveAll() {
+  state.notifications.forEach(entry => { entry.archived = true })
+  state.message = null
+}
+
+export function clearArchived() {
+  state.notifications = state.notifications.filter(entry => !entry.archived)
+}
+
+export function dismiss() {
+  clearTimeout(messageTimer)
+  state.message = null
+  state.notifications = []
+}
+
+/**
+ * Run an action, surfacing its failure in the status bar instead of the
+ * console; `link` is the section both the success and the failure concern.
+ */
+export async function attempt(action, success = null, link = null) {
+  try {
+    const result = await action()
+    if (success) notify(typeof success === 'function' ? success(result) : success, link)
+    return result
+  } catch (error) {
+    fail(error, link)
+    return undefined
+  }
+}
+
+// --- Loading ----------------------------------------------------------------
+
+async function load(loader, fallback) {
+  try {
+    return await loader()
+  } catch {
+    return fallback
+  }
+}
+
+export async function refreshEnvironment() {
+  state.environment = await load(desktop.environment, null)
+  return state.environment
+}
+
+export async function refreshServers() {
+  state.servers = await load(desktop.listServers, [])
+  return state.servers
+}
+
+export async function refreshNotebooks() {
+  state.notebooks = await load(desktop.listNotebooks, {})
+  return state.notebooks
+}
+
+export async function refreshProcesses() {
+  state.processes = await load(desktop.processes, [])
+  return state.processes
+}
+
+export async function refreshConfigEntries() {
+  state.configEntries = await load(desktop.configEntries, [])
+  return state.configEntries
+}
+
+export async function refreshPreferences() {
+  state.preferences = await load(desktop.preferences, {})
+  return state.preferences
+}
+
+// --- The command line, installed when first needed ---------------------------
+
+/** Create the launcher's own qibocal-report environment, or update it. */
+export async function installQibocal(upgrade = false) {
+  const info = await desktop.installQibocal(upgrade)
+  mergeProcess(info)
+  return info
+}
+
+/** Whoever is waiting for the command line to exist: settled by `mergeProcess`. */
+const awaitingSetup = []
+
+/**
+ * Make sure the command line is there, installing it if it is not.
+ *
+ * Nothing is installed on opening the application: the first server,
+ * notebook or invitation that needs qibocal-report starts the installation,
+ * and goes on by itself once it is done — with a word in the status bar
+ * meanwhile, and the output in Running.
+ */
+export async function ensureQibocal() {
+  if (hasQibocal.value) return
+  if (!state.environment?.python) {
+    fail('No Python 3.10 or newer was found to install qibocal-report with.', 'settings')
+    throw new Error('No Python 3.10 or newer was found to install qibocal-report with; see Configuration.')
+  }
+  if (!installing.value) await installQibocal(false)
+  await new Promise((resolve, reject) => awaitingSetup.push({ resolve, reject }))
+}
+
+/** Run something that needs the command line, installing it first if needed. */
+export async function withQibocal(action) {
+  await ensureQibocal()
+  return action()
+}
+
+async function settleSetup(info) {
+  await refreshEnvironment()
+  const waiting = awaitingSetup.splice(0)
+  if (hasQibocal.value) {
+    notify(waiting.length ? 'qibocal-report is installed; carrying on.' : 'qibocal-report is installed.', 'settings')
+    waiting.forEach(entry => entry.resolve())
+    return
+  }
+  const reason = info.status === 'failed'
+    ? 'The installation of qibocal-report failed; its output is in Running.'
+    : 'qibocal-report is still missing after the installation; see Running.'
+  waiting.forEach(entry => entry.reject(new Error(reason)))
+  if (!waiting.length) fail(reason, 'processes')
+}
+
+// --- Processes ----------------------------------------------------------------
+
+/**
+ * Remember how a server was started, so the same instance can be brought up
+ * again from the system menu without filling the form a second time.
+ */
+export async function rememberLaunch(url, options) {
+  const key = serverUrl(url)
+  if (!key) return
+  const launches = { ...(state.preferences.launches || {}), [key]: options }
+  state.preferences = await desktop.savePreferences({ ...state.preferences, launches })
+}
+
+/**
+ * Replace what is remembered about a server: its old address and its new
+ * one forget their launches, and the new address takes `options` — or
+ * nothing, for a server the launcher is not to start any more.
+ */
+export async function rewriteLaunch(previousUrl, url, options) {
+  const launches = { ...(state.preferences.launches || {}) }
+  for (const key of [...launchKeys(previousUrl), ...launchKeys(url)]) delete launches[key]
+  if (options && serverUrl(url)) launches[serverUrl(url)] = options
+  state.preferences = await desktop.savePreferences({ ...state.preferences, launches })
+}
+
+export function recallLaunch(url) {
+  const launches = state.preferences.launches || {}
+  for (const key of launchKeys(url)) {
+    if (launches[key]) return launches[key]
+  }
+  return null
+}
+
+/**
+ * How a registered server is started: as it was last time, or — for one the
+ * launcher never started — on this machine at its registered address,
+ * serving the shared directory. Nothing for an address that is not here.
+ */
+export function launchOptionsFor(server) {
+  return recallLaunch(server?.url) || defaultLaunch(server)
+}
+
+/** The running process behind a registered server, if any. */
+export function processFor(server) {
+  const keys = new Set(launchKeys(server?.url))
+  return runningServers().find(process => launchKeys(process.url).some(key => keys.has(key))) || null
+}
+
+/**
+ * Launches still waiting for an address, by process.
+ *
+ * A server started over SSH is reached through a tunnel whose local port is
+ * only known once the command line prints it, so its options are kept here
+ * until `mergeProcess` sees that address go by — together with the
+ * registered server being brought up again, if any, whose entry then takes
+ * the new address instead of a second entry appearing next to it.
+ */
+const pending = new Map()
+
+/**
+ * Start a report server and keep its options for the next time.
+ *
+ * `url` is the address of the registered server being started again, when
+ * there is one: its entry is what the new address belongs to.
+ */
+export async function startServer(options, { url = null } = {}) {
+  const info = await withQibocal(() => desktop.startServer(options))
+  state.launches[info.id] = { kind: 'server', options, url }
+  mergeProcess(info)
+  if (!info.url && options.ssh) {
+    pending.set(info.id, { options, url })
+    return info
+  }
+  const address = url || info.url || `http://${options.host || 'localhost'}:${options.port}`
+  await rememberLaunch(address, options)
+  return info
+}
+
+/** Open a notebook session, installing the command line first if needed. */
+export async function startNotebook(options) {
+  const info = await withQibocal(() => desktop.startNotebook(options))
+  state.launches[info.id] = { kind: 'notebook', options, url: null }
+  mergeProcess(info)
+  return info
+}
+
+/** Run a process again, as it was started: the same options, the same entry. */
+export async function restartProcess(process) {
+  const launch = state.launches[process.id]
+  if (!launch) throw new Error('The launcher does not know how this was started.')
+  if (launch.kind === 'notebook') return startNotebook(launch.options)
+  return startServer(launch.options, { url: launch.url || process.url })
+}
+
+/**
+ * A registered server came up at a new address: move its entry there, and
+ * drop the entry the command line registered for the new address meanwhile.
+ */
+async function readdress(previousUrl, newUrl) {
+  const previous = new Set(launchKeys(previousUrl))
+  const fresh = new Set(launchKeys(newUrl))
+  const entry = state.servers.find(server => launchKeys(server.url).some(key => previous.has(key)))
+  if (!entry || fresh.has(serverUrl(entry.url))) return
+  const servers = state.servers
+    .filter(server => server === entry || !launchKeys(server.url).some(key => fresh.has(key)))
+    .map(server => (server === entry ? { ...server, url: serverUrl(newUrl) } : server))
+  state.servers = await desktop.saveServers(servers)
+  const launches = { ...(state.preferences.launches || {}) }
+  for (const key of previous) {
+    if (launches[key]) {
+      launches[serverUrl(newUrl)] = launches[key]
+      delete launches[key]
+    }
+  }
+  state.preferences = await desktop.savePreferences({ ...state.preferences, launches })
+}
+
+export function processById(id) {
+  return state.processes.find(process => process.id === id) || null
+}
+
+/** The report servers the launcher is running right now, address known. */
+export function runningServers() {
+  return state.processes.filter(
+    process => process.kind === 'server' && process.status === 'running' && serverUrl(process.url)
+  )
+}
+
+/** Running servers that are in no configuration file: started for a look. */
+export function unregisteredServers() {
+  const registered = new Set(state.servers.map(server => serverUrl(server.url)))
+  return runningServers().filter(process => !registered.has(serverUrl(process.url)))
+}
+
+function mergeProcess(info) {
+  const index = state.processes.findIndex(process => process.id === info.id)
+  if (index >= 0) state.processes[index] = info
+  else state.processes.push(info)
+
+  // An installation that ended changed what the launcher can find.
+  if (info.kind === 'setup' && info.status !== 'running') settleSetup(info)
+
+  const waiting = pending.get(info.id)
+  if (!waiting) return
+  if (info.url) {
+    pending.delete(info.id)
+    if (waiting.url && !launchKeys(waiting.url).includes(serverUrl(info.url))) {
+      readdress(waiting.url, info.url).then(() => refreshServers()).catch(error => fail(error, 'servers'))
+    } else {
+      // The command line registers the new address; a moment later it is in the list.
+      setTimeout(refreshServers, 1500)
+    }
+    rememberLaunch(info.url, waiting.options)
+  } else if (info.status !== 'running') {
+    pending.delete(info.id)
+  }
+}
+
+export async function loadLog(id) {
+  const lines = await load(() => desktop.processLog(id), [])
+  state.logs[id] = lines
+  return lines
+}
+
+/** Connect the native events once, when the launcher page starts. */
+export async function initialize() {
+  if (state.ready) return
+  state.ready = true
+  if (!isDesktop) return
+
+  await subscribe(LOG_EVENT, payload => {
+    const lines = state.logs[payload.id] || (state.logs[payload.id] = [])
+    lines.push(payload.line)
+    if (lines.length > 2000) lines.splice(0, lines.length - 2000)
+  })
+  await subscribe(PROCESS_EVENT, mergeProcess)
+
+  await Promise.all([
+    refreshEnvironment(),
+    refreshServers(),
+    refreshNotebooks(),
+    refreshProcesses(),
+    refreshConfigEntries(),
+    refreshPreferences()
+  ])
+}
+
+// --- The dashboard and the registered servers ------------------------------------
+
+/**
+ * Hand the configured servers over to the bundled dashboard and open it.
+ *
+ * Both pages live in the same window, hence in the same origin, so the
+ * dashboard reads the instances the launcher just registered. Opening a
+ * running server that is not registered yet registers it first: the
+ * dashboard only knows registered servers.
+ */
+export async function openDashboard(preferredUrl = null) {
+  if (preferredUrl) {
+    const keys = new Set(launchKeys(preferredUrl))
+    const registered = state.servers.some(server => launchKeys(server.url).some(key => keys.has(key)))
+    if (!registered) {
+      const process = runningServers().find(entry => launchKeys(entry.url).some(key => keys.has(key)))
+      try {
+        await registerServer({
+          name: process?.label || undefined,
+          url: preferredUrl,
+          description: process ? `Started by the launcher: ${process.detail}` : `Server at ${preferredUrl}`
+        })
+      } catch (error) {
+        fail(error, 'servers')
+        return
+      }
+    }
+  }
+  syncDashboardServers(state.servers, { preferredUrl })
+  const target = new URL('dashboard.html', window.location.href)
+  if (preferredUrl) target.hash = '#/dashboard'
+  window.location.href = target.href
+}
+
+/** Register a server address in `servers.json`, without duplicating it. */
+export async function registerServer(server) {
+  const url = serverUrl(server.url)
+  if (!url) throw new Error('Enter the address of the report server.')
+  const servers = [...state.servers]
+  const index = servers.findIndex(entry => serverUrl(entry.url) === url)
+  const entry = {
+    id: servers[index]?.id || `srv-${Math.random().toString(36).slice(2, 10)}`,
+    created_at: servers[index]?.created_at || new Date().toISOString(),
+    avatar: 'quantum-ring',
+    ...servers[index],
+    ...server,
+    url
+  }
+  if (index >= 0) servers[index] = entry
+  else servers.push(entry)
+  state.servers = await desktop.saveServers(servers)
+  return entry
+}
+
+/** Change what a registered server is called, where it is, how it is described. */
+export async function updateServer(id, changes) {
+  const index = state.servers.findIndex(server => server.id === id)
+  if (index < 0) throw new Error('This server is no longer registered.')
+  const url = serverUrl(changes.url ?? state.servers[index].url)
+  if (!url) throw new Error('Enter the address of the report server.')
+  const taken = state.servers.some((server, position) => position !== index && serverUrl(server.url) === url)
+  if (taken) throw new Error('Another server is registered at this address.')
+  const servers = [...state.servers]
+  servers[index] = { ...servers[index], ...changes, url }
+  state.servers = await desktop.saveServers(servers)
+  return servers[index]
+}
+
+export async function forgetServer(id) {
+  state.servers = await desktop.saveServers(state.servers.filter(server => server.id !== id))
+}

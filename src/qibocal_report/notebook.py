@@ -43,7 +43,9 @@ class NotebookOutput:
         if not line.startswith(EVENT_PREFIX):
             self.console.print(
                 Text.from_ansi(line.rstrip("\n")),
-                style="bold red" if line.startswith("Notebook worker:") else "dim",
+                style="bold red"
+                if line.startswith(("Notebook worker:", "Report worker:"))
+                else "dim",
             )
             return
         try:
@@ -360,11 +362,14 @@ def stop_process(process: subprocess.Popen) -> None:
 
 
 def _read_worker(
-    process: subprocess.Popen, messages: queue.Queue, output: NotebookOutput
+    process: subprocess.Popen,
+    messages: queue.Queue,
+    output: NotebookOutput,
+    prefix: str = READY_PREFIX,
 ) -> None:
     for line in process.stdout:
-        if line.startswith(READY_PREFIX):
-            messages.put(line[len(READY_PREFIX) :])
+        if line.startswith(prefix):
+            messages.put(line[len(prefix) :])
         else:
             output.line(line)
     messages.put(None)
@@ -375,9 +380,13 @@ def _read_stderr(process: subprocess.Popen, output: NotebookOutput) -> None:
         output.line(line)
 
 
-def _wait_ready(
-    process: subprocess.Popen, messages: queue.Queue, deadline: float
+def _wait_message(
+    process: subprocess.Popen,
+    messages: queue.Queue,
+    deadline: float,
+    what: str = "notebook",
 ) -> dict:
+    """Wait for the worker's readiness object, whatever the worker announces."""
     while time.monotonic() < deadline:
         try:
             message = messages.get(
@@ -387,35 +396,49 @@ def _wait_ready(
             continue
         if message is None:
             raise click.ClickException(
-                f"Notebook launcher exited before startup (status {process.poll()})."
+                f"{what.capitalize()} launcher exited before startup "
+                f"(status {process.poll()})."
             )
         try:
             ready = json.loads(message)
         except ValueError as exc:
-            raise click.ClickException("Invalid notebook startup response.") from exc
-        if (
-            not isinstance(ready, dict)
-            or type(ready.get("port")) is not int
-            or not 1 <= ready["port"] <= 65535
-            or not isinstance(ready.get("token"), str)
-            or not ready["token"]
-            or ready.get("path") not in ("/", "/lab")
-        ):
-            raise click.ClickException("Invalid notebook startup response.")
+            raise click.ClickException(f"Invalid {what} startup response.") from exc
+        if not isinstance(ready, dict):
+            raise click.ClickException(f"Invalid {what} startup response.")
         return ready
     raise click.ClickException(
-        "Timed out waiting for notebook startup; increase --timeout."
+        f"Timed out waiting for {what} startup; increase --timeout."
     )
 
 
-def _wait_tunnel(url: str, processes: list[subprocess.Popen], deadline: float) -> None:
+def _wait_ready(
+    process: subprocess.Popen, messages: queue.Queue, deadline: float
+) -> dict:
+    ready = _wait_message(process, messages, deadline)
+    if (
+        type(ready.get("port")) is not int
+        or not 1 <= ready["port"] <= 65535
+        or not isinstance(ready.get("token"), str)
+        or not ready["token"]
+        or ready.get("path") not in ("/", "/lab")
+    ):
+        raise click.ClickException("Invalid notebook startup response.")
+    return ready
+
+
+def _wait_tunnel(
+    url: str,
+    processes: list[subprocess.Popen],
+    deadline: float,
+    what: str = "notebook",
+) -> None:
     from urllib.error import URLError
 
     opener = build_opener(ProxyHandler({}))
     while time.monotonic() < deadline:
         if any(process.poll() is not None for process in processes):
             raise click.ClickException(
-                "Notebook server or SSH tunnel exited during startup."
+                f"{what.capitalize()} server or SSH tunnel exited during startup."
             )
         try:
             with opener.open(
@@ -424,7 +447,7 @@ def _wait_tunnel(url: str, processes: list[subprocess.Popen], deadline: float) -
                 return
         except (URLError, TimeoutError, ConnectionError):
             time.sleep(0.1)
-    raise click.ClickException("Timed out waiting for the notebook SSH tunnel.")
+    raise click.ClickException(f"Timed out waiting for the {what} SSH tunnel.")
 
 
 def launch(options: NotebookOptions) -> None:
@@ -514,7 +537,9 @@ def launch(options: NotebookOptions) -> None:
         query = urlencode(
             {"access_token" if options.marimo else "token": ready["token"]}
         )
-        url = f"http://127.0.0.1:{port}{ready['path']}?{query}"
+        # Spoken of as localhost: the loopback name people type, and the one
+        # the launcher expects to find on its own line.
+        url = f"http://localhost:{port}{ready['path']}?{query}"
         _wait_tunnel(url, processes, deadline)
         output.console.print(
             Panel(

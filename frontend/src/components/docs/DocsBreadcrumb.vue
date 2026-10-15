@@ -85,7 +85,7 @@
             <button
               type="button"
               @click="navigateToSectionPage"
-              class="text-[10px] text-[#833dff] hover:underline font-normal cursor-pointer"
+              class="text-[10px] text-[#833dff] hover:text-[#6b21a8] font-normal cursor-pointer transition"
             >
               Overview
             </button>

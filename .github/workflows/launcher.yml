@@ -1,0 +1,230 @@
+name: Build launcher installers
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  # Changing the launcher, or this very workflow, rebuilds everything: the
+  # installers are the only way to tell whether the desktop application still
+  # builds on the three platforms.
+  pull_request:
+    paths:
+      - "launcher/**"
+      - "frontend/**"
+      - ".github/workflows/launcher.yml"
+
+# Only the release event needs to write, to attach the installers.
+permissions:
+  contents: write
+
+concurrency:
+  group: launcher-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS
+            os: macos-14
+            target: universal-apple-darwin
+            bundles: app,dmg
+          - label: Linux
+            os: ubuntu-22.04
+            target: ""
+            bundles: deb,appimage
+          - label: Windows
+            os: windows-latest
+            target: ""
+            bundles: nsis,msi
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            build-essential \
+            patchelf
+
+      - name: Install the Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add the Apple architectures
+        if: matrix.target == 'universal-apple-darwin'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Cache the Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: launcher/src-tauri -> target
+          key: ${{ matrix.label }}
+
+      # The launcher has no lockfile: the dashboard it embeds is pinned by the
+      # frontend package, and the desktop dependencies follow the Tauri release
+      # the toolchain provides.
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+        working-directory: launcher
+
+      - name: Run the launcher tests
+        run: pnpm run test
+        working-directory: launcher
+
+      - name: Generate the application icons
+        run: pnpm run icons
+        working-directory: launcher
+
+      - name: Take the version from the release tag
+        if: github.event_name == 'release'
+        shell: bash
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          version="${tag#v}"
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            node -e "const fs=require('fs');const p='launcher/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p));c.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')" "$version"
+            echo "Building version $version."
+          else
+            echo "Tag '$tag' is not a plain version, keeping the configured one."
+          fi
+
+      # Built on its own, and bounded, so that a stuck bundler is a failing
+      # step with its own log rather than an hour of apparent compilation:
+      # `tauri build` runs it again through `beforeBuildCommand`, which costs
+      # a minute and keeps the command usable outside of here.
+      - name: Build the web assets
+        run: pnpm run build
+        working-directory: launcher
+        timeout-minutes: 10
+
+      # Without a Developer ID signature and Apple's notarization, macOS
+      # refuses a downloaded application outright — "Apple could not verify
+      # … is free of malware" — and only a trip through System Settings
+      # opens it. The credentials are repository secrets, and the step is
+      # skipped when they are missing: an unsigned build is still useful, a
+      # half-configured one only fails. See docs/user-guide/launcher.md.
+      - name: Enable Apple code signing and notarization
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ACCOUNT: ${{ secrets.APPLE_ID }}
+          APPLE_ACCOUNT_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$CERTIFICATE" ] || [ -z "$SIGNING_IDENTITY" ]; then
+            # Ad-hoc signing convinces nobody, and Gatekeeper still refuses
+            # the download, but it seals the bundle instead of shipping an
+            # application whose only signature is the one the linker left on
+            # its executable.
+            echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+            echo "::warning::No Apple Developer ID configured: the build is"\
+                 "only ad-hoc signed, and macOS will refuse it until the user"\
+                 "allows it in System Settings → Privacy & Security."
+            exit 0
+          fi
+          # The certificate is base64, which some tools wrap over several
+          # lines: pass it through the delimited form, which takes either.
+          {
+            echo "APPLE_CERTIFICATE<<APPLE_CERTIFICATE_EOF"
+            echo "$CERTIFICATE"
+            echo "APPLE_CERTIFICATE_EOF"
+            echo "APPLE_CERTIFICATE_PASSWORD=$CERTIFICATE_PASSWORD"
+            echo "APPLE_SIGNING_IDENTITY=$SIGNING_IDENTITY"
+          } >> "$GITHUB_ENV"
+          # Notarization needs the application signed first, and a few minutes
+          # of waiting on Apple's service.
+          if [ -n "$APPLE_ACCOUNT" ]; then
+            {
+              echo "APPLE_ID=$APPLE_ACCOUNT"
+              echo "APPLE_PASSWORD=$APPLE_ACCOUNT_PASSWORD"
+              echo "APPLE_TEAM_ID=$TEAM_ID"
+            } >> "$GITHUB_ENV"
+          else
+            echo "::warning::Signing without notarizing: macOS still refuses"\
+                 "downloaded applications it cannot check with Apple."
+          fi
+
+      # The launcher installs the qibocal-report it is built from, so the
+      # command line it drives takes the flags it passes: build.rs reads the
+      # commit — the branch head of a pull request, not its merge commit,
+      # which the archive endpoint does not serve.
+      - name: Build the installers
+        run: pnpm tauri build --bundles ${{ matrix.bundles }} ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
+        working-directory: launcher
+        timeout-minutes: 45
+        env:
+          QIBOCAL_BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Report what macOS will make of the result
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app="launcher/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Qibocal.app"
+          if [ ! -d "$app" ]; then
+            echo "::warning::$app not found, skipping the assessment."
+            exit 0
+          fi
+          codesign --display --verbose=2 "$app" 2>&1 || true
+          if spctl --assess --type execute "$app" 2>&1; then
+            echo "Gatekeeper accepts this build: it opens with a double click."
+          else
+            echo "::warning::Unsigned or un-notarized build: macOS will refuse it"\
+                 "until the user allows it in System Settings → Privacy & Security."
+          fi
+
+      - name: Collect the installers
+        id: collect
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          base=launcher/src-tauri/target
+          if [ -n "${{ matrix.target }}" ]; then
+            base="$base/${{ matrix.target }}"
+          fi
+          find "$base/release/bundle" -type f \
+            \( -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \
+               -o -name '*.rpm' -o -name '*.msi' -o -name '*-setup.exe' \) \
+            -exec cp {} artifacts/ \;
+          ls -l artifacts
+
+      - name: Publish the installers as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qibocal-launcher-${{ matrix.label }}
+          path: artifacts/*
+          if-no-files-found: error
+
+      - name: Attach the installers to the release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" artifacts/* --clobber

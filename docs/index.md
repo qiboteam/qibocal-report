@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/qiboteam/qibo/main/doc/source/_static/qibo_logo_dark.svg" alt="Qibo Logo" width="340" style="margin: 1.5rem 0;" />
+<img src="assets/qibocal_logo_dark.svg" alt="Qibocal" width="340" style="margin: 1.5rem 0;" />
 
 **An open-source full stack operating system for quantum computers**
 

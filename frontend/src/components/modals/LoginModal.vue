@@ -94,7 +94,7 @@
         <router-link
           to="/servers"
           @click="close"
-          class="text-[#833dff] hover:underline font-medium ml-1"
+          class="text-[#833dff] hover:text-[#6b21a8] font-medium ml-1 transition"
         >
           Paste it in Server Management
         </router-link>
