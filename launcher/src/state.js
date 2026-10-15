@@ -19,9 +19,14 @@ export const state = reactive({
   logs: {},
   /** The latest thing said, shown in the status bar until it fades; null when quiet. */
   message: null,
-  /** Everything said so far, newest first, each until dismissed. */
-  notifications: []
+  /** Everything said so far, newest first; archived ones are put away, not lost. */
+  notifications: [],
+  /** How each process was started, by process id, so a run can be repeated. */
+  launches: {}
 })
+
+/** What is new: said and not yet archived. */
+export const inbox = computed(() => state.notifications.filter(entry => !entry.archived))
 
 export const hasQibocal = computed(() => Boolean(state.environment?.executable))
 
@@ -47,7 +52,7 @@ let counter = 0
  */
 function say(text, kind, link = null) {
   counter += 1
-  const entry = { id: counter, text, kind, at: Date.now(), link: toRoute(link) }
+  const entry = { id: counter, text, kind, at: Date.now(), link: toRoute(link), archived: false }
   state.notifications.unshift(entry)
   if (state.notifications.length > NOTIFICATION_LIMIT) state.notifications.length = NOTIFICATION_LIMIT
   clearTimeout(messageTimer)
@@ -78,6 +83,27 @@ export function fail(error, link = null) {
 export function dismissNotification(id) {
   state.notifications = state.notifications.filter(entry => entry.id !== id)
   if (state.message?.id === id) state.message = null
+}
+
+/** Put an entry away, as GitHub marks a notification done: out of the inbox, kept. */
+export function archiveNotification(id) {
+  const entry = state.notifications.find(item => item.id === id)
+  if (entry) entry.archived = true
+  if (state.message?.id === id) state.message = null
+}
+
+export function unarchiveNotification(id) {
+  const entry = state.notifications.find(item => item.id === id)
+  if (entry) entry.archived = false
+}
+
+export function archiveAll() {
+  state.notifications.forEach(entry => { entry.archived = true })
+  state.message = null
+}
+
+export function clearArchived() {
+  state.notifications = state.notifications.filter(entry => !entry.archived)
 }
 
 export function dismiss() {
@@ -233,16 +259,24 @@ export function processFor(server) {
  *
  * A server started over SSH is reached through a tunnel whose local port is
  * only known once the command line prints it, so its options are kept here
- * until `mergeProcess` sees that address go by.
+ * until `mergeProcess` sees that address go by — together with the
+ * registered server being brought up again, if any, whose entry then takes
+ * the new address instead of a second entry appearing next to it.
  */
 const pending = new Map()
 
-/** Start a report server and keep its options for the next time. */
+/**
+ * Start a report server and keep its options for the next time.
+ *
+ * `url` is the address of the registered server being started again, when
+ * there is one: its entry is what the new address belongs to.
+ */
 export async function startServer(options, { url = null } = {}) {
   const info = await withQibocal(() => desktop.startServer(options))
+  state.launches[info.id] = { kind: 'server', options, url }
   mergeProcess(info)
-  if (!url && !info.url && options.ssh) {
-    pending.set(info.id, options)
+  if (!info.url && options.ssh) {
+    pending.set(info.id, { options, url })
     return info
   }
   const address = url || info.url || `http://${options.host || 'localhost'}:${options.port}`
@@ -253,8 +287,40 @@ export async function startServer(options, { url = null } = {}) {
 /** Open a notebook session, installing the command line first if needed. */
 export async function startNotebook(options) {
   const info = await withQibocal(() => desktop.startNotebook(options))
+  state.launches[info.id] = { kind: 'notebook', options, url: null }
   mergeProcess(info)
   return info
+}
+
+/** Run a process again, as it was started: the same options, the same entry. */
+export async function restartProcess(process) {
+  const launch = state.launches[process.id]
+  if (!launch) throw new Error('The launcher does not know how this was started.')
+  if (launch.kind === 'notebook') return startNotebook(launch.options)
+  return startServer(launch.options, { url: launch.url || process.url })
+}
+
+/**
+ * A registered server came up at a new address: move its entry there, and
+ * drop the entry the command line registered for the new address meanwhile.
+ */
+async function readdress(previousUrl, newUrl) {
+  const previous = new Set(launchKeys(previousUrl))
+  const fresh = new Set(launchKeys(newUrl))
+  const entry = state.servers.find(server => launchKeys(server.url).some(key => previous.has(key)))
+  if (!entry || fresh.has(serverUrl(entry.url))) return
+  const servers = state.servers
+    .filter(server => server === entry || !launchKeys(server.url).some(key => fresh.has(key)))
+    .map(server => (server === entry ? { ...server, url: serverUrl(newUrl) } : server))
+  state.servers = await desktop.saveServers(servers)
+  const launches = { ...(state.preferences.launches || {}) }
+  for (const key of previous) {
+    if (launches[key]) {
+      launches[serverUrl(newUrl)] = launches[key]
+      delete launches[key]
+    }
+  }
+  state.preferences = await desktop.savePreferences({ ...state.preferences, launches })
 }
 
 export function processById(id) {
@@ -286,7 +352,13 @@ function mergeProcess(info) {
   if (!waiting) return
   if (info.url) {
     pending.delete(info.id)
-    rememberLaunch(info.url, waiting)
+    if (waiting.url && !launchKeys(waiting.url).includes(serverUrl(info.url))) {
+      readdress(waiting.url, info.url).then(() => refreshServers()).catch(error => fail(error, 'servers'))
+    } else {
+      // The command line registers the new address; a moment later it is in the list.
+      setTimeout(refreshServers, 1500)
+    }
+    rememberLaunch(info.url, waiting.options)
   } else if (info.status !== 'running') {
     pending.delete(info.id)
   }
@@ -373,6 +445,20 @@ export async function registerServer(server) {
   else servers.push(entry)
   state.servers = await desktop.saveServers(servers)
   return entry
+}
+
+/** Change what a registered server is called, where it is, how it is described. */
+export async function updateServer(id, changes) {
+  const index = state.servers.findIndex(server => server.id === id)
+  if (index < 0) throw new Error('This server is no longer registered.')
+  const url = serverUrl(changes.url ?? state.servers[index].url)
+  if (!url) throw new Error('Enter the address of the report server.')
+  const taken = state.servers.some((server, position) => position !== index && serverUrl(server.url) === url)
+  if (taken) throw new Error('Another server is registered at this address.')
+  const servers = [...state.servers]
+  servers[index] = { ...servers[index], ...changes, url }
+  state.servers = await desktop.saveServers(servers)
+  return servers[index]
 }
 
 export async function forgetServer(id) {

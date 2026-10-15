@@ -38,7 +38,7 @@
           label="Name"
           help="Generated like the command line generates them; change it freely."
         >
-          <input :id="id" v-model="form.name" type="text" class="lx-input" />
+          <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model="form.name" type="text" class="lx-input" />
         </form-field>
 
         <!-- This machine -->
@@ -68,7 +68,7 @@
             info="SSH options followed by a host or user@host, the way ssh takes them. Host aliases, agent authentication and jump hosts from the SSH configuration all work; the destination comes last."
             :error="errors.ssh"
           >
-            <input :id="id" v-model.trim="form.ssh" type="text" :class="['lx-input lx-mono', control]" placeholder="user@host" />
+            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.ssh" type="text" :class="['lx-input lx-mono', control]" placeholder="user@host" />
           </form-field>
 
           <form-field
@@ -77,7 +77,7 @@
             help="Default: the shared reports directory of that machine."
             :info="`A path on that machine, typed rather than browsed, since the file dialog only sees this one. Left empty, ${SHARED_DIRECTORY} there is served, and created when missing.`"
           >
-            <input :id="id" v-model.trim="form.directory" type="text" class="lx-input lx-mono" />
+            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.directory" type="text" class="lx-input lx-mono" />
           </form-field>
         </template>
 
@@ -90,7 +90,7 @@
           info="Any reachable Qibocal report server. A bare host and port is accepted, and read as http."
           :error="errors.url"
         >
-          <input :id="id" v-model.trim="form.url" type="text" :class="['lx-input lx-mono', control]" placeholder="https://host:port" />
+          <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.url" type="text" :class="['lx-input lx-mono', control]" placeholder="https://host:port" />
         </form-field>
       </div>
 
@@ -100,7 +100,7 @@
         <div class="lx-more-body grid gap-4 sm:grid-cols-2">
           <template v-if="where === 'local'">
             <form-field v-slot="{ id }" label="Host" help="Default: localhost" info="The address the server binds to. 0.0.0.0 makes it reachable from other machines on the network.">
-              <input :id="id" v-model.trim="form.host" type="text" class="lx-input lx-mono" />
+              <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.host" type="text" class="lx-input lx-mono" />
             </form-field>
 
             <form-field v-slot="{ id }" label="Port" help="Default: 8000" :error="errors.port">
@@ -131,7 +131,7 @@
               :help="field.help"
               :info="field.info"
             >
-              <input :id="id" v-model.trim="form[field.name]" type="text" class="lx-input lx-mono" />
+              <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form[field.name]" type="text" class="lx-input lx-mono" />
             </form-field>
           </template>
 
@@ -248,16 +248,36 @@
             <button type="button" class="lx-action" title="Re-issue an administrator invitation" @click="toggleInvite(server)">
               <KeyRound class="w-3.5 h-3.5" /> Invite
             </button>
+            <button type="button" class="lx-action" title="Edit how it is registered" @click="toggleEdit(server)">
+              <Pencil class="w-3.5 h-3.5" /> Edit
+            </button>
             <button type="button" class="lx-action" title="Forget this server" @click="forget(server)">
               <Trash2 class="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
 
+        <!-- The entry as servers.json holds it: name, address, description. -->
+        <form v-if="editing.serverId === server.id" class="mt-3.5 pt-3.5 border-t border-gray-100 grid gap-3 sm:grid-cols-2" @submit.prevent="saveEdit(server)">
+          <form-field v-slot="{ id }" label="Name">
+            <input :id="id" v-model.trim="editing.name" type="text" class="lx-input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" />
+          </form-field>
+          <form-field v-slot="{ id, control }" label="Address" required :error="editing.error">
+            <input :id="id" v-model.trim="editing.url" type="text" :class="['lx-input lx-mono', control]" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" />
+          </form-field>
+          <form-field v-slot="{ id }" class="sm:col-span-2" label="Description" help="Shown under the name in the dashboard.">
+            <input :id="id" v-model.trim="editing.description" type="text" class="lx-input" />
+          </form-field>
+          <div class="sm:col-span-2 flex items-center gap-2">
+            <button type="submit" class="lx-primary" :disabled="editing.busy || !editing.url">Save</button>
+            <button type="button" class="lx-action" @click="editing.serverId = null">Cancel</button>
+          </div>
+        </form>
+
         <!-- Administrator invitation -->
         <div v-if="invite.serverId === server.id" class="mt-3.5 pt-3.5 border-t border-gray-100 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
           <form-field v-slot="{ id }" label="Administrator" help="Empty: the initial, unregistered administrator.">
-            <input
+            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
               :id="id"
               v-model.trim="invite.username"
               type="text"
@@ -300,6 +320,7 @@ import {
   Copy,
   KeyRound,
   LayoutDashboard,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -326,6 +347,7 @@ import {
   runningServers,
   startServer,
   unregisteredServers,
+  updateServer,
   withQibocal
 } from '../state.js'
 import { serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
@@ -386,6 +408,7 @@ const form = reactive({
   url: ''
 })
 const invite = reactive({ serverId: null, username: '', hours: 24, busy: false, result: null })
+const editing = reactive({ serverId: null, name: '', url: '', description: '', busy: false, error: '' })
 const administrators = ref([])
 const starting = ref(false)
 
@@ -517,6 +540,37 @@ async function keep(process) {
 
 async function forget(server) {
   await attempt(() => forgetServer(server.id), `${server.name || server.url} removed.`, 'servers')
+}
+
+function toggleEdit(server) {
+  if (editing.serverId === server.id) {
+    editing.serverId = null
+    return
+  }
+  Object.assign(editing, {
+    serverId: server.id,
+    name: server.name || '',
+    url: server.url || '',
+    description: server.description || '',
+    busy: false,
+    error: ''
+  })
+}
+
+async function saveEdit(server) {
+  if (!serverUrl(editing.url)) {
+    editing.error = 'Enter the address of the report server.'
+    return
+  }
+  editing.error = ''
+  editing.busy = true
+  const saved = await attempt(
+    () => updateServer(server.id, { name: editing.name, url: editing.url, description: editing.description }),
+    `${editing.name || editing.url} updated.`,
+    'servers'
+  )
+  editing.busy = false
+  if (saved) editing.serverId = null
 }
 
 async function toggleInvite(server) {

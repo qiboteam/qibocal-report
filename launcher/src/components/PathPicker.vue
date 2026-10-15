@@ -1,6 +1,6 @@
 <template>
   <div class="flex items-center gap-2">
-    <input
+    <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
       :id="id"
       :value="modelValue"
       type="text"

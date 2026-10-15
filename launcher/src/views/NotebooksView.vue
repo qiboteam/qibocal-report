@@ -65,7 +65,7 @@
               v-model="values[field.name]"
               :options="field.options"
             />
-            <input
+            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
               v-else
               :id="id"
               v-model.trim="values[field.name]"
@@ -99,7 +99,7 @@
                 v-model="values[field.name]"
                 title="Choose the working directory"
               />
-              <input
+              <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
                 v-else
                 :id="id"
                 v-model.trim="values[field.name]"
@@ -122,7 +122,7 @@
           </button>
 
           <div class="flex items-center gap-2">
-            <input
+            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
               v-model.trim="saveName"
               type="text"
               class="lx-input w-40"

@@ -526,6 +526,31 @@
   color: #b45309;
 }
 
+/* The last row of the bubble, when the inbox holds more than it shows. */
+.lx-notices-more {
+  display: block;
+  padding: 8px 12px;
+  border-top: 1px solid #ececef;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-primary);
+  text-align: center;
+}
+
+.lx-notices-more:hover {
+  background: #f7f5ff;
+  color: #3b107e;
+}
+
+/* The same rows on the page, with their actions always visible. */
+.lx-notice-page {
+  padding: 10px 14px;
+}
+
+.lx-notice-page .lx-action {
+  padding: 3px 6px;
+}
+
 /* An entry about a section is the way there: the whole text, not a word of it. */
 .lx-notice-text.is-link {
   cursor: pointer;
@@ -554,6 +579,34 @@
 
 .lx-notice-close:hover {
   color: #991b1b;
+}
+
+/*
+ * A run of a process: the header is the control, the output unfolds below it
+ * and starts folded, so a page of several servers stays a page.
+ */
+.lx-run > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 0;
+}
+
+.lx-run > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lx-run > summary .lx-chevron {
+  color: #a6a6ac;
+  transition: transform 80ms ease;
+}
+
+.lx-run[open] > summary .lx-chevron {
+  transform: rotate(90deg);
 }
 
 /*

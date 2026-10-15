@@ -55,29 +55,32 @@
           >{{ state.message.text }}</component>
 
           <button
-            v-if="state.notifications.length"
+            v-if="inbox.length"
             type="button"
             class="lx-count"
             :class="{ 'is-open': open }"
-            :title="`${state.notifications.length} notification${state.notifications.length === 1 ? '' : 's'}`"
+            :title="`${inbox.length} notification${inbox.length === 1 ? '' : 's'}`"
             :aria-expanded="open"
             @click="open = !open"
           >
             <Bell class="w-3 h-3" />
-            <span class="lx-count-badge">{{ state.notifications.length }}</span>
+            <span class="lx-count-badge">{{ inbox.length }}</span>
           </button>
 
           <!--
-            Every entry is the way to its section: the whole row but the
-            time and the cross, which means something else.
+            The five most recent, each the way to its section — the whole
+            row but the time and the cross, which archives it. The title and
+            "More" open the page with everything.
           -->
-          <div v-if="open && state.notifications.length" class="lx-notices" role="list">
+          <div v-if="open && inbox.length" class="lx-notices" role="list">
             <div class="lx-notices-head">
-              <span>Notifications</span>
-              <button type="button" class="hover:text-[#3b107e] transition" @click="clearAll">Clear all</button>
+              <router-link to="/notifications" class="hover:text-[#3b107e] transition" title="All notifications" @click="open = false">
+                Notifications
+              </router-link>
+              <button type="button" class="hover:text-[#3b107e] transition" title="Archive all" @click="archiveEverything">Archive all</button>
             </div>
             <div
-              v-for="entry in state.notifications"
+              v-for="entry in recent"
               :key="entry.id"
               class="lx-notice"
               :class="{ 'is-error': entry.kind === 'error' }"
@@ -92,10 +95,13 @@
                 :title="entry.link ? `Go to ${sectionTitle(entry.link)}` : undefined"
                 @click="entry.link && (open = false)"
               >{{ entry.text }}</component>
-              <button type="button" class="lx-notice-close" :aria-label="`Dismiss: ${entry.text}`" @click="dismissNotification(entry.id)">
+              <button type="button" class="lx-notice-close" :aria-label="`Archive: ${entry.text}`" title="Archive" @click="archiveNotification(entry.id)">
                 <X class="w-3 h-3" />
               </button>
             </div>
+            <router-link v-if="inbox.length > recent.length" to="/notifications" class="lx-notices-more" @click="open = false">
+              {{ inbox.length - recent.length }} more…
+            </router-link>
           </div>
         </div>
       </div>
@@ -112,10 +118,11 @@ import { installMenu } from './menu.js'
 import { sections } from './router.js'
 import {
   state,
-  dismiss,
-  dismissNotification,
+  archiveAll,
+  archiveNotification,
   fail,
   hasQibocal,
+  inbox,
   initialize,
   installing,
   launchOptionsFor,
@@ -123,6 +130,9 @@ import {
   startServer
 } from './state.js'
 import { describeSpec } from './lib/versions.js'
+
+/** How many entries the bubble shows; the page has them all. */
+const RECENT = 5
 
 const router = useRouter()
 const open = ref(false)
@@ -154,8 +164,10 @@ function time(at) {
   return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function clearAll() {
-  dismiss()
+const recent = computed(() => inbox.value.slice(0, RECENT))
+
+function archiveEverything() {
+  archiveAll()
   open.value = false
 }
 
@@ -207,7 +219,7 @@ onBeforeUnmount(() => {
 
 watch(() => state.servers.map(server => `${server.id}:${server.name}`).join('|'), refreshMenu)
 // The list closes with its last entry, and when leaving the page.
-watch(() => state.notifications.length, count => {
+watch(() => inbox.value.length, count => {
   if (!count) open.value = false
 })
 watch(() => router.currentRoute.value.fullPath, () => {

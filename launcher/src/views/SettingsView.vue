@@ -126,7 +126,7 @@
             help="Anything pip install accepts."
             info="A pinned version, a pre-release, a Git URL, a local checkout — one requirement, as it would be typed after pip install."
           >
-            <input :id="id" v-model.trim="custom" type="text" class="lx-input lx-mono" placeholder="qibocal-report==0.2.0" />
+            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="custom" type="text" class="lx-input lx-mono" placeholder="qibocal-report==0.2.0" />
           </form-field>
 
           <div class="flex flex-wrap items-center gap-2">

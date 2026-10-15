@@ -80,7 +80,7 @@
                   label="Name"
                   help="How this entry is referred to everywhere else."
                 >
-                  <input
+                  <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
                     :id="id"
                     class="lx-input lx-mono"
                     :value="item.key"
@@ -111,7 +111,7 @@
                     :value="field.value"
                     @change="set(item.key, field.name, number($event.target.value))"
                   />
-                  <textarea
+                  <textarea spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
                     v-else-if="field.type === 'json'"
                     :id="id"
                     rows="4"
@@ -119,7 +119,7 @@
                     :value="json(field.value)"
                     @input="setJson(item.key, field.name, $event.target.value)"
                   />
-                  <input
+                  <input :spellcheck="field.name === 'description'" autocomplete="off" autocorrect="off" autocapitalize="off"
                     v-else
                     :id="id"
                     type="text"
