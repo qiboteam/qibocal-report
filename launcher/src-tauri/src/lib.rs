@@ -58,18 +58,33 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::process::extract_url;
+    use super::process::{announced_url, extract_url};
 
     #[test]
     fn reads_the_notebook_url_from_a_log_line() {
         assert_eq!(
-            extract_url("http://127.0.0.1:8899/lab?token=abc"),
-            Some("http://127.0.0.1:8899/lab?token=abc".to_string())
+            extract_url("http://localhost:8899/lab?token=abc"),
+            Some("http://localhost:8899/lab?token=abc".to_string())
         );
         assert_eq!(
             extract_url("Open https://example.org/path, then sign in."),
             Some("https://example.org/path".to_string())
         );
         assert_eq!(extract_url("no address here"), None);
+    }
+
+    #[test]
+    fn only_a_line_that_is_an_address_announces_one() {
+        assert_eq!(
+            announced_url("  http://localhost:8899/lab?token=abc  "),
+            Some("http://localhost:8899/lab?token=abc".to_string())
+        );
+        assert_eq!(
+            announced_url("\u{1b}[1;36mhttp://localhost:41234\u{1b}[0m"),
+            Some("http://localhost:41234".to_string()),
+            "colour codes around it do not count"
+        );
+        assert_eq!(announced_url("[I 10:00] Jupyter Server is running at http://10.0.0.5:8888/lab"), None);
+        assert_eq!(announced_url("Connecting to SSH destination node."), None);
     }
 }

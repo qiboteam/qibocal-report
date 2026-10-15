@@ -537,7 +537,9 @@ def launch(options: NotebookOptions) -> None:
         query = urlencode(
             {"access_token" if options.marimo else "token": ready["token"]}
         )
-        url = f"http://127.0.0.1:{port}{ready['path']}?{query}"
+        # Spoken of as localhost: the loopback name people type, and the one
+        # the launcher expects to find on its own line.
+        url = f"http://localhost:{port}{ready['path']}?{query}"
         _wait_tunnel(url, processes, deadline)
         output.console.print(
             Panel(

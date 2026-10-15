@@ -67,6 +67,37 @@ fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
+/// Drop the ANSI colour sequences a styled console may have left in a line.
+fn plain_text(line: &str) -> String {
+    let mut text = String::with_capacity(line.len());
+    let mut characters = line.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character == '\u{1b}' && characters.peek() == Some(&'[') {
+            characters.next();
+            for following in characters.by_ref() {
+                if following.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+        text.push(character);
+    }
+    text
+}
+
+/// The address of a process, as the command line announces it: a URL on a
+/// line of its own. Addresses mentioned in passing — a notebook server
+/// naming its own host, a worker logging what it reaches — are not it.
+pub fn announced_url(line: &str) -> Option<String> {
+    let text = plain_text(line);
+    let candidate = text.trim();
+    if candidate.contains(char::is_whitespace) {
+        return None;
+    }
+    extract_url(candidate).filter(|url| url.len() == candidate.trim_end_matches(['.', ',', ';', ':']).len())
+}
+
 /// Pick the first absolute URL in a line, as printed by the notebook launcher.
 pub fn extract_url(line: &str) -> Option<String> {
     let start = line.find("http://").or_else(|| line.find("https://"))?;
@@ -123,7 +154,7 @@ impl Supervisor {
             }
             entry.log.push(line.clone());
             if detect_url && entry.info.url.is_none() {
-                if let Some(url) = extract_url(&line) {
+                if let Some(url) = announced_url(&line) {
                     entry.info.url = Some(url);
                     changed = Some(entry.info.clone());
                 }

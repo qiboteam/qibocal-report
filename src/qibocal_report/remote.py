@@ -185,7 +185,7 @@ def launch(options: RemoteServerOptions) -> None:
         readers.append(reader)
         reader.start()
 
-        url = f"http://127.0.0.1:{port}"
+        url = f"http://localhost:{port}"
         _wait_tunnel(f"{url}/", processes, deadline, "report")
         register(url, options, destination)
         output.console.print(
