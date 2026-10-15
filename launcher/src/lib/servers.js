@@ -67,30 +67,61 @@ export function serverCommand(options = {}) {
   return parts.map(quote).join(' ')
 }
 
+/** The hosts a server on this machine can bind: the ones a local address names. */
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0'])
+
+/**
+ * The addresses under which a launch may have been remembered: the same
+ * server is spoken of as localhost and as 127.0.0.1 by different hands.
+ */
+export function launchKeys(url) {
+  const key = serverUrl(url)
+  if (!key) return []
+  const keys = [key]
+  for (const [from, to] of [['localhost', '127.0.0.1'], ['127.0.0.1', 'localhost']]) {
+    const alias = key.replace(new RegExp(`^(https?://)${from.replace('.', '\\.')}(?=[:/]|$)`), `$1${to}`)
+    if (alias !== key) keys.push(alias)
+  }
+  return keys
+}
+
+/**
+ * How to start a registered server the launcher has never started: on this
+ * machine, at the address it is registered under, serving the shared
+ * directory. Nothing, when the address is not this machine's.
+ */
+export function defaultLaunch(server) {
+  const url = serverUrl(server?.url)
+  if (!url) return null
+  let parsed
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  if (!LOCAL_HOSTS.has(parsed.hostname)) return null
+  return {
+    mode: 'server',
+    name: typeof server.name === 'string' && server.name ? server.name : null,
+    register: true,
+    directory: null,
+    host: parsed.hostname,
+    port: Number(parsed.port) || (parsed.protocol === 'https:' ? 443 : 80),
+    auth: false,
+    frontendPort: null,
+    ssh: null,
+    venv: null,
+    workdir: null,
+    install: null
+  }
+}
+
 /**
  * A name for the next server: an adjective and a scientist, as the command
  * line and the dashboard name theirs, avoiding the ones already in use.
  */
 export function suggestServerName(taken = [], random = Math.random) {
   return generateServerName(taken, random)
-}
-
-/** Identifiers of the servers published to the dashboard only while they run. */
-export const TEMPORARY_PREFIX = 'tmp-'
-
-/**
- * Project a server the launcher started without registering it onto the
- * dashboard schema, so it can be browsed as long as it runs.
- */
-export function toTemporaryServer(process) {
-  const url = serverUrl(process?.url)
-  if (!url || !process?.id) return null
-  return toDashboardServer({
-    id: `${TEMPORARY_PREFIX}${process.id}`,
-    name: typeof process.label === 'string' && process.label ? process.label : url,
-    url,
-    description: 'Started by the launcher, not registered'
-  })
 }
 
 function stringMap(value, arrays) {
@@ -128,15 +159,10 @@ export function toDashboardServer(server, fallbackIndex = 0) {
  *
  * Entries registered from the dashboard itself are preserved: the launcher
  * only adds what the command line knows about, and refreshes the labels of
- * instances it already shares. Temporary servers — started by the launcher
- * without being registered — are published only while they run: the ones
- * from an earlier visit are dropped, and the running ones added last, after
- * everything registered, unless a registered entry already has their address.
+ * instances it already shares.
  */
-export function mergeDashboardServers(configured, existing = [], running = []) {
-  const merged = Array.isArray(existing)
-    ? existing.filter(server => serverUrl(server?.url) && !isTemporary(server))
-    : []
+export function mergeDashboardServers(configured, existing = []) {
+  const merged = Array.isArray(existing) ? existing.filter(server => serverUrl(server?.url)) : []
   const byUrl = new Map(merged.map((server, index) => [serverUrl(server.url), index]))
 
   ;(Array.isArray(configured) ? configured : []).forEach((server, index) => {
@@ -161,21 +187,10 @@ export function mergeDashboardServers(configured, existing = [], running = []) {
     }
   })
 
-  for (const process of Array.isArray(running) ? running : []) {
-    const candidate = toTemporaryServer(process)
-    if (!candidate || byUrl.has(candidate.url)) continue
-    byUrl.set(candidate.url, merged.length)
-    merged.push(candidate)
-  }
-
   return merged.map((server, index) => ({
     ...server,
     is_default: index === 0
   }))
-}
-
-function isTemporary(server) {
-  return typeof server?.id === 'string' && server.id.startsWith(TEMPORARY_PREFIX)
 }
 
 function readStored(storage, key) {
@@ -194,13 +209,9 @@ function readStored(storage, key) {
  * Both pages share a single origin inside the application window, so the
  * dashboard simply finds the instances the launcher started.
  */
-export function syncDashboardServers(configured, { storage, preferredUrl = null, running = [] } = {}) {
+export function syncDashboardServers(configured, { storage, preferredUrl = null } = {}) {
   const store = storage ?? (typeof localStorage === 'undefined' ? null : localStorage)
-  const servers = mergeDashboardServers(
-    configured,
-    store ? readStored(store, DASHBOARD_SERVERS_KEY) : [],
-    running
-  )
+  const servers = mergeDashboardServers(configured, store ? readStored(store, DASHBOARD_SERVERS_KEY) : [])
   if (!store) return servers
 
   store.setItem(DASHBOARD_SERVERS_KEY, JSON.stringify(servers))

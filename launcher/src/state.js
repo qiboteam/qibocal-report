@@ -1,6 +1,6 @@
 import { reactive, computed } from 'vue'
 import { desktop, isDesktop, subscribe } from './bridge.js'
-import { syncDashboardServers, serverUrl } from './lib/servers.js'
+import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './lib/servers.js'
 
 export const LOG_EVENT = 'launcher://log'
 export const PROCESS_EVENT = 'launcher://process'
@@ -206,8 +206,26 @@ export async function rememberLaunch(url, options) {
 }
 
 export function recallLaunch(url) {
-  const key = serverUrl(url)
-  return (key && state.preferences.launches?.[key]) || null
+  const launches = state.preferences.launches || {}
+  for (const key of launchKeys(url)) {
+    if (launches[key]) return launches[key]
+  }
+  return null
+}
+
+/**
+ * How a registered server is started: as it was last time, or — for one the
+ * launcher never started — on this machine at its registered address,
+ * serving the shared directory. Nothing for an address that is not here.
+ */
+export function launchOptionsFor(server) {
+  return recallLaunch(server?.url) || defaultLaunch(server)
+}
+
+/** The running process behind a registered server, if any. */
+export function processFor(server) {
+  const keys = new Set(launchKeys(server?.url))
+  return runningServers().find(process => launchKeys(process.url).some(key => keys.has(key))) || null
 }
 
 /**
@@ -227,7 +245,7 @@ export async function startServer(options, { url = null } = {}) {
     pending.set(info.id, options)
     return info
   }
-  const address = url || info.url || `http://${options.host || '127.0.0.1'}:${options.port}`
+  const address = url || info.url || `http://${options.host || 'localhost'}:${options.port}`
   await rememberLaunch(address, options)
   return info
 }
@@ -309,10 +327,29 @@ export async function initialize() {
  * Hand the configured servers over to the bundled dashboard and open it.
  *
  * Both pages live in the same window, hence in the same origin, so the
- * dashboard reads the instances the launcher just registered.
+ * dashboard reads the instances the launcher just registered. Opening a
+ * running server that is not registered yet registers it first: the
+ * dashboard only knows registered servers.
  */
-export function openDashboard(preferredUrl = null) {
-  syncDashboardServers(state.servers, { preferredUrl, running: runningServers() })
+export async function openDashboard(preferredUrl = null) {
+  if (preferredUrl) {
+    const keys = new Set(launchKeys(preferredUrl))
+    const registered = state.servers.some(server => launchKeys(server.url).some(key => keys.has(key)))
+    if (!registered) {
+      const process = runningServers().find(entry => launchKeys(entry.url).some(key => keys.has(key)))
+      try {
+        await registerServer({
+          name: process?.label || undefined,
+          url: preferredUrl,
+          description: process ? `Started by the launcher: ${process.detail}` : `Server at ${preferredUrl}`
+        })
+      } catch (error) {
+        fail(error, 'servers')
+        return
+      }
+    }
+  }
+  syncDashboardServers(state.servers, { preferredUrl })
   const target = new URL('dashboard.html', window.location.href)
   if (preferredUrl) target.hash = '#/dashboard'
   window.location.href = target.href

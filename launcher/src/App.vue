@@ -2,22 +2,14 @@
   <div class="min-h-screen bg-[#f7f7f7] text-[#000000] flex flex-col">
     <header class="sticky top-0 z-20 bg-[#f7f7f7]/85 backdrop-blur border-b border-gray-200/60">
       <!--
-        Nothing but the mark and the dashboard: the sections are one Go menu
-        away, with their accelerators, and the home page lists them again
-        with the figures a navigation bar cannot show.
+        Nothing but the mark: the sections, the dashboard included, are one
+        Go menu away, with their accelerators, and the home page lists them
+        again with the figures a navigation bar cannot show.
       -->
       <div class="max-w-5xl mx-auto px-5 h-14 flex items-center">
         <router-link to="/" class="lx-logo" title="Qibocal home" aria-label="Qibocal home">
           <launcher-logo />
         </router-link>
-
-        <button
-          type="button"
-          class="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-2xs"
-          @click="openDashboard()"
-        >
-          Dashboard
-        </button>
       </div>
     </header>
 
@@ -51,7 +43,7 @@
           Installing qibocal-report… follow it in Running
         </router-link>
 
-        <div class="ml-auto flex items-center gap-2 min-w-0 relative">
+        <div ref="corner" class="ml-auto flex items-center gap-2 min-w-0 relative">
           <!-- The latest message, leading to the section it is about when it has one. -->
           <component
             :is="state.message?.link ? 'router-link' : 'span'"
@@ -75,6 +67,10 @@
             <span class="lx-count-badge">{{ state.notifications.length }}</span>
           </button>
 
+          <!--
+            Every entry is the way to its section: the whole row but the
+            time and the cross, which means something else.
+          -->
           <div v-if="open && state.notifications.length" class="lx-notices" role="list">
             <div class="lx-notices-head">
               <span>Notifications</span>
@@ -88,12 +84,14 @@
               role="listitem"
             >
               <span class="lx-notice-time">{{ time(entry.at) }}</span>
-              <span class="lx-notice-text">
-                {{ entry.text }}
-                <router-link v-if="entry.link" :to="entry.link" class="lx-notice-link" @click="open = false">
-                  {{ sectionTitle(entry.link) }} <ArrowRight class="w-3 h-3" />
-                </router-link>
-              </span>
+              <component
+                :is="entry.link ? 'router-link' : 'span'"
+                :to="entry.link || undefined"
+                class="lx-notice-text"
+                :class="{ 'is-link': entry.link }"
+                :title="entry.link ? `Go to ${sectionTitle(entry.link)}` : undefined"
+                @click="entry.link && (open = false)"
+              >{{ entry.text }}</component>
               <button type="button" class="lx-notice-close" :aria-label="`Dismiss: ${entry.text}`" @click="dismissNotification(entry.id)">
                 <X class="w-3 h-3" />
               </button>
@@ -106,9 +104,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Bell, Loader2, X } from 'lucide-vue-next'
+import { Bell, Loader2, X } from 'lucide-vue-next'
 import LauncherLogo from './components/LauncherLogo.vue'
 import { installMenu } from './menu.js'
 import { sections } from './router.js'
@@ -120,14 +118,15 @@ import {
   hasQibocal,
   initialize,
   installing,
+  launchOptionsFor,
   openDashboard,
-  recallLaunch,
   startServer
 } from './state.js'
 import { describeSpec } from './lib/versions.js'
 
 const router = useRouter()
 const open = ref(false)
+const corner = ref(null)
 
 /** What the command line says of itself, with the version the launcher put there. */
 const versionLabel = computed(() => {
@@ -148,7 +147,7 @@ const dotClass = computed(() =>
 
 /** The title of the section a notification points at. */
 function sectionTitle(link) {
-  return sections.find(section => section.name === link?.name)?.title || 'Open'
+  return sections.find(section => section.name === link?.name)?.title || 'the section'
 }
 
 function time(at) {
@@ -160,12 +159,19 @@ function clearAll() {
   open.value = false
 }
 
+/** A click anywhere else, or the window losing focus, closes the list. */
+function closeFromOutside(event) {
+  if (!open.value) return
+  if (event?.type === 'pointerdown' && corner.value?.contains(event.target)) return
+  open.value = false
+}
+
 /**
- * Bring a registered server up again with the options it was started with,
- * or open its form when the launcher has never started it.
+ * Bring a registered server up, as it was started last time or at its
+ * registered address on this machine; one that is neither opens its form.
  */
 async function launchServer(server) {
-  const options = recallLaunch(server.url)
+  const options = launchOptionsFor(server)
   if (!options) {
     router.push({ name: 'servers', query: { server: server.id } })
     return
@@ -174,7 +180,7 @@ async function launchServer(server) {
     await startServer(options, { url: server.url })
     router.push({ name: 'processes' })
   } catch (error) {
-    fail(error)
+    fail(error, 'servers')
   }
 }
 
@@ -188,8 +194,15 @@ function refreshMenu() {
 }
 
 onMounted(async () => {
+  document.addEventListener('pointerdown', closeFromOutside)
+  window.addEventListener('blur', closeFromOutside)
   await initialize()
   refreshMenu()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', closeFromOutside)
+  window.removeEventListener('blur', closeFromOutside)
 })
 
 watch(() => state.servers.map(server => `${server.id}:${server.name}`).join('|'), refreshMenu)

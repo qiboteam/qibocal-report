@@ -44,10 +44,22 @@
             <code class="lx-mono text-gray-400 truncate block" :title="current.command.join(' ')">{{ current.command.join(' ') }}</code>
           </div>
           <div class="ml-auto flex items-center gap-1.5 shrink-0">
-            <button v-if="current.url" type="button" class="lx-action" @click="openDashboard(current.url)">
+            <!-- A server is read in the embedded dashboard, a notebook in the browser. -->
+            <button
+              v-if="current.url && current.kind === 'server' && current.status === 'running'"
+              type="button"
+              class="lx-action"
+              title="Open it in the dashboard, registering it if it is not yet"
+              @click="openDashboard(current.url)"
+            >
               <LayoutDashboard class="w-3.5 h-3.5" /> Dashboard
             </button>
-            <button v-if="current.url" type="button" class="lx-action" @click="openExternal(current.url)">
+            <button
+              v-if="current.url && current.kind === 'notebook' && current.status === 'running'"
+              type="button"
+              class="lx-action"
+              @click="openExternal(current.url)"
+            >
               <ExternalLink class="w-3.5 h-3.5" /> Browser
             </button>
             <button

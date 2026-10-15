@@ -8,10 +8,11 @@ import {
   SCIENTISTS,
   mergeDashboardServers,
   serverCommand,
+  defaultLaunch,
+  launchKeys,
   suggestServerName,
   syncDashboardServers,
-  toDashboardServer,
-  toTemporaryServer
+  toDashboardServer
 } from '../src/lib/servers.js'
 
 function createStorage(initial = {}) {
@@ -100,30 +101,23 @@ test('unreadable storage does not stop the synchronisation', () => {
   assert.equal(storage.getItem(DASHBOARD_ACTIVE_KEY), 'one')
 })
 
-test('a running, unregistered server is published only while it runs', () => {
-  const process = { id: 'p1', kind: 'server', status: 'running', url: 'http://localhost:8000/', label: 'Server 1' }
-  const temporary = toTemporaryServer(process)
-  assert.equal(temporary.id, 'tmp-p1')
-  assert.equal(temporary.name, 'Server 1')
-  assert.equal(toTemporaryServer({ id: 'p2' }), null, 'no address, nothing to browse')
-
-  const stale = { id: 'tmp-old', name: 'Gone', url: 'http://localhost:9999' }
-  const merged = mergeDashboardServers([{ id: 'srv', url: 'http://a.example' }], [stale], [process])
-  assert.deepEqual(merged.map(server => server.id), ['srv', 'tmp-p1'], 'the stale one is dropped, the running one added last')
+test('a launch is found under either spelling of the loopback address', () => {
+  assert.deepEqual(launchKeys('http://localhost:8000/'), ['http://localhost:8000', 'http://127.0.0.1:8000'])
+  assert.deepEqual(launchKeys('http://127.0.0.1:8000'), ['http://127.0.0.1:8000', 'http://localhost:8000'])
+  assert.deepEqual(launchKeys('https://reports.example.org'), ['https://reports.example.org'])
+  assert.deepEqual(launchKeys(''), [])
 })
 
-test('a registered address is not published twice when it also runs', () => {
-  const process = { id: 'p1', url: 'http://localhost:8000', label: 'Server 1' }
-  const merged = mergeDashboardServers([{ id: 'srv', url: 'http://localhost:8000/' }], [], [process])
-  assert.deepEqual(merged.map(server => server.id), ['srv'])
-})
-
-test('synchronising takes the running servers along', () => {
-  const storage = createStorage()
-  syncDashboardServers([], { storage, running: [{ id: 'p1', url: 'http://localhost:8000', label: 'Look' }] })
-  const published = JSON.parse(storage.getItem(DASHBOARD_SERVERS_KEY))
-  assert.deepEqual(published.map(server => server.name), ['Look'])
-  assert.equal(storage.getItem(DASHBOARD_ACTIVE_KEY), 'tmp-p1')
+test('a registered local server can be started without a remembered launch', () => {
+  const options = defaultLaunch({ name: 'zen-bohr', url: 'http://localhost:8010' })
+  assert.equal(options.mode, 'server')
+  assert.equal(options.name, 'zen-bohr')
+  assert.equal(options.host, 'localhost')
+  assert.equal(options.port, 8010)
+  assert.equal(options.register, true)
+  assert.equal(options.directory, null, 'the shared directory')
+  assert.equal(defaultLaunch({ url: 'https://reports.example.org' }), null, 'not this machine')
+  assert.equal(defaultLaunch({ url: '' }), null)
 })
 
 test('the next server is named as the command line names its own', () => {

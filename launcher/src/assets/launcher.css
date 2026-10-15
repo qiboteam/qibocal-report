@@ -526,17 +526,17 @@
   color: #b45309;
 }
 
-/* The way to the section a notification is about, after its text. */
-.lx-notice-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: 4px;
-  color: var(--accent-primary);
-  white-space: nowrap;
+/* An entry about a section is the way there: the whole text, not a word of it. */
+.lx-notice-text.is-link {
+  cursor: pointer;
+  border-radius: 6px;
+  margin: -3px -6px;
+  padding: 3px 6px;
+  transition: background-color 50ms ease, color 50ms ease;
 }
 
-.lx-notice-link:hover {
+.lx-notice-text.is-link:hover {
+  background: #f7f5ff;
   color: #3b107e;
 }
 

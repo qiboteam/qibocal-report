@@ -1,10 +1,23 @@
 <template>
   <div class="max-w-4xl mx-auto px-5 py-8 space-y-5">
-    <div>
-      <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Servers</h1>
-      <p class="mt-1 text-xs text-gray-500">
-        A report server runs here, on another machine over SSH, or is already running somewhere you can reach.
-      </p>
+    <div class="flex items-start gap-4">
+      <div class="min-w-0">
+        <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Servers</h1>
+        <p class="mt-1 text-xs text-gray-500">
+          A report server runs here, on another machine over SSH, or is already running somewhere you can reach.
+        </p>
+      </div>
+      <!-- The form for a new server opens from here; the page starts on the servers it has. -->
+      <button
+        type="button"
+        class="ml-auto shrink-0 lx-primary"
+        :class="{ 'is-open': creating }"
+        :aria-expanded="creating"
+        :title="creating ? 'Close the form' : 'New server'"
+        @click="creating = !creating"
+      >
+        <component :is="creating ? X : Plus" class="w-3.5 h-3.5" /> {{ creating ? 'Close' : 'New server' }}
+      </button>
     </div>
 
     <!--
@@ -13,7 +26,7 @@
       options" with their defaults; starting for a look is the default,
       registering a choice.
     -->
-    <section class="bm-card p-5">
+    <section v-if="creating" class="bm-card p-5">
       <div class="flex flex-wrap items-center gap-3 mb-4">
         <h2 class="text-sm font-semibold text-gray-900">New server</h2>
         <segmented-control v-model="where" :options="places" class="ml-auto" />
@@ -169,14 +182,11 @@
           <p class="lx-mono text-gray-500 truncate">{{ process.url }}</p>
         </div>
         <div class="ml-auto flex flex-wrap items-center gap-1.5">
-          <button type="button" class="lx-action" @click="openDashboard(process.url)">
+          <button type="button" class="lx-action" title="Open it in the dashboard, which registers it" @click="openDashboard(process.url)">
             <LayoutDashboard class="w-3.5 h-3.5" /> Open
           </button>
           <button type="button" class="lx-action" title="Keep it in servers.json" @click="keep(process)">
             <Bookmark class="w-3.5 h-3.5" /> Register
-          </button>
-          <button type="button" class="lx-action" title="Open in the browser" @click="openExternal(process.url)">
-            <ExternalLink class="w-3.5 h-3.5" />
           </button>
         </div>
       </article>
@@ -213,23 +223,30 @@
           >running here</span>
 
           <div class="ml-auto flex flex-wrap items-center gap-1.5">
-            <button type="button" class="lx-action" @click="openDashboard(server.url)">
+            <!-- Running: read it. Stopped: start it, as last time or at its address here. -->
+            <button
+              v-if="processFor(server)"
+              type="button"
+              class="lx-primary !py-1"
+              title="Open it in the dashboard"
+              @click="openDashboard(server.url)"
+            >
               <LayoutDashboard class="w-3.5 h-3.5" /> Open
             </button>
             <button
-              v-if="!processFor(server) && recallLaunch(server.url)"
+              v-else
               type="button"
-              class="lx-action"
-              title="Start it again with the options used last time"
+              class="lx-primary !py-1"
+              :disabled="!launchOptionsFor(server) || starting"
+              :title="launchOptionsFor(server)
+                ? (recallLaunch(server.url) ? 'Start it again with the options used last time' : 'Start it here, at this address, serving the shared directory')
+                : 'Registered elsewhere: nothing to start on this machine'"
               @click="relaunch(server)"
             >
               <Play class="w-3.5 h-3.5" /> Start
             </button>
             <button type="button" class="lx-action" title="Re-issue an administrator invitation" @click="toggleInvite(server)">
               <KeyRound class="w-3.5 h-3.5" /> Invite
-            </button>
-            <button type="button" class="lx-action" title="Open in the browser" @click="openExternal(server.url)">
-              <ExternalLink class="w-3.5 h-3.5" />
             </button>
             <button type="button" class="lx-action" title="Forget this server" @click="forget(server)">
               <Trash2 class="w-3.5 h-3.5" />
@@ -281,24 +298,27 @@ import {
   Bookmark,
   ChevronRight,
   Copy,
-  ExternalLink,
   KeyRound,
   LayoutDashboard,
   Play,
+  Plus,
   RefreshCw,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-vue-next'
 import FormField from '../components/FormField.vue'
 import PathPicker from '../components/PathPicker.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import ToggleSwitch from '../components/ToggleSwitch.vue'
-import { desktop, openExternal } from '../bridge.js'
+import { desktop } from '../bridge.js'
 import {
   state,
   attempt,
   fail,
+  launchOptionsFor,
   notify,
   openDashboard,
+  processFor,
   recallLaunch,
   refreshServers,
   registerServer,
@@ -349,6 +369,7 @@ const remoteFields = [
   }
 ]
 
+const creating = ref(false)
 const where = ref('local')
 const form = reactive({
   name: '',
@@ -395,13 +416,6 @@ const errors = computed(() => {
 })
 
 const preview = computed(() => serverCommand(launchOptions(false)))
-
-function processFor(server) {
-  const url = serverUrl(server.url)
-  return state.processes.find(
-    process => process.status === 'running' && process.url && serverUrl(process.url) === url
-  )
-}
 
 async function pickFreePort() {
   const port = await attempt(() => desktop.freePort())
@@ -456,14 +470,17 @@ async function launch(register) {
   }
 }
 
+/** Start a registered server: as last time, or at its address on this machine. */
 async function relaunch(server) {
-  const options = recallLaunch(server.url)
+  const options = launchOptionsFor(server)
   if (!options) return
+  starting.value = true
   const started = await attempt(
     () => startServer(options, { url: server.url }),
-    `Starting ${server.name || server.url} again.`,
+    `Starting ${server.name || server.url}.`,
     'processes'
   )
+  starting.value = false
   if (started) router.push({ name: 'processes' })
 }
 
@@ -558,6 +575,7 @@ function applyQuery() {
     install: remembered.install || ''
   })
   where.value = remembered.ssh ? 'ssh' : 'local'
+  creating.value = true
 }
 
 onMounted(async () => {

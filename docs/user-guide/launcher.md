@@ -50,7 +50,7 @@ The home page opens onto every section, and each of them is one jump away — fr
 - **Notebooks** (`Cmd/Ctrl+4`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
 - **Configuration** (`Cmd/Ctrl+5`): install or update Qibocal, and edit the files shared with the command line.
 
-The header carries no navigation of its own: the logo in the top-left corner returns to the home page, the button in the top-right opens the dashboard, and everything else is in the **Go** menu, which works from the dashboard too. Whatever the launcher has to say — a server starting, a link copied, something that failed — is said in the status bar along the bottom edge, which blends into the page: the latest message appears in the bottom-right corner and fades by itself, and the counter next to it opens the list of everything said, each entry with a cross to dismiss it and, when it is about a section, a link that jumps there. Nothing pops up over the page. The bottom-left corner names the `qibocal-report` the launcher drives, with its version and, for its own installation, the commit or release it holds, behind a dot that is green when the command line is there, amber while it is being installed, red while it is missing; it leads to **Configuration**. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
+The header carries no navigation of its own: the logo in the top-left corner returns to the home page, and everything else — the dashboard included — is in the **Go** menu, which works from the dashboard too. Whatever the launcher has to say — a server starting, a link copied, something that failed — is said in the status bar along the bottom edge, which blends into the page: the latest message appears in the bottom-right corner and fades by itself, and the counter next to it opens the list of everything said; an entry about a section is itself the way there, a click anywhere on its text, and the cross dismisses it. A click anywhere else closes the list. Nothing pops up over the page. The bottom-left corner names the `qibocal-report` the launcher drives, with its version and, for its own installation, the commit or release it holds, behind a dot that is green when the command line is there, amber while it is being installed, red while it is missing; it leads to **Configuration**. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
 
 ---
 
@@ -74,7 +74,7 @@ The **developer options**, folded under the installation, hold two things. **Ver
 
 ## 🚀 A new server
 
-**Servers → New server** is one form, whatever the server turns out to be. It opens on a **Name** — drawn as the command line draws them, an adjective and a scientist such as *zen-bohr*, and free to overwrite — and on where the server runs:
+**Servers** opens on the servers it has; the **New server** button at the top unfolds one form, whatever the server turns out to be. It opens on a **Name** — drawn as the command line draws them, an adjective and a scientist such as *zen-bohr*, and free to overwrite — and on where the server runs:
 
 - **This machine** runs `qibocal` here.
 - **Another machine** reaches a host over SSH, prepares an environment there, and tunnels the server back.
@@ -114,14 +114,9 @@ The remote machine needs an OpenSSH server and `python3` 3.10 or later — not Q
 
 ## 📡 Handling running servers
 
-Every registered server offers:
+Every registered server offers one main action, by its state. While it runs, **Open** jumps to the bundled dashboard with that instance selected — servers are read in the dashboard, not in a browser. While it does not, **Start** brings it up: with the options it was last started with, or, for one the launcher never started, on this machine at its registered address, serving the shared directory; a server registered at another machine's address has nothing to start here, and the button says so. Besides it, **Invite** re-issues an administrator invitation — choose the administrator, or leave the field empty for the initial, unregistered one, and the validity in hours; the link can then be copied and sent.
 
-- **Open**: jump to the bundled dashboard with that instance selected.
-- **Start**: run it again with the options used last time, without filling the form.
-- **Invite**: re-issue an administrator invitation. Choose the administrator — or leave the field empty for the initial, unregistered one — and the validity in hours; the link can then be copied and sent.
-- **Browser**: open the instance in the system browser instead of the application.
-
-**Running** shows the live output of each process. Stopping is graceful: the process is asked to terminate and gets a few seconds to close SSH tunnels and remote workers before it is killed, which matters for notebook sessions. Closing the application stops everything it started.
+**Running** shows the live output of each process; a running server opens in the dashboard — registering it, if it was started for a look — and a running notebook in the browser, at its local address. Stopping is graceful: the process is asked to terminate and gets a few seconds to close SSH tunnels and remote workers before it is killed, which matters for notebook sessions. Closing the application stops everything it started.
 
 ---
 
@@ -167,4 +162,4 @@ The directory can be revealed in the system file manager, and the files ticked d
 
 ## 🔗 Relationship with the web client
 
-The dashboard inside the application and the one at <https://qibo.science/qibocal-report> are the same application, built from the same sources. The launcher only adds what a browser cannot do, and a way back: on **Report Servers** — the only page with room for it — the logo appears in the top-left corner, in the same position it occupies everywhere else, and returns to the launcher. The **Go** menu and its shortcuts work from the dashboard as well. The two halves share one list of servers, `servers.json`: an instance started or registered in the launcher is browsable in the dashboard at once, and a server added, renamed or removed in the dashboard's own **Report Servers** page is written to the same file, where the launcher and the command line find it. Only the servers started for a look, without registering, stay out of the file: the dashboard shows them while they run.
+The dashboard inside the application and the one at <https://qibo.science/qibocal-report> are the same application, built from the same sources. The launcher only adds what a browser cannot do, and a way back: on **Report Servers** — the only page with room for it — the logo appears in the top-left corner, in the same position it occupies everywhere else, and returns to the launcher. The **Go** menu and its shortcuts work from the dashboard as well. The two halves share one list of servers, `servers.json`: a server registered in the launcher is in the dashboard at once, and one added, renamed or removed in the dashboard's own **Report Servers** page is written to the same file, where the launcher and the command line find it. Inside the application that page has two parts: **Managed by the launcher**, the servers the launcher has started, shown only while they run — opening one from **Running** or **Servers** registers it, if it was started for a look — and **Registered independently**, everything else.

@@ -11,7 +11,7 @@ import App from '@dashboard/App.vue'
 import { router } from '@dashboard/router.js'
 import LauncherOverlay from './components/LauncherOverlay.vue'
 import { desktop } from './bridge.js'
-import { TEMPORARY_PREFIX } from './lib/servers.js'
+import { launchKeys, serverUrl } from './lib/servers.js'
 import { installMenu } from './menu.js'
 import { sections } from './router.js'
 
@@ -22,16 +22,24 @@ import './styles.js'
  *
  * The dashboard's server list is `servers.json` here, not the browser's
  * storage: whatever it saves is written to the file the command line and
- * the launcher read — except the servers the launcher started for a look,
- * which are published to the dashboard while they run and never registered.
+ * the launcher read. And the dashboard can ask which registered servers
+ * the launcher manages — those it has ever started — and which of them
+ * run right now, to show the managed ones only while they are up.
  */
 window.qibocalDesktop = {
-  saveServers: servers =>
-    desktop.saveServers(
-      (Array.isArray(servers) ? servers : []).filter(
-        server => !(typeof server?.id === 'string' && server.id.startsWith(TEMPORARY_PREFIX))
-      )
-    )
+  saveServers: servers => desktop.saveServers(Array.isArray(servers) ? servers : []),
+  managedServers: async () => {
+    const [processes, preferences] = await Promise.all([
+      desktop.processes().catch(() => []),
+      desktop.preferences().catch(() => ({}))
+    ])
+    const running = processes
+      .filter(process => process.kind === 'server' && process.status === 'running')
+      .flatMap(process => launchKeys(process.url))
+    const launched = Object.keys(preferences?.launches || {}).flatMap(launchKeys)
+    return { running, managed: [...new Set([...running, ...launched])] }
+  },
+  normalize: serverUrl
 }
 
 createApp(App).use(router).mount('#app')
