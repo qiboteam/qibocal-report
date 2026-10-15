@@ -231,6 +231,18 @@ export async function rememberLaunch(url, options) {
   state.preferences = await desktop.savePreferences({ ...state.preferences, launches })
 }
 
+/**
+ * Replace what is remembered about a server: its old address and its new
+ * one forget their launches, and the new address takes `options` — or
+ * nothing, for a server the launcher is not to start any more.
+ */
+export async function rewriteLaunch(previousUrl, url, options) {
+  const launches = { ...(state.preferences.launches || {}) }
+  for (const key of [...launchKeys(previousUrl), ...launchKeys(url)]) delete launches[key]
+  if (options && serverUrl(url)) launches[serverUrl(url)] = options
+  state.preferences = await desktop.savePreferences({ ...state.preferences, launches })
+}
+
 export function recallLaunch(url) {
   const launches = state.preferences.launches || {}
   for (const key of launchKeys(url)) {

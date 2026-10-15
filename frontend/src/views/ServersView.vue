@@ -119,7 +119,9 @@
           />
         </div>
         <p v-else class="mb-8 px-4 py-5 text-xs text-gray-500 bg-white rounded-2xl border border-gray-100 shadow-xs">
-          No server of the launcher's is running. Start one in its <strong>Servers</strong> section and it appears here.
+          No server of the launcher's is running. Start one in its
+          <a :href="launcherServersUrl" class="font-medium text-[#833dff] hover:text-[#6b21a8] transition">Servers</a>
+          section and it appears here.
         </p>
       </template>
 
@@ -301,6 +303,9 @@ const activeServer = computed(() => state.activeServer)
 const desktop = typeof window !== 'undefined' && typeof window.qibocalDesktop?.managedServers === 'function'
 const runningUrls = ref(new Set())
 const managedUrls = ref(new Set())
+const launcherServersUrl = computed(() =>
+  (desktop && typeof window.qibocalDesktop.launcherUrl === 'function') ? window.qibocalDesktop.launcherUrl('servers') : '#'
+)
 
 const same = (left, right) => {
   const normalize = window.qibocalDesktop?.normalize || normalizeUrl

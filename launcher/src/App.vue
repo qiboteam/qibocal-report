@@ -73,6 +73,7 @@
             "More" open the page with everything.
           -->
           <div v-if="open && inbox.length" class="lx-notices" role="list">
+            <!-- Nothing from the last day: the page has the older ones. -->
             <div class="lx-notices-head">
               <router-link to="/notifications" class="hover:text-[#3b107e] transition" title="All notifications" @click="open = false">
                 Notifications
@@ -100,7 +101,7 @@
               </button>
             </div>
             <router-link v-if="inbox.length > recent.length" to="/notifications" class="lx-notices-more" @click="open = false">
-              {{ inbox.length - recent.length }} more…
+              {{ recent.length ? `${inbox.length - recent.length} more…` : `${inbox.length} older…` }}
             </router-link>
           </div>
         </div>
@@ -130,6 +131,7 @@ import {
   startServer
 } from './state.js'
 import { describeSpec } from './lib/versions.js'
+import { isRecent } from './lib/time.js'
 
 /** How many entries the bubble shows; the page has them all. */
 const RECENT = 5
@@ -164,7 +166,12 @@ function time(at) {
   return new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const recent = computed(() => inbox.value.slice(0, RECENT))
+/** The five most recent of the last day; the page has the rest. */
+const now = ref(Date.now())
+const recent = computed(() => inbox.value.filter(entry => isRecent(entry.at, now.value)).slice(0, RECENT))
+watch(open, opened => {
+  if (opened) now.value = Date.now()
+})
 
 function archiveEverything() {
   archiveAll()

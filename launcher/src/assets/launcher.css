@@ -542,12 +542,67 @@
   color: #3b107e;
 }
 
-/* The same rows on the page, with their actions always visible. */
-.lx-notice-page {
-  padding: 10px 14px;
+/*
+ * The notifications page: rows in the application's own text, the time as
+ * a distance from now in the voice of the help text, the actions at the end.
+ */
+.lx-inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
 }
 
-.lx-notice-page .lx-action {
+.lx-inbox-row + .lx-inbox-row {
+  border-top: 1px solid #f1f1f3;
+}
+
+.lx-inbox-icon {
+  flex: none;
+  color: #a6a6ac;
+}
+
+.lx-inbox-row.is-error .lx-inbox-icon {
+  color: #d97706;
+}
+
+.lx-inbox-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.lx-inbox-text.is-link {
+  cursor: pointer;
+}
+
+.lx-inbox-text.is-link:hover {
+  color: #3b107e;
+}
+
+.lx-inbox-time {
+  flex: none;
+  font-size: 11px;
+  color: #a6a6ac;
+  white-space: nowrap;
+}
+
+.lx-inbox-actions {
+  flex: none;
+  display: inline-flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 50ms ease;
+}
+
+.lx-inbox-row:hover .lx-inbox-actions,
+.lx-inbox-actions:focus-within {
+  opacity: 1;
+}
+
+.lx-inbox-actions .lx-action {
   padding: 3px 6px;
 }
 

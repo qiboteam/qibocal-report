@@ -27,7 +27,7 @@ export const sections = [
     title: 'Servers',
     icon: 'Server',
     accelerator: 'CmdOrCtrl+2',
-    summary: 'Start a report server here or on another machine, or register one to reach.'
+    summary: 'Start a report server here or on another machine, or register one you reach.'
   },
   {
     name: 'processes',
@@ -36,7 +36,7 @@ export const sections = [
     title: 'Running',
     icon: 'Activity',
     accelerator: 'CmdOrCtrl+3',
-    summary: 'Watch the output of everything the launcher started, and stop it.'
+    summary: 'Follow the output of everything the launcher started, stop it or start it again.'
   },
   {
     name: 'notebooks',
@@ -45,7 +45,7 @@ export const sections = [
     title: 'Notebooks',
     icon: 'BookOpen',
     accelerator: 'CmdOrCtrl+4',
-    summary: 'Open a JupyterLab or Marimo session, locally or over SSH.'
+    summary: 'Open a JupyterLab or Marimo session here, over SSH or through a SLURM partition.'
   },
   {
     name: 'settings',
@@ -54,7 +54,7 @@ export const sections = [
     title: 'Configuration',
     icon: 'Settings',
     accelerator: 'CmdOrCtrl+5',
-    summary: 'Which qibocal-report the launcher drives, and the shared configuration.'
+    summary: 'Which qibocal-report the launcher drives, and the configuration it shares with it.'
   }
 ]
 

@@ -27,123 +27,8 @@
       registering a choice.
     -->
     <section v-if="creating" class="bm-card p-5">
-      <div class="flex flex-wrap items-center gap-3 mb-4">
-        <h2 class="text-sm font-semibold text-gray-900">New server</h2>
-        <segmented-control v-model="where" :options="places" class="ml-auto" />
-      </div>
-
-      <div class="grid gap-4 sm:grid-cols-2">
-        <form-field
-          v-slot="{ id }"
-          label="Name"
-          help="Generated like the command line generates them; change it freely."
-        >
-          <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model="form.name" type="text" class="lx-input" />
-        </form-field>
-
-        <!-- This machine -->
-        <template v-if="where === 'local'">
-          <form-field label="Mode" :help="modeHelp">
-            <segmented-control v-model="form.mode" :options="modes" />
-          </form-field>
-
-          <form-field
-            v-if="form.mode !== 'client'"
-            v-slot="{ id }"
-            class="sm:col-span-2"
-            label="Reports directory"
-            help="Default: the shared reports directory."
-            :info="`The folder holding the calibration runs. Left empty, ${SHARED_DIRECTORY} is served, and created when it is not there yet.`"
-          >
-            <path-picker :id="id" v-model="form.directory" title="Choose the reports directory" />
-          </form-field>
-        </template>
-
-        <!-- Another machine -->
-        <template v-else-if="where === 'ssh'">
-          <form-field
-            v-slot="{ id, control }"
-            label="SSH destination"
-            required
-            info="SSH options followed by a host or user@host, the way ssh takes them. Host aliases, agent authentication and jump hosts from the SSH configuration all work; the destination comes last."
-            :error="errors.ssh"
-          >
-            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.ssh" type="text" :class="['lx-input lx-mono', control]" placeholder="user@host" />
-          </form-field>
-
-          <form-field
-            v-slot="{ id }"
-            label="Reports directory"
-            help="Default: the shared reports directory of that machine."
-            :info="`A path on that machine, typed rather than browsed, since the file dialog only sees this one. Left empty, ${SHARED_DIRECTORY} there is served, and created when missing.`"
-          >
-            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.directory" type="text" class="lx-input lx-mono" />
-          </form-field>
-        </template>
-
-        <!-- Already running -->
-        <form-field
-          v-else
-          v-slot="{ id, control }"
-          label="Address"
-          required
-          info="Any reachable Qibocal report server. A bare host and port is accepted, and read as http."
-          :error="errors.url"
-        >
-          <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.url" type="text" :class="['lx-input lx-mono', control]" placeholder="https://host:port" />
-        </form-field>
-      </div>
-
-      <!-- The optional settings, with their defaults -->
-      <details v-if="where !== 'reachable'" class="lx-more">
-        <summary><ChevronRight class="lx-chevron w-3.5 h-3.5" /> More options</summary>
-        <div class="lx-more-body grid gap-4 sm:grid-cols-2">
-          <template v-if="where === 'local'">
-            <form-field v-slot="{ id }" label="Host" help="Default: localhost" info="The address the server binds to. 0.0.0.0 makes it reachable from other machines on the network.">
-              <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.host" type="text" class="lx-input lx-mono" />
-            </form-field>
-
-            <form-field v-slot="{ id }" label="Port" help="Default: 8000" :error="errors.port">
-              <div class="flex items-center gap-2">
-                <input :id="id" v-model="form.port" type="number" min="1" max="65535" class="lx-input lx-mono" />
-                <button
-                  type="button"
-                  class="lx-action shrink-0"
-                  title="Pick a port nobody is listening on"
-                  @click="pickFreePort"
-                >
-                  Free port
-                </button>
-              </div>
-            </form-field>
-
-            <form-field v-if="form.mode === 'dev'" v-slot="{ id }" label="Frontend port" help="Default: 5173" info="Where Vite serves the live interface.">
-              <input :id="id" v-model="form.frontendPort" type="number" min="1" max="65535" class="lx-input lx-mono" />
-            </form-field>
-          </template>
-
-          <template v-else>
-            <form-field
-              v-for="field in remoteFields"
-              :key="field.name"
-              v-slot="{ id }"
-              :label="field.label"
-              :help="field.help"
-              :info="field.info"
-            >
-              <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form[field.name]" type="text" class="lx-input lx-mono" />
-            </form-field>
-          </template>
-
-          <div v-if="form.mode !== 'client'" class="flex items-end sm:col-span-2">
-            <toggle-switch
-              v-model="form.auth"
-              label="User accounts"
-              help="Off by default. On, users sign in, and an administrator invitation is issued at start."
-            />
-          </div>
-        </div>
-      </details>
+      <h2 class="text-sm font-semibold text-gray-900 mb-4">New server</h2>
+      <server-fields v-model:where="where" :form="form" :errors="errors" />
 
       <div class="flex flex-wrap items-center gap-2.5 mt-5">
         <template v-if="where === 'reachable'">
@@ -217,10 +102,13 @@
             <p class="text-sm font-medium text-gray-900 truncate">{{ server.name || server.url }}</p>
             <p class="lx-mono text-gray-500 truncate">{{ server.url }}</p>
           </div>
-          <span
+          <!-- The pill leads to the card of this server in Running. -->
+          <router-link
             v-if="processFor(server)"
-            class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-medium"
-          >running here</span>
+            :to="{ name: 'processes', query: { process: processFor(server).id } }"
+            class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-medium hover:bg-emerald-100 transition"
+            title="See it in Running"
+          >running</router-link>
 
           <div class="ml-auto flex flex-wrap items-center gap-1.5">
             <!-- Running: read it. Stopped: start it, as last time or at its address here. -->
@@ -257,20 +145,16 @@
           </div>
         </div>
 
-        <!-- The entry as servers.json holds it: name, address, description. -->
-        <form v-if="editing.serverId === server.id" class="mt-3.5 pt-3.5 border-t border-gray-100 grid gap-3 sm:grid-cols-2" @submit.prevent="saveEdit(server)">
-          <form-field v-slot="{ id }" label="Name">
-            <input :id="id" v-model.trim="editing.name" type="text" class="lx-input" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" />
-          </form-field>
-          <form-field v-slot="{ id, control }" label="Address" required :error="editing.error">
-            <input :id="id" v-model.trim="editing.url" type="text" :class="['lx-input lx-mono', control]" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" />
-          </form-field>
-          <form-field v-slot="{ id }" class="sm:col-span-2" label="Description" help="Shown under the name in the dashboard.">
-            <input :id="id" v-model.trim="editing.description" type="text" class="lx-input" />
-          </form-field>
-          <div class="sm:col-span-2 flex items-center gap-2">
-            <button type="submit" class="lx-primary" :disabled="editing.busy || !editing.url">Save</button>
+        <!--
+          The entry as servers.json holds it, and how it is started: the very
+          form of the registration, opened on what is known of this server.
+        -->
+        <form v-if="editing.serverId === server.id" class="mt-3.5 pt-3.5 border-t border-gray-100" @submit.prevent="saveEdit(server)">
+          <server-fields v-model:where="editing.where" :form="editing.form" :errors="editErrors" entry />
+          <div class="flex flex-wrap items-center gap-2 mt-4">
+            <button type="submit" class="lx-primary" :disabled="editing.busy || Object.keys(editErrors).length > 0">Save</button>
             <button type="button" class="lx-action" @click="editing.serverId = null">Cancel</button>
+            <span v-if="editPreview" class="lx-mono text-gray-400 truncate">{{ editPreview }}</span>
           </div>
         </form>
 
@@ -316,7 +200,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Bookmark,
-  ChevronRight,
   Copy,
   KeyRound,
   LayoutDashboard,
@@ -328,9 +211,7 @@ import {
   X
 } from 'lucide-vue-next'
 import FormField from '../components/FormField.vue'
-import PathPicker from '../components/PathPicker.vue'
-import SegmentedControl from '../components/SegmentedControl.vue'
-import ToggleSwitch from '../components/ToggleSwitch.vue'
+import ServerFields from '../components/ServerFields.vue'
 import { desktop } from '../bridge.js'
 import {
   state,
@@ -343,6 +224,7 @@ import {
   recallLaunch,
   refreshServers,
   registerServer,
+  rewriteLaunch,
   forgetServer,
   runningServers,
   startServer,
@@ -350,70 +232,21 @@ import {
   updateServer,
   withQibocal
 } from '../state.js'
-import { serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
+import { blankForm, formFrom, formProblems, launchFrom, serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
 
 const route = useRoute()
 const router = useRouter()
 
-const SHARED_DIRECTORY = '~/.local/share/qibocal/reports (or $XDG_DATA_HOME/qibocal/reports)'
-
-const places = [
-  { value: 'local', label: 'This machine', help: 'Run qibocal here.' },
-  { value: 'ssh', label: 'Another machine', help: 'Reach a host over SSH, prepare an environment there, and tunnel the server back.' },
-  { value: 'reachable', label: 'Already running', help: 'Register an address, starting nothing.' }
-]
-
-const modes = [
-  { value: 'server', label: 'Reports', help: 'Serve a directory of calibration runs.' },
-  { value: 'dev', label: 'Developer', help: 'Live interface with hot reloading.' },
-  { value: 'client', label: 'Client', help: 'Browse other servers, serving none.' }
-]
-
-// Worded like the matching notebook options, which describe the same things.
-const remoteFields = [
-  {
-    name: 'venv',
-    label: 'Server environment',
-    help: 'Default: qibocal',
-    info: 'An environment name, resolved under ~/.cache/qibocal/envs on that machine, or an absolute path there. Created when missing, and given the package below when it has no qibocal-report — the rule the notebook sessions follow too.'
-  },
-  {
-    name: 'workdir',
-    label: 'Working directory',
-    help: 'Default: a fresh temporary directory.',
-    info: 'Where the server starts from on that machine. It writes nothing there, so the default keeps it out of the home folder; set it for relative paths.'
-  },
-  {
-    name: 'install',
-    label: 'Package to install',
-    help: 'Default: the same qibocal-report as this launcher.',
-    info: 'What goes into the environment when it has no qibocal: by default the very commit this launcher was built from, so the two agree; or a release, a pinned version, a different distribution.'
-  }
-]
-
 const creating = ref(false)
 const where = ref('local')
-const form = reactive({
-  name: '',
-  mode: 'server',
-  directory: '',
-  host: 'localhost',
-  port: 8000,
-  auth: false,
-  frontendPort: 5173,
-  ssh: '',
-  venv: '',
-  workdir: '',
-  install: '',
-  url: ''
-})
+const form = reactive(blankForm())
 const invite = reactive({ serverId: null, username: '', hours: 24, busy: false, result: null })
-const editing = reactive({ serverId: null, name: '', url: '', description: '', busy: false, error: '' })
+/** The server being edited, with the form opened on it. */
+const editing = reactive({ serverId: null, where: 'local', form: blankForm(), busy: false })
 const administrators = ref([])
 const starting = ref(false)
 
 const temporary = computed(() => unregisteredServers())
-const modeHelp = computed(() => modes.find(mode => mode.value === form.mode)?.help || '')
 
 /** A fresh name, as the command line draws them, avoiding the ones in use. */
 function freshName() {
@@ -423,47 +256,27 @@ function freshName() {
   ])
 }
 
-const errors = computed(() => {
-  const found = {}
-  if (where.value === 'ssh' && !form.ssh.trim()) {
-    found.ssh = 'Name the machine to reach, as ssh would.'
-  }
-  if (where.value === 'reachable' && form.url && !serverUrl(form.url)) {
-    found.url = 'Enter the address of the report server.'
-  }
-  const port = Number(form.port)
-  if (where.value === 'local' && (!Number.isInteger(port) || port < 1 || port > 65535)) {
-    found.port = 'Enter a port between 1 and 65535.'
-  }
-  return found
-})
+const errors = computed(() => formProblems(where.value, form))
+const editErrors = computed(() => formProblems(editing.where, editing.form, { entry: true }))
 
 const preview = computed(() => serverCommand(launchOptions(false)))
-
-async function pickFreePort() {
-  const port = await attempt(() => desktop.freePort())
-  if (port) form.port = port
-}
+const editPreview = computed(() => {
+  const options = launchFrom(editing.where, editing.form)
+  return options ? serverCommand(options) : ''
+})
 
 /** Exactly what `start_server` receives, and what the preview describes. */
 function launchOptions(register) {
-  const away = where.value === 'ssh'
-  const mode = away ? 'server' : form.mode
-  return {
-    mode,
-    name: form.name.trim() || freshName(),
-    register,
-    directory: mode === 'client' ? null : form.directory.trim() || null,
-    host: form.host.trim() || 'localhost',
-    port: Number(form.port),
-    auth: form.auth,
-    frontendPort: mode === 'dev' ? Number(form.frontendPort) : null,
-    ssh: away ? form.ssh.trim() : null,
-    venv: away ? form.venv.trim() || null : null,
-    workdir: away ? form.workdir.trim() || null : null,
-    install: away ? form.install.trim() || null : null
-  }
+  return launchFrom(where.value, form, { name: freshName(), register })
 }
+
+// The address of a server on this machine follows its host and port, as
+// long as it was theirs: an address typed by hand is left alone.
+watch(() => [editing.form.host, editing.form.port], ([host, port], [previousHost, previousPort]) => {
+  if (editing.where !== 'local') return
+  if (serverUrl(editing.form.url) !== serverUrl(`http://${previousHost}:${previousPort}`)) return
+  editing.form.url = `http://${host || 'localhost'}:${port}`
+})
 
 async function launch(register) {
   const problem = Object.values(errors.value)[0]
@@ -542,31 +355,41 @@ async function forget(server) {
   await attempt(() => forgetServer(server.id), `${server.name || server.url} removed.`, 'servers')
 }
 
+/** Open the form on everything known about a server: its entry, and how it starts. */
 function toggleEdit(server) {
   if (editing.serverId === server.id) {
     editing.serverId = null
     return
   }
-  Object.assign(editing, {
-    serverId: server.id,
-    name: server.name || '',
-    url: server.url || '',
-    description: server.description || '',
-    busy: false,
-    error: ''
-  })
+  const opened = formFrom(launchOptionsFor(server), server)
+  Object.assign(editing, { serverId: server.id, where: opened.where, busy: false })
+  Object.assign(editing.form, opened.form)
 }
 
+/** Save the entry, and remember — or forget — how the server is started. */
 async function saveEdit(server) {
-  if (!serverUrl(editing.url)) {
-    editing.error = 'Enter the address of the report server.'
+  const problem = Object.values(editErrors.value)[0]
+  if (problem) {
+    fail(problem)
     return
   }
-  editing.error = ''
   editing.busy = true
+  const name = editing.form.name.trim() || server.name || ''
+  // Whether the command line registers it again is as it was; a server it
+  // never registered has an entry already.
+  const register = recallLaunch(server.url)?.register ?? false
+  const options = launchFrom(editing.where, editing.form, { name, register })
   const saved = await attempt(
-    () => updateServer(server.id, { name: editing.name, url: editing.url, description: editing.description }),
-    `${editing.name || editing.url} updated.`,
+    async () => {
+      const updated = await updateServer(server.id, {
+        name,
+        url: editing.form.url,
+        description: editing.form.description
+      })
+      await rewriteLaunch(server.url, updated.url, options)
+      return updated
+    },
+    `${name || editing.form.url} updated.`,
     'servers'
   )
   editing.busy = false
@@ -616,19 +439,9 @@ function applyQuery() {
   if (!server) return
   const remembered = recallLaunch(server.url)
   if (!remembered) return
-  // Whether it was registered is settled: the server is in the list.
-  const { register: _registered, ...options } = remembered
-  Object.assign(form, {
-    ...options,
-    name: remembered.name || server.name || '',
-    directory: remembered.directory || '',
-    frontendPort: remembered.frontendPort || 5173,
-    ssh: remembered.ssh || '',
-    venv: remembered.venv || '',
-    workdir: remembered.workdir || '',
-    install: remembered.install || ''
-  })
-  where.value = remembered.ssh ? 'ssh' : 'local'
+  const opened = formFrom(remembered, server)
+  Object.assign(form, opened.form)
+  where.value = opened.where
   creating.value = true
 }
 

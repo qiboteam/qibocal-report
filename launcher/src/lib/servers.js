@@ -67,6 +67,108 @@ export function serverCommand(options = {}) {
   return parts.map(quote).join(' ')
 }
 
+/** Where the shared reports live, as the forms spell it out. */
+export const SHARED_DIRECTORY = '~/.local/share/qibocal/reports (or $XDG_DATA_HOME/qibocal/reports)'
+
+/** Where a server runs: the choice that decides which fields make sense. */
+export const PLACES = [
+  { value: 'local', label: 'This machine', help: 'Run qibocal here.' },
+  { value: 'ssh', label: 'Another machine', help: 'Reach a host over SSH, prepare an environment there, and tunnel the server back.' },
+  { value: 'reachable', label: 'Already running', help: 'Register an address, starting nothing.' }
+]
+
+/** A server form, every field at its default. */
+export function blankForm() {
+  return {
+    name: '',
+    description: '',
+    mode: 'server',
+    directory: '',
+    host: 'localhost',
+    port: 8000,
+    auth: false,
+    frontendPort: 5173,
+    ssh: '',
+    venv: '',
+    workdir: '',
+    install: '',
+    url: ''
+  }
+}
+
+/**
+ * The form filled in from start options — remembered, or the default ones
+ * for a registered server — and from the entry itself: what "Edit" opens
+ * on, and what the system menu's "start again" prefills. Options that are
+ * absent mean a server the launcher does not start.
+ */
+export function formFrom(options, server = null) {
+  const form = blankForm()
+  form.name = server?.name || options?.name || ''
+  form.description = server?.description || ''
+  form.url = server?.url || ''
+  if (!options) return { where: 'reachable', form }
+  Object.assign(form, {
+    mode: options.mode || 'server',
+    directory: options.directory || '',
+    host: options.host || 'localhost',
+    port: options.port || 8000,
+    auth: Boolean(options.auth),
+    frontendPort: options.frontendPort || 5173,
+    ssh: options.ssh || '',
+    venv: options.venv || '',
+    workdir: options.workdir || '',
+    install: options.install || ''
+  })
+  return { where: options.ssh ? 'ssh' : 'local', form }
+}
+
+/**
+ * What is wrong with a form, by field; nothing when it can be submitted.
+ * A registered entry needs an address whatever the place.
+ */
+export function formProblems(where, form, { entry = false } = {}) {
+  const found = {}
+  if (where === 'ssh' && !String(form.ssh || '').trim()) {
+    found.ssh = 'Name the machine to reach, as ssh would.'
+  }
+  const url = String(form.url || '')
+  if ((entry || (where === 'reachable' && url)) && !serverUrl(url)) {
+    found.url = 'Enter the address of the report server.'
+  }
+  const port = Number(form.port)
+  if (where === 'local' && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+    found.port = 'Enter a port between 1 and 65535.'
+  }
+  return found
+}
+
+/**
+ * The start options a form describes: exactly what `start_server` receives,
+ * and what the command preview shows. Nothing for a server the launcher
+ * does not start.
+ */
+export function launchFrom(where, form, { name = null, register = false } = {}) {
+  if (where === 'reachable') return null
+  const away = where === 'ssh'
+  const mode = away ? 'server' : form.mode
+  const text = value => String(value || '').trim() || null
+  return {
+    mode,
+    name: text(form.name) || name,
+    register,
+    directory: mode === 'client' ? null : text(form.directory),
+    host: text(form.host) || 'localhost',
+    port: Number(form.port),
+    auth: Boolean(form.auth),
+    frontendPort: mode === 'dev' ? Number(form.frontendPort) : null,
+    ssh: away ? text(form.ssh) : null,
+    venv: away ? text(form.venv) : null,
+    workdir: away ? text(form.workdir) : null,
+    install: away ? text(form.install) : null
+  }
+}
+
 /** The hosts a server on this machine can bind: the ones a local address names. */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0'])
 

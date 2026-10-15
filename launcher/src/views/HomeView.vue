@@ -9,10 +9,11 @@
       </p>
     </div>
 
-    <div class="grid gap-3 sm:grid-cols-2">
+    <!-- One size for every card: the grid stretches them, the descriptions are of a length. -->
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
       <button
         type="button"
-        class="bm-card text-left p-5 flex items-start gap-3.5 hover:-translate-y-px transition"
+        class="bm-card text-left p-5 flex items-start gap-3.5 hover:-translate-y-px transition min-h-[6.5rem]"
         @click="openDashboard()"
       >
         <span class="w-9 h-9 rounded-xl bg-[#833dff] text-white inline-flex items-center justify-center shrink-0">
@@ -21,7 +22,7 @@
         <span>
           <span class="block text-sm font-semibold text-gray-900">Dashboard</span>
           <span class="block mt-0.5 text-xs text-gray-500">
-            The report browser, with every server the launcher knows already connected.
+            Browse the reports, with every server the launcher knows already connected.
           </span>
         </span>
       </button>
@@ -30,7 +31,7 @@
         v-for="section in others"
         :key="section.name"
         :to="section.path"
-        class="bm-card p-5 flex items-start gap-3.5 hover:-translate-y-px transition"
+        class="bm-card p-5 flex items-start gap-3.5 hover:-translate-y-px transition min-h-[6.5rem]"
       >
         <span class="w-9 h-9 rounded-xl bg-[#ebe0ff] text-[#3b107e] inline-flex items-center justify-center shrink-0">
           <component :is="sectionIcons[section.icon]" class="w-4.5 h-4.5" />

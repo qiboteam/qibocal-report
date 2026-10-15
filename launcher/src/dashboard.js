@@ -39,7 +39,14 @@ window.qibocalDesktop = {
     const launched = Object.keys(preferences?.launches || {}).flatMap(launchKeys)
     return { running, managed: [...new Set([...running, ...launched])] }
   },
-  normalize: serverUrl
+  normalize: serverUrl,
+  /** The address of a launcher section, for a link out of the dashboard. */
+  launcherUrl: name => {
+    const section = sections.find(entry => entry.name === name)
+    const target = new URL('index.html', window.location.href)
+    target.hash = `#${section?.path || '/'}`
+    return target.href
+  }
 }
 
 createApp(App).use(router).mount('#app')

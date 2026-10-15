@@ -275,11 +275,14 @@ impl Supervisor {
             return Err("The process supervisor is unavailable.".to_string());
         }
 
+        // The command line announces the final address on standard output;
+        // standard error carries the workers' own output, where a notebook
+        // server lists its remote addresses on bare lines of their own.
         if let Some(stream) = stdout {
             pump(app.clone(), id.clone(), stream, detect_url);
         }
         if let Some(stream) = stderr {
-            pump(app.clone(), id.clone(), stream, detect_url);
+            pump(app.clone(), id.clone(), stream, false);
         }
         monitor(app.clone(), id);
 

@@ -2,6 +2,10 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  blankForm,
+  formFrom,
+  formProblems,
+  launchFrom,
   ADJECTIVES,
   DASHBOARD_ACTIVE_KEY,
   DASHBOARD_SERVERS_KEY,
@@ -185,4 +189,50 @@ test('an argument that would be split is quoted', () => {
     serverCommand({ mode: 'server', directory: '/data/my runs', port: 8000, ssh: '-J bastion me@node' }),
     "qibocal report server '/data/my runs' --no-auth --ssh '-J bastion me@node'"
   )
+})
+
+test('the form of a remembered SSH launch opens on another machine, with the entry on top', () => {
+  const remembered = {
+    mode: 'server', name: 'old-name', register: false, directory: '/data', host: 'localhost', port: 8000,
+    auth: true, frontendPort: null, ssh: 'me@cluster', venv: 'qibocal', workdir: null, install: null
+  }
+  const server = { name: 'quiet-curie', url: 'http://localhost:43210', description: 'On the cluster' }
+  const opened = formFrom(remembered, server)
+  assert.equal(opened.where, 'ssh')
+  assert.equal(opened.form.name, 'quiet-curie')
+  assert.equal(opened.form.description, 'On the cluster')
+  assert.equal(opened.form.url, 'http://localhost:43210')
+  assert.equal(opened.form.ssh, 'me@cluster')
+  assert.equal(opened.form.directory, '/data')
+  assert.equal(opened.form.auth, true)
+  assert.equal(opened.form.workdir, '')
+})
+
+test('a server the launcher does not start opens as already running', () => {
+  const opened = formFrom(null, { name: 'far', url: 'https://lab.example.org' })
+  assert.equal(opened.where, 'reachable')
+  assert.equal(opened.form.url, 'https://lab.example.org')
+  assert.equal(opened.form.port, 8000, 'the rest is at its default')
+})
+
+test('the form and the launch options are each other\'s inverse', () => {
+  const form = { ...blankForm(), name: 'brave-bohr', ssh: 'me@cluster', directory: '/data', install: 'qibocal-report==1.2' }
+  const options = launchFrom('ssh', form, { register: true })
+  assert.equal(options.mode, 'server')
+  assert.equal(options.register, true)
+  assert.equal(options.ssh, 'me@cluster')
+  assert.equal(options.install, 'qibocal-report==1.2')
+  assert.equal(options.venv, null)
+  assert.deepEqual(formFrom(options).form, { ...form, description: '', url: '' })
+  assert.equal(launchFrom('reachable', form), null, 'nothing to start for an address')
+  assert.equal(launchFrom('local', { ...blankForm(), name: '' }, { name: 'drawn' }).name, 'drawn')
+})
+
+test('what is wrong with a form is said by field', () => {
+  assert.deepEqual(formProblems('ssh', { ...blankForm() }), { ssh: 'Name the machine to reach, as ssh would.' })
+  assert.deepEqual(formProblems('local', { ...blankForm(), port: 70000 }), { port: 'Enter a port between 1 and 65535.' })
+  assert.deepEqual(formProblems('reachable', { ...blankForm() }), {}, 'an empty address is not yet a problem')
+  assert.deepEqual(formProblems('reachable', { ...blankForm(), url: 'not an address' }), { url: 'Enter the address of the report server.' })
+  assert.deepEqual(formProblems('local', { ...blankForm() }, { entry: true }), { url: 'Enter the address of the report server.' }, 'a registered entry needs one')
+  assert.deepEqual(formProblems('local', { ...blankForm(), url: 'localhost:8000' }, { entry: true }), {})
 })

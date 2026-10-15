@@ -122,11 +122,13 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ChevronRight, ExternalLink, LayoutDashboard, Play, Square, Trash2 } from 'lucide-vue-next'
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
 import { desktop, openExternal } from '../bridge.js'
 import { state, attempt, loadLog, openDashboard, refreshProcesses, restartProcess } from '../state.js'
 
+const route = useRoute()
 const selected = ref(null)
 const restarting = ref(false)
 /** Which runs are unfolded; none to begin with. */
@@ -211,12 +213,22 @@ async function forgetGroup(group) {
   if (!groups.value.some(entry => entry.key === group.key)) selected.value = groups.value[0]?.key || null
 }
 
+/** Coming from a "running" pill, or the status bar, selects that card. */
+function applyQuery() {
+  const id = route.query.process
+  if (!id) return
+  const group = groups.value.find(entry => entry.runs.some(run => run.id === id))
+  if (group) selected.value = group.key
+}
+
 onMounted(async () => {
   await refreshProcesses()
+  applyQuery()
   if (!selected.value && groups.value.length) selected.value = groups.value[0].key
 })
 
 watch(groups, list => {
   if (!selected.value && list.length) selected.value = list[0].key
 })
+watch(() => route.query.process, applyQuery)
 </script>
