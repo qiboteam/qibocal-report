@@ -12,6 +12,13 @@ on:
       - "launcher/**"
       - "frontend/**"
       - ".github/workflows/launcher.yml"
+  # Work that lands on main directly is built the same way.
+  push:
+    branches: [main]
+    paths:
+      - "launcher/**"
+      - "frontend/**"
+      - ".github/workflows/launcher.yml"
 
 # Only the release event needs to write, to attach the installers.
 permissions:
