@@ -23,6 +23,7 @@
     </div>
   </div>
   <status-bar v-if="onServers" />
+  <shortcuts-dialog />
   <closing-dialog />
 </template>
 
@@ -30,6 +31,7 @@
 import { computed, inject } from 'vue'
 import ClosingDialog from './ClosingDialog.vue'
 import LauncherLogo from './LauncherLogo.vue'
+import ShortcutsDialog from './ShortcutsDialog.vue'
 import StatusBar from './StatusBar.vue'
 
 // The dashboard router's current route, handed over by `dashboard.js`: the

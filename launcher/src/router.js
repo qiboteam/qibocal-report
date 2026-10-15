@@ -5,10 +5,17 @@ import ProcessesView from './views/ProcessesView.vue'
 import NotebooksView from './views/NotebooksView.vue'
 import SettingsView from './views/SettingsView.vue'
 import NotificationsView from './views/NotificationsView.vue'
+import HelpView from './views/HelpView.vue'
 
 /**
- * The launcher sections, described once: the router, the home page cards and
- * the system menu are all generated from this list.
+ * The launcher sections, described once: the router, the home page cards,
+ * the system menu, the keyboard shortcuts and the Help page are all
+ * generated from this list.
+ *
+ * `accelerator` is the menu shortcut, a mnemonic letter with the modifier
+ * — Configuration takes the one every application gives its preferences;
+ * `key` is the letter that follows `g` on the keyboard, as on GitHub:
+ * `g s` goes to Servers.
  */
 export const sections = [
   {
@@ -17,7 +24,8 @@ export const sections = [
     component: HomeView,
     title: 'Home',
     icon: 'Home',
-    accelerator: 'CmdOrCtrl+1',
+    accelerator: 'CmdOrCtrl+Shift+H',
+    key: 'h',
     summary: 'Everything the launcher can do, one click away.'
   },
   {
@@ -26,7 +34,8 @@ export const sections = [
     component: ServersView,
     title: 'Servers',
     icon: 'Server',
-    accelerator: 'CmdOrCtrl+2',
+    accelerator: 'CmdOrCtrl+Shift+S',
+    key: 's',
     summary: 'Start a report server here or on another machine, or register one you reach.'
   },
   {
@@ -35,7 +44,8 @@ export const sections = [
     component: ProcessesView,
     title: 'Running',
     icon: 'Activity',
-    accelerator: 'CmdOrCtrl+3',
+    accelerator: 'CmdOrCtrl+Shift+R',
+    key: 'r',
     summary: 'Follow the output of everything the launcher started, stop it or start it again.'
   },
   {
@@ -44,7 +54,8 @@ export const sections = [
     component: NotebooksView,
     title: 'Notebooks',
     icon: 'BookOpen',
-    accelerator: 'CmdOrCtrl+4',
+    accelerator: 'CmdOrCtrl+Shift+B',
+    key: 'b',
     summary: 'Open a JupyterLab or Marimo session here, over SSH or through a SLURM partition.'
   },
   {
@@ -53,8 +64,19 @@ export const sections = [
     component: SettingsView,
     title: 'Configuration',
     icon: 'Settings',
-    accelerator: 'CmdOrCtrl+5',
+    accelerator: 'CmdOrCtrl+Comma',
+    key: 'c',
     summary: 'Which qibocal-report the launcher drives, and the configuration it shares with it.'
+  },
+  {
+    name: 'help',
+    path: '/help',
+    component: HelpView,
+    title: 'Help',
+    icon: 'HelpCircle',
+    accelerator: 'F1',
+    key: '?',
+    summary: 'How the launcher works, section by section, and every keyboard shortcut.'
   }
 ]
 

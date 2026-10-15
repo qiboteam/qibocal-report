@@ -82,17 +82,19 @@
                   </div>
                 </nav>
               </Transition>
+              <!-- The button names the mode it switches to, and shows it. -->
               <button
                 type="button"
                 @click="toggleSlideshow"
-                title="Slideshow"
-                aria-label="Slideshow"
+                :title="slideshow ? 'Continuous' : 'Slideshow'"
+                :aria-label="slideshow ? 'Continuous' : 'Slideshow'"
                 :aria-pressed="slideshow"
                 :aria-expanded="slideshow"
                 :aria-controls="slideshow ? 'slideshow-navigation' : undefined"
                 class="relative px-3 py-1.5 rounded-xl bg-white hover:bg-gray-50 text-[#833dff] shrink-0 cursor-pointer"
               >
-                <GalleryHorizontalEnd aria-hidden="true" class="w-4 h-4" />
+                <GalleryVertical v-if="slideshow" aria-hidden="true" class="w-4 h-4" />
+                <GalleryHorizontalEnd v-else aria-hidden="true" class="w-4 h-4" />
               </button>
             </div>
             <div class="inline-flex items-stretch gap-0.5 text-gray-700">
@@ -243,7 +245,7 @@ import { desktopWidget } from '../utils/desktop.js'
 
 /** The launcher's bell, when this page is inside it. */
 const desktopBell = desktopWidget('bell')
-import { GalleryHorizontalEnd, ChevronLeft, ChevronRight, Home } from 'lucide-vue-next'
+import { GalleryHorizontalEnd, GalleryVertical, ChevronLeft, ChevronRight, Home } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canEdit, canManageQibocal } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'

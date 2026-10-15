@@ -1,7 +1,8 @@
 import { computed, nextTick, ref, watch } from 'vue'
 
 export function useReportSlideshow({ protocols, live, context, container }) {
-  const slideshow = ref(false)
+  // One protocol at a time is the default; the whole report scrolls on request.
+  const slideshow = ref(true)
   const selectedId = ref(null)
   const slideIndex = computed(() => {
     const index = protocols().findIndex(protocol => protocol.id === selectedId.value)

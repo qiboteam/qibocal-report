@@ -5,8 +5,9 @@
       <!-- Top Utility Nav: Documentation, Dashboard (if auth), and Server Admin (if admin) -->
       <div class="flex items-center justify-between pb-6 mb-6 border-b border-gray-200/60">
         <div>
+          <!-- Inside the launcher, the logo sits exactly here: the dashboard is one Go-menu item away. -->
           <router-link
-            v-if="canAccessDashboard"
+            v-if="canAccessDashboard && !desktop"
             to="/dashboard"
             class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 transition"
           >

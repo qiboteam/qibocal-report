@@ -42,15 +42,38 @@ Maintainers who do hold the credentials only have to set the repository secrets 
 
 ## 🏠 Sections
 
-The home page opens onto every section, and each of them is one jump away — from its card, or from the **Go** system menu with its keyboard shortcuts.
+The home page opens onto every section, and each of them is one jump away — from its card, from the **Go** system menu with its keyboard shortcuts, or from the keyboard alone.
 
-- **Dashboard** (`Cmd/Ctrl+D`): the complete report browser, with the servers the launcher knows already connected.
-- **Servers** (`Cmd/Ctrl+2`): one form for a new server, wherever it runs — here, on another machine, or already reachable — and the registered ones with their invitations.
-- **Running** (`Cmd/Ctrl+3`): the live output of everything the launcher started, with graceful stop.
-- **Notebooks** (`Cmd/Ctrl+4`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
-- **Configuration** (`Cmd/Ctrl+5`): install or update Qibocal, and edit the files shared with the command line.
+- **Dashboard** (`Cmd/Ctrl+D`, or `g d`): the complete report browser, with the servers the launcher knows already connected.
+- **Servers** (`Cmd/Ctrl+Shift+S`, or `g s`): one form for a new server, wherever it runs — here, on another machine, or already reachable — and the registered ones with their invitations.
+- **Running** (`Cmd/Ctrl+Shift+R`, or `g r`): the live output of everything the launcher started, with graceful stop.
+- **Notebooks** (`Cmd/Ctrl+Shift+B`, or `g b`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
+- **Configuration** (`Cmd/Ctrl+,`, or `g c`): install or update Qibocal, and edit the files shared with the command line.
+- **Help** (`F1`): this guide, inside the application, and every keyboard shortcut.
 
-The header carries no navigation of its own: the logo in the top-left corner returns to the home page, and everything else — the dashboard included — is in the **Go** menu, which works from the dashboard too. Whatever the launcher has to say — a server starting, a link copied, something that failed — is said in the status bar along the bottom edge, which blends into the page: the latest message appears in the bottom-right corner and fades by itself, and the counter next to it opens the list of everything said; an entry about a section is itself the way there, a click anywhere on its text, and the cross archives it. The bubble shows the five most recent of the last day, with their time; its title, and the *more…* row when there are more, open the **Notifications** page, where everything is kept — grouped by the section it is about, as GitHub groups its notifications by repository, each entry dated by its distance from now — and where every entry, or a whole group, can be marked done — put away without being lost — brought back, or deleted. A click anywhere else closes the bubble. Nothing pops up over the page. The bottom-left corner names the `qibocal-report` the launcher drives, with its version and, for its own installation, the commit or release it holds, behind a dot that is green when the command line is there, amber while it is being installed, red while it is missing; it leads to **Configuration**. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
+### Keyboard
+
+The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the list over any page — the launcher's and the dashboard's alike. Letters work anywhere but in a text field; the menu shortcuts, with their modifier, work everywhere.
+
+| Keys | What |
+| --- | --- |
+| `g h` | Home |
+| `g s` | Servers |
+| `g r` | Running |
+| `g b` | Notebooks |
+| `g c` | Configuration |
+| `g n` | Notifications |
+| `g d` | Dashboard |
+| `n` | New server: Servers, with the form open |
+| `?` | Show the keyboard shortcuts; `Esc` puts them away |
+| `Cmd/Ctrl+Shift+H` | Home, from the Go menu |
+| `Cmd/Ctrl+Shift+S`, `+R`, `+B` | Servers, Running, Notebooks, from the Go menu |
+| `Cmd/Ctrl+,` | Configuration, from the Go menu — where every application keeps its preferences |
+| `Cmd/Ctrl+D` | Dashboard, from the Go menu |
+| `Cmd/Ctrl+N` | Register a server, from the Servers menu |
+| `F1` | Help |
+
+The header carries no navigation of its own: the logo in the top-left corner returns to the home page, and everything else — the dashboard included — is in the **Go** menu, which works from the dashboard too. Whatever the launcher has to say — a server starting, a link copied, something that failed — is said in the status bar along the bottom edge, which blends into the page: the latest message appears in the bottom-right corner and fades by itself, and the counter next to it opens the list of everything said; an entry about a section is itself the way there, a click anywhere on its text, and the cross archives it; while an error sits in the list, the counter is red. The bubble shows the five most recent of the last day, with their time; its title, and the *more…* row when there are more, open the **Notifications** page, where everything is kept — grouped by the section it is about, as GitHub groups its notifications by repository, each entry dated by its distance from now — and where every entry, or a whole group, can be marked done — put away without being lost — brought back, or deleted. A click anywhere else closes the bubble. Nothing pops up over the page. The bottom-left corner names the `qibocal-report` the launcher drives, with its version and, for its own installation, the commit or release it holds, behind a dot that is green when the command line is there, amber while it is being installed, red while it is missing; it leads to **Configuration**. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
 
 ---
 

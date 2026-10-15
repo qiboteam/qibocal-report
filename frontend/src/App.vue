@@ -14,6 +14,7 @@
 import { onMounted, watch, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { state, fetchServers } from './store.js'
+import { announce } from './utils/desktop.js'
 import LoginModal from './components/modals/LoginModal.vue'
 import RegisterModal from './components/modals/RegisterModal.vue'
 import LoadingSpinner from './components/LoadingSpinner.vue'
@@ -35,6 +36,12 @@ router.beforeEach((to, from, next) => {
 router.afterEach(() => {
   // Hide spinner after navigation completes
   isNavigating.value = false
+})
+
+// Inside the launcher, an authentication failure is a notification like any
+// other — in the status bar, on the bell, red — not a banner of this page.
+watch(() => state.auth?.errorMessage, message => {
+  if (message && announce(message, 'error')) state.auth.errorMessage = ''
 })
 
 watch(

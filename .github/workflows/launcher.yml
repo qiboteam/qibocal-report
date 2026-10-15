@@ -44,7 +44,8 @@ jobs:
           - label: Linux
             os: ubuntu-22.04
             target: ""
-            bundles: deb,appimage
+            # Three packages from the one build; each goes up as an artifact of its own.
+            bundles: deb,rpm,appimage
           - label: Windows
             os: windows-latest
             target: ""
@@ -52,15 +53,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -223,10 +224,38 @@ jobs:
           ls -l artifacts
 
       - name: Publish the installers as artifacts
-        uses: actions/upload-artifact@v4
+        if: matrix.label != 'Linux'
+        uses: actions/upload-artifact@v6
         with:
           name: qibocal-launcher-${{ matrix.label }}
           path: artifacts/*
+          if-no-files-found: error
+
+      # Linux: one artifact per package format, so nobody downloads the
+      # AppImage — the runtime it bundles makes it twenty times the .deb —
+      # to get the one their distribution installs.
+      - name: Publish the Debian package
+        if: matrix.label == 'Linux'
+        uses: actions/upload-artifact@v6
+        with:
+          name: qibocal-launcher-Linux-deb
+          path: artifacts/*.deb
+          if-no-files-found: error
+
+      - name: Publish the RPM package
+        if: matrix.label == 'Linux'
+        uses: actions/upload-artifact@v6
+        with:
+          name: qibocal-launcher-Linux-rpm
+          path: artifacts/*.rpm
+          if-no-files-found: error
+
+      - name: Publish the AppImage
+        if: matrix.label == 'Linux'
+        uses: actions/upload-artifact@v6
+        with:
+          name: qibocal-launcher-Linux-appimage
+          path: artifacts/*.AppImage
           if-no-files-found: error
 
       - name: Attach the installers to the release

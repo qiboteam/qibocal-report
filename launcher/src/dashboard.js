@@ -15,6 +15,7 @@ import { desktop } from './bridge.js'
 import { launchKeys, serverUrl } from './lib/servers.js'
 import { installMenu } from './menu.js'
 import { sections } from './router.js'
+import { installShortcuts } from './shortcuts.js'
 import { fail, initialize, notify } from './state.js'
 
 import './styles.js'
@@ -84,6 +85,13 @@ async function servers() {
     return []
   }
 }
+
+// The same keys as on the launcher page; a section is the other page here.
+installShortcuts({
+  go: name => goTo(name),
+  dashboard: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
+  newServer: () => goTo('servers', '?new=1')
+})
 
 servers().then(registered =>
   installMenu({

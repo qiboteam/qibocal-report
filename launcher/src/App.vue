@@ -19,17 +19,20 @@
     </main>
 
     <status-bar />
+    <shortcuts-dialog />
     <closing-dialog />
   </div>
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue'
+import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ClosingDialog from './components/ClosingDialog.vue'
 import LauncherLogo from './components/LauncherLogo.vue'
+import ShortcutsDialog from './components/ShortcutsDialog.vue'
 import StatusBar from './components/StatusBar.vue'
 import { installMenu } from './menu.js'
+import { installShortcuts } from './shortcuts.js'
 import { state, fail, initialize, launchOptionsFor, openDashboard, startServer } from './state.js'
 
 const router = useRouter()
@@ -61,10 +64,19 @@ function refreshMenu() {
   })
 }
 
+let uninstallShortcuts = () => {}
+
 onMounted(async () => {
+  uninstallShortcuts = installShortcuts({
+    go: name => router.push({ name }),
+    dashboard: () => openDashboard(),
+    newServer: () => router.push({ name: 'servers', query: { new: '1' } })
+  })
   await initialize()
   refreshMenu()
 })
+
+onBeforeUnmount(() => uninstallShortcuts())
 
 watch(() => state.servers.map(server => `${server.id}:${server.name}`).join('|'), refreshMenu)
 </script>

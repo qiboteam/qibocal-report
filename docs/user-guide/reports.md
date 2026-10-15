@@ -18,9 +18,10 @@ The left-hand sidebar serves as a quick navigator across all executed routines i
 
 ## Slideshow
 
-The scrollable report remains the default. Toggle the **Slideshow** icon in the
-report action bar to show one slide at a time: the report overview followed by
-one slide per protocol. The overview includes clickable protocol thumbnails;
+One slide at a time is the default: the report overview followed by one slide
+per protocol. The toggle in the report action bar names the mode it switches
+to — **Continuous** while the slideshow is on, which scrolls the whole report,
+and **Slideshow** while it is off. The overview includes clickable protocol thumbnails;
 plots, status, and the thumbnail list update in Live mode.
 
 Use the previous/next buttons or **Left/Right** arrow keys to navigate. **Up**

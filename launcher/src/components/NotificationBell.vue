@@ -13,7 +13,7 @@
     <button
       v-if="inbox.length"
       type="button"
-      :class="[toolbar ? 'lx-bell' : 'lx-count', { 'is-open': open }]"
+      :class="[toolbar ? 'lx-bell' : 'lx-count', { 'is-open': open, 'is-error': troubled }]"
       :title="`${inbox.length} notification${inbox.length === 1 ? '' : 's'}`"
       :aria-expanded="open"
       @click="open = !open"
@@ -78,6 +78,8 @@ const now = ref(Date.now())
 
 /** The five most recent of the last day; the page has the rest. */
 const recent = computed(() => inbox.value.filter(entry => isRecent(entry.at, now.value)).slice(0, RECENT))
+/** Something in the inbox went wrong: the bell says so, in red, until it is archived. */
+const troubled = computed(() => inbox.value.some(entry => entry.kind === 'error'))
 
 function sectionTitle(link) {
   return sections.find(section => section.name === link?.name)?.title || 'the section'

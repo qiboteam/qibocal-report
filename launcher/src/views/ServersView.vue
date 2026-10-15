@@ -433,8 +433,15 @@ async function copy(text) {
   }
 }
 
-/** Jumping here from the system menu preselects the server to start. */
+/**
+ * Jumping here from the system menu preselects the server to start; from
+ * the `n` key, the form opens empty.
+ */
 function applyQuery() {
+  if (route.query.new) {
+    creating.value = true
+    return
+  }
   const server = state.servers.find(entry => entry.id === route.query.server)
   if (!server) return
   const remembered = recallLaunch(server.url)
@@ -451,5 +458,5 @@ onMounted(async () => {
   // The name is drawn once the list is known, so it does not repeat one.
   if (!form.name) form.name = freshName()
 })
-watch(() => route.query.server, applyQuery)
+watch(() => [route.query.server, route.query.new], applyQuery)
 </script>

@@ -30,7 +30,9 @@ export const state = reactive({
   /** How each process was started, by process id, so a run can be repeated. */
   launches: {},
   /** The processes the closing launcher waits for; null while it is not closing. */
-  closing: null
+  closing: null,
+  /** Whether the keyboard shortcuts are on screen, as GitHub shows them on `?`. */
+  cheatsheet: false
 })
 
 // What is said on one page is still there on the other.
