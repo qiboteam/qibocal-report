@@ -52,7 +52,7 @@ window.qibocalDesktop = {
   notify: (message, kind = 'info') => (kind === 'error' ? fail(message) : notify(message)),
   /** Launcher components the dashboard renders in its own toolbars. */
   widgets: { bell: markRaw(NotificationBell) },
-  /** The dashboard page on screen names itself, and its keys reach the cheatsheet. */
+  /** The dashboard page on screen hands over its keys — `{ title, entries }` — for the cheatsheet. */
   pageShortcuts: page => { state.pageShortcuts = page ? pageShortcuts(page) : null },
   /** The address of a launcher section, for a link out of the dashboard. */
   launcherUrl: name => {
@@ -93,7 +93,8 @@ async function servers() {
 installShortcuts({
   go: name => goTo(name),
   dashboard: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
-  newServer: () => goTo('servers', '?new=1')
+  newServer: () => goTo('servers', '?new=1'),
+  target: window
 })
 
 servers().then(registered =>

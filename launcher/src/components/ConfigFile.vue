@@ -7,7 +7,7 @@
   is not valid JSON and replaces the file in one step.
 -->
 <template>
-  <section class="bm-card overflow-hidden">
+  <section class="bm-card overflow-hidden" :class="{ 'lx-focus': focused }">
     <!--
       The whole header opens the file, the way an entry row opens an entry;
       the checkbox, for deletion, is the one spot that does not.
@@ -203,7 +203,9 @@ import {
 
 const props = defineProps({
   entry: { type: Object, required: true },
-  selected: { type: Boolean, default: false }
+  selected: { type: Boolean, default: false },
+  /** Under the keyboard's cursor: outlined, and Enter opens it. */
+  focused: { type: Boolean, default: false }
 })
 const emit = defineEmits(['toggle', 'saved'])
 
@@ -275,6 +277,7 @@ function toggleOpen() {
   open.value = !open.value
   if (open.value && value.value === null && !error.value) load()
 }
+defineExpose({ toggleOpen })
 
 function toggleRaw() {
   if (raw.value) {

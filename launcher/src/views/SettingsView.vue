@@ -188,8 +188,10 @@
       <config-file
         v-for="entry in readable"
         :key="entry.name"
+        :ref="element => (files[entry.name] = element)"
         :entry="entry"
         :selected="chosen.includes(entry.name)"
+        :focused="focused(walked.indexOf(entry))"
         @toggle="toggle"
         @saved="reload"
       />
@@ -209,8 +211,10 @@
       <config-file
         v-for="entry in unknown"
         :key="entry.name"
+        :ref="element => (files[entry.name] = element)"
         :entry="entry"
         :selected="chosen.includes(entry.name)"
+        :focused="focused(walked.indexOf(entry))"
         @toggle="toggle"
         @saved="reload"
       />
@@ -251,6 +255,7 @@ import {
 } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import ConfigFile from '../components/ConfigFile.vue'
+import { usePageKeys } from '../composables/pageKeys.js'
 import FormField from '../components/FormField.vue'
 import InfoTip from '../components/InfoTip.vue'
 import { chooseDirectory, chooseFile, desktop, openExternal, revealInFileManager } from '../bridge.js'
@@ -289,6 +294,17 @@ const preferredExecutable = computed(() => state.preferences?.executable || null
 /** The files this version reads, and the ones of another format, listed apart. */
 const readable = computed(() => state.configEntries.filter(entry => entry.compatible !== false))
 const unknown = computed(() => state.configEntries.filter(entry => entry.compatible === false))
+
+/** The files as the keyboard walks them, and their editors, to open one. */
+const walked = computed(() => [...readable.value, ...unknown.value])
+const files = {}
+const { focused } = usePageKeys({
+  page: 'settings',
+  count: () => walked.value.length,
+  actions: {
+    Enter: index => files[walked.value[index]?.name]?.toggleOpen()
+  }
+})
 
 const sourceLabel = computed(() => ({
   managed: 'the launcher\'s own installation',

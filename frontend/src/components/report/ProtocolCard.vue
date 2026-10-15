@@ -2,6 +2,7 @@
   <div
     :id="`proto-${proto.id}`"
     class="bm-card p-6 border border-gray-100 page-break"
+    :class="{ 'outline outline-2 outline-offset-2 outline-[#833dff]/45': focused }"
   >
     <!-- Protocol Header -->
     <div class="flex items-center justify-between pb-3 border-b border-gray-100">
@@ -127,7 +128,9 @@ const emit = defineEmits(['update-notes'])
 const props = defineProps({
   proto: { type: Object, required: true },
   index: { type: Number, required: true },
-  reportId: { type: String, default: null }
+  reportId: { type: String, default: null },
+  /** Under the keyboard's cursor, in the continuous view: outlined. */
+  focused: { type: Boolean, default: false }
 })
 
 const docUrl = computed(() => {

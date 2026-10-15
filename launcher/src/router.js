@@ -74,7 +74,7 @@ export const sections = [
     component: HelpView,
     title: 'Help',
     icon: 'HelpCircle',
-    accelerator: 'F1',
+    accelerator: 'CmdOrCtrl+Slash',
     key: '?',
     summary: 'How the launcher works, section by section, and every keyboard shortcut.'
   }

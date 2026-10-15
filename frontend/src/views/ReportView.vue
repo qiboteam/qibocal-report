@@ -229,6 +229,7 @@
             :proto="proto"
             :index="idx"
             :report-id="reportId"
+            :focused="cursorShown && !slideshow && selectedId === proto.id"
             @update-notes="proto.notes = $event"
             :class="{ 'slide-hidden': slideshow && selectedId !== proto.id }"
           />
@@ -247,6 +248,9 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { desktopWidget, publishPage } from '../utils/desktop.js'
+import { isPlainKey, isTypingTarget } from '../utils/shortcuts.js'
+import { downloadApiFile, getReportDownloadFilename } from '../utils/apiFiles.js'
+import { getProtocolDocUrl } from '../utils/protocolDocs.js'
 
 /** The launcher's bell, when this page is inside it. */
 const desktopBell = desktopWidget('bell')
@@ -351,8 +355,22 @@ watch(
   { flush: 'sync' }
 )
 
-function scrollToProtocol(protoId) {
-  if (!protoId) return
+/**
+ * Scroll the report panel — and the panel alone — to an element. The
+ * element's own `scrollIntoView` would scroll every ancestor, the window
+ * included, which is what moved the whole page when the view switched.
+ */
+function scrollPanelTo(element, smooth = true) {
+  const panel = reportPanel.value
+  if (!panel) return
+  const top = element
+    ? element.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop
+    : 0
+  panel.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' })
+}
+
+function protocolElement(protoId) {
+  if (!protoId) return null
   const cleanId = String(protoId).toLowerCase().trim()
   let el = document.getElementById(`proto-${protoId}`) || document.getElementById(`proto-${cleanId}`)
   if (!el && protocols.value?.length) {
@@ -363,22 +381,27 @@ function scrollToProtocol(protoId) {
       el = document.getElementById(`proto-${matched.id}`)
     }
   }
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth' })
-  }
+  return el
 }
 
-function navigateToProtocol(id) {
+function scrollToProtocol(protoId, smooth = true) {
+  const el = protocolElement(protoId)
+  if (el) scrollPanelTo(el, smooth)
+}
+
+function navigateToProtocol(id, smooth = true) {
   selectSlide(id)
   if (!slideshow.value) {
-    if (id === null) {
-      document.getElementById('report-overview')?.scrollIntoView({ behavior: 'smooth' })
-    } else {
-      scrollToProtocol(id)
-    }
+    if (id === null) scrollPanelTo(null, smooth)
+    else scrollToProtocol(id, smooth)
   }
 }
 
+/**
+ * Switch the view, keeping the place: the protocol on screen becomes the
+ * slide, and the slide becomes the card the panel opens on — placed at
+ * once, before the eye can see it move.
+ */
 async function toggleSlideshow() {
   if (!slideshow.value) {
     const panel = reportPanel.value
@@ -394,7 +417,89 @@ async function toggleSlideshow() {
   slideshow.value = !slideshow.value
   await nextTick()
   if (slideshow.value) reportPanel.value.scrollTop = 0
-  else navigateToProtocol(selectedId.value)
+  else navigateToProtocol(selectedId.value, false)
+}
+
+// --- The keys of this page -----------------------------------------------------
+
+/** Whether the keyboard's cursor is drawn: after a key, until a click or Escape. */
+const cursorShown = ref(false)
+
+/** The protocol under the cursor; null for the header. */
+function currentProtocol() {
+  return protocols.value.find(proto => proto.id === selectedId.value) || null
+}
+
+/** Step to the next or previous protocol: the slide, or the card. */
+function stepProtocol(delta) {
+  if (slideshow.value) {
+    moveSlide(delta)
+    return
+  }
+  const list = protocols.value
+  if (!list.length) return
+  const index = list.findIndex(proto => proto.id === selectedId.value)
+  const next = index < 0 ? (delta > 0 ? 0 : list.length - 1) : Math.max(-1, Math.min(list.length - 1, index + delta))
+  cursorShown.value = true
+  navigateToProtocol(next < 0 ? null : list[next].id)
+}
+
+/** The comments of what is under the cursor: the protocol's, or the session's. */
+function toggleComments() {
+  const proto = currentProtocol()
+  const scope = proto ? protocolElement(proto.id) : document.getElementById('report-overview')
+  const panel = scope?.querySelector('details')
+  if (!panel) return
+  panel.open = !panel.open
+  if (panel.open) panel.querySelector('summary')?.focus?.()
+}
+
+function onReportKeys(event) {
+  if (!isPlainKey(event) || isTypingTarget(event) || event.shiftKey) return
+  if (event.target?.closest?.('.js-plotly-plot, [role="dialog"], .fixed')) return
+  if (loading.value || error.value || !report.value || showDocsModal.value) return
+  const proto = currentProtocol()
+  switch (event.key) {
+    case 'b': goBackToSearch(); break
+    case 'v': toggleSlideshow(); break
+    case 'j': case 'l': stepProtocol(1); break
+    case 'k': case 'h': stepProtocol(-1); break
+    case 'd': {
+      const url = proto
+        ? getProtocolDocUrl(proto.id, proto.name, state.activeServer)
+        : 'https://qibo.science/qibocal/stable/protocols/'
+      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+      break
+    }
+    case 'x': {
+      if (!proto || !reportId.value) return
+      const encRepId = encodeURIComponent(reportId.value)
+      const encProtoId = encodeURIComponent(proto.id)
+      downloadApiFile(
+        `/api/reports/${encRepId}/download/data/${encProtoId}`,
+        getReportDownloadFilename(reportId.value, `_${proto.id.replaceAll(':', '-')}`)
+      )
+      break
+    }
+    case 'c': toggleComments(); break
+    case 'n': router.push({ name: 'platform', params: { id: reportId.value }, query: { type: 'new' } }); break
+    case 'o': router.push({ name: 'platform', params: { id: reportId.value }, query: { type: 'old' } }); break
+    case 'w':
+      if (!canEdit.value || regenerating.value) return
+      toggleLive()
+      break
+    case 'Escape':
+      if (!cursorShown.value) return
+      cursorShown.value = false
+      break
+    default:
+      return
+  }
+  event.preventDefault()
+}
+
+function hideCursor() {
+  cursorShown.value = false
 }
 
 watch([slideshow, selectedId], async () => {
@@ -404,6 +509,7 @@ watch([slideshow, selectedId], async () => {
 
 function onKeydown(event) {
   if (!loading.value && !error.value && report.value && !showDocsModal.value) handleKeydown(event)
+  if (!event.defaultPrevented) onReportKeys(event)
 }
 
 async function handlePrintPDF() {
@@ -413,14 +519,16 @@ async function handlePrintPDF() {
 }
 
 onMounted(async () => {
-  window.addEventListener('keydown', onKeydown)
+  document.addEventListener('keydown', onKeydown)
+  document.addEventListener('pointerdown', hideCursor)
   publishPage('report')
   await ensureServersLoaded()
   await loadReportData()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('pointerdown', hideCursor)
   publishPage(null)
 })
 

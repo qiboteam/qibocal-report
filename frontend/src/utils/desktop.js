@@ -8,6 +8,7 @@
  * on the web.
  */
 import { markRaw } from 'vue'
+import { currentPage, pageShortcuts } from './shortcuts.js'
 
 function desktop() {
   return typeof window !== 'undefined' ? window.qibocalDesktop : null
@@ -36,13 +37,19 @@ export function announce(message, kind = 'info') {
  * the keys of that page; null when leaving. Nothing in a browser.
  */
 export function publishPage(page) {
+  currentPage.value = page
   const host = desktop()
   if (typeof host?.pageShortcuts !== 'function') return
   try {
-    host.pageShortcuts(page)
+    host.pageShortcuts(page ? pageShortcuts(page) : null)
   } catch {
     // The cheatsheet is the launcher's concern, not this page's.
   }
+}
+
+/** Whether the dashboard is embedded in the desktop launcher. */
+export function inDesktop() {
+  return Boolean(desktop())
 }
 
 /** A launcher component to render in a toolbar — the bell — or nothing. */

@@ -10,11 +10,11 @@
     </div>
 
     <!-- One size for every card: the grid stretches them, the descriptions are of a length. -->
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
+    <div ref="grid" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
       <button
         type="button"
         class="bm-card text-left p-5 flex items-start gap-3.5 hover:-translate-y-px transition min-h-[6.5rem]"
-        :class="{ 'lx-focus': focused(0) }"
+        :class="{ 'lx-focus': cursor === 0 }"
         @click="openDashboard()"
       >
         <span class="w-9 h-9 rounded-xl bg-[#833dff] text-white inline-flex items-center justify-center shrink-0">
@@ -33,7 +33,7 @@
         :key="section.name"
         :to="section.path"
         class="bm-card p-5 flex items-start gap-3.5 hover:-translate-y-px transition min-h-[6.5rem]"
-        :class="{ 'lx-focus': focused(index + 1) }"
+        :class="{ 'lx-focus': cursor === index + 1 }"
       >
         <span class="w-9 h-9 rounded-xl bg-[#ebe0ff] text-[#3b107e] inline-flex items-center justify-center shrink-0">
           <component :is="sectionIcons[section.icon]" class="w-4.5 h-4.5" />
@@ -53,7 +53,8 @@
     <!--
       What runs right now, in a line each: the way to its card in Running,
       and the way to where it is used — the dashboard for a server, the
-      browser for a notebook, Configuration for an installation.
+      browser for a notebook, Configuration for an installation. On the
+      keyboard, the lines come below the last row of cards.
     -->
     <section class="mt-8">
       <div class="flex items-center gap-2 px-1 mb-2">
@@ -62,7 +63,12 @@
       </div>
       <p v-if="!live.length" class="px-1 text-xs text-gray-400">Nothing is running.</p>
       <div v-else class="bm-card divide-y divide-gray-100">
-        <div v-for="process in live" :key="process.id" class="flex items-center gap-3 px-4 py-2.5">
+        <div
+          v-for="(process, index) in live"
+          :key="process.id"
+          class="flex items-center gap-3 px-4 py-2.5 first:rounded-t-xl last:rounded-b-xl"
+          :class="{ 'lx-focus': cursor === cards + index }"
+        >
           <span class="lx-dot" :class="process.status === 'running' ? 'bg-emerald-500' : 'bg-amber-500'" />
           <span class="min-w-0 flex-1">
             <span class="block text-xs font-medium text-gray-900 truncate">
@@ -111,20 +117,23 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Activity, ExternalLink, LayoutDashboard, Settings } from 'lucide-vue-next'
 import { sections } from '../router.js'
 import { sectionIcons } from '../icons.js'
 import { openExternal } from '../bridge.js'
 import { state, openDashboard } from '../state.js'
-import { usePageKeys } from '../composables/pageKeys.js'
+import { registerPageKeys } from '../shortcuts.js'
+import { pageShortcuts } from '../pagekeys.js'
 
 const router = useRouter()
 
 /** The cards, in the order of use: what runs, then what to start. */
 const ORDER = ['processes', 'servers', 'notebooks', 'settings', 'help']
 const others = ORDER.map(name => sections.find(section => section.name === name)).filter(Boolean)
+/** How many cards there are: the dashboard, then the sections. */
+const cards = others.length + 1
 
 const running = computed(() => state.processes.filter(process => process.status === 'running').length)
 const connections = computed(() => Object.keys(state.notebooks || {}).length)
@@ -143,12 +152,102 @@ function kindLabel(process) {
   return process.kind
 }
 
-// The keyboard walks the cards: the dashboard first, then the sections.
-const { focused } = usePageKeys({
-  page: 'home',
-  count: () => others.length + 1,
-  actions: {
-    Enter: index => (index === 0 ? openDashboard() : router.push(others[index - 1].path))
+// --- The keyboard: the cards as the grid they are, the lines below them -----
+
+const grid = ref(null)
+/** The card or line under the cursor, counting cards first; -1 for none. */
+const cursor = ref(-1)
+
+/** How many cards share a row: read off the page, since the grid reflows with the window. */
+function columns() {
+  const children = [...(grid.value?.children || [])]
+  if (!children.length) return 1
+  const top = children[0].offsetTop
+  return Math.max(1, children.filter(child => child.offsetTop === top).length)
+}
+
+function total() {
+  return cards + live.value.length
+}
+
+/**
+ * Move in a direction. Within the cards, `h` and `l` step along the row
+ * and `j` and `k` by a row; from the last row, `j` reaches the first line
+ * of what runs, and the lines are walked one by one.
+ */
+function move(key) {
+  const count = total()
+  if (!count) return false
+  const width = columns()
+  let next = cursor.value
+  if (next < 0) {
+    next = key === 'k' || key === 'h' ? count - 1 : 0
+  } else if (next < cards) {
+    const row = Math.floor(next / width)
+    const column = next % width
+    if (key === 'h') next = Math.max(row * width, next - 1)
+    else if (key === 'l') next = Math.min(cards - 1, row * width + Math.min(width - 1, column + 1))
+    else if (key === 'k') next = row === 0 ? next : next - width
+    else if (key === 'j') {
+      const below = next + width
+      next = below < cards ? below : (live.value.length ? cards : next)
+    }
+  } else {
+    if (key === 'j') next = Math.min(count - 1, next + 1)
+    else if (key === 'k') next = next - 1 >= cards ? next - 1 : Math.max(0, cards - width)
   }
+  cursor.value = next
+  nextTick(() => document.querySelector('.lx-focus')?.scrollIntoView({ block: 'nearest' }))
+  return true
+}
+
+/** What the cursor is on: open it, as a click would. */
+function activate() {
+  const index = cursor.value
+  if (index < 0) return false
+  if (index === 0) openDashboard()
+  else if (index < cards) router.push(others[index - 1].path)
+  else {
+    const process = live.value[index - cards]
+    if (process) router.push({ name: 'processes', query: { process: process.id } })
+  }
+  return true
+}
+
+/** Where what runs is used: the dashboard, the browser, Configuration. */
+function consume() {
+  const process = live.value[cursor.value - cards]
+  if (!process) return false
+  if (process.kind === 'server' && process.url) openDashboard(process.url)
+  else if (process.kind === 'notebook' && process.url) openExternal(process.url)
+  else if (process.kind === 'setup') router.push('/settings')
+  else return false
+  return true
+}
+
+function handle(event) {
+  switch (event.key) {
+    case 'h': case 'j': case 'k': case 'l': return move(event.key)
+    case 'Enter': return activate()
+    case 'o': return consume()
+    case 'Escape':
+      if (cursor.value < 0) return false
+      cursor.value = -1
+      return true
+    default: return false
+  }
+}
+
+let unregister = null
+onMounted(() => {
+  unregister = registerPageKeys(handle)
+  state.pageShortcuts = pageShortcuts('home')
+})
+onBeforeUnmount(() => {
+  unregister?.()
+  if (state.pageShortcuts?.title === 'Home') state.pageShortcuts = null
+})
+watch(total, count => {
+  if (cursor.value >= count) cursor.value = count - 1
 })
 </script>

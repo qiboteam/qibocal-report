@@ -51,6 +51,7 @@ export function describeKeys(keys, platform = typeof navigator === 'undefined' ?
       if (part === 'CmdOrCtrl') return mac ? '⌘' : 'Ctrl'
       if (part === 'Shift') return mac ? '⇧' : 'Shift'
       if (part === 'Comma') return ','
+      if (part === 'Slash') return '/'
       return part
     })
   })
@@ -67,10 +68,12 @@ function typing(event) {
  * Listen for the shortcuts; the handlers say what each does here.
  *
  * `go(name)` reaches a section, `dashboard()` opens the dashboard,
- * `newServer()` opens the Servers form. Answers the function that stops
- * listening.
+ * `newServer()` opens the Servers form. `target` is where to listen: the
+ * document on the launcher page; the window on the dashboard page, so the
+ * dashboard's own keys — bound on the document — are heard first, and what
+ * they take never reaches here. Answers the function that stops listening.
  */
-export function installShortcuts({ go, dashboard, newServer }) {
+export function installShortcuts({ go, dashboard, newServer, target = document }) {
   let pending = null
   let timer = null
 
@@ -80,7 +83,12 @@ export function installShortcuts({ go, dashboard, newServer }) {
   }
 
   function onKeydown(event) {
-    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.defaultPrevented) {
+      // The page under us took it — the dashboard's own `g s`, say.
+      forget()
+      return
+    }
     if (typing(event)) return
 
     if (event.key === 'Escape') {
@@ -133,9 +141,9 @@ export function installShortcuts({ go, dashboard, newServer }) {
     }
   }
 
-  document.addEventListener('keydown', onKeydown)
+  target.addEventListener('keydown', onKeydown)
   return () => {
     forget()
-    document.removeEventListener('keydown', onKeydown)
+    target.removeEventListener('keydown', onKeydown)
   }
 }

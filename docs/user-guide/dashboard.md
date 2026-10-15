@@ -30,7 +30,7 @@ The dashboard provides rich search and faceted filtering:
 - **Tag / Label Filtering**: Filter reports by custom tags assigned to them.
 - **Active Filter Summary**: A clear banner summarizing all applied filters with one-click clear options.
 - **View menu**: One control in the top-right corner for the three ways of looking at the list — the statistics summary on or off, the order (newest or oldest first), and the layout (table or cards).
-- **Keyboard**: `/` jumps to the search, `j` and `k` walk the reports — the one under the cursor is marked — `Enter` opens it, and `Esc` leaves the search or the list. Nothing fires while typing.
+- **Keyboard**: `/` jumps to the search, `j` and `k` walk the reports — the one under the cursor is marked — `Enter` opens it, and `Esc` leaves the search or the list. Everywhere in the dashboard, `g s` goes to the report servers, `g l` to the report list of the active server, and `?` shows the keys of the page. Nothing fires while typing.
 
 ---
 

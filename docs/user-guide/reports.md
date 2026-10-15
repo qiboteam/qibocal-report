@@ -25,7 +25,14 @@ and **Slideshow** while it is off. The overview includes clickable protocol thum
 plots, status, and the thumbnail list update in Live mode.
 
 Use the previous/next buttons or **Left/Right** arrow keys to navigate. **Up**
-returns to the overview; **Down** jumps to the last protocol. Sidebar entries
+returns to the overview; **Down** jumps to the last protocol. In either view,
+`j`/`l` and `k`/`h` step to the next and previous protocol — the card under
+the cursor is outlined in the continuous view — `v` switches the view, `b`
+goes back to the search, `d` opens the documentation of the selected protocol,
+`x` downloads its data, `c` toggles its comments (the session's, from the
+header), `n` and `o` open the new and old platform pages, and `w` toggles the
+live mode. Plots are drawn as they come near the viewport, and the rest in the
+idle moments after, so a large report shows its first screen at once. Sidebar entries
 work in both expanded and collapsed mode. Arrow shortcuts do not intercept text
 editing, chart interactions, or modal controls.
 

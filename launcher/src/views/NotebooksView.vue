@@ -150,6 +150,7 @@ import PathPicker from '../components/PathPicker.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { desktop } from '../bridge.js'
 import { state, attempt, fail, notify, refreshNotebooks, startNotebook } from '../state.js'
+import { usePageKeys } from '../composables/pageKeys.js'
 import {
   NOTEBOOK_FIELDS,
   defaultNotebookOptions,

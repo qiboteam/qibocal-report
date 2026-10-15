@@ -24,6 +24,86 @@ const props = defineProps({
 const plotWrapper = ref(null)
 const plotContainer = ref(null)
 let isRendered = false
+
+/**
+ * Plots are drawn when they come near the viewport, and the rest one at a
+ * time in the idle moments after — so a large report shows its first
+ * screen at once, keeps animating while the others are prepared, and still
+ * has them ready when scrolled to. The queue is shared by every viewer on
+ * the page; what is near goes first.
+ */
+const NEAR = '1200px'
+const queue = {
+  near: new Set(),
+  later: new Set(),
+  draining: false
+}
+let lazyObserver = null
+function observer() {
+  if (lazyObserver || typeof IntersectionObserver === 'undefined') return lazyObserver
+  lazyObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      const viewer = entry.target.__viewer
+      if (!viewer) continue
+      if (entry.isIntersecting) {
+        queue.later.delete(viewer)
+        queue.near.add(viewer)
+      }
+    }
+    drain()
+  }, { rootMargin: NEAR })
+  return lazyObserver
+}
+function idle(callback) {
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(callback, { timeout: 500 })
+  else setTimeout(callback, 50)
+}
+async function drain() {
+  if (queue.draining) return
+  queue.draining = true
+  try {
+    while (queue.near.size || queue.later.size) {
+      const viewer = queue.near.values().next().value || queue.later.values().next().value
+      queue.near.delete(viewer)
+      queue.later.delete(viewer)
+      await viewer()
+      // Let the page breathe between plots: the ones near the viewport
+      // follow on the next frame, the others wait for an idle moment.
+      await new Promise(resolve => (queue.near.size ? requestAnimationFrame(resolve) : idle(resolve)))
+    }
+  } finally {
+    queue.draining = false
+  }
+}
+let plotRequest = null
+function schedulePlot() {
+  if (!plotRequest) {
+    plotRequest = async () => {
+      if (plotWrapper.value) await renderPlot()
+    }
+  }
+  const wrapper = plotWrapper.value
+  if (!wrapper) return
+  wrapper.__viewer = plotRequest
+  const io = observer()
+  if (!io) {
+    queue.near.add(plotRequest)
+    drain()
+    return
+  }
+  io.observe(wrapper)
+  queue.later.add(plotRequest)
+  drain()
+}
+function unschedulePlot() {
+  if (!plotRequest) return
+  queue.near.delete(plotRequest)
+  queue.later.delete(plotRequest)
+  if (plotWrapper.value) {
+    lazyObserver?.unobserve(plotWrapper.value)
+    delete plotWrapper.value.__viewer
+  }
+}
 let lastCopiedTime = 0
 let copyFeedbackTimer = null
 
@@ -202,30 +282,34 @@ let resizeTimer = null
 function handleResize() {
   if (resizeTimer) cancelAnimationFrame(resizeTimer)
   resizeTimer = requestAnimationFrame(() => {
-    if (plotContainer.value?.clientHeight > 0) {
-      if (isRendered) Plotly.Plots.resize(plotContainer.value)
-      else renderPlot()
-    }
+    // A plot not drawn yet is drawn when its turn comes, at its new size.
+    if (isRendered && plotContainer.value?.clientHeight > 0) Plotly.Plots.resize(plotContainer.value)
   })
 }
 
+/** Printing wants every plot, drawn or not, now. */
+function handlePrint() {
+  if (isRendered) handleResize()
+  else renderPlot()
+}
+
 onMounted(() => {
-  requestAnimationFrame(() => {
-    renderPlot()
-  })
+  schedulePlot()
   window.addEventListener('resize', handleResize)
-  window.addEventListener('beforeprint', handleResize)
+  window.addEventListener('beforeprint', handlePrint)
   window.addEventListener('afterprint', handleResize)
 })
 
 // Watch replacements from Live without traversing mutable Plotly figures.
 watch(() => [props.figure, props.figure?.id, props.figure?.title], () => {
-  renderPlot()
+  if (isRendered) renderPlot()
+  else schedulePlot()
 })
 
 onUnmounted(() => {
+  unschedulePlot()
   window.removeEventListener('resize', handleResize)
-  window.removeEventListener('beforeprint', handleResize)
+  window.removeEventListener('beforeprint', handlePrint)
   window.removeEventListener('afterprint', handleResize)
   if (resizeTimer) cancelAnimationFrame(resizeTimer)
   if (copyFeedbackTimer) clearTimeout(copyFeedbackTimer)

@@ -49,7 +49,7 @@ The home page opens onto every section — **Running** first, then what there is
 - **Running** (`Cmd/Ctrl+Shift+R`, or `g r`): the live output of everything the launcher started, with graceful stop.
 - **Notebooks** (`Cmd/Ctrl+Shift+B`, or `g b`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
 - **Configuration** (`Cmd/Ctrl+,`, or `g c`): install or update Qibocal, and edit the files shared with the command line.
-- **Help** (`F1`): this guide, inside the application, and every keyboard shortcut.
+- **Help** (`Cmd/Ctrl+/`): this guide, inside the application, and every keyboard shortcut.
 
 Under the cards, **Running now** names what is alive at the moment, in a line each: the server, session or installation, with the way to its card in **Running** and the way to where it is used — the dashboard for a server, the browser for a notebook, **Configuration** for an installation of `qibocal-report`.
 
@@ -73,19 +73,21 @@ The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the l
 | `Cmd/Ctrl+,` | Configuration, from the Go menu — where every application keeps its preferences |
 | `Cmd/Ctrl+D` | Dashboard, from the Go menu |
 | `Cmd/Ctrl+N` | Register a server, from the Servers menu |
-| `F1` | Help |
+| `Cmd/Ctrl+/` | Help |
 
-On each page, `j` and `k` walk its list — the entry under the cursor wears an outline — and a letter acts on that entry; `Esc` clears the cursor. The cheatsheet on `?` lists the keys of the page it is opened on, first.
+On each page, `j` and `k` walk its list — `h` and `l` too, where there is a side to move to — the entry under the cursor wears an outline, `Enter` does what a click does, and a letter acts on that entry; `Esc` clears the cursor. No key does anything that cannot be undone: a server is started, never forgotten, from the keyboard. The cheatsheet on `?` lists the keys of the page it is opened on, first.
 
 | Page | Keys |
 | --- | --- |
-| Home | `Enter` opens the card |
+| Home | `h`/`j`/`k`/`l` move over the cards as the grid they are, and below the last row over the lines of what runs; `Enter` opens the card, or the card in Running of what runs; `o` opens where what runs is used |
 | Servers | `Enter` or `s` opens the server in the dashboard while it runs, starts it otherwise; `e` edits it; `i` invites an administrator |
-| Running | `j`/`k` move the selection itself; `o` opens it — the dashboard for a server, the browser for a notebook; `x` stops it; `s` starts it again; `l` unfolds its latest run |
+| Running | `j`/`k` move the selection itself; `Enter` or `o` opens it — the dashboard for a server, the browser for a notebook; `x` stops it; `s` starts it again; `l` unfolds its latest run, `h` folds it |
 | Notebooks | `j`/`k` move the selection itself; `Enter` or `o` opens a session with the form as it is |
+| Configuration | `j`/`k` walk the files; `Enter` opens one, or closes it |
 | Notifications | `Enter` goes where it points; `e` marks it done, or brings it back; `x` deletes it |
+| Dashboard, everywhere | `g s` the report servers; `g l` the report list of the active server |
 | Dashboard, the report list | `/` to the search; `Enter` opens the report; `Esc` leaves the search, or the list |
-| Dashboard, a report | `←`/`→` previous and next slide, `↑` the overview, `↓` the last protocol |
+| Dashboard, a report | `b` back to the search; `v` slideshow or continuous; `j`/`l` and `k`/`h` next and previous protocol; `↑`/`↓` the overview and the last protocol in a slideshow; `d` its documentation; `x` its data; `c` its comments, or the session's; `n`/`o` the new and old platform pages; `w` the live mode |
 
 The header carries no navigation of its own: the logo in the top-left corner returns to the home page, and everything else — the dashboard included — is in the **Go** menu, which works from the dashboard too. Whatever the launcher has to say — a server starting, a link copied, something that failed — is said in the status bar along the bottom edge, which blends into the page: the latest message appears in the bottom-right corner and fades by itself, and the counter next to it opens the list of everything said; an entry about a section is itself the way there, a click anywhere on its text, and the cross archives it; while an error sits in the list, the counter is red. The bubble shows the five most recent of the last day, with their time; its title, and the *more…* row when there are more, open the **Notifications** page, where everything is kept — grouped by the section it is about, as GitHub groups its notifications by repository, each entry dated by its distance from now — and where every entry, or a whole group, can be marked done — put away without being lost — brought back, or deleted. A click anywhere else closes the bubble. Nothing pops up over the page. The bottom-left corner names the `qibocal-report` the launcher drives, with its version and, for its own installation, the commit or release it holds, behind a dot that is green when the command line is there, amber while it is being installed, red while it is missing; it leads to **Configuration**. The **Servers** system menu lists the registered instances: picking one starts it again with the options it was last started with.
 

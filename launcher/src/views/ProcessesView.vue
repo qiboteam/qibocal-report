@@ -182,8 +182,11 @@ function canRestart(process) {
 
 async function select(key) {
   selected.value = key
-  place(groups.value.findIndex(group => group.key === key))
 }
+
+// The keyboard's cursor is the selection, however it was made: the first
+// `j` then moves on from the selected card, not from the top.
+watch(selected, key => place(groups.value.findIndex(group => group.key === key)), { immediate: true })
 
 /** Open what a card stands for: the dashboard for a server, the browser for a notebook. */
 function open(group) {
@@ -199,6 +202,7 @@ const { place } = usePageKeys({
   count: () => groups.value.length,
   onCursor: index => { selected.value = groups.value[index]?.key || null },
   actions: {
+    Enter: index => open(groups.value[index]),
     o: index => open(groups.value[index]),
     x: index => {
       const latest = groups.value[index]?.latest
@@ -210,7 +214,11 @@ const { place } = usePageKeys({
     },
     l: index => {
       const latest = groups.value[index]?.latest
-      if (latest) openRuns[latest.id] = !openRuns[latest.id]
+      if (latest) openRuns[latest.id] = true
+    },
+    h: index => {
+      const latest = groups.value[index]?.latest
+      if (latest) openRuns[latest.id] = false
     }
   }
 })
