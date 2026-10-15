@@ -107,7 +107,7 @@ use relative paths from that root when running `qq upload` on the server.
 If a calibration routine needs to be re-plotted with updated fitting criteria or if cache invalidation is required:
 
 - Click the **Regenerate** button in the report header card.
-- The server purges the cached `report/` folder and re-runs evaluation routines.
+- The server purges the cached `report/` folder, bypasses any static `index.html`, and re-runs the evaluation routines with the installed Qibocal.
 - Updated plots and parameters are automatically refreshed in your browser without requiring a server restart.
 
 ### Live updates during calibration

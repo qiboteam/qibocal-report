@@ -174,6 +174,64 @@ def test_generator_modes():
         assert "Qibocal is not installed" in (err_protos[0].error or "")
 
 
+def test_html_report_rendering():
+    """Issue #24: a qibocal-generated index.html must be rendered as-is,
+    without re-plotting through the installed Qibocal."""
+    from unittest.mock import patch
+
+    from qibocal_report.generator import get_report_protocols, has_html_report
+
+    test_reports = get_report_root()
+    rep = test_reports / "10:50:56_[0]_resonator_punchout"
+    assert (rep / "index.html").is_file()
+    assert has_cached_report(rep) is False
+    assert has_html_report(rep) is True
+
+    protocols = get_report_protocols(rep)
+    assert [p.id for p in protocols] == ["resonator_punchout-0"]
+    proto = protocols[0]
+    assert proto.status == "success"
+    assert proto.error is None
+    assert proto.figures, "figures should be parsed from the static HTML"
+    assert proto.figures[0]["data"]
+    assert proto.html and "<table" in proto.html
+
+    # Parsed protocols must be cached for subsequent loads
+    assert has_cached_report(rep) is True
+    cached = load_cached_protocols(rep)
+    assert [p.id for p in cached] == ["resonator_punchout-0"]
+    assert cached[0].status == "success"
+    assert cached[0].figures
+
+    # The dashboard endpoint must serve the parsed report
+    client = TestClient(app)
+    r = client.get("/api/reports/10:50:56_[0]_resonator_punchout/protocols")
+    assert r.status_code == 200
+    body = r.json()
+    assert body[0]["status"] == "success"
+    assert body[0]["figures"]
+
+    # Without index.html and without a cache, get_report_protocols must fall
+    # back to Qibocal on-the-fly generation instead of the HTML path
+    empty = test_reports / "html_fallback_run"
+    shutil.copytree(
+        test_reports / "10:50:56_[0]_resonator_punchout",
+        empty,
+        dirs_exist_ok=True,
+    )
+    (empty / "index.html").unlink()
+    shutil.rmtree(empty / "report", ignore_errors=True)
+    assert has_html_report(empty) is False
+    assert has_cached_report(empty) is False
+    with patch(
+        "qibocal_report.generator._generate_qibocal_protocols",
+        return_value=(None, "Qibocal is not installed in the environment."),
+    ):
+        fallback = get_report_protocols(empty)
+    assert fallback[0].status == "error"
+    assert "Qibocal is not installed" in (fallback[0].error or "")
+
+
 def test_api_endpoints():
     client = TestClient(app)
 
@@ -221,7 +279,10 @@ def test_api_endpoints():
     r_qubit = client.get("/api/reports?qubit=3")
     assert r_qubit.status_code == 200
     assert len(r_qubit.json()) >= 1
-    assert all(3 in r["targets"] or "3" in [str(t) for t in r["targets"]] for r in r_qubit.json())
+    assert all(
+        3 in r["targets"] or "3" in [str(t) for t in r["targets"]]
+        for r in r_qubit.json()
+    )
 
     # Stats
     r = client.get("/api/reports/stats")
@@ -255,7 +316,9 @@ def test_api_endpoints():
         assert r_range.status_code == 200
         assert len(r_range.json()) == stats["total_reports"]
 
-        r_range_stats = client.get(f"/api/reports/stats?start_date={start_d}&end_date={end_d}")
+        r_range_stats = client.get(
+            f"/api/reports/stats?start_date={start_d}&end_date={end_d}"
+        )
         assert r_range_stats.status_code == 200
         assert r_range_stats.json()["total_reports"] == stats["total_reports"]
 
@@ -884,9 +947,12 @@ def test_server_discovery_beneath_ignored_ancestor(tmp_path, root_path):
 
     for name in (".hidden", ".cache", "build"):
         assert client.get(f"/api/reports/{name}/nested").status_code == 404
-        assert client.get(
-            "/api/server/directory/browse", params={"path": name}
-        ).status_code == 404
+        assert (
+            client.get(
+                "/api/server/directory/browse", params={"path": name}
+            ).status_code
+            == 404
+        )
 
     leaf_change = client.post("/api/server/directory", json={"path": report_id})
     assert leaf_change.status_code == 400
@@ -923,11 +989,8 @@ def test_archive_workflow(tmp_path):
         "report_ids": [report_1_id, report_2_id],
         "name": "Benchmark Qubits Archive",
         "description": "Weekly calibration benchmarks",
-        "filters": {
-            "tags": ["broken"],
-            "protocols": ["resonator_punchout"]
-        },
-        "remove_from_active": True
+        "filters": {"tags": ["broken"], "protocols": ["resonator_punchout"]},
+        "remove_from_active": True,
     }
     create_res = client.post("/api/archives", json=create_payload)
     assert create_res.status_code == 200
@@ -950,7 +1013,9 @@ def test_archive_workflow(tmp_path):
     assert report_1_id not in remaining_ids
     assert report_2_id not in remaining_ids
     # Ensure no archive directory was parsed as report
-    assert not any(".archive" in r["id"] or "archive" in r["id"].lower() for r in remaining_reports)
+    assert not any(
+        ".archive" in r["id"] or "archive" in r["id"].lower() for r in remaining_reports
+    )
 
     # 4. GET /api/archives lists the new archive
     list_res = client.get("/api/archives")
@@ -993,7 +1058,7 @@ def test_archive_workflow(tmp_path):
     # 8. PATCH /api/archives/{id}
     patch_res = client.patch(
         f"/api/archives/{archive_id}",
-        json={"name": "Updated Archive Title", "description": "New notes"}
+        json={"name": "Updated Archive Title", "description": "New notes"},
     )
     assert patch_res.status_code == 200
     patched_data = patch_res.json()
@@ -1003,7 +1068,7 @@ def test_archive_workflow(tmp_path):
     # 9. POST /api/archives/{id}/restore - restore only report_1_id first
     restore_part = client.post(
         f"/api/archives/{archive_id}/restore",
-        json={"report_ids": [report_1_id], "delete_after_restore": False}
+        json={"report_ids": [report_1_id], "delete_after_restore": False},
     )
     assert restore_part.status_code == 200
     part_json = restore_part.json()
@@ -1020,7 +1085,7 @@ def test_archive_workflow(tmp_path):
     # Restore the remaining report with delete_after_restore=True
     restore_all = client.post(
         f"/api/archives/{archive_id}/restore",
-        json={"report_ids": [report_2_id], "delete_after_restore": True}
+        json={"report_ids": [report_2_id], "delete_after_restore": True},
     )
     assert restore_all.status_code == 200
     all_json = restore_all.json()
@@ -1046,7 +1111,11 @@ def test_archive_workflow(tmp_path):
     # 11. Create archive with delete and then DELETE endpoint
     c_res2 = client.post(
         "/api/archives",
-        json={"report_ids": [report_1_id], "name": "Temp Archive", "remove_from_active": False}
+        json={
+            "report_ids": [report_1_id],
+            "name": "Temp Archive",
+            "remove_from_active": False,
+        },
     )
     assert c_res2.status_code == 200
     arc2_id = c_res2.json()["id"]
@@ -1059,12 +1128,12 @@ def test_protocol_execution_order_sorting(tmp_path: Path):
     """Test protocol execution order sorting in report view (Issue #3)."""
     from qibocal_report.generator import (
         get_execution_order,
-        load_cached_protocols,
         get_report_protocols,
+        load_cached_protocols,
         sort_protocols_by_execution_order,
     )
-    from qibocal_report.scanner import get_report_detail
     from qibocal_report.models import ProtocolDetail
+    from qibocal_report.scanner import get_report_detail
 
     # 1. Test real sample data with 9 routines
     sample_dir = Path("sample_data/21:47:29_[3]_pi-pulse")
@@ -1131,7 +1200,11 @@ def test_protocol_execution_order_sorting(tmp_path: Path):
         ProtocolDetail(id="routine_omega-0", name="Omega", category="calibration"),
     ]
     sorted_res = sort_protocols_by_execution_order(unsorted, test_dir_meta)
-    assert [p.id for p in sorted_res] == ["routine_omega-0", "routine_alpha-0", "routine_beta-0"]
+    assert [p.id for p in sorted_res] == [
+        "routine_omega-0",
+        "routine_alpha-0",
+        "routine_beta-0",
+    ]
 
     # 3. Test authoritative source precedence (history.json over meta.json)
     test_dir_both = tmp_path / "test_authoritative"
@@ -1151,4 +1224,8 @@ def test_protocol_execution_order_sorting(tmp_path: Path):
         ProtocolDetail(id="routine_alpha", name="Alpha", category="calibration"),
     ]
     flex_sorted = sort_protocols_by_execution_order(flex_protos, test_dir_meta)
-    assert [p.id for p in flex_sorted] == ["routine_omega_0", "routine_alpha", "routine_unlisted"]
+    assert [p.id for p in flex_sorted] == [
+        "routine_omega_0",
+        "routine_alpha",
+        "routine_unlisted",
+    ]

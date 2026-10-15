@@ -1,6 +1,7 @@
 """Report generation and caching logic for qibocal-report (Issue #10)."""
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -71,6 +72,11 @@ def has_cached_report(report_dir: Path) -> bool:
     return any(not path.name.startswith(".") for path in report_path.glob("*.json"))
 
 
+def has_html_report(report_dir: Path) -> bool:
+    """Check whether qibocal already generated the static report HTML (Issue #24)."""
+    return (report_dir / "index.html").is_file()
+
+
 def format_execution_time(seconds: float | None) -> str:
     """Format execution duration in seconds to a human-readable string."""
     if seconds is None:
@@ -136,9 +142,7 @@ def get_execution_order(report_dir: Path) -> list[str]:
                             order.append(item.strip())
                         elif isinstance(item, dict):
                             t_id = (
-                                item.get("id")
-                                or item.get("task")
-                                or item.get("name")
+                                item.get("id") or item.get("task") or item.get("name")
                             )
                             if t_id:
                                 order.append(str(t_id).strip())
@@ -302,7 +306,9 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
     # Otherwise read all *.json files except meta.json and history.json
     for json_file in report_path.glob("*.json"):
         if json_file.name.startswith(".") or json_file.name in (
-            "meta.json", "history.json", "notes.json"
+            "meta.json",
+            "history.json",
+            "notes.json",
         ):
             continue
         try:
@@ -328,6 +334,177 @@ def load_cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
     return attach_protocol_notes(report_dir, protocols)
 
 
+# A protocol block opens with an <h4> header, a target block with an <h5> header.
+_HTML_ACTION_RE = re.compile(r'<div\s+id="[^"]+"[^>]*>\s*<h4\b')
+_HTML_TARGET_RE = re.compile(r'<div\s+id="([^"]+)"[^>]*>\s*<h5\b')
+_HTML_TABLE_RE = re.compile(r"<table\b.*?</table>", re.DOTALL)
+_HTML_PLOTLY_RE = re.compile(r'Plotly\.newPlot\s*\(\s*"[^"]*"\s*,\s*')
+
+
+def _extract_balanced_value(text: str, start: int) -> str | None:
+    """Return the balanced JSON-like value starting at ``text[start]``."""
+    if start >= len(text) or text[start] not in "[{":
+        return None
+    depth = 0
+    in_str = False
+    escaped = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_str:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch in "[{":
+            depth += 1
+        elif ch in "]}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
+
+
+def _parse_plotly_figures(segment: str) -> list[dict]:
+    """Extract plotly figure payloads embedded by ``figure.write_html``."""
+    figures: list[dict] = []
+    for match in _HTML_PLOTLY_RE.finditer(segment):
+        start = match.end()
+        data_raw = _extract_balanced_value(segment, start)
+        if not data_raw:
+            continue
+        try:
+            data = json.loads(data_raw, parse_constant=lambda _c: None)
+        except ValueError:
+            continue
+        rest = start + len(data_raw)
+        while rest < len(segment) and segment[rest].isspace():
+            rest += 1
+        if rest >= len(segment) or segment[rest] != ",":
+            continue
+        rest += 1
+        while rest < len(segment) and segment[rest].isspace():
+            rest += 1
+        layout_raw = _extract_balanced_value(segment, rest)
+        layout: dict = {}
+        if layout_raw:
+            try:
+                layout = json.loads(layout_raw, parse_constant=lambda _c: None)
+            except ValueError:
+                layout = {}
+        figures.append({"data": data, "layout": layout})
+    return figures
+
+
+def load_html_report(report_dir: Path) -> list[ProtocolDetail] | None:
+    """Parse the qibocal-generated ``index.html`` instead of re-plotting (Issue #24).
+
+    The static report is rendered by the qibocal version that produced it,
+    which may know protocols the installed Qibocal does not. Whenever the
+    HTML file exists it is the authoritative rendering and must be used
+    without importing qibocal. Returns ``None`` when the HTML is missing or
+    cannot be parsed.
+    """
+    html_path = report_dir / "index.html"
+    if not html_path.is_file():
+        return None
+    try:
+        html = html_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as err:
+        log_warning(f"Could not read static report '{html_path}': {err}")
+        return None
+
+    actions = list(_HTML_ACTION_RE.finditer(html))
+    if not actions:
+        log_warning(f"Static report '{html_path}' has no protocol sections")
+        return None
+
+    order = get_execution_order(report_dir)
+    timing_map = _extract_protocol_timing_map(report_dir)
+    targets = list(_HTML_TARGET_RE.finditer(html))
+    summary_pos = html.find('id="summary"')
+    content_end = summary_pos if summary_pos != -1 else len(html)
+
+    protocols: list[ProtocolDetail] = []
+    for idx, action in enumerate(actions):
+        action_end = actions[idx + 1].start() if idx + 1 < len(actions) else content_end
+        target_starts = [
+            t.start() for t in targets if action.start() <= t.start() < action_end
+        ]
+        target_ids = [
+            t.group(1) for t in targets if action.start() <= t.start() < action_end
+        ]
+        if order and idx < len(order):
+            task_id = order[idx]
+        elif target_ids:
+            base, _, last = target_ids[0].rpartition("-")
+            task_id = base if base and last.isdigit() else target_ids[0]
+        else:
+            task_id = f"protocol-{idx + 1}"
+
+        tables: list[str] = []
+        figures: list[dict] = []
+        messages: list[str] = []
+        if target_starts:
+            for j, t_start in enumerate(target_starts):
+                t_end = (
+                    target_starts[j + 1] if j + 1 < len(target_starts) else action_end
+                )
+                segment = html[t_start:t_end]
+                seg_tables = _HTML_TABLE_RE.findall(segment)
+                seg_figures = _parse_plotly_figures(segment)
+                tables.extend(seg_tables)
+                figures.extend(seg_figures)
+                if not seg_tables and not seg_figures:
+                    body = re.sub(
+                        r"<h5\b.*?</h5>", "", segment, count=1, flags=re.DOTALL
+                    )
+                    body = re.sub(r"<script\b.*?</script>", "", body, flags=re.DOTALL)
+                    body = re.sub(r"<[^>]+>", " ", body)
+                    text = re.sub(r"\s+", " ", body).strip()
+                    if text:
+                        messages.append(text)
+        else:
+            action_html = html[action.start() : action_end]
+            tables = _HTML_TABLE_RE.findall(action_html)
+            figures = _parse_plotly_figures(action_html)
+
+        for n, figure in enumerate(figures):
+            figure["id"] = f"{task_id}-fig{n}"
+
+        has_output = bool(tables or figures)
+        exec_time = (
+            timing_map.get(task_id)
+            or timing_map.get(task_id.replace("-", "_"))
+            or timing_map.get(task_id.replace("_", "-"))
+            or timing_map.get(task_id.rsplit("-", 1)[0])
+            or "N/A"
+        )
+        protocols.append(
+            ProtocolDetail(
+                id=task_id,
+                name=task_id.replace("_", " ").title(),
+                category="calibration",
+                execution_time=exec_time,
+                status="success" if has_output else "error",
+                error=None
+                if has_output
+                else (
+                    "; ".join(messages)
+                    or "No figures or tables were found in the generated report HTML."
+                ),
+                html="\n".join(tables),
+                figures=figures,
+            )
+        )
+
+    return protocols
+
+
 def _generate_qibocal_protocols(
     report_dir: Path,
     protocol_ids: list[str] | None = None,
@@ -338,26 +515,39 @@ def _generate_qibocal_protocols(
         with generation_environment():
             result = subprocess.run(
                 [
-                    sys.executable, "-m", "qibocal_report.generation_worker",
-                    str(report_dir.resolve()), str(result_path),
+                    sys.executable,
+                    "-m",
+                    "qibocal_report.generation_worker",
+                    str(report_dir.resolve()),
+                    str(result_path),
                     *([json.dumps(protocol_ids)] if protocol_ids is not None else []),
                 ],
-                capture_output=True, text=True, timeout=GENERATION_TIMEOUT, check=False,
+                capture_output=True,
+                text=True,
+                timeout=GENERATION_TIMEOUT,
+                check=False,
             )
             if result.returncode:
                 output = (result.stderr or result.stdout or "No worker output.").strip()
-                return None, f"Qibocal generation worker failed (exit {result.returncode}): {output[-2000:]}"
+                return (
+                    None,
+                    f"Qibocal generation worker failed (exit {result.returncode}): {output[-2000:]}",
+                )
             with result_path.open(encoding="utf-8") as stream:
                 payload = json.load(stream)
             protocols = payload["protocols"]
             error = payload.get("error")
             return (
                 [ProtocolDetail(**protocol) for protocol in protocols]
-                if protocols is not None else None,
+                if protocols is not None
+                else None,
                 GenerationError(error, payload.get("error_code")) if error else None,
             )
     except subprocess.TimeoutExpired:
-        return None, f"Qibocal plot generation timed out after {GENERATION_TIMEOUT} seconds."
+        return (
+            None,
+            f"Qibocal plot generation timed out after {GENERATION_TIMEOUT} seconds.",
+        )
     except EnvironmentOperationError as error:
         return None, error.detail
     except (OSError, ValueError, TypeError, KeyError) as error:
@@ -366,7 +556,9 @@ def _generate_qibocal_protocols(
         try:
             result_path.unlink(missing_ok=True)
         except OSError as error:
-            log_warning(f"Could not remove Qibocal worker result '{result_path}': {error}")
+            log_warning(
+                f"Could not remove Qibocal worker result '{result_path}': {error}"
+            )
 
 
 def _generate_qibocal_protocols_native(
@@ -381,6 +573,7 @@ def _generate_qibocal_protocols_native(
     """
     try:
         from qibocal.auto.output import Output  # type: ignore
+
         if protocol_ids is not None:
             from qibocal.auto.task import Completed  # type: ignore
         from qibocal.cli.report import generate_figures_and_report  # type: ignore
@@ -544,6 +737,44 @@ def _generate_qibocal_protocols_native(
         return None, f"Qibocal failed to generate report: {err}"
 
 
+def _publish_report_cache(
+    report_dir: Path,
+    protocols: list[ProtocolDetail],
+    inputs: dict | None = None,
+) -> None:
+    """Cache protocol outputs into the report/ folder for fast reuse."""
+    report_path = report_dir / "report"
+    report_path.mkdir(parents=True, exist_ok=True)
+
+    meta_summary = {
+        "protocols": [p.id for p in protocols],
+        "generated_by": "qibocal-report-server",
+        "count": len(protocols),
+    }
+    with open(report_path / "meta.json", "w", encoding="utf-8") as f:
+        json.dump(meta_summary, f, indent=2)
+
+    for p in protocols:
+        with open(report_path / f"{p.id}.json", "w", encoding="utf-8") as f:
+            json.dump(
+                p.model_dump(exclude={"notes"}),
+                f,
+                indent=2,
+                default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o),
+            )
+
+    write_protocol_cache(report_dir, protocols)
+    if inputs is not None:
+        write_input_cache(
+            report_dir,
+            {
+                p.id: inputs[p.id]
+                for p in protocols
+                if p.status == "success" and p.id in inputs
+            },
+        )
+
+
 def generate_report_on_the_fly(
     report_dir: Path, progress_callback: Callable[[int, int, str], None] | None = None
 ) -> list[ProtocolDetail]:
@@ -574,36 +805,7 @@ def generate_report_on_the_fly(
             f"Generated {len(native_protocols)} protocol(s) "
             "using native Qibocal engine."
         )
-        # Cache into report/ directory
-        report_path = report_dir / "report"
-        report_path.mkdir(parents=True, exist_ok=True)
-
-        meta_summary = {
-            "protocols": [p.id for p in protocols],
-            "generated_by": "qibocal-report-server",
-            "count": len(protocols),
-        }
-        with open(report_path / "meta.json", "w", encoding="utf-8") as f:
-            json.dump(meta_summary, f, indent=2)
-
-        for p in protocols:
-            with open(report_path / f"{p.id}.json", "w", encoding="utf-8") as f:
-                json.dump(
-                    p.model_dump(exclude={"notes"}),
-                    f,
-                    indent=2,
-                    default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o),
-                )
-
-        write_protocol_cache(report_dir, protocols)
-        if inputs is not None:
-            write_input_cache(
-                report_dir,
-                {
-                    p.id: inputs[p.id] for p in protocols
-                    if p.status == "success" and p.id in inputs
-                },
-            )
+        _publish_report_cache(report_dir, protocols, inputs)
         log_success(
             f"Report '{report_dir.name}' plots generated and cached "
             f"successfully ({len(protocols)} routines)."
@@ -628,7 +830,9 @@ def generate_report_on_the_fly(
                 try:
                     with open(meta_file, encoding="utf-8") as f:
                         m = json.load(f)
-                        discovered_protocols = m.get("protocols") or m.get("actions") or []
+                        discovered_protocols = (
+                            m.get("protocols") or m.get("actions") or []
+                        )
                 except (json.JSONDecodeError, OSError):
                     pass
 
@@ -677,12 +881,31 @@ def generate_report_on_the_fly(
 def get_report_protocols(
     report_dir: Path, progress_callback: Callable[[int, int, str], None] | None = None
 ) -> list[ProtocolDetail]:
-    """Retrieve report protocols: pre-cached if present, or generate on-the-fly."""
+    """Retrieve report protocols: pre-cached if present, then the
+    qibocal-generated static HTML (Issue #24), otherwise on-the-fly."""
     with report_generation_lock(report_dir):
         if has_cached_report(report_dir):
             protocols = load_cached_protocols(report_dir)
+        elif has_html_report(report_dir):
+            protocols = load_html_report(report_dir)
+            if protocols is None:
+                protocols = generate_report_on_the_fly(
+                    report_dir, progress_callback=progress_callback
+                )
+            else:
+                log_success(
+                    f"Rendered {len(protocols)} protocol(s) from the static "
+                    f"report for '{report_dir.name}'."
+                )
+                try:
+                    inputs = protocol_inputs(report_dir)
+                except (OSError, ValueError, TypeError):
+                    inputs = None
+                _publish_report_cache(report_dir, protocols, inputs)
         else:
-            protocols = generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
+            protocols = generate_report_on_the_fly(
+                report_dir, progress_callback=progress_callback
+            )
         return sort_protocols_by_execution_order(protocols, report_dir)
 
 
@@ -694,8 +917,12 @@ def regenerate_report(
     Deletes the existing report/ folder and regenerates all protocol plots.
     """
     with report_generation_lock(report_dir):
-        log_info(f"Regenerating plots: removing existing cache for '{report_dir.name}'...")
+        log_info(
+            f"Regenerating plots: removing existing cache for '{report_dir.name}'..."
+        )
         report_path = report_dir / "report"
         if report_path.is_dir():
             shutil.rmtree(report_path)
-        return generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
+        return generate_report_on_the_fly(
+            report_dir, progress_callback=progress_callback
+        )

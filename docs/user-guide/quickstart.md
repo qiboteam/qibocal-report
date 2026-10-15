@@ -93,4 +93,5 @@ sample_data/
 
 - **`meta.json`**: Contains run metadata including title, platform, author, execution duration, git commit hash, and list of executed routines.
 - **`report/`**: When present, the server serves cached Plotly JSON figures and HTML tables directly for instantaneous load times.
-- **On-Demand Generation**: If `report/` is absent, the backend evaluates the protocol routines on the fly.
+- **Static report (`index.html`)**: When `report/` is absent but `qibocal report` already generated `index.html`, the server parses and renders that HTML directly — no re-plotting — so reports stay viewable even when the run uses protocols that the installed Qibocal does not know.
+- **On-Demand Generation**: If neither `report/` nor `index.html` is present, the backend evaluates the protocol routines on the fly.
