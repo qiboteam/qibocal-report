@@ -14,6 +14,17 @@ import { state } from './state.js'
 /** How long the `g` is remembered, waiting for its letter. */
 const CHORD_WINDOW = 1500
 
+/**
+ * The handlers of the page on screen, asked before the single letters:
+ * a page answers true for a key it took. `g` and `?` stay the launcher's.
+ */
+const pageHandlers = new Set()
+
+export function registerPageKeys(handler) {
+  pageHandlers.add(handler)
+  return () => pageHandlers.delete(handler)
+}
+
 /** Every shortcut, for the Help page and the cheatsheet. */
 export const SHORTCUTS = [
   ...sections
@@ -73,12 +84,13 @@ export function installShortcuts({ go, dashboard, newServer }) {
     if (typing(event)) return
 
     if (event.key === 'Escape') {
+      forget()
       if (state.cheatsheet) {
         state.cheatsheet = false
         event.preventDefault()
+        return
       }
-      forget()
-      return
+      // The page may have a cursor to clear.
     }
     if (event.key === '?') {
       state.cheatsheet = !state.cheatsheet
@@ -106,6 +118,13 @@ export function installShortcuts({ go, dashboard, newServer }) {
       clearTimeout(timer)
       timer = setTimeout(forget, CHORD_WINDOW)
       return
+    }
+    for (const handler of pageHandlers) {
+      if (handler(event) === true) {
+        state.cheatsheet = false
+        event.preventDefault()
+        return
+      }
     }
     if (event.key === 'n') {
       newServer()

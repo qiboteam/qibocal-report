@@ -32,6 +32,7 @@
               </svg>
             </div>
             <input
+              ref="searchInput"
               v-model="filters.q"
               type="text"
               placeholder="Search reports..."
@@ -260,6 +261,7 @@
           v-else-if="viewMode === 'table'"
           :reports="reports"
           :selected="selectedReports"
+          :focused-id="focusedId"
           @select="openReport"
           @toggle-select="toggleSelect"
           @toggle-select-all="() => toggleSelectAll(reports.map(r => r.id))"
@@ -278,6 +280,7 @@
           v-else
           :reports="reports"
           :selected="selectedReports"
+          :focused-id="focusedId"
           @select="openReport"
           @toggle-select="toggleSelect"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
@@ -396,7 +399,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { desktopWidget } from '../utils/desktop.js'
+import { desktopWidget, publishPage } from '../utils/desktop.js'
 import { useRouter, useRoute } from 'vue-router'
 import { state, addToHistory, apiFetch, ensureServersLoaded, resolveAuthor, persistSearchState } from '../store.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
@@ -442,6 +445,59 @@ function closeViewMenu(event) {
   viewMenuOpen.value = false
 }
 const reports = ref([])
+
+/**
+ * The keyboard over the list, as on GitHub: `/` to the search, `j` and
+ * `k` along the reports — the one under the cursor is marked — Enter to
+ * open it, Escape out of the search or off the list. Nothing fires while
+ * typing, or with a modifier held.
+ */
+const searchInput = ref(null)
+const focusedId = ref(null)
+
+function moveFocus(delta) {
+  const list = reports.value
+  if (!list.length) {
+    focusedId.value = null
+    return
+  }
+  const current = list.findIndex(report => report.id === focusedId.value)
+  const next = current < 0 ? (delta > 0 ? 0 : list.length - 1) : Math.max(0, Math.min(list.length - 1, current + delta))
+  focusedId.value = list[next].id
+  requestAnimationFrame(() => document.querySelector('[data-focused="true"]')?.scrollIntoView({ block: 'nearest' }))
+}
+
+function onListKeydown(event) {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+  const target = event.target
+  const typing = target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+  if (typing) {
+    if (event.key === 'Escape' && target === searchInput.value) target.blur()
+    return
+  }
+  if (target?.closest?.('[role="dialog"], .fixed')) return
+  switch (event.key) {
+    case '/':
+      searchInput.value?.focus()
+      searchInput.value?.select()
+      break
+    case 'j': moveFocus(1); break
+    case 'k': moveFocus(-1); break
+    case 'Enter': {
+      const report = reports.value.find(entry => entry.id === focusedId.value)
+      if (!report) return
+      openReport(report)
+      break
+    }
+    case 'Escape':
+      if (focusedId.value === null) return
+      focusedId.value = null
+      break
+    default:
+      return
+  }
+  event.preventDefault()
+}
 const filterStats = ref(null)
 const filteredStats = ref(null)
 const showRecap = ref(true)
@@ -998,12 +1054,16 @@ function syncFiltersFromRoute(query) {
 }
 
 onMounted(() => {
+  document.addEventListener('keydown', onListKeydown)
+  publishPage('dashboard')
   document.addEventListener('pointerdown', closeViewMenu)
   window.addEventListener('blur', closeViewMenu)
   // Ordering by platform was dropped: a report's name is not a way to navigate.
   if (!sortOptions.some(option => option.value === filters.sort_by)) filters.sort_by = 'date_desc'
 })
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onListKeydown)
+  publishPage(null)
   document.removeEventListener('pointerdown', closeViewMenu)
   window.removeEventListener('blur', closeViewMenu)
 })

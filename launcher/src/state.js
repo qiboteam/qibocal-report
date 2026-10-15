@@ -32,7 +32,9 @@ export const state = reactive({
   /** The processes the closing launcher waits for; null while it is not closing. */
   closing: null,
   /** Whether the keyboard shortcuts are on screen, as GitHub shows them on `?`. */
-  cheatsheet: false
+  cheatsheet: false,
+  /** The keys of the page on screen — `{ title, entries }` — or null. */
+  pageShortcuts: null
 })
 
 // What is said on one page is still there on the other.

@@ -61,11 +61,16 @@
           <!-- Actions: Print to PDF & Regenerate plots -->
           <div class="flex items-center flex-wrap gap-2">
             <div class="inline-flex items-center rounded-xl bg-white border border-gray-200 hover:border-purple-300 shadow-2xs">
+              <!--
+                The navigation slides in; it goes at once. A leave animation
+                would wait on the main thread, which a heavy report keeps
+                busy for seconds after the switch, leaving a blank where the
+                buttons were.
+              -->
               <Transition
                 name="slideshow-nav"
                 @enter="sizeSlideshowNav"
                 @after-enter="el => el.style.removeProperty('width')"
-                @before-leave="sizeSlideshowNav"
               >
                 <nav v-if="slideshow" id="slideshow-navigation" aria-label="Slideshow navigation" class="overflow-hidden shrink-0">
                   <div class="flex items-center w-max gap-0.5 px-1 border-r border-gray-200">
@@ -241,7 +246,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { desktopWidget } from '../utils/desktop.js'
+import { desktopWidget, publishPage } from '../utils/desktop.js'
 
 /** The launcher's bell, when this page is inside it. */
 const desktopBell = desktopWidget('bell')
@@ -409,11 +414,15 @@ async function handlePrintPDF() {
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
+  publishPage('report')
   await ensureServersLoaded()
   await loadReportData()
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
+  publishPage(null)
+})
 
 watch(
   () => [loading.value, route.query.protocol],
@@ -457,16 +466,22 @@ watch(
   animation: live-recording 2.4s ease-in-out infinite;
 }
 
-.slideshow-nav-enter-active,
-.slideshow-nav-leave-active {
+.slideshow-nav-enter-active {
   transition: width 180ms ease, opacity 180ms ease, transform 180ms ease;
 }
 
-.slideshow-nav-enter-from,
-.slideshow-nav-leave-to {
+.slideshow-nav-enter-from {
   width: 0 !important;
   opacity: 0;
   transform: translateX(1rem);
+}
+
+/* Gone the moment it leaves: no width, no wait. */
+.slideshow-nav-leave-active,
+.slideshow-nav-leave-to {
+  transition: none;
+  width: 0 !important;
+  opacity: 0;
 }
 
 @keyframes live-recording {

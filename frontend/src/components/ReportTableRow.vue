@@ -2,7 +2,9 @@
   <tr
     @click="$emit('select', report)"
     class="hover:bg-purple-50/30 cursor-pointer transition"
-    :class="isSelected ? 'bg-purple-50/40' : ''"
+    :class="[isSelected ? 'bg-purple-50/40' : '', isFocused ? 'bg-[#ebe0ff]/70 outline outline-2 -outline-offset-2 outline-[#833dff]/40' : '']"
+    :data-focused="isFocused ? 'true' : undefined"
+    :aria-selected="isFocused || undefined"
   >
     <!-- Checkbox Column -->
     <td class="py-3.5 px-4 w-12 text-center overflow-hidden" @click.stop>
@@ -162,7 +164,9 @@ import { state, resolveAuthor, isViewer } from '../store.js'
 
 defineProps({
   report: { type: Object, required: true },
-  isSelected: { type: Boolean, default: false }
+  isSelected: { type: Boolean, default: false },
+  /** Under the keyboard's cursor: marked, mildly. */
+  isFocused: { type: Boolean, default: false }
 })
 
 defineEmits([

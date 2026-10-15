@@ -16,6 +16,19 @@
         </button>
       </div>
 
+      <!-- What the keys mean here, on this page, before what they mean everywhere. -->
+      <div v-if="state.pageShortcuts" class="mt-4 rounded-xl bg-[#f7f5ff] px-3.5 py-3">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-[#3b107e] mb-2">On this page · {{ state.pageShortcuts.title }}</p>
+        <dl class="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+          <div v-for="shortcut in state.pageShortcuts.entries" :key="shortcut.what" class="flex items-start gap-2 text-xs">
+            <dt class="shrink-0 whitespace-nowrap">
+              <kbd v-for="key in describeKeys(shortcut.keys)" :key="key" class="lx-kbd">{{ key }}</kbd>
+            </dt>
+            <dd class="text-gray-700 min-w-0">{{ shortcut.what }}</dd>
+          </div>
+        </dl>
+      </div>
+
       <div class="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-3">
         <div v-for="group in groups" :key="group.name">
           <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">{{ group.name }}</p>

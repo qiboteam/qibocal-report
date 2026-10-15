@@ -625,6 +625,12 @@
   border-top: 1px solid #f1f1f3;
 }
 
+/* The entry under the keyboard's cursor: an outline, mild and unmistakable. */
+.lx-focus {
+  outline: 2px solid rgba(131, 61, 255, 0.45);
+  outline-offset: 2px;
+}
+
 /* A key on the keyboard, in the Help page and on the cheatsheet. */
 .lx-kbd {
   display: inline-block;

@@ -59,6 +59,7 @@
           :key="report.id"
           :report="report"
           :is-selected="selected.includes(report.id)"
+          :is-focused="report.id === focusedId"
           @select="$emit('select', $event)"
           @toggle-select="$emit('toggle-select', $event)"
           @remove-tag="$emit('remove-tag', $event)"
@@ -82,7 +83,9 @@ import ReportTableRow from './ReportTableRow.vue'
 
 const props = defineProps({
   reports: { type: Array, required: true },
-  selected: { type: Array, default: () => [] }
+  selected: { type: Array, default: () => [] },
+  /** The report under the keyboard's cursor, if any. */
+  focusedId: { type: String, default: null }
 })
 
 defineEmits([

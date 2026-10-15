@@ -56,7 +56,7 @@
         v-for="entry in group.entries"
         :key="entry.id"
         class="lx-inbox-row"
-        :class="{ 'is-error': entry.kind === 'error' }"
+        :class="{ 'is-error': entry.kind === 'error', 'lx-focus': focused(order.get(entry.id)) }"
       >
         <component :is="entry.kind === 'error' ? AlertTriangle : Info" class="lx-inbox-icon w-3.5 h-3.5" />
         <component
@@ -106,6 +106,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { AlertTriangle, ArchiveRestore, Check, Info, Trash2, X } from 'lucide-vue-next'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import { sections } from '../router.js'
@@ -118,7 +119,9 @@ import {
   unarchiveNotification
 } from '../state.js'
 import { timeAgo } from '../lib/time.js'
+import { usePageKeys } from '../composables/pageKeys.js'
 
+const router = useRouter()
 const tab = ref('inbox')
 /** Re-read once a minute, so "5 minutes ago" keeps being true. */
 const now = ref(Date.now())
@@ -149,6 +152,20 @@ const groups = computed(() => {
     byKey.get(key).entries.push(entry)
   }
   return [...byKey.values()].sort((left, right) => right.entries[0].at - left.entries[0].at)
+})
+
+/** The rows as shown, top to bottom, for the keyboard's cursor. */
+const rows = computed(() => groups.value.flatMap(group => group.entries))
+const order = computed(() => new Map(rows.value.map((entry, index) => [entry.id, index])))
+
+const { focused } = usePageKeys({
+  page: 'notifications',
+  count: () => rows.value.length,
+  actions: {
+    Enter: index => { const entry = rows.value[index]; if (entry?.link) router.push(entry.link) },
+    e: index => { const entry = rows.value[index]; if (entry) (entry.archived ? unarchiveNotification : archiveNotification)(entry.id) },
+    x: index => { const entry = rows.value[index]; if (entry) dismissNotification(entry.id) }
+  }
 })
 
 onMounted(() => {

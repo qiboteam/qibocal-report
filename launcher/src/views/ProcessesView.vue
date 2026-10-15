@@ -127,6 +127,7 @@ import { ChevronRight, ExternalLink, LayoutDashboard, Play, Square, Trash2 } fro
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
 import { desktop, openExternal } from '../bridge.js'
 import { state, attempt, loadLog, openDashboard, refreshProcesses, restartProcess } from '../state.js'
+import { usePageKeys } from '../composables/pageKeys.js'
 
 const route = useRoute()
 const selected = ref(null)
@@ -181,7 +182,38 @@ function canRestart(process) {
 
 async function select(key) {
   selected.value = key
+  place(groups.value.findIndex(group => group.key === key))
 }
+
+/** Open what a card stands for: the dashboard for a server, the browser for a notebook. */
+function open(group) {
+  const latest = group?.latest
+  if (!latest?.url || latest.status !== 'running') return
+  if (latest.kind === 'server') openDashboard(latest.url)
+  else if (latest.kind === 'notebook') openExternal(latest.url)
+}
+
+// j and k move the selection itself; the letters do what the buttons do.
+const { place } = usePageKeys({
+  page: 'processes',
+  count: () => groups.value.length,
+  onCursor: index => { selected.value = groups.value[index]?.key || null },
+  actions: {
+    o: index => open(groups.value[index]),
+    x: index => {
+      const latest = groups.value[index]?.latest
+      if (latest?.status === 'running') stop(latest)
+    },
+    s: index => {
+      const latest = groups.value[index]?.latest
+      if (latest && latest.status !== 'running' && latest.status !== 'stopping' && canRestart(latest)) restart(latest)
+    },
+    l: index => {
+      const latest = groups.value[index]?.latest
+      if (latest) openRuns[latest.id] = !openRuns[latest.id]
+    }
+  }
+})
 
 // The runs being looked at load their output when unfolded.
 watch(openRuns, async opened => {

@@ -183,7 +183,22 @@ const preview = computed(() => {
   return parts.join(' ')
 })
 
+/** The list as the keyboard walks it: the new session first, then the saved connections. */
+const choices = computed(() => [null, ...Object.keys(state.notebooks || {})])
+
+// j and k move the selection itself; Enter or o opens the session.
+const { place } = usePageKeys({
+  page: 'notebooks',
+  count: () => choices.value.length,
+  onCursor: index => choose(choices.value[index]),
+  actions: {
+    Enter: () => { if (valid.value && !starting.value) start() },
+    o: () => { if (valid.value && !starting.value) start() }
+  }
+})
+
 function choose(name) {
+  place(choices.value.indexOf(name))
   selected.value = name
   saveName.value = name || ''
   Object.assign(values, toEditorValues(name ? state.notebooks[name] : {}))

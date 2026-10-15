@@ -34,6 +34,26 @@
           </dl>
         </div>
       </div>
+
+      <!-- The keys that mean something on one page only. -->
+      <h3 class="text-xs font-semibold text-gray-900 mt-6 mb-1">On each page</h3>
+      <p class="text-xs text-gray-500 mb-4">
+        <kbd class="lx-kbd">j</kbd> and <kbd class="lx-kbd">k</kbd> walk the page's list — the entry under the cursor
+        wears an outline — and a letter acts on it. <kbd class="lx-kbd">Esc</kbd> clears the cursor.
+      </p>
+      <div class="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+        <div v-for="page in pages" :key="page.title">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">{{ page.title }}</p>
+          <dl class="space-y-1.5">
+            <div v-for="shortcut in page.entries" :key="shortcut.what" class="flex items-start gap-2 text-xs">
+              <dt class="shrink-0 whitespace-nowrap">
+                <kbd v-for="key in describeKeys(shortcut.keys)" :key="key" class="lx-kbd">{{ key }}</kbd>
+              </dt>
+              <dd class="text-gray-700 min-w-0">{{ shortcut.what }}</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
     </section>
 
     <!-- The guide: on this page, the headings are the table of contents. -->
@@ -54,6 +74,9 @@ import { marked } from 'marked'
 import guide from '../../../docs/user-guide/launcher.md?raw'
 import { openExternal } from '../bridge.js'
 import { SHORTCUTS, describeKeys } from '../shortcuts.js'
+import { PAGE_KEYS, pageShortcuts } from '../pagekeys.js'
+
+const pages = Object.keys(PAGE_KEYS).map(pageShortcuts)
 
 const GUIDE_URL = 'https://qibo.science/qibocal-report/user-guide/launcher/'
 

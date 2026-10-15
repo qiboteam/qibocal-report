@@ -96,7 +96,12 @@
         No server registered yet. Starting one with <em>Start and register</em>, or registering a reachable address, adds it here.
       </p>
 
-      <article v-for="server in state.servers" :key="server.id" class="bm-card p-4">
+      <article
+        v-for="(server, index) in state.servers"
+        :key="server.id"
+        class="bm-card p-4"
+        :class="{ 'lx-focus': focused(index) }"
+      >
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div class="min-w-0">
             <p class="text-sm font-medium text-gray-900 truncate">{{ server.name || server.url }}</p>
@@ -233,6 +238,7 @@ import {
   withQibocal
 } from '../state.js'
 import { blankForm, formFrom, formProblems, launchFrom, serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
+import { usePageKeys } from '../composables/pageKeys.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -305,6 +311,24 @@ async function launch(register) {
     starting.value = false
   }
 }
+
+/** The main action of a registered server: open it while it runs, start it otherwise. */
+function activate(server) {
+  if (processFor(server)) return openDashboard(server.url)
+  return relaunch(server)
+}
+
+// j and k walk the registered servers; the letters do what the buttons do.
+const { focused } = usePageKeys({
+  page: 'servers',
+  count: () => state.servers.length,
+  actions: {
+    Enter: index => activate(state.servers[index]),
+    s: index => activate(state.servers[index]),
+    e: index => toggleEdit(state.servers[index]),
+    i: index => toggleInvite(state.servers[index])
+  }
+})
 
 /** Start a registered server: as last time, or at its address on this machine. */
 async function relaunch(server) {

@@ -30,6 +30,21 @@ export function announce(message, kind = 'info') {
   }
 }
 
+/**
+ * Tell the launcher which dashboard page is on screen — `dashboard`, the
+ * report list; `report`, one report — so its keyboard cheatsheet lists
+ * the keys of that page; null when leaving. Nothing in a browser.
+ */
+export function publishPage(page) {
+  const host = desktop()
+  if (typeof host?.pageShortcuts !== 'function') return
+  try {
+    host.pageShortcuts(page)
+  } catch {
+    // The cheatsheet is the launcher's concern, not this page's.
+  }
+}
+
 /** A launcher component to render in a toolbar — the bell — or nothing. */
 export function desktopWidget(name) {
   const widget = desktop()?.widgets?.[name]

@@ -16,7 +16,8 @@ import { launchKeys, serverUrl } from './lib/servers.js'
 import { installMenu } from './menu.js'
 import { sections } from './router.js'
 import { installShortcuts } from './shortcuts.js'
-import { fail, initialize, notify } from './state.js'
+import { state, fail, initialize, notify } from './state.js'
+import { pageShortcuts } from './pagekeys.js'
 
 import './styles.js'
 
@@ -51,6 +52,8 @@ window.qibocalDesktop = {
   notify: (message, kind = 'info') => (kind === 'error' ? fail(message) : notify(message)),
   /** Launcher components the dashboard renders in its own toolbars. */
   widgets: { bell: markRaw(NotificationBell) },
+  /** The dashboard page on screen names itself, and its keys reach the cheatsheet. */
+  pageShortcuts: page => { state.pageShortcuts = page ? pageShortcuts(page) : null },
   /** The address of a launcher section, for a link out of the dashboard. */
   launcherUrl: name => {
     const section = sections.find(entry => entry.name === name)

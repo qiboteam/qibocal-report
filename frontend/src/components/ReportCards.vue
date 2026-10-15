@@ -5,7 +5,11 @@
       :key="report.id"
       @click="$emit('select', report)"
       class="bm-card p-5 border border-gray-100 cursor-pointer hover:border-purple-200 transition group"
-      :class="selected.includes(report.id) ? 'border-purple-300 ring-1 ring-purple-300 bg-purple-50/20' : ''"
+      :class="[
+        selected.includes(report.id) ? 'border-purple-300 ring-1 ring-purple-300 bg-purple-50/20' : '',
+        report.id === focusedId ? 'outline outline-2 outline-offset-2 outline-[#833dff]/45' : ''
+      ]"
+      :data-focused="report.id === focusedId ? 'true' : undefined"
     >
       <!-- Top header line: checkbox, platform, qubits, date, duration -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100">
@@ -131,7 +135,9 @@ import { state, resolveAuthor, isViewer } from '../store.js'
 
 defineProps({
   reports: { type: Array, required: true },
-  selected: { type: Array, default: () => [] }
+  selected: { type: Array, default: () => [] },
+  /** The report under the keyboard's cursor, if any. */
+  focusedId: { type: String, default: null }
 })
 
 defineEmits([
