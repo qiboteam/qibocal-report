@@ -29,10 +29,13 @@ test('slideshow navigation expands to the left of its toggle within one top-bar 
   assert.equal(transition.tag, 'Transition')
   assert.equal(attribute(transition, 'name'), 'slideshow-nav')
   assert.equal(directive(transition, 'on', 'enter'), 'sizeSlideshowNav')
-  assert.equal(directive(transition, 'on', 'before-leave'), 'sizeSlideshowNav')
+  // It leaves at once: a leave animation waited on a main thread a heavy report keeps busy.
+  assert.equal(directive(transition, 'on', 'before-leave'), undefined)
+  assert.match(directive(transition, 'on', 'after-enter'), /removeProperty\('width'\)/)
 
   const { parent: unit } = elements.find(({ node }) => node === transition)
-  const toggle = unit.children.find(node => node.type === 1 && attribute(node, 'aria-label') === 'Slideshow')
+  // The toggle names the mode it switches to, so its label is bound, not static.
+  const toggle = unit.children.find(node => node.type === 1 && /'Slideshow'/.test(directive(node, 'bind', 'aria-label') || ''))
   assert(toggle)
   assert(unit.children.indexOf(transition) < unit.children.indexOf(toggle))
   assert.equal(directive(toggle, 'on', 'click'), 'toggleSlideshow')

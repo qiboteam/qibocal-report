@@ -87,19 +87,20 @@ test('append-only report and protocol comments', async t => {
       const html = await renderToString(createSSRApp(NotesPanel, { reportId: 'run' }))
       assert.match(html, /No comments yet/)
       assert.match(html, /Add a comment/)
-      assert.match(html, /cannot be edited or deleted/)
+      assert.match(html, /Markdown is fine/)
     })
 
-    await t.test('history renders escaped plain text, whitespace, time and optional author', async () => {
+    await t.test('history renders Markdown with raw HTML neutralised, time and optional author', async () => {
       reset('viewer')
       const html = await renderToString(createSSRApp(NotesPanel, {
         reportId: 'run',
         notes: [note, { ...note, author: '<alice>', content: '<script>alert(1)</script>\n line' }]
       }))
-      assert.match(html, /whitespace-pre-wrap/)
+      assert.match(html, /class="notes-body/)
+      assert.match(html, /<p>First<br>comment<\/p>/, 'a line break in a comment is one on the page')
       assert.match(html, /<time datetime="2026-10-10T06:00:00Z"/)
       assert.match(html, /&lt;alice&gt;/)
-      assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;\n line/)
+      assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;<br> line/)
       assert.doesNotMatch(html, /<form|<textarea|<script>/)
       store.state.auth.user = null
       const loggedOut = await renderToString(createSSRApp(NotesPanel, { reportId: 'run' }))
@@ -147,7 +148,8 @@ test('append-only report and protocol comments', async t => {
       subtest.after(() => app.unmount())
       const all = element => [element, ...element.children.flatMap(all)]
       const find = tag => all(root).find(element => element.tag === tag)
-      const text = element => element.text + element.children.map(text).join('')
+      // A comment's body is set as HTML, which the renderer keeps as a property.
+      const text = element => element.text + (element.props.innerHTML || '') + element.children.map(text).join('')
       const input = value => {
         const textarea = find('textarea')
         textarea.value = value
@@ -166,7 +168,7 @@ test('append-only report and protocol comments', async t => {
       await settle()
       assert.equal(calls, 1)
       assert.equal(find('time').props.datetime, note.timestamp)
-      assert.match(text(root), /First\ncomment/)
+      assert.match(text(root), /First<br>comment/)
 
       input('Keep my draft')
       globalThis.fetch = async () => Response.json({ detail: 'Protocol not found' }, { status: 404 })
@@ -466,7 +468,7 @@ test('append-only report and protocol comments', async t => {
           })
         }))
         assert.match(html, /Protocol comments/)
-        assert.match(html, /First\ncomment/)
+        assert.match(html, /First<br>comment/)
       }
     })
   } finally {

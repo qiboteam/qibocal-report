@@ -33,6 +33,7 @@ test('clicking a cached online card prompts login after enabling auth and browse
   let enabled = false
   mock.method(globalThis, 'fetch', async url => {
     if (url.endsWith('/api/health')) return new Response('{}')
+    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
     if (url.endsWith('/api/auth/status')) {
       return Response.json({ auth_enabled: enabled })
     }
@@ -95,6 +96,7 @@ test('server cards show auth-only administration and the appropriate lock beside
   let enabled = false
   mock.method(globalThis, 'fetch', async url => {
     if (url.endsWith('/api/health')) return Response.json({ reports_count: 1 })
+    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
     if (url.endsWith('/api/auth/status')) return Response.json({ auth_enabled: enabled })
     assert.fail(`Unexpected request: ${url}`)
   })
@@ -151,6 +153,7 @@ test('clicking a card during its initial status refresh queues selection', async
   let resolveHealth
   mock.method(globalThis, 'fetch', async url => {
     if (url.endsWith('/api/health')) return new Promise(resolve => { resolveHealth = resolve })
+    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
     if (url.endsWith('/api/auth/status')) return Response.json({ auth_enabled: true })
     assert.fail(`Unexpected request: ${url}`)
   })

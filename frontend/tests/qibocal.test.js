@@ -591,6 +591,7 @@ test('Qibocal administration and plot-generation feedback', async t => {
       let controller
       const installed = mock.fn()
       mock.method(globalThis, 'fetch', async url => {
+        if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
         if (url.endsWith('/api/auth/status')) return Response.json({ auth_enabled: true })
         if (url.endsWith('/api/auth/me')) return Response.json({ id: 'admin', username: 'admin', role: 'admin' })
         if (url.endsWith('/api/qibocal')) return Response.json({ installed: false })
@@ -722,29 +723,42 @@ test('Qibocal administration and plot-generation feedback', async t => {
         constructor() { socket = this }
         close() {}
       }
-      const fetch = mock.method(globalThis, 'fetch', async url => {
+      // The view listens to the page's keys when mounted: a document to listen to.
+      const previousDocument = globalThis.document
+      globalThis.document = { addEventListener() {}, removeEventListener() {} }
+      // The report is asked for over GraphQL first; a server without it is
+      // streamed over the socket, which is the path under test.
+      const regenerations = []
+      mock.method(globalThis, 'fetch', async url => {
+        if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
         assert.equal(url, `${first.url}/api/reports/run/regenerate`)
+        regenerations.push(url)
         return Response.json([missing])
       })
+      const settle = async () => {
+        for (let i = 0; i < 8; i++) await new Promise(resolve => setImmediate(resolve))
+      }
       const { result: report, unmount } = mountComposable(
         () => ReportView.setup({}, { emit() {}, expose() {} }),
         [router]
       )
       try {
-        await new Promise(resolve => setImmediate(resolve))
+        await settle()
         socket.onmessage({ data: JSON.stringify({ type: 'metadata', report: { id: 'run', targets: [0], platform: 'test' } }) })
         diagnostics.qibocalRevision++
         await nextTick()
         assert.equal(report.loading.value, true)
-        assert.equal(fetch.mock.callCount(), 0)
+        assert.equal(regenerations.length, 0)
         socket.onmessage({ data: JSON.stringify({ type: 'ready', protocols: [missing] }) })
-        await new Promise(resolve => setImmediate(resolve))
-        assert.equal(fetch.mock.callCount(), 1)
+        await settle()
+        assert.equal(regenerations.length, 1)
         assert.equal(report.pendingInstallationRegeneration.value, false)
       } finally {
         unmount()
         if (previousWebSocket === undefined) delete globalThis.WebSocket
         else globalThis.WebSocket = previousWebSocket
+        if (previousDocument === undefined) delete globalThis.document
+        else globalThis.document = previousDocument
         mock.restoreAll()
       }
     })

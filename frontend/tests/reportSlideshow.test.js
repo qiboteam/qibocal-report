@@ -41,12 +41,13 @@ function key(slides, name, options = {}) {
   return prevented
 }
 
-test('scroll view is default; slideshow navigation includes the overview and clamps at both ends', async () => {
+test('the slideshow is the default view; its navigation includes the overview and clamps at both ends', async () => {
   const slides = mount()
   try {
-    assert.equal(slides.slideshow.value, false)
+    assert.equal(slides.slideshow.value, true)
     assert.equal(slides.selectedId.value, null)
-    assert.equal(key(slides, 'ArrowRight'), false)
+    slides.slideshow.value = false
+    assert.equal(key(slides, 'ArrowRight'), false, 'the keys belong to the slideshow alone')
     slides.slideshow.value = true
     assert.equal(key(slides, 'ArrowLeft'), true)
     assert.equal(slides.slideIndex.value, 0)

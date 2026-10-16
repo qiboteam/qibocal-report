@@ -38,6 +38,7 @@ beforeEach(() => {
   state.sidebarCollapsed = false
   saveStoredServers(state.servers)
   mock.method(globalThis, 'fetch', async url => {
+    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
     assert.ok(url.endsWith('/api/auth/status'), `Unexpected backend request: ${url}`)
     return Response.json({ auth_enabled: false })
   })
@@ -216,8 +217,12 @@ test('failed imports roll back persisted settings before changing reactive state
 test('import invalidates pending authentication checks and preserves signed-out state', async () => {
   let resolveStatus
   state.activeServer = first
+  // A session verified a moment ago is trusted without asking: this one is to be asked.
+  state.auth.checked = false
   mock.method(globalThis, 'fetch', () => new Promise(resolve => { resolveStatus = resolve }))
   const checking = fetchServers()
+  // The question reaches the server a tick later: the import must find it pending.
+  await new Promise(resolve => setImmediate(resolve))
   importClientState(exportClientState())
   resolveStatus(Response.json({ auth_enabled: false }))
   await checking
