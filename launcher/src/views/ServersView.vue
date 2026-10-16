@@ -38,17 +38,24 @@
           <span class="lx-help !mt-0">Nothing is started: the address is added to the servers the dashboard knows.</span>
         </template>
         <template v-else>
-          <button type="button" class="lx-primary" :disabled="starting" @click="launch(false)">
-            {{ starting ? 'Starting…' : 'Start' }}
+          <!-- Registering is the rule; starting for a look, the exception. -->
+          <button
+            type="button"
+            class="lx-primary"
+            :disabled="starting"
+            title="Start it, and keep it in servers.json for next time"
+            @click="launch(true)"
+          >
+            <Bookmark class="w-3.5 h-3.5" /> {{ starting ? 'Starting…' : 'Start and register' }}
           </button>
           <button
             type="button"
             class="lx-action"
             :disabled="starting"
-            title="Start it, and keep it in servers.json for next time"
-            @click="launch(true)"
+            title="Start it for a look, without touching servers.json"
+            @click="launch(false)"
           >
-            <Bookmark class="w-3.5 h-3.5" /> Start and register
+            <Play class="w-3.5 h-3.5" /> Start
           </button>
           <span class="lx-mono text-gray-400 truncate">{{ preview }}</span>
         </template>

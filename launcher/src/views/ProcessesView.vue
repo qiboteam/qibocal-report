@@ -57,6 +57,16 @@
             >
               <LayoutDashboard class="w-3.5 h-3.5" /> Dashboard
             </button>
+            <!-- Started for a look: it can still be kept. -->
+            <button
+              v-if="current.latest.kind === 'server' && current.latest.status === 'running' && unregistered(current.latest)"
+              type="button"
+              class="lx-action"
+              title="Keep it in servers.json, as if started with Start and register"
+              @click="register(current.latest)"
+            >
+              <Bookmark class="w-3.5 h-3.5" /> Register
+            </button>
             <button
               v-if="current.latest.url && current.latest.kind === 'notebook' && current.latest.status === 'running'"
               type="button"
@@ -137,12 +147,12 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronRight, ExternalLink, LayoutDashboard, Play, Square, Trash2 } from 'lucide-vue-next'
+import { Bookmark, ChevronRight, ExternalLink, LayoutDashboard, Play, Square, Trash2 } from 'lucide-vue-next'
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
 import QueuePanel from '../components/QueuePanel.vue'
 import { jobIdFromLog, jobNameFromLog, queueOf } from '../lib/slurm.js'
 import { desktop, openExternal, wantsNewWindow } from '../bridge.js'
-import { state, attempt, loadLog, openDashboard, refreshProcesses, restartProcess } from '../state.js'
+import { state, attempt, loadLog, openDashboard, refreshProcesses, registerServer, restartProcess, unregisteredServers } from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
 
 const route = useRoute()
@@ -216,6 +226,24 @@ async function select(key) {
 // `j` then moves on from the selected card, not from the top.
 watch(selected, key => place(groups.value.findIndex(group => group.key === key)), { immediate: true })
 
+/** A running server that is in no configuration file: started for a look. */
+function unregistered(process) {
+  return unregisteredServers().some(entry => entry.id === process.id)
+}
+
+/** Keep a server that was started for a look, as Servers does. */
+async function register(process) {
+  await attempt(
+    () => registerServer({
+      name: process.label,
+      url: process.url,
+      description: `Started by the launcher: ${process.detail}`
+    }),
+    `${process.label} registered.`,
+    'servers'
+  )
+}
+
 /** Open what a card stands for: the dashboard for a server, the browser for a notebook. */
 function open(group, event = null) {
   const latest = group?.latest
@@ -239,6 +267,10 @@ const { place } = usePageKeys({
     s: index => {
       const latest = groups.value[index]?.latest
       if (latest && latest.status !== 'running' && latest.status !== 'stopping' && canRestart(latest)) restart(latest)
+    },
+    r: index => {
+      const latest = groups.value[index]?.latest
+      if (latest?.kind === 'server' && latest.status === 'running' && unregistered(latest)) register(latest)
     },
     l: index => {
       const latest = groups.value[index]?.latest

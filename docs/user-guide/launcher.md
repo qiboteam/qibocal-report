@@ -93,7 +93,7 @@ On each page, `j` and `k` walk its list — `h` and `l` too, where there is a si
 | --- | --- |
 | Home | `h`/`j`/`k`/`l` move over the cards as the grid they are, and below the last row over the lines of what runs; `Enter` opens the card, or the card in Running of what runs; `o` opens where what runs is used |
 | Servers | `Enter` or `s` opens the server in the dashboard while it runs, starts it otherwise; `e` edits it; `i` invites an administrator |
-| Running | `j`/`k` move the selection itself; `Enter` or `o` opens it — the dashboard for a server, the browser for a notebook; `x` stops it; `s` starts it again; `l` unfolds its latest run, `h` folds it; `q` opens the SLURM queue of a dispatched session |
+| Running | `j`/`k` move the selection itself; `Enter` or `o` opens it — the dashboard for a server, the browser for a notebook; `x` stops it; `s` starts it again; `r` registers a server started for a look; `l` unfolds its latest run, `h` folds it; `q` opens the SLURM queue of a dispatched session |
 | Notebooks | `j`/`k` move the selection itself; `Enter` or `o` opens a session with the form as it is |
 | Configuration | `j`/`k` walk the files; `Enter` opens one, or closes it |
 | Notifications | `Enter` goes where it points; `e` marks it done, or brings it back; `x` deletes it |
@@ -133,7 +133,7 @@ The **developer options**, folded under the installation, hold two things. **Ver
 
 The fields below follow that choice, so what does not apply is not there, and they keep one convention throughout the launcher: a field that is **required** says so next to its label and is drawn white and outlined; the grey ones are optional, with their default stated underneath, and the circled *i* holds the longer explanation. What is rarely changed sits under **More options**, folded. The command about to be run is spelled out under the form, so the equivalent command line is never a mystery.
 
-**Start** is the default and starts the server for a look: it shows up in **Running** and in the dashboard as long as it runs, and in a *Running, not registered* list on this page, with a **Register** button in case it turns out to be worth keeping. **Start and register** writes it to `servers.json` straight away — the same file `qibocal` reads, so a server started from the command line shows up in the launcher, and the other way around.
+**Start and register** is the default: the server is started and written to `servers.json` straight away — the same file `qibocal` reads, so a server started from the command line shows up in the launcher, and the other way around. **Start** starts it for a look instead: it shows up in **Running** and in the dashboard as long as it runs, and in a *Running, not registered* list on this page, with a **Register** button in case it turns out to be worth keeping — the same **Register** its card in **Running** offers, and the `r` key there.
 
 ### On this machine
 

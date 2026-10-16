@@ -40,6 +40,7 @@ export const PAGE_KEYS = {
       o: 'Open it: the dashboard for a server, the browser for a notebook',
       x: 'Stop it',
       s: 'Start it again',
+      r: 'Register it, when it was started for a look',
       l: 'Unfold its latest run',
       h: 'Fold it again',
       q: 'The SLURM queue of the selected session, on its page'
