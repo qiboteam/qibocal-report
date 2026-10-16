@@ -87,6 +87,8 @@ export const router = createRouter({
     ...sections.map(({ name, path, component }) => ({ name, path, component })),
     // Reached from the status bar, not a section: no card, no menu item.
     { name: 'notifications', path: '/notifications', component: NotificationsView },
+    // One page of the Help, past its overview.
+    { name: 'help-page', path: '/help/:page', component: HelpView },
     // Reached from Running, where a session waits in its queue.
     { name: 'queues', path: '/queues', component: QueuesView },
     { path: '/:pathMatch(.*)*', redirect: '/' }

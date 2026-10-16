@@ -135,7 +135,7 @@ jobs:
       # … is free of malware" — and only a trip through System Settings
       # opens it. The credentials are repository secrets, and the step is
       # skipped when they are missing: an unsigned build is still useful, a
-      # half-configured one only fails. See docs/user-guide/launcher.md.
+      # half-configured one only fails. See docs/user-guide/launcher/installation.md.
       - name: Enable Apple code signing and notarization
         if: runner.os == 'macOS'
         shell: bash

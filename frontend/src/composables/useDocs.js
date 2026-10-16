@@ -1,87 +1,9 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '../store.js'
+import { DEFAULT_DOCS_NAV } from '../utils/docsNav.js'
 
-export const DEFAULT_DOCS_NAV = [
-  {
-    section: 'Overview',
-    path: 'index',
-    items: [
-      {
-        id: 'index',
-        path: 'index',
-        title: 'Overview & Ecosystem',
-        description: 'Introduction to Qibo ecosystem, projects, and qibocal-report architecture'
-      }
-    ]
-  },
-  {
-    section: 'User Guide',
-    path: 'user-guide',
-    items: [
-      {
-        id: 'user-guide/quickstart',
-        path: 'user-guide/quickstart',
-        title: 'Getting Started & Quickstart',
-        description: 'Installation, CLI commands, and report directory structure'
-      },
-      {
-        id: 'user-guide/dashboard',
-        path: 'user-guide/dashboard',
-        title: 'Dashboard & Server Management',
-        description: 'Managing servers, search, smart facets, dual views, and bulk actions'
-      },
-      {
-        id: 'user-guide/reports',
-        path: 'user-guide/reports',
-        title: 'Reports, Protocols & Exports',
-        description: 'Interactive charts, protocol timings, downloads, and PDF printing'
-      }
-    ]
-  },
-  {
-    section: 'Developer & Architecture',
-    path: 'developer',
-    items: [
-      {
-        id: 'developer/architecture',
-        path: 'developer/architecture',
-        title: 'System Architecture',
-        description: 'FastAPI backend, Vue 3 SPA frontend, and execution modes'
-      },
-      {
-        id: 'developer/workflow',
-        path: 'developer/workflow',
-        title: 'Development Workflow',
-        description: 'devenv environment, live Vite HMR, testing, and packaging'
-      },
-      {
-        id: 'developer/design-system',
-        path: 'developer/design-system',
-        title: 'Design System & Aesthetics',
-        description: 'BackMarket design palette, typography, and print media CSS'
-      }
-    ]
-  },
-  {
-    section: 'Reference',
-    path: 'reference',
-    items: [
-      {
-        id: 'reference/cli',
-        path: 'reference/cli',
-        title: 'CLI Reference',
-        description: 'Complete command line options and environment variables'
-      },
-      {
-        id: 'reference/api',
-        path: 'reference/api',
-        title: 'REST API & WebSockets',
-        description: 'REST endpoints specification, schemas, and WebSocket events'
-      }
-    ]
-  }
-]
+export { DEFAULT_DOCS_NAV }
 
 const bundledDocs = import.meta.glob('../../../docs/**/*.md', { query: '?raw', import: 'default', eager: true })
 

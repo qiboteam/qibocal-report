@@ -50,14 +50,53 @@ DOCS_NAVIGATION = [
                     "Interactive charts, protocol timings, downloads, and PDF printing"
                 ),
             },
+        ],
+    },
+    {
+        "section": "Desktop Launcher",
+        "path": "user-guide/launcher",
+        "items": [
             {
-                "id": "user-guide/launcher",
-                "path": "user-guide/launcher",
-                "title": "Desktop Launcher",
-                "description": (
-                    "Starting servers and notebooks, invitations, and local"
-                    " configuration from the desktop application"
-                ),
+                "id": "user-guide/launcher/installation",
+                "path": "user-guide/launcher/installation",
+                "title": "Installation",
+                "description": "Installers for each platform, opening an unsigned build, and the qibocal-report the launcher drives",
+            },
+            {
+                "id": "user-guide/launcher/sections",
+                "path": "user-guide/launcher/sections",
+                "title": "Sections & Windows",
+                "description": "The sections, several windows, running in the background, and zoom",
+            },
+            {
+                "id": "user-guide/launcher/keyboard",
+                "path": "user-guide/launcher/keyboard",
+                "title": "Keyboard Shortcuts",
+                "description": "GitHub-style keys, the menu shortcuts, and the keys of each page",
+            },
+            {
+                "id": "user-guide/launcher/qibocal-report",
+                "path": "user-guide/launcher/qibocal-report",
+                "title": "Installing qibocal-report",
+                "description": "The launcher's own environment, its version, and other environments",
+            },
+            {
+                "id": "user-guide/launcher/servers",
+                "path": "user-guide/launcher/servers",
+                "title": "Report Servers",
+                "description": "Starting and registering servers, here or over SSH, and handling them while they run",
+            },
+            {
+                "id": "user-guide/launcher/notebooks",
+                "path": "user-guide/launcher/notebooks",
+                "title": "Notebooks & Queues",
+                "description": "JupyterLab and Marimo sessions, locally, over SSH or through SLURM, and the queues",
+            },
+            {
+                "id": "user-guide/launcher/configuration",
+                "path": "user-guide/launcher/configuration",
+                "title": "Configuration",
+                "description": "The files shared with the command line, their formats, and the web client",
             },
         ],
     },

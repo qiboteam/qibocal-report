@@ -6,7 +6,7 @@ and embeds the web dashboard so there is no context switch between starting an
 instance and browsing its reports.
 
 The user-facing documentation lives in
-[`docs/user-guide/launcher.md`](../docs/user-guide/launcher.md).
+[`docs/user-guide/launcher/`](../docs/user-guide/launcher/index.md).
 
 ## Layout
 
@@ -114,7 +114,7 @@ them for all three, on demand and on every release.
   to close its SSH tunnels and remote workers.
 - The published builds are unsigned, so macOS and Windows block them on first
   launch; the way around it is in
-  [the user guide](../docs/user-guide/launcher.md#opening-an-unsigned-build).
+  [the user guide](../docs/user-guide/launcher/installation.md#opening-an-unsigned-build).
   The workflow signs and notarizes the macOS bundle as soon as the secrets
   `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
   `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID` exist, and warns in the job
