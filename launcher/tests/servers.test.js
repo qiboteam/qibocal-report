@@ -179,6 +179,13 @@ test('a remote server replaces the address with the SSH options', () => {
   )
 })
 
+test('an update is a one-shot flag on the remote command', () => {
+  const command = serverCommand({ mode: 'server', ssh: 'me@node', upgrade: true })
+  assert.ok(command.endsWith('--ssh me@node --upgrade'), command)
+  assert.ok(!serverCommand({ mode: 'server', ssh: 'me@node' }).includes('--upgrade'))
+  assert.ok(!serverCommand({ mode: 'server', upgrade: true }).includes('--upgrade'), 'nothing remote, nothing to upgrade')
+})
+
 test('the remote options are left out without a destination', () => {
   assert.equal(
     serverCommand({ mode: 'server', directory: '/data', port: 8000, ssh: '  ', venv: 'qibocal' }),

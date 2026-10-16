@@ -152,6 +152,18 @@
             >
               <Play class="w-3.5 h-3.5" /> Start
             </button>
+            <button
+              v-if="launchOptionsFor(server)"
+              type="button"
+              class="lx-action"
+              :disabled="updating === server.id"
+              :title="launchOptionsFor(server).ssh
+                ? 'Bring qibocal-report up to date in its environment on that machine, and start it again'
+                : 'Update the launcher\'s own qibocal-report, and start it again'"
+              @click="update(server)"
+            >
+              <RefreshCw class="w-3.5 h-3.5" :class="{ 'lx-spin': updating === server.id }" /> {{ updating === server.id ? 'Updating…' : 'Update' }}
+            </button>
             <button type="button" class="lx-action" title="Re-issue an administrator invitation" @click="toggleInvite(server)">
               <KeyRound class="w-3.5 h-3.5" /> Invite
             </button>
@@ -249,6 +261,7 @@ import {
   startServer,
   unregisteredServers,
   updateServer,
+  updateServerInstallation,
   withQibocal
 } from '../state.js'
 import { blankForm, formFrom, formProblems, launchFrom, serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
@@ -265,6 +278,8 @@ const invite = reactive({ serverId: null, username: '', hours: 24, busy: false, 
 const editing = reactive({ serverId: null, where: 'local', form: blankForm(), busy: false })
 const administrators = ref([])
 const starting = ref(false)
+/** The server whose qibocal-report is being updated, by id. */
+const updating = ref(null)
 
 const temporary = computed(() => unregisteredServers())
 
@@ -340,9 +355,22 @@ const { focused } = usePageKeys({
     Enter: (index, event) => activate(state.servers[index], event),
     s: (index, event) => activate(state.servers[index], event),
     e: index => toggleEdit(state.servers[index]),
-    i: index => toggleInvite(state.servers[index])
+    i: index => toggleInvite(state.servers[index]),
+    u: index => { if (launchOptionsFor(state.servers[index])) update(state.servers[index]) }
   }
 })
+
+/** Bring a server's qibocal-report up to date and start it again, keeping its entry. */
+async function update(server) {
+  updating.value = server.id
+  const started = await attempt(
+    () => updateServerInstallation(server),
+    `Updating ${server.name || server.url}; it starts again when the installation is done.`,
+    'processes'
+  )
+  updating.value = null
+  if (started) router.push({ name: 'processes' })
+}
 
 /** Start a registered server: as last time, or at its address on this machine. */
 async function relaunch(server) {

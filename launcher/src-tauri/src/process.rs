@@ -514,6 +514,8 @@ pub struct ServerOptions {
     pub venv: Option<String>,
     pub install: Option<String>,
     pub timeout: Option<f64>,
+    /// Put the package back by force in the remote environment first: an update.
+    pub upgrade: Option<bool>,
 }
 
 #[tauri::command]
@@ -607,6 +609,9 @@ pub fn start_server(
         if let Some(timeout) = options.timeout {
             arguments.push("--timeout".to_string());
             arguments.push(format!("{timeout}"));
+        }
+        if options.upgrade.unwrap_or(false) {
+            arguments.push("--upgrade".to_string());
         }
     }
 

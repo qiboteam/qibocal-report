@@ -76,6 +76,7 @@ With `--ssh`, the server runs on another machine and its address is tunnelled ba
 
 - `--ssh TEXT`: SSH options followed by a host or `user@host` destination, as in `qibocal notebook connect`. The destination must be the last argument; do not include a remote command.
 - `-w, --workdir DIRECTORY`: Working directory on the remote host. Default: a fresh temporary directory, since the server writes nothing where it starts.
+- `--upgrade`: Reinstall the `--install` packages in the remote environment before starting — the package itself by force, then its dependencies — so a server keeps up with `qibocal-report` without the environment being removed. Only together with `--ssh`.
 - `--venv NAME_OR_PATH`: Environment on the remote host. Default: `qibocal`. Names resolve under `$XDG_CACHE_HOME/qibocal/envs/` (fallback `~/.cache/qibocal/envs/`), the same place the notebook sessions use; a missing environment is created, and an existing one without Qibocal has it installed.
 - `--install TEXT`: Packages installed in that environment when it has no `qibocal`. Default: `qibocal-report`.
 - `--timeout SECONDS`: Startup timeout, environment preparation included. Default: `300`.

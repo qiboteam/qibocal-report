@@ -27,7 +27,8 @@ export const PAGE_KEYS = {
       'Shift Enter': 'Open it in the dashboard, in a new window',
       s: 'Start it, or open it when it is running',
       e: 'Edit it',
-      i: 'Invite an administrator'
+      i: 'Invite an administrator',
+      u: 'Update its qibocal-report, and start it again'
     }
   },
   processes: {

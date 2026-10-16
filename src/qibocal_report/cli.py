@@ -127,6 +127,13 @@ def remote_server_options(command):
                 type=click.FloatRange(min=0, min_open=True),
                 help="Remote startup timeout in seconds (default: 300).",
             ),
+            click.option(
+                "--upgrade",
+                is_flag=True,
+                default=None,
+                help="Reinstall the --install packages in the remote environment "
+                "before starting, bringing qibocal-report up to date.",
+            ),
         ]
     ):
         command = option(command)

@@ -46,6 +46,9 @@ class RemoteServerOptions(BaseModel):
     venv: str = Field(default="qibocal", min_length=1)
     workdir: str | None = Field(default=None, min_length=1)
     install: str = Field(default="qibocal-report", min_length=1)
+    # Put the packages back by force before starting: an update, where the
+    # environment would otherwise keep what it holds for good.
+    upgrade: bool = False
     auth: bool = False
     timeout: float = Field(default=300.0, gt=0, allow_inf_nan=False)
     # How the tunnelled address is registered here; the worker never sees these.

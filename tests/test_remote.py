@@ -108,6 +108,7 @@ def test_the_ssh_command_keeps_the_destination_last():
         "venv": "chip",
         "workdir": None,
         "install": "qibocal-report",
+        "upgrade": False,
         "auth": True,
         "timeout": 300.0,
     }
@@ -424,3 +425,30 @@ def test_the_worker_starts_from_a_temporary_directory_by_default(monkeypatch, tm
         tempfile.tempdir = None
     assert seen["cwd"].parent == (tmp_path / "tmp").resolve()
     assert seen["cwd"].name.startswith("qibocal-report-")
+
+
+def test_an_update_travels_to_the_worker_and_puts_the_package_back_by_force():
+    options = load_options({"ssh": "me@node", "upgrade": True})
+    assert options.upgrade is True
+    assert load_options({"ssh": "me@node"}).upgrade is False
+    from qibocal_report.remote import worker_command
+
+    command = worker_command(options)
+    assert '"upgrade": true' in command[-1]
+
+    from qibocal_report import report_worker
+
+    first, second = report_worker.upgrade_commands("/env/bin/python", ["qibocal-report"], seeded=True)
+    assert first[-4:] == ["--upgrade", "--force-reinstall", "--no-deps", "qibocal-report"]
+    assert second[-2:] == ["--upgrade", "qibocal-report"]
+    assert first[:4] == ["/env/bin/python", "-m", "pip", "install"]
+
+
+def test_the_cli_passes_upgrade_only_with_a_destination():
+    captured = {}
+    with patch("qibocal_report.remote.launch", lambda options: captured.update(o=options)):
+        result = CliRunner().invoke(main, ["report", "server", "--ssh", "me@node", "--upgrade"])
+    assert result.exit_code == 0, result.output
+    assert captured["o"].upgrade is True
+    alone = CliRunner().invoke(main, ["report", "server", "--upgrade"])
+    assert alone.exit_code != 0 and "only applies together with --ssh" in alone.output

@@ -303,15 +303,53 @@ const pending = new Map()
  */
 export async function startServer(options, { url = null } = {}) {
   const info = await withQibocal(() => desktop.startServer(options))
-  state.launches[info.id] = { kind: 'server', options, url }
+  // An update is asked once, not remembered: the next start is an ordinary one.
+  const { upgrade: _upgrade, ...remembered } = options
+  state.launches[info.id] = { kind: 'server', options: remembered, url }
   mergeProcess(info)
   if (!info.url && options.ssh) {
-    pending.set(info.id, { options, url })
+    pending.set(info.id, { options: remembered, url })
     return info
   }
   const address = url || info.url || `http://${options.host || 'localhost'}:${options.port}`
-  await rememberLaunch(address, options)
+  await rememberLaunch(address, remembered)
   return info
+}
+
+/** Wait for a process to end, a few seconds at most; true when it did. */
+export async function awaitExit(id, timeoutMs = 15_000) {
+  const until = Date.now() + timeoutMs
+  while (Date.now() < until) {
+    const process = processById(id)
+    if (!process || (process.status !== 'running' && process.status !== 'stopping')) return true
+    await new Promise(resolve => setTimeout(resolve, 200))
+  }
+  return false
+}
+
+/**
+ * Bring a registered server's qibocal-report up to date, and start it
+ * again: a server on another machine has the package put back by force
+ * in its own environment; one on this machine runs the launcher's own
+ * installation, which is updated first. A running server is stopped,
+ * and comes back at the same entry.
+ */
+export async function updateServerInstallation(server) {
+  const options = launchOptionsFor(server)
+  if (!options) throw new Error('Registered elsewhere: nothing to update from this machine.')
+  const running = processFor(server)
+  if (running) {
+    await desktop.stopProcess(running.id)
+    if (!(await awaitExit(running.id))) throw new Error('The server did not stop in time.')
+  }
+  if (!options.ssh) {
+    // The launcher's own installation: updated, awaited, then the server as before.
+    const setup = await installQibocal(true)
+    await awaitExit(setup.id, 30 * 60_000)
+    await refreshEnvironment()
+    return startServer(options, { url: server.url })
+  }
+  return startServer({ ...options, upgrade: true }, { url: server.url })
 }
 
 /** Open a notebook session, installing the command line first if needed. */

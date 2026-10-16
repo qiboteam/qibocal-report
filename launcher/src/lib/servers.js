@@ -63,6 +63,7 @@ export function serverCommand(options = {}) {
       if (text) parts.push(flag, text)
     }
     if (options.timeout) parts.push('--timeout', String(options.timeout))
+    if (options.upgrade) parts.push('--upgrade')
   }
   return parts.map(quote).join(' ')
 }

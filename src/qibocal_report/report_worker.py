@@ -89,13 +89,29 @@ def has_pip(runtime, python):
     )
 
 
-def ensure_qibocal(runtime, path, packages):
+def upgrade_commands(python, packages, seeded):
+    """The two installs that bring a package up to date, whatever its version says.
+
+    A branch or commit archive carries the same version number as the one
+    installed, so pip would call it satisfied and change nothing: the package
+    itself is put back by force, on its own, and the dependencies brought up
+    to date after it — as the launcher updates its own installation.
+    """
+    base = environment_install_command(python, [], seeded)
+    return [
+        [*base, "--upgrade", "--force-reinstall", "--no-deps", *packages],
+        [*base, "--upgrade", *packages],
+    ]
+
+
+def ensure_qibocal(runtime, path, packages, upgrade=False):
     """Return the environment's ``qibocal``, installing it when it is missing.
 
     ``ensure_environment`` only installs into an environment it creates, so an
     environment that exists but was never given the report package is filled in
     here — which is what happens the second time a different package is asked
-    for in the same environment.
+    for in the same environment. With ``upgrade``, the packages are put back by
+    force even when the environment has them.
     """
     python = ensure_environment(runtime, path, packages=packages)
     executable = path / "bin" / "qibocal"
@@ -104,6 +120,10 @@ def ensure_qibocal(runtime, path, packages):
         runtime.command(
             environment_install_command(python, packages, has_pip(runtime, python))
         )
+    elif upgrade:
+        event("status", message=f"Updating {', '.join(packages)} in: {path}")
+        for command in upgrade_commands(python, packages, has_pip(runtime, python)):
+            runtime.command(command)
     if not executable.is_file() or not os.access(executable, os.X_OK):
         raise WorkerError(
             f"Environment {path} has no executable bin/qibocal after installing "
@@ -157,7 +177,10 @@ def run(options):
             raise WorkerError("--install must name at least one package")
 
         executable = ensure_qibocal(
-            runtime, environment_path(options.get("venv") or "qibocal"), packages
+            runtime,
+            environment_path(options.get("venv") or "qibocal"),
+            packages,
+            upgrade=bool(options.get("upgrade")),
         )
         port = free_port()
         command = [
