@@ -6,6 +6,7 @@ import {
   archiveSpec,
   defaultSpec,
   describeSpec,
+  installationBehind,
   parseRefs,
   parseReleases,
   parseSpec,
@@ -57,6 +58,17 @@ test('releases come newest first, yanked ones left out', () => {
 
 test('main leads the branches, the rest keep their order', () => {
   assert.deepEqual(parseRefs([{ name: 'feature/b' }, { name: 'main' }, { name: 'dev' }, {}]), ['main', 'feature/b', 'dev'])
+})
+
+test('the installation is behind when it is not what would be installed now', () => {
+  const managed = { source: 'managed', managedPackage: archiveSpec('commit', 'old0000'), defaultPackage: archiveSpec('commit', 'abc1234') }
+  assert.equal(installationBehind(managed), true, 'a new build, an installation of the old one')
+  assert.equal(installationBehind({ ...managed, managedPackage: archiveSpec('commit', 'abc1234') }), false)
+  assert.equal(installationBehind({ ...managed, package: archiveSpec('commit', 'old0000') }), false, 'pinned to what it holds')
+  assert.equal(installationBehind({ ...managed, package: archiveSpec('branch', 'main') }), true, 'pinned to something else')
+  assert.equal(installationBehind({ ...managed, source: 'preference' }), false, 'another environment is not the launcher\'s to update')
+  assert.equal(installationBehind({ ...managed, managedPackage: null }), false)
+  assert.equal(installationBehind(null), false)
 })
 
 test('the picker leads with this build and keeps the current choice', () => {

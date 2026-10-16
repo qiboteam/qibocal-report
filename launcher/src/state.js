@@ -1,6 +1,7 @@
 import { reactive, computed, watch } from 'vue'
 import { desktop, isDesktop, openInNewWindow, subscribe } from './bridge.js'
 import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './lib/servers.js'
+import { installationBehind } from './lib/versions.js'
 import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
 import { queueKey, queueOf } from './lib/slurm.js'
 
@@ -196,23 +197,37 @@ export async function installQibocal(upgrade = false) {
 
 /** Whoever is waiting for the command line to exist: settled by `mergeProcess`. */
 const awaitingSetup = []
+/** Whether the installation was already brought up to this build once: one try a session. */
+let followedBuild = false
 
 /**
- * Make sure the command line is there, installing it if it is not.
+ * Make sure the command line is there, installing it if it is not, and
+ * up to date with this launcher, updating it if it is not.
  *
  * Nothing is installed on opening the application: the first server,
  * notebook or invitation that needs qibocal-report starts the installation,
  * and goes on by itself once it is done — with a word in the status bar
- * meanwhile, and the output in Running.
+ * meanwhile, and the output in Running. The launcher's own installation
+ * follows the build, or the version chosen in Configuration: a launcher
+ * newer than what it installed updates it first, so that the command line
+ * takes what the launcher asks of it. Should that update fail — offline,
+ * say — the installed one serves, and it is not tried again this session.
  */
 export async function ensureQibocal() {
-  if (hasQibocal.value) return
-  if (!state.environment?.python) {
+  const behind = hasQibocal.value && !followedBuild && installationBehind(state.environment)
+  if (hasQibocal.value && !behind) return
+  if (!hasQibocal.value && !state.environment?.python) {
     fail('No Python 3.10 or newer was found to install qibocal-report with.', 'settings')
     throw new Error('No Python 3.10 or newer was found to install qibocal-report with; see Configuration.')
   }
-  if (!installing.value) await installQibocal(false)
-  await new Promise((resolve, reject) => awaitingSetup.push({ resolve, reject }))
+  if (behind) followedBuild = true
+  if (!installing.value) await installQibocal(behind)
+  try {
+    await new Promise((resolve, reject) => awaitingSetup.push({ resolve, reject }))
+  } catch (error) {
+    if (!behind) throw error
+    notify('qibocal-report could not be updated to this build; carrying on with the installed one.', 'settings')
+  }
 }
 
 /** Run something that needs the command line, installing it first if needed. */

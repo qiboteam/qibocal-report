@@ -214,5 +214,16 @@ mod tests {
         );
         assert_eq!(announced_url("[I 10:00] Jupyter Server is running at http://10.0.0.5:8888/lab"), None);
         assert_eq!(announced_url("Connecting to SSH destination node."), None);
+        assert_eq!(
+            announced_url("https://github.com/qiboteam/qibocal-report/archive/3e33908e940d.tar.gz"),
+            None,
+            "pip's download, wrapped onto a line of its own, is not an address of this machine"
+        );
+        assert_eq!(announced_url("http://10.0.0.5:8888/"), None);
+        assert_eq!(
+            announced_url("http://127.0.0.1:38267"),
+            Some("http://127.0.0.1:38267".to_string())
+        );
+        assert_eq!(announced_url("http://[::1]:8000/"), Some("http://[::1]:8000/".to_string()));
     }
 }

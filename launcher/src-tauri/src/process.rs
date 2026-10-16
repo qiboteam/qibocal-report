@@ -98,15 +98,40 @@ fn plain_text(line: &str) -> String {
 }
 
 /// The address of a process, as the command line announces it: a URL on a
-/// line of its own. Addresses mentioned in passing — a notebook server
-/// naming its own host, a worker logging what it reaches — are not it.
+/// line of its own, on this machine — a tunnel's end, or a local server.
+/// Addresses mentioned in passing — a notebook server naming its own host,
+/// a worker logging what it reaches, pip's download of an archive, wrapped
+/// onto a line of its own — are not it.
 pub fn announced_url(line: &str) -> Option<String> {
     let text = plain_text(line);
     let candidate = text.trim();
     if candidate.contains(char::is_whitespace) {
         return None;
     }
-    extract_url(candidate).filter(|url| url.len() == candidate.trim_end_matches(['.', ',', ';', ':']).len())
+    extract_url(candidate)
+        .filter(|url| url.len() == candidate.trim_end_matches(['.', ',', ';', ':']).len())
+        .filter(|url| on_this_machine(url))
+}
+
+/// Whether a URL's host is this machine: `localhost`, the loopback addresses.
+fn on_this_machine(url: &str) -> bool {
+    let authority = url
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(url)
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or("");
+    let host = authority
+        .rsplit_once('@')
+        .map(|(_, host)| host)
+        .unwrap_or(authority);
+    let host = match host.strip_prefix('[') {
+        Some(bracketed) => bracketed.split(']').next().unwrap_or(""),
+        None => host.split(':').next().unwrap_or(""),
+    }
+    .to_ascii_lowercase();
+    host == "localhost" || host == "::1" || host.starts_with("127.")
 }
 
 /// Pick the first absolute URL in a line, as printed by the notebook launcher.
@@ -540,6 +565,22 @@ pub fn upgrade_server(
     let ssh = options.ssh.trim().to_string();
     if ssh.is_empty() {
         return Err("Only a server on another machine has an environment to update.".to_string());
+    }
+    // An older qibocal-report would read `upgrade` as the directory to serve,
+    // and fail on the other machine, far from the cause.
+    if !qibocal::knows(&["report", "server", "upgrade"])? {
+        let environment = qibocal::environment();
+        return Err(format!(
+            "The qibocal-report this launcher runs ({}, {}) is older than the launcher: it has no \
+             'report server upgrade'. Update the launcher's own installation in Configuration, or \
+             choose this build's version there.",
+            environment
+                .version
+                .unwrap_or_else(|| "unknown version".to_string()),
+            environment
+                .executable
+                .unwrap_or_else(|| "not found".to_string())
+        ));
     }
     let mut arguments = vec!["report".to_string(), "server".to_string(), "upgrade".to_string()];
     push_text(&mut arguments, "--ssh", Some(ssh.clone()));

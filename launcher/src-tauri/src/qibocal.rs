@@ -394,6 +394,24 @@ pub fn run(arguments: &[String]) -> Result<String, String> {
     })
 }
 
+/// Whether the command line knows a subcommand: its help names it on the
+/// usage line. A qibocal-report older than the launcher reads an unknown
+/// word as an argument instead, and fails far from the cause.
+pub fn knows(words: &[&str]) -> Result<bool, String> {
+    let program = executable()?;
+    let output = command(&program)
+        .args(words)
+        .arg("--help")
+        .output()
+        .map_err(|error| format!("Could not run '{}': {error}", program.display()))?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let usage = text
+        .lines()
+        .find(|line| line.trim_start().starts_with("Usage:"))
+        .unwrap_or("");
+    Ok(output.status.success() && usage.contains(&words.join(" ")))
+}
+
 #[tauri::command]
 pub fn environment() -> Environment {
     let (resolved, searched) = resolve();

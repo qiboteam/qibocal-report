@@ -39,6 +39,20 @@ export function defaultSpec(environment) {
 }
 
 /**
+ * Whether the launcher's own installation is behind what it would install
+ * now — the chosen version, or this build's commit, changed since it was
+ * made — and so may lack what this launcher asks of it. Only when that
+ * installation is the one that runs: another environment is its owner's.
+ */
+export function installationBehind(environment) {
+  if (!environment || environment.source !== 'managed' || !environment.managedPackage) return false
+  const wanted = typeof environment.package === 'string' && environment.package.trim()
+    ? environment.package.trim()
+    : defaultSpec(environment)
+  return environment.managedPackage !== wanted
+}
+
+/**
  * The choice behind a requirement: `{ kind, ref }` with kind `release`,
  * `branch`, `tag`, `commit` or `other` — the last for anything typed by hand.
  */
