@@ -2,6 +2,7 @@ import { reactive, computed, watch } from 'vue'
 import { desktop, isDesktop, openInNewWindow, subscribe } from './bridge.js'
 import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './lib/servers.js'
 import { installationBehind } from './lib/versions.js'
+import { processNews, unattended } from './lib/alerts.js'
 import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
 import { queueKey, queueOf } from './lib/slurm.js'
 
@@ -439,10 +440,31 @@ export function unregisteredServers() {
   return runningServers().filter(process => !registered.has(serverUrl(process.url)))
 }
 
+/**
+ * Say it where everything is said and — when the user is not looking at
+ * `page`, or at the window at all — through the system as well.
+ */
+export function alert(title, body, { page = null, link = null } = {}) {
+  notify(body, link)
+  if (!isDesktop || typeof document === 'undefined') return
+  const away = unattended({
+    hidden: document.visibilityState === 'hidden',
+    focused: document.hasFocus(),
+    hash: window.location.hash,
+    page
+  })
+  if (away) desktop.systemNotify(title, body).catch(() => {})
+}
+
 function mergeProcess(info) {
   const index = state.processes.findIndex(process => process.id === info.id)
+  const previous = index >= 0 ? state.processes[index] : null
   if (index >= 0) state.processes[index] = info
   else state.processes.push(info)
+
+  // A server up, a session ready, a failure: news, when nobody is watching Running.
+  const news = processNews(previous, info)
+  if (news) alert(news.title, news.body, { page: '/processes', link: 'processes' })
 
   // An installation that ended changed what the launcher can find.
   if (info.kind === 'setup' && info.status !== 'running') settleSetup(info)
@@ -535,6 +557,11 @@ export async function openDashboard(preferredUrl = null, { newWindow = false } =
  * Close the launcher: `force` kills whatever is still running first.
  * Without it, the native side waits for the processes it is stopping.
  */
+/** Quit as the menu does: the processes stopped and waited for, the dialog shown meanwhile. */
+export async function requestQuit() {
+  await desktop.requestQuit()
+}
+
 export async function quit(force = false) {
   await desktop.quit(force)
 }

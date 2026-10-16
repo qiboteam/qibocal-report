@@ -1,11 +1,12 @@
 <!--
   What the launcher shows while it closes with something still running.
 
-  Closing the window, or quitting, tells every server and session to stop
-  and waits: sessions get the moment they need to close their tunnels. The
-  dialog lists them, each with a wheel until it is gone, and offers to go
-  without waiting — which is also what closing a second time does. The
-  launcher exits by itself when the last one has stopped.
+  Quitting — the menu, Cmd/Ctrl+Q, the tray — tells every server and session
+  to stop and waits: sessions get the moment they need to close their
+  tunnels. The dialog lists them, each with a wheel until it is gone, and
+  offers to go without waiting — which is also what quitting a second time
+  does. The launcher exits by itself when the last one has stopped. Closing
+  a window stops nothing: the last one hides, and the launcher stays.
 -->
 <template>
   <div v-if="state.closing" class="lx-veil" role="dialog" aria-modal="true" aria-labelledby="lx-closing-title">

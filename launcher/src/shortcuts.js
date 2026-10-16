@@ -41,6 +41,8 @@ export const SHORTCUTS = [
     .map(section => ({ keys: [section.accelerator], what: `${section.title}, from the Go menu`, group: 'Menu' })),
   { keys: ['CmdOrCtrl+D'], what: 'Open the Dashboard, from the Go menu', group: 'Menu' },
   { keys: ['CmdOrCtrl+N'], what: 'This page again, in a new window, from the Window menu', group: 'Menu' },
+  { keys: ['CmdOrCtrl+W'], what: 'Close the window; the last one leaves the launcher in the background', group: 'Menu' },
+  { keys: ['CmdOrCtrl+Q'], what: 'Quit: stop what runs, wait for it, and go', group: 'Menu' },
   { keys: ['CmdOrCtrl+Shift+N'], what: 'Register a server, from the Servers menu', group: 'Menu' },
   { keys: ['CmdOrCtrl+Plus'], what: 'Zoom in; also the wheel with the key held', group: 'Menu' },
   { keys: ['CmdOrCtrl+-'], what: 'Zoom out', group: 'Menu' },

@@ -34,7 +34,7 @@ import StatusBar from './components/StatusBar.vue'
 import { installMenu } from './menu.js'
 import { installShortcuts } from './shortcuts.js'
 import { installZoom, onZoom } from './zoom.js'
-import { state, fail, initialize, launchOptionsFor, openDashboard, startServer } from './state.js'
+import { state, fail, initialize, launchOptionsFor, openDashboard, startServer, requestQuit } from './state.js'
 
 const router = useRouter()
 
@@ -61,7 +61,8 @@ function refreshMenu() {
     goTo: name => router.push({ name }),
     openDashboard,
     launchServer,
-    servers: state.servers
+    servers: state.servers,
+    quit: requestQuit
   })
 }
 

@@ -17,7 +17,7 @@ import { installMenu } from './menu.js'
 import { sections } from './router.js'
 import { installShortcuts } from './shortcuts.js'
 import { installZoom, onZoom } from './zoom.js'
-import { state, fail, initialize, notify } from './state.js'
+import { state, alert, fail, initialize, notify, requestQuit } from './state.js'
 import { pageShortcuts } from './pagekeys.js'
 
 import './styles.js'
@@ -51,6 +51,11 @@ window.qibocalDesktop = {
    * Notifications page — never a toast of its own.
    */
   notify: (message, kind = 'info') => (kind === 'error' ? fail(message) : notify(message)),
+  /**
+   * News worth a system notification when nobody is looking at the report
+   * list — new reports on a server — besides the bell.
+   */
+  alert: (title, body) => alert(title, body, { page: '/dashboard' }),
   /** Launcher components the dashboard renders in its own toolbars. */
   widgets: { bell: markRaw(NotificationBell) },
   /**
@@ -124,7 +129,8 @@ function menu(registered) {
     openDashboard: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
     // Starting one needs the launcher page, which opens on its form.
     launchServer: server => goTo('servers', `?server=${encodeURIComponent(server.id)}`),
-    servers: registered
+    servers: registered,
+    quit: requestQuit
   })
 }
 

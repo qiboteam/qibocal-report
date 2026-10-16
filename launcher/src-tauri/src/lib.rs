@@ -4,6 +4,7 @@
 //! and write the shared configuration files, and supervise long-running
 //! processes. Everything else lives in the web interface.
 
+mod background;
 mod process;
 mod qibocal;
 mod settings;
@@ -103,6 +104,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             app.manage(process::Supervisor::default());
             // The main window is built here rather than from the configuration
@@ -121,19 +123,20 @@ pub fn run() {
             WebviewWindowBuilder::from_config(app.handle(), &template)?
                 .on_new_window(move |url, _features| new_window(&handle, &config, url))
                 .build()?;
+            background::install_tray(app.handle())?;
             Ok(())
         })
-        // Closing the last window while something runs: stop it first, then
-        // go. Any other window simply closes.
+        // Closing the last window on screen hides it: the launcher stays in
+        // the background, its servers and sessions with it, and comes back
+        // from the tray, the dock, or a new window. Any other window simply
+        // closes. Quitting is explicit, and waits for what runs.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let app = window.app_handle();
-                if app.webview_windows().len() > 1 {
+                if background::shown_windows(window.app_handle()) > 1 {
                     return;
                 }
-                if !app.state::<process::Supervisor>().request_close(app) {
-                    api.prevent_close();
-                }
+                api.prevent_close();
+                let _ = window.hide();
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -165,6 +168,8 @@ pub fn run() {
             process::stop_process,
             process::forget_process,
             process::quit,
+            background::request_quit,
+            background::system_notify,
         ])
         .build(tauri::generate_context!())
         .expect("could not start the Qibocal launcher")
@@ -179,6 +184,13 @@ pub fn run() {
             // Never leave report servers or notebook tunnels behind.
             tauri::RunEvent::Exit => {
                 app.state::<process::Supervisor>().shutdown();
+            }
+            // The dock icon clicked with every window hidden: the windows back.
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                if !has_visible_windows {
+                    background::show_windows(app);
+                }
             }
             _ => {}
         });

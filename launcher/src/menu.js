@@ -10,7 +10,7 @@ import { describeZoom, zoom, zoomLevel } from './zoom.js'
 
 const MAX_QUICK_SERVERS = 8
 
-async function build({ goTo, openDashboard, launchServer, servers }) {
+async function build({ goTo, openDashboard, launchServer, servers, quit }) {
   const { Menu, Submenu, MenuItem, PredefinedMenuItem } = await import('@tauri-apps/api/menu')
 
   const separator = () => PredefinedMenuItem.new({ item: 'Separator' })
@@ -27,7 +27,14 @@ async function build({ goTo, openDashboard, launchServer, servers }) {
       }),
       await separator(),
       await PredefinedMenuItem.new({ item: 'Hide' }),
-      await PredefinedMenuItem.new({ item: 'Quit' })
+      // Quitting is explicit: the window's close leaves the launcher in the
+      // background; this stops what runs, waits for it, and goes.
+      await MenuItem.new({
+        id: 'menu-quit',
+        text: 'Quit Qibocal',
+        accelerator: 'CmdOrCtrl+Q',
+        action: () => quit?.()
+      })
     ]
   }))
 
@@ -130,6 +137,7 @@ async function build({ goTo, openDashboard, launchServer, servers }) {
       await separator(),
       await PredefinedMenuItem.new({ item: 'Minimize' }),
       await PredefinedMenuItem.new({ item: 'Fullscreen' }),
+      // The last window closed is hidden, the launcher left in the background.
       await PredefinedMenuItem.new({ item: 'CloseWindow' })
     ]
   }))

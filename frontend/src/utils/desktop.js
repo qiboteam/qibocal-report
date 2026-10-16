@@ -32,6 +32,21 @@ export function announce(message, kind = 'info') {
 }
 
 /**
+ * News for the launcher to say through the system too, when nobody is
+ * looking — new reports on a server. True when the launcher took it.
+ */
+export function alert(title, body) {
+  const host = desktop()
+  if (typeof host?.alert !== 'function') return false
+  try {
+    host.alert(String(title), String(body))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Tell the launcher which dashboard page is on screen — `dashboard`, the
  * report list; `report`, one report — so its keyboard cheatsheet lists
  * the keys of that page; null when leaving. Nothing in a browser.

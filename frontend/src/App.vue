@@ -15,7 +15,9 @@
 import { onMounted, onBeforeUnmount, watch, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { state, fetchServers } from './store.js'
-import { announce, inDesktop } from './utils/desktop.js'
+import { alert, announce, inDesktop } from './utils/desktop.js'
+import { createArrivals, describeArrivals } from './utils/arrivals.js'
+import { getActiveServerUrl } from './utils/url.js'
 import { cheatsheetOpen, isPlainKey, isTypingTarget } from './utils/shortcuts.js'
 import ShortcutsModal from './components/modals/ShortcutsModal.vue'
 import LoginModal from './components/modals/LoginModal.vue'
@@ -120,5 +122,42 @@ watch(
 
 onMounted(() => {
   fetchServers()
+  watchArrivals()
+})
+
+// Inside the launcher, new reports on a server are news even when the list
+// is not on screen: each registered server is asked for its count now and
+// then — the health answer, which the server keeps ready — and an increase
+// goes through the launcher, to the bell and, when nobody is looking, the
+// system. Nothing of this in a browser.
+const ARRIVALS_EVERY_MS = 60_000
+const arrivals = createArrivals()
+let arrivalsTimer = null
+
+async function countArrivals() {
+  for (const server of state.servers || []) {
+    const base = getActiveServerUrl(server)
+    if (!base) continue
+    try {
+      const response = await fetch(`${base}/api/health`, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
+      if (!response.ok) continue
+      const health = await response.json()
+      const fresh = arrivals(base, Number(health?.reports_count))
+      if (fresh > 0) alert('New reports', describeArrivals(fresh, server.name || base))
+    } catch {
+      // A server away says nothing; it is asked again next time.
+    }
+  }
+}
+
+function watchArrivals() {
+  if (!inDesktop() || arrivalsTimer) return
+  countArrivals()
+  arrivalsTimer = setInterval(countArrivals, ARRIVALS_EVERY_MS)
+}
+
+onBeforeUnmount(() => {
+  clearInterval(arrivalsTimer)
+  arrivalsTimer = null
 })
 </script>

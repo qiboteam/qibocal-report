@@ -52,6 +52,10 @@ export const desktop = {
   forgetProcess: id => call('forget_process', { id }),
   /** Close the launcher now; `force` kills what is still running first. */
   quit: (force = false) => call('quit', { force }),
+  /** Quit the way the menu does: the windows back, the processes stopped and waited for. */
+  requestQuit: () => call('request_quit'),
+  /** A system notification, for what happens while the user is not looking. */
+  systemNotify: (title, body) => call('system_notify', { title, body }),
 
   administrators: () => call('administrators'),
   /** Ask a SLURM queue once: `{ ssh, partition, user, states, timeout }`. */
