@@ -101,8 +101,11 @@ def test_selected_root_is_report(tmp_path, make_report, monkeypatch, name):
 @pytest.mark.parametrize("root_is_report", [False, True])
 @pytest.mark.parametrize("metadata", ["meta.json", "history.json", "report/meta.json"])
 def test_cache_invalidation_beneath_ignored_ancestor(
-    tmp_path, make_report, root_is_report, metadata
+    tmp_path, make_report, root_is_report, metadata, monkeypatch
 ):
+    # A validated index stands for a couple of seconds by default; this
+    # test is about what a walk notices, so every scan walks.
+    monkeypatch.setenv("QIBOCAL_REPORT_SCAN_INTERVAL", "0")
     root = tmp_path / ".cache" / "runs"
     report_dir = root if root_is_report else root / "sessions" / "session"
     make_report(report_dir)
