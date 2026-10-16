@@ -74,6 +74,16 @@ in the list, in the header of its report and in the filter chip, which filters
 for that pair; filtering by a single qubit also finds the pairs it is in. Its
 plots are generated like any other protocol's.
 
+## Where the targets come from
+
+The qubits a report lists are the session's `targets` in its `meta.json`,
+which is often empty or stale; its protocols know better, each naming in its
+`action.yml` what it was run on. **Infer targets**, in Server Administration —
+or `qibocal report targets` — gathers their union into the report's meta as
+`targets-inferred`, which the list, the header and the filters then show
+first; the session's own list is kept. It reads every report, so it runs on
+request rather than at every load.
+
 ## The action of a protocol
 
 Each protocol card folds, under its outputs, an **Action** line: the

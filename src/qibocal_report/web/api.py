@@ -28,9 +28,10 @@ from fastapi.responses import (
     StreamingResponse,
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 
 from qibocal_report import auth, config, qibocal_environment
-from qibocal_report.reports.actions import execute_bulk_action, find_report_dirs
+from qibocal_report.reports.actions import execute_bulk_action, find_report_dirs, infer_targets
 from qibocal_report.reports.archive import (
     create_archive,
     delete_archive,
@@ -856,6 +857,33 @@ def admin_get_config() -> AdminConfigResponse:
         users_count=len(users),
         invites_count=len(invites),
     )
+
+
+class InferTargetsResponse(BaseModel):
+    reports: int
+    updated: int
+    without_targets: int
+
+
+@app.post(
+    "/api/admin/reports/infer-targets",
+    response_model=InferTargetsResponse,
+    tags=["Reports"],
+)
+async def admin_infer_targets(
+    response: Response, _user: Annotated[dict, Depends(require_admin)]
+) -> InferTargetsResponse:
+    """Gather each report's targets from its protocols, into `targets-inferred`.
+
+    Reads every protocol's `action.yml` under the reports, so it is run on
+    request rather than at every scan; the scanner prefers what it wrote.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    counts = await asyncio.to_thread(infer_targets, REPORT_ROOT_DIR)
+    log_info(
+        f"Inferred targets for {counts['updated']} of {counts['reports']} report(s)"
+    )
+    return InferTargetsResponse(**counts)
 
 
 # --- Server Management Endpoints ---
