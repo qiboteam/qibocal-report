@@ -1,4 +1,12 @@
-"""Qibocal-compatible, append-only session and protocol comment histories."""
+"""Qibocal-compatible session and protocol comment histories.
+
+The file is Qibocal's own `notes.json`: a list of comments, each with its
+content, its timestamp and, on authenticated servers, its author. Comments
+are appended, and may be changed or removed by whoever wrote them — or by an
+administrator — through the same lock and the same atomic replacement, with
+nothing added to the format: a comment is addressed by its position and its
+timestamp, so a client holding a stale history cannot touch the wrong one.
+"""
 
 import sys
 import uuid
@@ -56,17 +64,19 @@ def load_notes(directory: Path) -> list[Note]:
         raise NotesError(f"Invalid notes in {path.name}: {error}") from error
 
 
-def append_note(directory: Path, content: str, author: str | None) -> list[Note]:
+class NoteMismatch(NotesError):
+    """The comment at that position is not the one the caller meant."""
+
+
+def _rewrite(directory: Path, change) -> list[Note]:
     """Serialize server writers and atomically replace only the notes file."""
-    note = Note(content=content, timestamp=datetime.now(timezone.utc), author=author)
     lock_path = directory / ".notes.lock"
     if lock_path.is_symlink():
         raise NotesError("Notes locks must not be symbolic links")
     temporary = directory / f".notes-{uuid.uuid4().hex}.json"
     try:
         with _notes_lock(lock_path):
-            notes = load_notes(directory)
-            notes.append(note)
+            notes = change(load_notes(directory))
             temporary.write_bytes(_NOTES.dump_json(notes, indent=4))
             temporary.replace(directory / "notes.json")
             return notes
@@ -74,6 +84,47 @@ def append_note(directory: Path, content: str, author: str | None) -> list[Note]
         raise NotesError(f"Could not save notes: {error}") from error
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def append_note(directory: Path, content: str, author: str | None) -> list[Note]:
+    note = Note(content=content, timestamp=datetime.now(timezone.utc), author=author)
+    return _rewrite(directory, lambda notes: [*notes, note])
+
+
+def note_at(notes: list[Note], index: int, timestamp: datetime) -> Note:
+    """The comment at `index`, provided it is the one stamped `timestamp`."""
+    if index < 0 or index >= len(notes):
+        raise NoteMismatch("No such comment")
+    note = notes[index]
+    if note.timestamp != timestamp.astimezone(timezone.utc):
+        raise NoteMismatch("The comments changed since they were read; reload them")
+    return note
+
+
+def replace_note(
+    directory: Path, index: int, timestamp: datetime, content: str
+) -> list[Note]:
+    """Change the content of one comment, keeping its author and its time."""
+
+    def change(notes: list[Note]) -> list[Note]:
+        note = note_at(notes, index, timestamp)
+        return [
+            *notes[:index],
+            Note(content=content, timestamp=note.timestamp, author=note.author),
+            *notes[index + 1 :],
+        ]
+
+    return _rewrite(directory, change)
+
+
+def remove_note(directory: Path, index: int, timestamp: datetime) -> list[Note]:
+    """Remove one comment."""
+
+    def change(notes: list[Note]) -> list[Note]:
+        note_at(notes, index, timestamp)
+        return [*notes[:index], *notes[index + 1 :]]
+
+    return _rewrite(directory, change)
 
 
 def protocol_notes_directory(report_dir: Path, protocol_id: str) -> Path | None:

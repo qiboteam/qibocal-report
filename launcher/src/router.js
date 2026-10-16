@@ -6,6 +6,7 @@ import NotebooksView from './views/NotebooksView.vue'
 import SettingsView from './views/SettingsView.vue'
 import NotificationsView from './views/NotificationsView.vue'
 import HelpView from './views/HelpView.vue'
+import QueuesView from './views/QueuesView.vue'
 
 /**
  * The launcher sections, described once: the router, the home page cards,
@@ -86,6 +87,8 @@ export const router = createRouter({
     ...sections.map(({ name, path, component }) => ({ name, path, component })),
     // Reached from the status bar, not a section: no card, no menu item.
     { name: 'notifications', path: '/notifications', component: NotificationsView },
+    // Reached from Running, where a session waits in its queue.
+    { name: 'queues', path: '/queues', component: QueuesView },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ],
   scrollBehavior() {

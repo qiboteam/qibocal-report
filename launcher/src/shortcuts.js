@@ -32,6 +32,7 @@ export const SHORTCUTS = [
     .map(section => ({ keys: ['g', section.key], what: `Go to ${section.title}`, group: 'Go to' })),
   { keys: ['g', 'd'], what: 'Open the Dashboard', group: 'Go to' },
   { keys: ['g', 'n'], what: 'Go to Notifications', group: 'Go to' },
+  { keys: ['g', 'q'], what: 'Go to Queues: the SLURM queues of the sessions', group: 'Go to' },
   { keys: ['n'], what: 'New server: Servers, with the form open', group: 'Do' },
   { keys: ['?'], what: 'Show the keyboard shortcuts', group: 'Do' },
   { keys: ['Esc'], what: 'Put the shortcuts away', group: 'Do' },
@@ -117,6 +118,7 @@ export function installShortcuts({ go, dashboard, newServer, target = document }
       if (section) go(section.name)
       else if (key === 'd') dashboard()
       else if (key === 'n') go('notifications')
+      else if (key === 'q') go('queues')
       else return
       state.cheatsheet = false
       event.preventDefault()

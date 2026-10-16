@@ -215,7 +215,35 @@ def node_addresses(runtime):
     return list(dict.fromkeys(addresses))
 
 
-def compute_address(access_addresses, compute_addresses, subnet=None):
+def route_source(destination):
+    """The address this host would send from to reach `destination`, or None.
+
+    Connecting a datagram socket sends nothing and asks the kernel's routing
+    table which interface serves that destination: the one the access node
+    can reach back, when any can.
+    """
+    try:
+        target = ipaddress.ip_address(destination)
+        family = socket.AF_INET6 if target.version == 6 else socket.AF_INET
+        with socket.socket(family, socket.SOCK_DGRAM) as probe:
+            probe.connect((destination, 9))
+            return probe.getsockname()[0]
+    except (OSError, ValueError):
+        return None
+
+
+def compute_address(
+    access_addresses, compute_addresses, subnet=None, source_for=None
+):
+    """The compute-node address the access node forwards to.
+
+    Within `subnet` when one is given. An address the two nodes share — a
+    bridge every host has at the same address, a VPN's — is a per-host
+    interface, not a network between them, and is left out while anything
+    else remains. The interface this node routes through to reach the
+    access node (`source_for`, `route_source` in practice) comes first; the
+    longest common prefix decides otherwise.
+    """
     if subnet is not None:
         network = ipaddress.ip_network(subnet)
         compute_addresses = [
@@ -227,6 +255,15 @@ def compute_address(access_addresses, compute_addresses, subnet=None):
             raise WorkerError(
                 f"No usable computing-node IP addresses match subnet {subnet}"
             )
+    shared = set(access_addresses)
+    distinct = [value for value in compute_addresses if value not in shared]
+    if distinct:
+        compute_addresses = distinct
+    if source_for is not None:
+        for destination in access_addresses:
+            source = source_for(destination)
+            if source in compute_addresses:
+                return source
     best = None
     longest = -1
     for local in map(ipaddress.ip_address, access_addresses):
@@ -241,12 +278,32 @@ def compute_address(access_addresses, compute_addresses, subnet=None):
     return best
 
 
+def probe_reachable(host, port, deadline, stop):
+    """Whether something answers at host:port before `deadline`; the error otherwise.
+
+    A refused connection a moment after the server reported ready may be
+    the server still binding, so refusals are retried until the deadline.
+    """
+    error = None
+    while time.monotonic() < deadline and not stop.is_set():
+        try:
+            with socket.create_connection((host, port), timeout=3):
+                return None
+        except OSError as failure:
+            error = failure
+        stop.wait(0.3)
+    return error or OSError("timed out")
+
+
 class Forwarder:
     """Relay access-node loopback to the selected compute interface."""
 
     def __init__(self, host, port):
         self.stop = threading.Event()
         stop = self.stop
+        # One report per kind of failure: a browser retries, and every retry
+        # would otherwise say the same thing again.
+        reported = set()
 
         class Handler(socketserver.BaseRequestHandler):
             def handle(self):
@@ -265,7 +322,8 @@ class Forwarder:
                                     readers.remove(source)
                                     peers[source].shutdown(socket.SHUT_WR)
                 except OSError as error:
-                    if not stop.is_set():
+                    if not stop.is_set() and str(error) not in reported:
+                        reported.add(str(error))
                         event(
                             "status",
                             message=f"Notebook forwarding connection failed: {error}",
@@ -711,6 +769,22 @@ def run(options):
                 "status",
                 message=f"Forwarding access-node loopback to {data['host']}.",
             )
+            # Said to be ready on that interface: make sure it is reachable
+            # from here before a browser is pointed at it, and say exactly
+            # what is wrong when it is not.
+            failure = probe_reachable(
+                data["host"],
+                data["port"],
+                min(runtime.deadline, time.monotonic() + 20),
+                runtime.stop,
+            )
+            if failure is not None and not runtime.stop.is_set():
+                raise WorkerError(
+                    f"The notebook reported ready on {data['host']}:{data['port']}, "
+                    f"but the access node cannot reach it: {failure}. The computing "
+                    "node chose an interface the access node has no route to; pass "
+                    "--subnet with the network the two nodes share."
+                )
             forwarder = Forwarder(data["host"], data["port"])
             port = forwarder.port
             token, path = data["token"], data["path"]
@@ -729,6 +803,7 @@ def run(options):
                     options["_access_addresses"],
                     node_addresses(runtime),
                     options.get("subnet"),
+                    source_for=route_source,
                 )
                 event(
                     "status",

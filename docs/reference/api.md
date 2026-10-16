@@ -154,6 +154,12 @@ Report details include session `notes`; protocol outputs include per-execution
 `notes`. Both default to `[]` for reports without a notes file. Notes are read
 from their source files independently of cached plots.
 
+### `GET /api/reports/{report_id}/protocols/{protocol_id}/action`
+The protocol's `action.yml` — the parameters it was run with, as Qibocal
+wrote them next to its data — as YAML text (`application/yaml`). With
+`?download=true` it comes as an attachment named after the report and the
+protocol. `404` when the protocol, or its action file, is not there.
+
 ### `GET /api/reports/{report_id}/notes`
 ### `GET /api/reports/{report_id}/protocols/{protocol_id}/notes`
 Return session or protocol comment histories. Requires viewer access on
@@ -174,9 +180,22 @@ or `null` author on open servers:
 Use the exact protocol execution ID, including its iteration (e.g. `rabi-1`).
 Ambiguous legacy names are rejected rather than assigned to an arbitrary
 iteration. Unknown report or protocol IDs return 404. Invalid stored histories
-return an explicit error and are never silently replaced. Existing records are
-immutable; corrections are new comments. Server appends are serialized across
-workers and saved atomically. External writers (including Qibocal's list-replace
+return an explicit error and are never silently replaced. Server writes are
+serialized across workers and saved atomically.
+
+### `PUT /api/reports/{report_id}/notes/{index}`
+### `PUT /api/reports/{report_id}/protocols/{protocol_id}/notes/{index}`
+### `DELETE /api/reports/{report_id}/notes/{index}?timestamp=…`
+### `DELETE /api/reports/{report_id}/protocols/{protocol_id}/notes/{index}?timestamp=…`
+Change, or remove, one comment, and return the complete updated history. A
+comment is addressed by its position in the history and its timestamp — in the
+body for `PUT` (`{"content": "…", "timestamp": "2026-10-10T06:00:00Z"}`), as a
+query parameter for `DELETE` — so a client holding a stale history cannot touch
+the wrong one: a mismatch is a `409`, and the client reloads. A changed comment
+keeps its author and its timestamp. On authenticated servers only the author
+of a comment, or an administrator, may change it (`403` otherwise); open
+servers allow anyone. The comments' content is Markdown, rendered by the
+dashboard with raw HTML neutralised. External writers (including Qibocal's list-replace
 API) must coordinate writes with the report server to avoid losing comments.
 
 ### `GET /api/reports/{report_id}/path`

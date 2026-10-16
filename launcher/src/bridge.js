@@ -52,6 +52,8 @@ export const desktop = {
   quit: (force = false) => call('quit', { force }),
 
   administrators: () => call('administrators'),
+  /** Ask a SLURM queue once: `{ ssh, partition, user, states, timeout }`. */
+  slurmQueue: request => call('slurm_queue', { request }),
   reissueInvite: request => call('reissue_invite', { request })
 }
 

@@ -213,6 +213,18 @@ qibocal report admin invite alice_admin --json
 
 ---
 
+### `qibocal notebook queue [CONNECTION]`
+What a SLURM queue is doing, asked once: `squeue`, `sinfo` and `whoami` run in a single round trip — over SSH when a destination is given — and answered as a table, or as JSON with `--json`. The host and the partition come from a saved `CONNECTION`, or from the options.
+
+- `--ssh TEXT`: SSH options followed by a host or `user@host` destination.
+- `-q, --queue TEXT`: the partition to look at; without it, every partition.
+- `-u, --user TEXT`: only the jobs of this user.
+- `-t, --state TEXT`: only jobs in this state, repeatable (`PENDING`, `RUNNING`, …).
+- `--json`: the answer as JSON — `jobs`, `nodes`, `summary`, `user`, `fetched_at`, `error`.
+- `--timeout FLOAT`: seconds to wait for the controller. Default `30`.
+
+Ask sparingly: every call costs the controller something. The launcher asks every 30 seconds while a queue is on screen, and never otherwise.
+
 ## ⚙️ Environment Variables
 
 | Variable | Description | Default |

@@ -625,6 +625,29 @@
   border-top: 1px solid #f1f1f3;
 }
 
+/* A filter chip: off, a grey pill; on, the accent's tint. */
+.lx-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: #efeff1;
+  cursor: pointer;
+  transition: background-color 50ms ease, color 50ms ease;
+}
+
+.lx-chip:hover {
+  color: #3b107e;
+}
+
+.lx-chip.is-on {
+  background: var(--accent-light);
+  color: #3b107e;
+}
+
 /* The entry under the keyboard's cursor: an outline, mild and unmistakable. */
 .lx-focus {
   outline: 2px solid rgba(131, 61, 255, 0.45);

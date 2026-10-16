@@ -107,9 +107,41 @@
     <div v-else-if="!proto.error && !proto.html" class="my-4 text-xs text-gray-400 italic">
       No figures or tables available for this routine.
     </div>
+    <!--
+      The action: the parameters the protocol was run with, as Qibocal wrote
+      them to action.yml. Folded by default, read from the server when
+      unfolded, and downloadable as the file it is.
+    -->
+    <details v-if="reportId" class="group/action mt-4" @toggle="onActionToggle($event.target.open)">
+      <summary class="flex items-center gap-1.5 cursor-pointer select-none text-xs text-gray-500 hover:text-gray-800 transition py-1 list-none [&::-webkit-details-marker]:hidden">
+        <svg class="w-3 h-3 transition-transform group-open/action:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <span class="font-semibold">Action</span>
+        <span class="text-gray-400 font-mono">{{ action.name || 'action.yml' }}</span>
+        <api-file-button
+          :path="`${actionPath}?download=true`"
+          :filename="`${proto.id}_action.yml`"
+          class="no-print ml-auto inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-[#833dff] cursor-pointer"
+          title="Download the action file"
+          @click.stop
+        >
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Download
+        </api-file-button>
+      </summary>
+      <div class="mt-1.5 pl-4.5">
+        <p v-if="action.loading" class="text-xs text-gray-400" role="status">Loading…</p>
+        <p v-else-if="action.error" class="text-xs text-amber-700" role="alert">{{ action.error }}</p>
+        <pre v-else-if="action.text" class="text-[11px] leading-relaxed font-mono text-gray-800 bg-[#f7f5ff] rounded-lg px-3 py-2 overflow-x-auto whitespace-pre">{{ action.text }}</pre>
+      </div>
+    </details>
+
     <notes-panel
       v-if="reportId"
-      class="mt-4"
+      class="mt-2"
       :report-id="reportId"
       :protocol-id="proto.id"
       :notes="proto.notes"
@@ -120,8 +152,8 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue'
-import { state } from '../../store.js'
+import { computed, inject, reactive, ref, watch } from 'vue'
+import { state, apiFetch } from '../../store.js'
 import { useNearViewport } from '../../composables/useNearViewport.js'
 import { getProtocolDocUrl, hasSpecificDoc } from '../../utils/protocolDocs.js'
 import { copyToClipboard } from '../../utils/clipboard.js'
@@ -158,6 +190,38 @@ const docUrl = computed(() => {
 
 const isSpecificDoc = computed(() => {
   return hasSpecificDoc(props.proto?.id, props.proto?.name, state.activeServer)
+})
+
+/** The action file: read when its block is unfolded, once per protocol. */
+const action = reactive({ text: '', name: '', loading: false, error: '', loaded: false })
+const actionPath = computed(() => {
+  if (!props.reportId || !props.proto?.id) return ''
+  return `/api/reports/${encodeURIComponent(props.reportId)}/protocols/${encodeURIComponent(props.proto.id)}/action`
+})
+async function onActionToggle(open) {
+  if (!open || action.loaded || action.loading || !actionPath.value) return
+  action.loading = true
+  action.error = ''
+  try {
+    const response = await apiFetch(actionPath.value, { cache: 'no-store' })
+    if (response.status === 404) {
+      action.error = 'This protocol has no action file.'
+    } else if (!response.ok) {
+      action.error = `The action file could not be read (${response.status}).`
+    } else {
+      action.text = await response.text()
+      const disposition = response.headers.get('content-disposition') || ''
+      action.name = /\.yaml"?$/i.test(disposition) ? 'action.yaml' : 'action.yml'
+    }
+    action.loaded = true
+  } catch (error) {
+    action.error = error?.message || 'The action file could not be read.'
+  } finally {
+    action.loading = false
+  }
+}
+watch(() => [props.reportId, props.proto?.id], () => {
+  Object.assign(action, { text: '', name: '', loading: false, error: '', loaded: false })
 })
 
 const downloadDataPath = computed(() => {
