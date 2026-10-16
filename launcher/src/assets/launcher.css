@@ -926,11 +926,13 @@
 }
 
 /*
- * No rubber band: the document never scrolls, the page does, in one axis
- * only when its content asks for it, and it stops where the content stops.
+ * No rubber band on the launcher page: there the document never scrolls,
+ * the page does, in one axis only when its content asks for it, and it
+ * stops where the content stops. The dashboard page is not this: several
+ * of its pages scroll the document itself, and are left to the webview.
  */
-html,
-body {
+html.lx-launcher,
+body.lx-launcher {
   overscroll-behavior: none;
 }
 
