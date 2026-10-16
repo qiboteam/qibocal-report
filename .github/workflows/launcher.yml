@@ -104,18 +104,6 @@ jobs:
         run: pnpm run test
         working-directory: launcher
 
-      # The dashboard the launcher embeds has tests of its own; one platform
-      # is enough to run them, since nothing in them is platform-bound.
-      - name: Install the frontend dependencies
-        if: matrix.label == 'Linux'
-        run: pnpm install --frozen-lockfile
-        working-directory: frontend
-
-      - name: Run the frontend tests
-        if: matrix.label == 'Linux'
-        run: pnpm run test
-        working-directory: frontend
-
       - name: Generate the application icons
         run: pnpm run icons
         working-directory: launcher
@@ -276,3 +264,84 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" artifacts/* --clobber
+
+  # The dashboard the launcher embeds has tests of its own, and the Linux
+  # package is installed as a user would install it: a job after the build,
+  # so that a failing test keeps no installer from being published, and
+  # whoever downloads one gets it whether or not the tests passed.
+  dashboard:
+    name: Dashboard tests and a Linux install
+    needs: build
+    # A matrix is one job to depend on: this runs once all three builds
+    # are done, and still when one of the other platforms failed, since
+    # only the Linux package is needed here.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install the frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Run the frontend tests
+        run: pnpm run test
+        working-directory: frontend
+
+      - name: Download the Debian package
+        uses: actions/download-artifact@v6
+        with:
+          name: qibocal-launcher-Linux-deb
+          path: package
+
+      # As a user would: apt resolves the package's dependencies, the
+      # WebKitGTK runtime among them, and refuses a package that names
+      # something the distribution does not have.
+      - name: Install the package
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          ls -l package
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ./package/*.deb xvfb
+          name=$(dpkg-deb --field package/*.deb Package)
+          echo "PACKAGE=$name" >> "$GITHUB_ENV"
+          dpkg --status "$name"
+          dpkg --listfiles "$name"
+
+      # The application opened once, on a display of its own: it has to
+      # stay up for the whole of the time given — a crash on start, a
+      # library missing at run time, exits early — and is then stopped,
+      # which is the exit this step expects.
+      - name: Open the application once
+        env:
+          WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+          WEBKIT_DISABLE_DMABUF_RENDERER: "1"
+        run: |
+          binary=$(dpkg --listfiles "$PACKAGE" | grep -m1 '^/usr/bin/')
+          echo "Opening $binary"
+          set +e
+          timeout --signal=TERM 20 xvfb-run --auto-servernum "$binary"
+          status=$?
+          set -e
+          if [ "$status" -eq 124 ]; then
+            echo "The application stayed up until it was stopped."
+          else
+            echo "::error::The application exited on its own with status $status."
+            exit 1
+          fi
