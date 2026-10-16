@@ -25,6 +25,8 @@ use crate::settings;
 
 /// The commit this build was made from, when the build knew it (see build.rs).
 pub const BUILD_COMMIT: Option<&str> = option_env!("QIBOCAL_BUILD_COMMIT");
+/// The release tag this build was made for, when it was one (see build.rs).
+pub const BUILD_TAG: Option<&str> = option_env!("QIBOCAL_BUILD_TAG");
 
 /// What goes into the managed environment, unless a preference says otherwise:
 /// the very commit this launcher is built from, installed from its archive —
@@ -69,6 +71,8 @@ pub struct Environment {
     /// What that requirement is when nothing was chosen: this build's commit.
     pub default_package: String,
     pub build_commit: Option<String>,
+    /// The release this build is, when it is one: its tag.
+    pub build_tag: Option<String>,
     /// The requirement it was last installed from, if it exists.
     pub managed_package: Option<String>,
 }
@@ -443,6 +447,7 @@ pub fn environment() -> Environment {
         package: package_preference(),
         default_package: default_package(),
         build_commit: BUILD_COMMIT.map(str::to_string),
+        build_tag: BUILD_TAG.map(str::to_string),
         managed_package: managed_package(),
     }
 }

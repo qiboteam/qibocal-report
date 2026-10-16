@@ -46,7 +46,7 @@
             @click="selected = 'local'"
           >
             <span class="source-icon"><FolderOpen :size="12" aria-hidden="true" /></span>
-            <span class="git-label">Folder: {{ localPath || 'choose one…' }}</span>
+            <span class="git-label">Local: {{ localPath || 'choose a folder…' }}</span>
           </button>
           <button
             type="button"
@@ -154,7 +154,7 @@ const pypiOptions = computed(() => options.value.filter(option => option.source 
 const gitOption = computed(() => options.value.find(option => option.source === 'git'))
 /** Offered by servers that take a folder; older ones do not list it. */
 const localOption = computed(() => options.value.find(option => option.source === 'local'))
-const localLabel = computed(() => `A folder on the server: ${localPath.value || 'none chosen'}`)
+const localLabel = computed(() => `Local: a folder on the server, ${localPath.value || 'none chosen yet'}`)
 const gitLabel = computed(() => `${gitOption.value?.label || 'Official Qibocal Git repository'}: ${gitBranch.value || 'default branch'}`)
 const installedBranchUrl = computed(() => `https://github.com/qiboteam/qibocal/tree/${encodeURIComponent(environment.value?.git_branch || '')}`)
 

@@ -209,7 +209,11 @@ the highlighted buttons (PyPI versions show their logo), then use **Install**
 icon) reloads available versions.
 Full source names and action labels are available as tooltips and accessible text.
 If GitHub cannot list branches, the error is shown and installation from the
-default Git branch remains available.
+default Git branch remains available. The last cell, **Local**, installs from a
+folder on the server — a checkout of Qibocal there — chosen by typing its path
+or browsing the server's folders with the magnifier beside it; folders holding
+a Python project are marked. The installation is editable: changes in the
+folder are live at the next plot, with no reinstall. Administrators only.
 
 **Install / Switch version** (the package-plus icon) changes Qibocal and its dependencies in the server's
 Python environment for all users, then regenerates the current report's cached

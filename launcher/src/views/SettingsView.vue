@@ -224,6 +224,15 @@
       <h2 class="text-sm font-semibold text-gray-900 mb-3">About</h2>
       <dl class="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 text-xs">
         <div class="flex gap-2">
+          <dt class="text-gray-400 w-20 shrink-0">Version</dt>
+          <dd>
+            <button v-if="build.url" type="button" class="text-[#833dff] hover:text-[#6b21a8] transition lx-mono" :title="build.url" @click="openExternal(build.url)">
+              {{ build.label }}
+            </button>
+            <span v-else class="text-gray-800 lx-mono">{{ build.label }}</span>
+          </dd>
+        </div>
+        <div class="flex gap-2">
           <dt class="text-gray-400 w-20 shrink-0">Platform</dt>
           <dd class="text-gray-800 lx-mono">{{ platform.os }} · {{ platform.arch }}</dd>
         </div>
@@ -274,6 +283,7 @@ import {
   BRANCHES_URL,
   PYPI_URL,
   TAGS_URL,
+  buildIdentity,
   defaultSpec,
   describeSpec,
   parseRefs,
@@ -290,6 +300,8 @@ const chosen = ref([])
 const platform = ref({ os: '—', arch: '' })
 
 const environment = computed(() => state.environment)
+/** This build, as About names it: its release tag, or its commit. */
+const build = computed(() => buildIdentity(environment.value))
 const preferredExecutable = computed(() => state.preferences?.executable || null)
 /** The files this version reads, and the ones of another format, listed apart. */
 const readable = computed(() => state.configEntries.filter(entry => entry.compatible !== false))

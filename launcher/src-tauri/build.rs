@@ -22,9 +22,34 @@ fn build_commit() -> Option<String> {
     (!commit.is_empty()).then_some(commit)
 }
 
+/// The tag this launcher is released as, when it is: the build machine says
+/// so through `QIBOCAL_BUILD_TAG`; a local build asks git for a tag on HEAD.
+fn build_tag() -> Option<String> {
+    println!("cargo:rerun-if-env-changed=QIBOCAL_BUILD_TAG");
+    if let Some(tag) = std::env::var("QIBOCAL_BUILD_TAG")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        return Some(tag);
+    }
+    let output = Command::new("git")
+        .args(["describe", "--tags", "--exact-match", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let tag = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!tag.is_empty()).then_some(tag)
+}
+
 fn main() {
     if let Some(commit) = build_commit() {
         println!("cargo:rustc-env=QIBOCAL_BUILD_COMMIT={commit}");
+    }
+    if let Some(tag) = build_tag() {
+        println!("cargo:rustc-env=QIBOCAL_BUILD_TAG={tag}");
     }
     tauri_build::build()
 }

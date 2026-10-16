@@ -5,6 +5,7 @@ import {
   MAIN_SPEC,
   archiveSpec,
   defaultSpec,
+  buildIdentity,
   describeSpec,
   installationBehind,
   parseRefs,
@@ -58,6 +59,17 @@ test('releases come newest first, yanked ones left out', () => {
 
 test('main leads the branches, the rest keep their order', () => {
   assert.deepEqual(parseRefs([{ name: 'feature/b' }, { name: 'main' }, { name: 'dev' }, {}]), ['main', 'feature/b', 'dev'])
+})
+
+test('a build is named by its release tag, else its commit, with its page on GitHub', () => {
+  assert.deepEqual(buildIdentity({ buildTag: 'v1.2.0', buildCommit: 'abc1234def' }), {
+    label: 'v1.2.0', url: 'https://github.com/qiboteam/qibocal-report/releases/tag/v1.2.0'
+  })
+  assert.deepEqual(buildIdentity({ buildCommit: 'abc1234def5678' }), {
+    label: 'commit abc1234', url: 'https://github.com/qiboteam/qibocal-report/commit/abc1234def5678'
+  })
+  assert.deepEqual(buildIdentity({}), { label: 'development build', url: null })
+  assert.deepEqual(buildIdentity(null).url, null)
 })
 
 test('the installation is behind when it is not what would be installed now', () => {

@@ -190,6 +190,9 @@ jobs:
         timeout-minutes: 45
         env:
           QIBOCAL_BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          # A release names itself by its tag; anything else by its commit —
+          # never by a branch, which moves.
+          QIBOCAL_BUILD_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
 
       - name: Report what macOS will make of the result
         if: runner.os == 'macOS'

@@ -39,6 +39,20 @@ export function defaultSpec(environment) {
 }
 
 /**
+ * What this build is, for the About section: the release it was made for,
+ * by its tag, or else the commit it was built from — never a branch, which
+ * moves — each with its page on GitHub. A build that knows neither is a
+ * development build.
+ */
+export function buildIdentity(environment) {
+  const tag = typeof environment?.buildTag === 'string' ? environment.buildTag.trim() : ''
+  if (tag) return { label: tag, url: `https://github.com/${REPOSITORY}/releases/tag/${encodeURIComponent(tag)}` }
+  const commit = typeof environment?.buildCommit === 'string' ? environment.buildCommit.trim() : ''
+  if (commit) return { label: `commit ${commit.slice(0, 7)}`, url: `https://github.com/${REPOSITORY}/commit/${commit}` }
+  return { label: 'development build', url: null }
+}
+
+/**
  * Whether the launcher's own installation is behind what it would install
  * now — the chosen version, or this build's commit, changed since it was
  * made — and so may lack what this launcher asks of it. Only when that
