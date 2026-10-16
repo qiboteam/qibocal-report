@@ -243,6 +243,22 @@ def icon(size: int = 1024) -> str:
     )
 
 
+# The Q alone, cropped close: its outline runs from x 141.9 to 180.6 and y
+# 46.7 to 77.3, so a 40-unit square round the middle of that box holds it
+# with a hair to spare, as large as a tray slot allows.
+TRAY_VIEWBOX = "141.25 41.95 40 40"
+
+
+def tray(color: str) -> str:
+    """The mark alone on nothing, for the system tray: no plate, as large as it fits.
+
+    Black for the macOS menu bar, where it is a template image — only its
+    shape counts, and the system paints it to suit a light or dark bar —
+    and for light Windows taskbars; white for dark panels elsewhere.
+    """
+    return svg(TRAY_VIEWBOX, mark_body(color), size=' width="512" height="512"', comment=ABOUT)
+
+
 def favicon() -> str:
     body = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{MARK_VIEWBOX}">{mark_body("#833dff")}</svg>'
     return "data:image/svg+xml," + quote(body, safe="=/:,; ")
@@ -256,6 +272,9 @@ def main() -> int:
     write(ROOT / "launcher/src/assets/qibocal-logo.svg", svg(WORD_VIEWBOX, word_body("currentColor"), comment=ABOUT))
     write(ROOT / "launcher/src/assets/qibocal-mark.svg", svg(MARK_VIEWBOX, mark_body("currentColor"), comment=ABOUT))
     write(ROOT / "launcher/src-tauri/icon.svg", icon())
+    # The tray glyphs; rasterised by `scripts/tray-icons.sh`, as the tray takes PNG.
+    write(ROOT / "launcher/src-tauri/tray/tray-black.svg", tray("#000000"))
+    write(ROOT / "launcher/src-tauri/tray/tray-white.svg", tray("#ffffff"))
     print("\nfavicon for frontend/index.html:\n" + favicon())
     return 0
 

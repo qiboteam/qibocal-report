@@ -7,6 +7,7 @@
 //! What happens meanwhile is said with a system notification, when the
 //! interface asks for one.
 
+use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
@@ -33,6 +34,43 @@ pub fn show_windows(app: &AppHandle) {
             first = false;
         }
     }
+}
+
+/// The tray glyph: the Q alone on nothing, never the dock's plate. On macOS
+/// a template image — black, its shape all that counts — which the system
+/// paints to suit a light or dark menu bar. Elsewhere nothing repaints it:
+/// white for the dark panels of Linux and of Windows in dark mode, black
+/// when Windows says its taskbar is light.
+fn tray_icon() -> tauri::Result<(Image<'static>, bool)> {
+    if cfg!(target_os = "macos") {
+        return Ok((Image::from_bytes(include_bytes!("../tray/tray-template.png"))?, true));
+    }
+    let glyph: &'static [u8] = if light_taskbar() {
+        include_bytes!("../tray/tray-black.png")
+    } else {
+        include_bytes!("../tray/tray-white.png")
+    };
+    Ok((Image::from_bytes(glyph)?, false))
+}
+
+/// Whether the Windows taskbar is light: `SystemUsesLightTheme` is 1. Read
+/// once, when the tray is made; anywhere else, and when unsure, it is dark.
+fn light_taskbar() -> bool {
+    if !cfg!(target_os = "windows") {
+        return false;
+    }
+    std::process::Command::new("reg")
+        .args([
+            "query",
+            r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            "/v",
+            "SystemUsesLightTheme",
+        ])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).contains("0x1"))
+        .unwrap_or(false)
 }
 
 /// The icon in the tray — the menu bar on macOS — with the two things it
@@ -64,9 +102,8 @@ pub fn install_tray(app: &AppHandle) -> tauri::Result<()> {
                 show_windows(tray.app_handle());
             }
         });
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
-    }
+    let (icon, template) = tray_icon()?;
+    tray = tray.icon(icon).icon_as_template(template);
     tray.build(app)?;
     Ok(())
 }
