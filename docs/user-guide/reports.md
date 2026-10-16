@@ -69,14 +69,23 @@ Each protocol routine is presented in an individual card:
 
 ## Session and protocol notes
 
-Collapsible **Session comments** below the report header and **Protocol comments** in
-each protocol card show comment histories with timestamps and optional authors.
-Each protocol execution (including its iteration) has its own history.
+**Session comments** below the report header and **Protocol comments** at the
+foot of each protocol card fold under a single line — the count, and how long
+ago the last one was written — so a laptop screen keeps its room; open, the
+thread reads in the card's own small text, each comment with its author, where
+there is one, and its time as a distance from now. Each protocol execution
+(including its iteration) has its own history.
+
+Comments are Markdown: emphasis, code, lists, links and tables render; raw HTML
+and images do not. The field grows as you type, and `Cmd/Ctrl+Enter` sends.
 
 Editors and administrators can add comments; viewers can read them. Open
 servers also allow comments, with no author attached. On authenticated servers,
-the server records the signed-in username. Earlier comments are immutable:
-append a follow-up to correct or update a finding without losing the history.
+the server records the signed-in username. A comment can be changed or removed
+by whoever wrote it, or by an administrator — the controls appear at the end of
+its line on hover; on an open server, by anyone. A changed comment keeps its
+author and its time. If the thread changed under you since it was read, the
+change is refused and the thread reloaded, so nobody edits the wrong comment.
 
 Notes use Qibocal's `notes.json` in the session folder and
 `data/<task-id>/notes.json` for individual executions. Older reports without

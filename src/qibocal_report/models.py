@@ -19,6 +19,12 @@ class NoteCreate(BaseModel):
     content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
+class NoteUpdate(NoteCreate):
+    """A changed comment: its new content, and the timestamp of the one it replaces."""
+
+    timestamp: AwareDatetime
+
+
 class Note(BaseModel):
     model_config = ConfigDict(frozen=True)
     content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]

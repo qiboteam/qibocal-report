@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import json
 import logging
 import os
@@ -77,6 +78,7 @@ from qibocal_report.models import (
     LoginRequest,
     LoginResponse,
     Note,
+    NoteUpdate,
     NoteCreate,
     PaginatedReportsResponse,
     PasswordResetCreateRequest,
@@ -101,6 +103,10 @@ from qibocal_report.models import (
     UserRoleUpdate,
 )
 from qibocal_report.notes import (
+    note_at,
+    replace_note,
+    remove_note,
+    NoteMismatch,
     NotesError,
     append_note,
     load_notes,
@@ -1210,6 +1216,109 @@ def get_filter_statistics(
         sort_by=sort_by,
     )
     return compute_filter_stats(filtered)
+
+
+# --- Changing and removing comments: before the report-wide catch-alls below,
+# which would otherwise read 'run/notes/0' as a report id. ---
+def _may_change_note(user: dict, directory: Path, index: int, timestamp: datetime) -> None:
+    """Whoever wrote a comment may change it; an administrator may change any."""
+    if not auth.is_auth_enabled() or user["role"] == UserRole.ADMIN.value:
+        return
+    try:
+        note = note_at(load_notes(directory), index, timestamp)
+    except NoteMismatch as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if note.author != user["username"]:
+        raise HTTPException(status_code=403, detail="Only its author can change this comment")
+
+
+def _change_note(directory: Path, index: int, body: NoteUpdate) -> list[Note]:
+    try:
+        return replace_note(directory, index, body.timestamp, body.content)
+    except NoteMismatch as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+def _delete_note(directory: Path, index: int, timestamp: datetime) -> list[Note]:
+    try:
+        return remove_note(directory, index, timestamp)
+    except NoteMismatch as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.put(
+    "/api/reports/{report_id:path}/protocols/{protocol_id}/notes/{index}",
+    response_model=list[Note],
+    tags=["Reports"],
+)
+def change_protocol_note(
+    report_id: str,
+    protocol_id: str,
+    index: int,
+    body: NoteUpdate,
+    response: Response,
+    user: Annotated[dict, Depends(require_editor)],
+) -> list[Note]:
+    response.headers["Cache-Control"] = "no-store"
+    directory = _notes_directory(report_id, protocol_id)
+    _may_change_note(user, directory, index, body.timestamp)
+    return _change_note(directory, index, body)
+
+
+@app.delete(
+    "/api/reports/{report_id:path}/protocols/{protocol_id}/notes/{index}",
+    response_model=list[Note],
+    tags=["Reports"],
+)
+def delete_protocol_note(
+    report_id: str,
+    protocol_id: str,
+    index: int,
+    timestamp: datetime,
+    response: Response,
+    user: Annotated[dict, Depends(require_editor)],
+) -> list[Note]:
+    response.headers["Cache-Control"] = "no-store"
+    directory = _notes_directory(report_id, protocol_id)
+    _may_change_note(user, directory, index, timestamp)
+    return _delete_note(directory, index, timestamp)
+
+
+@app.put(
+    "/api/reports/{report_id:path}/notes/{index}",
+    response_model=list[Note],
+    tags=["Reports"],
+)
+def change_session_note(
+    report_id: str,
+    index: int,
+    body: NoteUpdate,
+    response: Response,
+    user: Annotated[dict, Depends(require_editor)],
+) -> list[Note]:
+    response.headers["Cache-Control"] = "no-store"
+    directory = _notes_directory(report_id)
+    _may_change_note(user, directory, index, body.timestamp)
+    return _change_note(directory, index, body)
+
+
+@app.delete(
+    "/api/reports/{report_id:path}/notes/{index}",
+    response_model=list[Note],
+    tags=["Reports"],
+)
+def delete_session_note(
+    report_id: str,
+    index: int,
+    timestamp: datetime,
+    response: Response,
+    user: Annotated[dict, Depends(require_editor)],
+) -> list[Note]:
+    response.headers["Cache-Control"] = "no-store"
+    directory = _notes_directory(report_id)
+    _may_change_note(user, directory, index, timestamp)
+    return _delete_note(directory, index, timestamp)
+
 
 
 # --- Bulk & Single Report Actions ---
