@@ -67,6 +67,13 @@ Each protocol routine is presented in an individual card:
 
 ---
 
+## Qubit pairs
+
+A protocol on a pair of qubits has the pair for a target: it reads as `Q2–Q3`
+in the list, in the header of its report and in the filter chip, which filters
+for that pair; filtering by a single qubit also finds the pairs it is in. Its
+plots are generated like any other protocol's.
+
 ## The action of a protocol
 
 Each protocol card folds, under its outputs, an **Action** line: the

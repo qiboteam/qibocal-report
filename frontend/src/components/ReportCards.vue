@@ -34,12 +34,12 @@
           <div v-if="report.targets && report.targets.length > 0" class="flex items-center gap-1">
             <span
               v-for="t in report.targets"
-              :key="String(t)"
-              @click.stop="$emit('filter-qubit', String(t))"
+              :key="targetKey(t)"
+              @click.stop="$emit('filter-qubit', targetKey(t))"
               class="font-mono text-xs font-medium text-gray-700 bg-gray-100 hover:bg-purple-100 hover:text-purple-900 px-2 py-0.5 rounded cursor-pointer transition select-none"
-              :title="`Filter by qubit: Q${t}`"
+              :title="`Filter by ${Array.isArray(t) ? 'pair' : 'qubit'}: ${targetLabel(t)}`"
             >
-              Q{{ t }}
+              {{ targetLabel(t) }}
             </span>
           </div>
           <span
@@ -135,6 +135,7 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
+import { targetKey, targetLabel } from '../utils/targets.js'
 
 const router = useRouter()
 /** The report's address, for the link and the context menu. */

@@ -34,17 +34,17 @@
       <div class="flex flex-wrap gap-1 max-w-full items-center">
         <span
           v-for="t in (report.targets || []).slice(0, 3)"
-          :key="String(t)"
-          @click.stop="$emit('filter-qubit', String(t))"
+          :key="targetKey(t)"
+          @click.stop="$emit('filter-qubit', targetKey(t))"
           class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-900 cursor-pointer transition select-none shrink-0"
-          :title="`Filter by qubit: Q${t}`"
+          :title="`Filter by ${Array.isArray(t) ? 'pair' : 'qubit'}: ${targetLabel(t)}`"
         >
-          Q{{ t }}
+          {{ targetLabel(t) }}
         </span>
         <span
           v-if="(report.targets || []).length > 3"
           class="text-[11px] text-gray-400 font-medium px-0.5 shrink-0"
-          :title="(report.targets || []).slice(3).map(x => 'Q' + x).join(', ')"
+          :title="(report.targets || []).slice(3).map(targetLabel).join(', ')"
         >
           +{{ report.targets.length - 3 }}
         </span>
@@ -164,6 +164,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { targetKey, targetLabel } from '../utils/targets.js'
 import { state, resolveAuthor, isViewer } from '../store.js'
 
 const props = defineProps({

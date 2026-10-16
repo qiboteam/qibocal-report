@@ -90,8 +90,8 @@
         <strong class="text-gray-800 font-mono">{{ report.total_execution_time || 'N/A' }}</strong>
       </div>
       <div>
-        <span class="text-gray-400 block mb-0.5">Target Qubits</span>
-        <strong class="text-gray-800 font-mono">Q{{ report.targets.join(', Q') }}</strong>
+        <span class="text-gray-400 block mb-0.5">Targets</span>
+        <strong class="text-gray-800 font-mono">{{ (report.targets || []).map(targetLabel).join(', ') || '—' }}</strong>
       </div>
     </div>
 
@@ -174,6 +174,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { isViewer } from '../../store.js'
+import { targetLabel } from '../../utils/targets.js'
 
 const props = defineProps({
   report: { type: Object, required: true },

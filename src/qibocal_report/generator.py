@@ -369,6 +369,27 @@ def _generate_qibocal_protocols(
             log_warning(f"Could not remove Qibocal worker result '{result_path}': {error}")
 
 
+def normalize_targets(raw):
+    """Targets as qibocal keys its data and results by them.
+
+    `action.yml` is read with plain YAML, so a qubit pair comes back as a
+    list — `[2, 3]` — while qibocal keys data and results by the tuple
+    `(2, 3)`, and a list cannot be a key at all. Nested lists become nested
+    tuples, as qibocal's own `_nested_list_to_tuples` does; everything else
+    is left alone.
+    """
+    if isinstance(raw, list):
+        return tuple(normalize_targets(item) for item in raw)
+    return raw
+
+
+def target_label(target) -> str:
+    """A target as a name reads: `2` for a qubit, `2-3` for a pair."""
+    if isinstance(target, (list, tuple)):
+        return "-".join(target_label(item) for item in target)
+    return str(target)
+
+
 def _generate_qibocal_protocols_native(
     report_dir: Path,
     protocol_ids: list[str] | None = None,
@@ -440,7 +461,8 @@ def _generate_qibocal_protocols_native(
                 .replace("_", " ")
                 .title()
             )
-            targets = getattr(completed.task, "targets", [])
+            # A pair target is a list off the YAML; qibocal wants the tuple.
+            targets = [normalize_targets(t) for t in getattr(completed.task, "targets", []) or []]
             all_figs: list[dict] = []
             html_parts: list[str] = []
             target_errors: list[str] = []
@@ -459,7 +481,7 @@ def _generate_qibocal_protocols_native(
                             else:
                                 continue
                             if "id" not in fig_dict:
-                                fig_dict["id"] = f"{task_str}-q{target}"
+                                fig_dict["id"] = f"{task_str}-q{target_label(target)}"
                             all_figs.append(fig_dict)
                         if fit_rep:
                             html_parts.append(str(fit_rep))
@@ -472,9 +494,9 @@ def _generate_qibocal_protocols_native(
                         OSError,
                         ImportError,
                     ) as r_err:
-                        target_errors.append(f"Target {target}: {r_err}")
+                        target_errors.append(f"Target {target_label(target)}: {r_err}")
                         log_warning(
-                            f"Error generating target {target} for "
+                            f"Error generating target {target_label(target)} for "
                             f"'{task_str}': {r_err}"
                         )
             else:

@@ -84,6 +84,43 @@ def is_report_directory(path: Path, root_dir: Path | None = None) -> bool:
     )
 
 
+def _target_value(text: str) -> Any:
+    text = text.strip().strip("'\"")
+    return int(text) if text.isdigit() else text
+
+
+def parse_targets_text(text: str) -> list[Any]:
+    """The targets in a folder name: `3`, `0, 1`, or pairs such as `(2, 3)` or `[2, 3]`.
+
+    A pair stays a pair — a list of its qubits — as `meta.json` would have it.
+    """
+    targets: list[Any] = []
+    for group in re.finditer(r"[\[(]([^\[\]()]*)[\])]", text):
+        members = [_target_value(t) for t in group.group(1).split(",") if t.strip()]
+        if members:
+            targets.append(members)
+    rest = re.sub(r"[\[(][^\[\]()]*[\])]", ",", text)
+    targets.extend(_target_value(t) for t in rest.split(",") if t.strip())
+    return targets
+
+
+def flat_qubits(targets: list[Any]) -> list[Any]:
+    """Every qubit a report touches, pairs opened up, in order, once."""
+    seen: list[Any] = []
+    for target in targets:
+        for qubit in target if isinstance(target, (list, tuple)) else [target]:
+            if qubit not in seen:
+                seen.append(qubit)
+    return seen
+
+
+def target_label(target: Any) -> str:
+    """A target as a name reads: `2` for a qubit, `2-3` for a pair."""
+    if isinstance(target, (list, tuple)):
+        return "-".join(target_label(item) for item in target)
+    return str(target)
+
+
 def _parse_meta_json(meta_path: Path) -> dict[str, Any]:
     """Safely parse meta.json."""
     if not meta_path.is_file():
@@ -173,14 +210,9 @@ def parse_report_directory(
     if not isinstance(targets, list):
         targets = [targets] if targets is not None else []
     if not targets:
-        match = re.search(r"_\[(.*?)\]_", report_dir.name)
+        match = re.search(r"_\[(.*)\]_", report_dir.name)
         if match:
-            raw_targets = match.group(1).split(",")
-            targets = [
-                int(t.strip()) if t.strip().isdigit() else t.strip().strip("'\"")
-                for t in raw_targets
-                if t.strip()
-            ]
+            targets = parse_targets_text(match.group(1))
     raw_tags = (
         meta.get("tag")
         or meta.get("tags")
@@ -216,7 +248,9 @@ def parse_report_directory(
     # Pre-compile search index from platform, author, tags, protocols, targets, date, id
     tag_tokens = " ".join(tags)
     proto_tokens = " ".join(protocols)
-    target_tokens = " ".join(f"q{t} {t}" for t in targets)
+    target_tokens = " ".join(
+        f"q{q} {q}" for q in flat_qubits(targets)
+    ) + " " + " ".join(target_label(t) for t in targets if isinstance(t, (list, tuple)))
     search_tokens = (
         f"{platform} {author} {raw_author} {tag_tokens} "
         f"{proto_tokens} {target_tokens} {date_str} {time_str} {report_id} {title}"
@@ -513,13 +547,21 @@ def filter_reports(
                 res.add(f"q{s}")
             return res
 
+        # A qubit, `2` or `q2`; or a pair, `2-3`, which asks for that pair.
         wanted_q: set[str] = set()
+        wanted_pairs: set[str] = set()
         for q in qubits:
-            wanted_q.update(_norm_q(q))
+            text = str(q).strip().lower()
+            if "-" in text and all(part.strip() for part in text.split("-")):
+                wanted_pairs.add("-".join(p.strip().lstrip("q") for p in text.split("-")))
+            else:
+                wanted_q.update(_norm_q(q))
 
         def _report_has_qubit(report_targets: list[Any]) -> bool:
             for t in report_targets:
                 if isinstance(t, (list, tuple)):
+                    if target_label(t).lower() in wanted_pairs:
+                        return True
                     for sub in t:
                         if _norm_q(sub) & wanted_q:
                             return True
