@@ -470,6 +470,29 @@
               <span class="font-mono text-gray-800 font-semibold">{{ serverConfig?.reports_count || 0 }}</span>
             </div>
           </div>
+
+          <!--
+            The targets a report shows come from its meta.json, which is often
+            stale or empty; its protocols know better. Gathering them reads
+            every action.yml under the reports, so it is done on request.
+          -->
+          <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3 text-xs">
+            <div class="min-w-0 flex-1">
+              <span class="font-semibold text-gray-800">Targets from the protocols</span>
+              <p class="text-gray-500 mt-0.5">
+                Read each report's protocols for the qubits and pairs they were run on, and write their union into the
+                report's meta as <code class="font-mono">targets-inferred</code>, which the list shows first. The session's own
+                <code class="font-mono">targets</code> is kept.
+              </p>
+              <p v-if="inferResult" class="text-emerald-700 mt-1" role="status">{{ inferResult }}</p>
+            </div>
+            <button
+              type="button"
+              :disabled="inferring"
+              class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 hover:border-purple-300 text-gray-700 shadow-2xs cursor-pointer disabled:opacity-50 shrink-0"
+              @click="inferTargets"
+            >{{ inferring ? 'Reading the protocols…' : 'Infer targets' }}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -492,6 +515,7 @@ import {
   apiCreateInvite,
   apiDeleteInvite,
   apiGetAdminConfig,
+  apiInferTargets,
   apiGetAdminPasswordResets,
   apiCreatePasswordReset,
   apiDeletePasswordReset
@@ -513,6 +537,28 @@ const users = ref([])
 const invites = ref([])
 const passwordResets = ref([])
 const serverConfig = ref(null)
+const inferring = ref(false)
+const inferResult = ref('')
+
+/** Gather the reports' targets from their protocols; the list shows them at its next load. */
+async function inferTargets() {
+  inferring.value = true
+  inferResult.value = ''
+  try {
+    const response = await apiInferTargets()
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      throw new Error(body.detail || `The server answered ${response.status}.`)
+    }
+    const counts = await response.json()
+    inferResult.value = `${counts.reports} reports read, ${counts.updated} updated, ${counts.without_targets} without protocol targets.`
+    toast(`Targets inferred for ${counts.updated} report${counts.updated === 1 ? '' : 's'}.`)
+  } catch (err) {
+    errorMessage.value = err.message || 'The targets could not be inferred.'
+  } finally {
+    inferring.value = false
+  }
+}
 
 const activeServer = computed(() => state.activeServer)
 

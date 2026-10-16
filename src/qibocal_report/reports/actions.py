@@ -84,6 +84,71 @@ def _modify_meta_files(
     return updated_any
 
 
+def protocol_targets(report_dir: Path) -> list[Any]:
+    """The union of the targets the report's protocols were run on, in order.
+
+    Each protocol's `action.yml` names its targets — qubits, or pairs as
+    lists — which is better information than the session's `meta.json`,
+    whose `targets` is often absent or stale. Pairs stay pairs.
+    """
+    import yaml
+
+    from qibocal_report.reports.generator import get_execution_order
+
+    found: list[Any] = []
+    data = report_dir / "data"
+    if not data.is_dir():
+        return found
+    # The protocols as they were run, then whatever the history does not name.
+    folders = [data / name for name in get_execution_order(report_dir)]
+    folders += sorted(f for f in data.iterdir() if f.is_dir() and f not in folders)
+    for action in (f / "action.yml" for f in folders):
+        if not action.is_file():
+            action = action.with_suffix(".yaml")
+            if not action.is_file():
+                continue
+        try:
+            content = yaml.safe_load(action.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        targets = content.get("targets") if isinstance(content, dict) else None
+        for target in targets or []:
+            if target not in found:
+                found.append(target)
+    return found
+
+
+def infer_targets(root_dir: Path, reports: list[Path] | None = None) -> dict[str, int]:
+    """Write `targets-inferred` into each report's meta, from its protocols.
+
+    The session's own `targets` is left as it is; the inferred list goes
+    next to it, under `targets-inferred`, which the scanner prefers. A
+    report whose meta already holds the same list is left untouched. The
+    numbers of reports looked at, changed, and without protocol targets
+    are answered, for the interface to say what happened.
+    """
+    directories = reports if reports is not None else [Path(r.path) for r in scan_reports(root_dir)]
+    looked, changed, empty = 0, 0, 0
+    for report_dir in directories:
+        looked += 1
+        targets = protocol_targets(report_dir)
+        if not targets:
+            empty += 1
+            continue
+
+        def write(meta: dict[str, Any], targets=targets) -> bool:
+            if meta.get("targets-inferred") == targets:
+                return False
+            meta["targets-inferred"] = targets
+            return True
+
+        if _modify_meta_files(report_dir, write):
+            changed += 1
+    if changed:
+        invalidate_report_cache()
+    return {"reports": looked, "updated": changed, "without_targets": empty}
+
+
 def _delete_reports(matched_dirs: list[Path]) -> list[str]:
     deleted = []
     for rep_dir in matched_dirs:

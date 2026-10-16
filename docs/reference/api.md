@@ -36,6 +36,9 @@ Returns system status, active server identifier, report count, and scanned root 
 
 ---
 
+### `POST /api/admin/reports/infer-targets`
+Read every protocol's `action.yml` under the reports for the qubits, or pairs, it was run on, and write their union into each report's `meta.json` as `targets-inferred`, next to the session's own `targets`, which is kept; the list shows the inferred targets first. Answers `{"reports", "updated", "without_targets"}`. Reads every report, so it runs on request — here, from **Server Administration**, or with `qibocal report targets` — rather than at every scan. Administrators only.
+
 ## 🌐 Server Registry Management
 
 These endpoints manage the backend's configuration file, independently of the

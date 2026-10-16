@@ -539,6 +539,26 @@ def server(
     )
 
 
+@report.command(name="targets")
+@click.argument("directory", required=False, type=click.Path(file_okay=False))
+def report_targets(directory: str | None):
+    """Gather each report's targets from its protocols, into its meta.
+
+    Every protocol's action.yml under DIRECTORY — the shared reports
+    directory, left out — names the qubits, or pairs, it was run on; their
+    union goes into the report's meta.json as `targets-inferred`, next to
+    the session's own `targets`, and the dashboard shows it first.
+    """
+    from qibocal_report.reports.actions import infer_targets
+
+    root = reports_directory(directory)
+    counts = infer_targets(root)
+    click.echo(
+        f"{counts['reports']} report(s) looked at, {counts['updated']} updated, "
+        f"{counts['without_targets']} without protocol targets."
+    )
+
+
 @server.command(name="upgrade")
 @click.option(
     "--ssh",
