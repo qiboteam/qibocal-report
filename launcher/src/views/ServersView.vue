@@ -170,6 +170,14 @@
             <button type="button" class="lx-action" title="Edit how it is registered" @click="toggleEdit(server)">
               <Pencil class="w-3.5 h-3.5" /> Edit
             </button>
+            <button
+              type="button"
+              class="lx-action"
+              title="Open the form for a new server with this one's options, to change a few"
+              @click="duplicate(server)"
+            >
+              <Files class="w-3.5 h-3.5" /> Duplicate
+            </button>
             <button type="button" class="lx-action" title="Forget this server" @click="forget(server)">
               <Trash2 class="w-3.5 h-3.5" />
             </button>
@@ -232,6 +240,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   Bookmark,
   Copy,
+  Files,
   KeyRound,
   LayoutDashboard,
   Pencil,
@@ -356,6 +365,7 @@ const { focused } = usePageKeys({
     s: (index, event) => activate(state.servers[index], event),
     e: index => toggleEdit(state.servers[index]),
     i: index => toggleInvite(state.servers[index]),
+    d: index => duplicate(state.servers[index]),
     u: index => { if (launchOptionsFor(state.servers[index])) update(state.servers[index]) }
   }
 })
@@ -503,6 +513,25 @@ async function copy(text) {
  * Jumping here from the system menu preselects the server to start; from
  * the `n` key, the form opens empty.
  */
+/**
+ * A new server with this one's options: the form opens on a copy, under a
+ * name of its own, for the few things that differ — another directory,
+ * another port, another host — to be changed before it is started or
+ * registered. A server the launcher does not start is copied as an address.
+ */
+function duplicate(server) {
+  const opened = formFrom(launchOptionsFor(server), server)
+  Object.assign(form, opened.form, {
+    name: `${server.name || 'server'} copy`,
+    // Two servers cannot share a port here: the copy takes the next one.
+    port: opened.where === 'local' ? Number(opened.form.port) + 1 : opened.form.port,
+    description: ''
+  })
+  where.value = opened.where
+  creating.value = true
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 function applyQuery() {
   if (route.query.new) {
     creating.value = true

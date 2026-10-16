@@ -26,7 +26,7 @@
           </div>
           <span
             @click.stop="$emit('filter-platform', report.platform)"
-            class="px-2.5 py-1 rounded-lg text-sm font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 hover:text-purple-900 cursor-pointer transition select-none"
+            class="inline-block max-w-[16rem] truncate px-2.5 py-1 rounded-lg text-sm font-bold bg-purple-100 hover:bg-purple-200 text-purple-800 hover:text-purple-900 cursor-pointer transition select-none"
             :title="`Filter by platform: ${report.platform}`"
           >
             {{ report.platform }}

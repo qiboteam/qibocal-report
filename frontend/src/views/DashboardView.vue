@@ -871,12 +871,28 @@ async function onArchiveSuccess() {
 }
 
 async function refreshData(preservePage = false) {
+  const targetPage = preservePage ? (currentPage.value || 1) : 1
+  currentPage.value = targetPage
+  // Back within the cache's lifetime — a report opened and closed — the same
+  // server, filters and page are shown as they were, with no request at all.
+  const cached = getFromCache(getCacheKey(getCurrentFilterKey(), targetPage))
+  if (cached) {
+    reports.value = cached.items
+    totalReports.value = cached.total
+    totalPages.value = cached.total_pages
+    currentPage.value = cached.page
+    filterStats.value = cached.stats ?? filterStats.value
+    filteredStats.value = cached.filtered ?? (hasActiveFilters.value ? filteredStats.value : filterStats.value)
+    loading.value = false
+    connectionError.value = null
+    if (!filterStats.value) fetchStats().then(fetchFilteredStats)
+    prefetchAccessiblePages()
+    return
+  }
   loading.value = true
   connectionError.value = null
   reports.value = []
   totalReports.value = 0
-  const targetPage = preservePage ? (currentPage.value || 1) : 1
-  currentPage.value = targetPage
   filterStats.value = null
   filteredStats.value = null
   clearCache()
@@ -938,14 +954,6 @@ async function loadViaGraphQL(page, { everything = false } = {}) {
   }
   if (!data?.reports) return false
   const pageData = data.reports
-  const payload = {
-    items: pageData.items,
-    total: pageData.total,
-    total_pages: pageData.total_pages,
-    page: pageData.page,
-    page_size: pageSize.value
-  }
-  setCache(getCacheKey(getCurrentFilterKey(), pageData.page), payload)
   reports.value = pageData.items
   totalReports.value = pageData.total
   totalPages.value = pageData.total_pages
@@ -955,6 +963,16 @@ async function loadViaGraphQL(page, { everything = false } = {}) {
     holdReportStats(filterStats.value)
   }
   filteredStats.value = hasActiveFilters.value ? (data.filtered || filterStats.value) : filterStats.value
+  // The statistics travel with the page, so a return shows the whole view at once.
+  setCache(getCacheKey(getCurrentFilterKey(), pageData.page), {
+    items: pageData.items,
+    total: pageData.total,
+    total_pages: pageData.total_pages,
+    page: pageData.page,
+    page_size: pageSize.value,
+    stats: filterStats.value,
+    filtered: filteredStats.value
+  })
   loading.value = false
   connectionError.value = null
   prefetchAccessiblePages()
@@ -1076,7 +1094,9 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
         total,
         total_pages,
         page: page_num,
-        page_size: pageSize.value
+        page_size: pageSize.value,
+        stats: filterStats.value,
+        filtered: filteredStats.value
       }
 
       setCache(cacheKey, payload)

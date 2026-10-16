@@ -7,7 +7,7 @@
     -->
     <div class="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-gray-100">
       <div class="flex items-center gap-2 flex-wrap">
-        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
+        <span class="inline-block max-w-[20rem] truncate px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800" :title="report.platform">
           {{ report.platform }}
         </span>
         <span

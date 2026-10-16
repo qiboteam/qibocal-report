@@ -1,6 +1,15 @@
 import { ref, computed } from 'vue'
 
 /**
+ * How long a page of reports is trusted once fetched. The cache lives
+ * outside the component, so a round trip to a report and back within this
+ * time shows the list at once — the same server, the same filters, the same
+ * page — instead of asking the server again for what it just answered.
+ */
+export const PAGE_CACHE_TTL_MS = 10_000
+const pageCache = new Map()
+
+/**
  * Composable for paginated data management with pre-fetch memory caching.
  */
 export function usePagination(initialPageSize = 10, initialPage = 1) {
@@ -8,7 +17,6 @@ export function usePagination(initialPageSize = 10, initialPage = 1) {
   const pageSize = ref(initialPageSize)
   const totalReports = ref(0)
   const totalPages = ref(1)
-  const pageCache = new Map()
 
   const paginationRange = computed(() => {
     if (totalReports.value === 0) return { start: 0, end: 0 }
@@ -67,16 +75,25 @@ export function usePagination(initialPageSize = 10, initialPage = 1) {
     pageCache.clear()
   }
 
+  function fresh(entry) {
+    return Boolean(entry) && Date.now() - entry.at < PAGE_CACHE_TTL_MS
+  }
+
   function getFromCache(cacheKey) {
-    return pageCache.get(cacheKey)
+    const entry = pageCache.get(cacheKey)
+    if (!fresh(entry)) {
+      pageCache.delete(cacheKey)
+      return undefined
+    }
+    return entry.data
   }
 
   function setCache(cacheKey, data) {
-    pageCache.set(cacheKey, data)
+    pageCache.set(cacheKey, { data, at: Date.now() })
   }
 
   function hasInCache(cacheKey) {
-    return pageCache.has(cacheKey)
+    return fresh(pageCache.get(cacheKey))
   }
 
   return {

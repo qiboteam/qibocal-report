@@ -29,6 +29,7 @@ The dashboard provides rich search and faceted filtering:
 - **Interactive Date Histogram**: A timeline bar chart visualizing calibration activity across time. Click any bucket or drag a date range to filter.
 - **Tag / Label Filtering**: Filter reports by custom tags assigned to them.
 - **Active Filter Summary**: A clear banner summarizing all applied filters with one-click clear options.
+- **Back in a moment**: the list is kept for ten seconds after it is shown, so opening a report and coming back — same server, same filters, same page — shows it at once, with no request; a change of server or filters asks the server again.
 - **View menu**: One control in the top-right corner for the three ways of looking at the list — the statistics summary on or off, the order (newest or oldest first), and the layout (table or cards).
 - **Keyboard**: `/` jumps to the search, `j` and `k` walk the reports — the one under the cursor is marked — `Enter` opens it, `Shift+Enter` opens it in a new tab or window, and `Esc` leaves the search or the list. A click with a modifier held, or the middle button, does the same; the date of a row or card is a link, so the context menu offers it too. Everywhere in the dashboard, `g s` goes to the report servers, `g l` to the report list of the active server, and `?` shows the keys of the page. Nothing fires while typing.
 

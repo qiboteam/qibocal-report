@@ -28,6 +28,7 @@ export const PAGE_KEYS = {
       s: 'Start it, or open it when it is running',
       e: 'Edit it',
       i: 'Invite an administrator',
+      d: 'Duplicate it: the form for a new server, with its options',
       u: 'Update its qibocal-report, and start it again'
     }
   },

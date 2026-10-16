@@ -20,9 +20,14 @@
 
     <!-- Platform Column -->
     <td class="py-3.5 px-4 overflow-hidden">
+      <!--
+        A block with an ellipsis, not a flex box: a flex container clips its
+        text at the edge without the dots, and the padding on the right went
+        with it. Here the name ends in "…" with the same room on both sides.
+      -->
       <span
         @click.stop="$emit('filter-platform', report.platform)"
-        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 hover:bg-purple-200 text-purple-800 hover:text-purple-900 cursor-pointer transition select-none truncate max-w-full"
+        class="inline-block align-middle max-w-full truncate px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 hover:bg-purple-200 text-purple-800 hover:text-purple-900 cursor-pointer transition select-none"
         :title="`Filter by platform: ${report.platform}`"
       >
         {{ report.platform }}
