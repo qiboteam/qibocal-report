@@ -402,6 +402,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { desktopWidget, publishPage } from '../utils/desktop.js'
 import { useRouter, useRoute } from 'vue-router'
 import { state, addToHistory, apiFetch, ensureServersLoaded, resolveAuthor, persistSearchState } from '../store.js'
+import { REPORT_FIELDS, STATS_FIELDS, apiGraphQL } from '../api.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useBulkActions } from '../composables/useBulkActions.js'
@@ -662,10 +663,13 @@ function goToPage(p) {
   fetchReports(p, false)
 }
 
-function applyFilterChange(changeFn) {
+async function applyFilterChange(changeFn) {
   if (changeFn) changeFn()
   currentPage.value = 1
   clearCache()
+  loading.value = true
+  // The new page and its statistics, in one request where the server allows.
+  if (await loadViaGraphQL(1)) return
   fetchReports(1, false)
   fetchFilteredStats()
 }
@@ -818,8 +822,82 @@ async function refreshData(preservePage = false) {
   filterStats.value = null
   filteredStats.value = null
   clearCache()
+  // One request where there were three, on a server that answers GraphQL.
+  if (await loadViaGraphQL(targetPage, { everything: true })) return
   await Promise.all([fetchStats(), fetchReports(targetPage, false)])
   await fetchFilteredStats()
+}
+
+/**
+ * The page, the statistics of everything and the statistics of what is
+ * filtered, in one GraphQL request. Answers false when the server has no
+ * GraphQL, or the request failed in a way the REST path should retry: the
+ * caller then asks over REST, as before.
+ */
+const DASHBOARD_QUERY = `
+  query Dashboard($where: ReportFilter, $page: Int!, $page_size: Int!, $everything: Boolean!, $filtered: Boolean!) {
+    reports(where: $where, page: $page, page_size: $page_size) {
+      items { ${REPORT_FIELDS} }
+      total page page_size total_pages
+    }
+    stats @include(if: $everything) { ${STATS_FIELDS} }
+    filtered: stats(where: $where) @include(if: $filtered) { ${STATS_FIELDS} }
+  }
+`
+
+/** The filters as the GraphQL schema takes them: the REST query parameters, named. */
+function filterInput() {
+  const start = filters.startDate || filters.date
+  const end = filters.endDate || filters.date
+  return {
+    query: filters.q.trim() || null,
+    folder: filters.folder || null,
+    authors: filters.author ? [filters.author] : null,
+    platforms: filters.platform ? [filters.platform] : null,
+    protocols: filters.protocols.length ? [...filters.protocols] : null,
+    labels: filters.labels.length ? [...filters.labels] : null,
+    qubits: filters.qubits?.length ? [...filters.qubits] : null,
+    start_date: start || null,
+    end_date: end || null,
+    sort_by: filters.sort_by || 'date_desc'
+  }
+}
+
+async function loadViaGraphQL(page, { everything = false } = {}) {
+  if (!activeServer.value && (!state.servers || state.servers.length === 0)) return false
+  let data = null
+  try {
+    data = await apiGraphQL(DASHBOARD_QUERY, {
+      where: filterInput(),
+      page,
+      page_size: pageSize.value,
+      everything,
+      filtered: hasActiveFilters.value
+    })
+  } catch (err) {
+    console.warn('GraphQL request failed, asking over REST instead', err)
+    return false
+  }
+  if (!data?.reports) return false
+  const pageData = data.reports
+  const payload = {
+    items: pageData.items,
+    total: pageData.total,
+    total_pages: pageData.total_pages,
+    page: pageData.page,
+    page_size: pageSize.value
+  }
+  setCache(getCacheKey(getCurrentFilterKey(), pageData.page), payload)
+  reports.value = pageData.items
+  totalReports.value = pageData.total
+  totalPages.value = pageData.total_pages
+  currentPage.value = pageData.page
+  if (everything) filterStats.value = data.stats || filterStats.value
+  filteredStats.value = hasActiveFilters.value ? (data.filtered || filterStats.value) : filterStats.value
+  loading.value = false
+  connectionError.value = null
+  prefetchAccessiblePages()
+  return true
 }
 
 async function fetchStats() {

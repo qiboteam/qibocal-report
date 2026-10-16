@@ -67,6 +67,50 @@ entry to the new address instead of adding a second one.
 
 ---
 
+## 🧬 GraphQL
+
+### `POST /api/graphql`
+One request where the REST API needs several. The schema answers, together,
+what the dashboard asks at once — the page of reports, the statistics of
+everything and of what is filtered; a report and its protocols; whether a
+server authenticates and who the caller is — and keeps the REST shapes field
+for field: names are `snake_case`, so a GraphQL result is read exactly as the
+REST response it stands for. Queries only; mutations stay with the REST
+endpoints. A GET of the same address opens GraphiQL, the schema's own explorer.
+
+| Query | Answers as | Role |
+| --- | --- | --- |
+| `reports(where: ReportFilter, page: Int = 1, page_size: Int = 20)` | `GET /api/reports` with the same filters, paginated | viewer |
+| `stats(where: ReportFilter)` | `GET /api/reports/stats` | viewer |
+| `report(id: String!)` | `GET /api/reports/{id}`; its `protocols_detail` field is `GET /api/reports/{id}/protocols`, computed only when selected; `null` for a report that does not exist | viewer |
+| `session` | `GET /api/auth/status` and `GET /api/auth/me`, in one: `auth_enabled`, and the `user` the token names, or `null` | anyone |
+| `health` | `GET /api/health` | anyone |
+
+`ReportFilter` names the query parameters of `/api/reports`: `query`, `folder`,
+`authors`, `platforms`, `protocols`, `labels`, `qubits`, `start_date`,
+`end_date`, `sort_by`.
+
+```graphql
+query Dashboard($where: ReportFilter, $page: Int!, $page_size: Int!) {
+  reports(where: $where, page: $page, page_size: $page_size) {
+    items { id title date author platform targets protocols tags has_cached_report }
+    total page page_size total_pages
+  }
+  stats { protocols { name count } date_histogram { date count } total_reports }
+  filtered: stats(where: $where) { total_reports }
+}
+```
+
+Authorization is the same bearer token, in the same header. A field refused
+for want of a session comes back `null`, with an error whose
+`extensions.code` is `UNAUTHENTICATED` — the 401 of the REST API — or
+`FORBIDDEN` for the 403; the response itself is a 200, as GraphQL responses
+are. A server from before this endpoint answers the POST with a 404 or a 405,
+which is what the dashboard reads as "ask over REST": it falls back by itself,
+and remembers the answer per server.
+
+---
+
 ## 📑 Reports & Filtering
 
 ### `GET /api/reports`

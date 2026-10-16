@@ -1,6 +1,6 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { state, addToHistory, removeFromHistory, getActiveWsUrl, canEdit } from '../store.js'
-import { apiFetch } from '../api.js'
+import { REPORT_FIELDS, apiFetch, apiGraphQL } from '../api.js'
 import { getPlotGenerationErrors } from '../utils/plotGeneration.js'
 import { announce } from '../utils/desktop.js'
 import { createLiveReportSubscription, mergeLiveProtocols, synchronizeLiveProtocols } from '../utils/liveReport.js'
@@ -93,6 +93,21 @@ export function sortProtocolsByExecutionOrder(protocolsList, reportDetail) {
  * Composable for loading report details via WebSocket streaming or HTTP fallback,
  * managing routine protocols, plot regeneration, author updates, and tag removals.
  */
+const REPORT_QUERY = `
+  query Report($id: String!) {
+    report(id: $id) {
+      ${REPORT_FIELDS}
+      history platform_snapshot
+      protocols_summary { id name category execution_time status num_figures }
+      notes { content timestamp author }
+      protocols_detail {
+        id name category execution_time status html figures error error_code
+        notes { content timestamp author }
+      }
+    }
+  }
+`
+
 export function useReportDetail(reportId) {
   const loading = ref(true)
   const loadingStatus = ref('Connecting to server...')
@@ -255,8 +270,37 @@ export function useReportDetail(reportId) {
     })
   }
 
+  /**
+   * The report and its protocols in one GraphQL request; false when the
+   * server has none, or could not be reached that way, and the two REST
+   * requests are the way. A missing report is thrown, as over REST.
+   */
+  async function loadViaGraphQL(id) {
+    let data = null
+    try {
+      data = await apiGraphQL(REPORT_QUERY, { id })
+    } catch (err) {
+      if (err?.code === 'UNAUTHENTICATED') throw err
+      console.warn('GraphQL request failed, asking over REST instead', err)
+      return false
+    }
+    if (!data) return false
+    if (!data.report) {
+      removeFromHistory(id)
+      throw new Error('Report not found (404)')
+    }
+    const { protocols_detail: detail, ...metadata } = data.report
+    report.value = metadata
+    state.currentReportId = metadata.id
+    addToHistory(metadata)
+    protocols.value = sortProtocolsByExecutionOrder(detail || [], metadata)
+    return true
+  }
+
   async function loadViaHttp(id) {
     try {
+      loadingStatus.value = 'Fetching report...'
+      if (await loadViaGraphQL(id)) return
       loadingStatus.value = 'Fetching report metadata...'
       const encodedId = encodeURIComponent(id)
       const res = await apiFetch(`/api/reports/${encodedId}`)

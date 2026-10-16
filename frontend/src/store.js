@@ -265,6 +265,41 @@ export function checkActiveServerAuth(targetServer = state.activeServer) {
   return promise
 }
 
+/**
+ * Whether a server authenticates and who the caller is, in one GraphQL
+ * request; null for a server from before the endpoint, which is asked the
+ * two REST questions instead. Remembered per server, so an old server is
+ * asked once.
+ */
+const serversWithoutGraphQL = new Set()
+
+async function sessionViaGraphQL(targetServer, serverUrl) {
+  const key = serverUrl || 'local'
+  if (serversWithoutGraphQL.has(key)) return null
+  const token = getActiveAuthToken(targetServer)
+  const res = await fetch(serverUrl ? `${serverUrl}/api/graphql` : '/api/graphql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ query: '{ session { auth_enabled user { id username role } } }' }),
+    signal: AbortSignal.timeout(4000),
+    cache: 'no-store'
+  })
+  if (res.status === 404 || res.status === 405) {
+    serversWithoutGraphQL.add(key)
+    return null
+  }
+  if (!res.ok) throw new Error(`Session request failed (${res.status})`)
+  const body = await res.json()
+  if (!body?.data?.session) throw new Error(body?.errors?.[0]?.message || 'Session request failed')
+  const session = body.data.session
+  return {
+    auth_enabled: Boolean(session.auth_enabled),
+    // A token the server does not recognise is no token.
+    token: session.auth_enabled && session.user ? token : null,
+    user: session.user
+  }
+}
+
 async function verifyServerAuth(targetServer, version) {
   const isCurrent = () => version === authCheckVersion &&
     getServerAuthKey(targetServer) === getServerAuthKey(state.activeServer)
@@ -272,6 +307,17 @@ async function verifyServerAuth(targetServer, version) {
   const statusUrl = serverUrl ? `${serverUrl}/api/auth/status` : '/api/auth/status'
 
   try {
+    const session = await sessionViaGraphQL(targetServer, serverUrl)
+    if (session) {
+      if (!isCurrent()) return false
+      setServerAuth(targetServer, session.token, session.user)
+      state.auth.enabled = session.auth_enabled
+      state.auth.checked = true
+      state.auth.user = session.auth_enabled ? session.user : { id: 'admin', username: 'local-admin', role: 'admin' }
+      state.auth.errorMessage = ''
+      return true
+    }
+
     const res = await fetch(statusUrl, { signal: AbortSignal.timeout(4000), cache: 'no-store' })
     if (!res.ok) throw new Error(`Authentication status request failed (${res.status})`)
     const data = await res.json()

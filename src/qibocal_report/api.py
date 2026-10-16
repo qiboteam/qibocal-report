@@ -46,6 +46,7 @@ from qibocal_report.archive import (
 )
 from qibocal_report.docs import DOCS_NAVIGATION, resolve_docs_content
 from qibocal_report.generator import get_report_protocols, regenerate_report
+from qibocal_report.graphql import build_router as build_graphql_router
 from qibocal_report.live import handle_live_websocket
 from qibocal_report.logger import (
     log_error,
@@ -1868,6 +1869,15 @@ def patch_archive_metadata(
     if not updated:
         raise HTTPException(status_code=404, detail=f"Archive '{archive_id}' not found")
     return ArchiveMetadata(**updated)
+
+
+# --- GraphQL: several of the questions above, answered in one request ---
+# Included before the catch-all below, which would otherwise answer for it.
+app.include_router(
+    build_graphql_router(get_current_user, get_report_root),
+    prefix="/api/graphql",
+    tags=["GraphQL"],
+)
 
 
 # --- Static Files and SPA Frontend Mount ---
