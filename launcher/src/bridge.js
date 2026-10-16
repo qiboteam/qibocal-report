@@ -55,6 +55,24 @@ export const desktop = {
   reissueInvite: request => call('reissue_invite', { request })
 }
 
+/**
+ * Whether a click, or a key, asks for a new window: a modifier held — the
+ * command or control key, or shift — or the middle button.
+ */
+export function wantsNewWindow(event) {
+  return Boolean(event && (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1))
+}
+
+/**
+ * Open one of the application's pages in a new window. The native side
+ * answers `window.open` with a window of its own for the pages that are
+ * ours; in a browser this is a new tab.
+ */
+export function openInNewWindow(href) {
+  const target = new URL(href, window.location.href).href
+  window.open(target, '_blank', 'noopener')
+}
+
 /** Subscribe to a launcher event, returning an unsubscribe function. */
 export async function subscribe(event, handler) {
   if (!isDesktop) return () => {}

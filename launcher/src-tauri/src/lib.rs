@@ -8,7 +8,80 @@ mod process;
 mod qibocal;
 mod settings;
 
-use tauri::Manager;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use tauri::utils::config::WindowConfig;
+use tauri::webview::{NewWindowResponse, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow};
+
+/// The main window's configuration: every other window is cut from it.
+const MAIN_WINDOW: &str = "main";
+
+/// How many windows were opened besides the main one: their labels count up.
+static OPENED: AtomicU64 = AtomicU64::new(0);
+
+/// Whether an address is one of this application's own pages.
+///
+/// The pages are served under the `tauri` scheme on macOS and Linux, under
+/// `http://tauri.localhost` on Windows, and from the Vite server while
+/// developing; anything else is the outside world.
+fn is_own_page(url: &Url) -> bool {
+    match url.scheme() {
+        "tauri" => true,
+        "http" | "https" => {
+            url.host_str() == Some("tauri.localhost")
+                || (cfg!(debug_assertions)
+                    && matches!(url.host_str(), Some("localhost") | Some("127.0.0.1")))
+        }
+        _ => false,
+    }
+}
+
+/// A window of the application on one of its pages, cut from the main
+/// window's configuration, and opening further windows the same way.
+fn open_window(app: &AppHandle, template: &WindowConfig, url: Url) -> tauri::Result<WebviewWindow> {
+    let label = format!("window-{}", OPENED.fetch_add(1, Ordering::SeqCst) + 1);
+    let target = if url.scheme() == "tauri" {
+        WebviewUrl::CustomProtocol(url)
+    } else {
+        WebviewUrl::External(url)
+    };
+    let handle = app.clone();
+    let config = template.clone();
+    let mut builder = WebviewWindowBuilder::new(app, label, target)
+        .title(&template.title)
+        .inner_size(template.width, template.height)
+        .resizable(template.resizable)
+        .on_new_window(move |url, _features| new_window(&handle, &config, url));
+    if let (Some(width), Some(height)) = (template.min_width, template.min_height) {
+        builder = builder.min_inner_size(width, height);
+    }
+    if let Some(color) = template.background_color {
+        builder = builder.background_color(color);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(template.title_bar_style)
+            .hidden_title(template.hidden_title);
+    }
+    builder.build()
+}
+
+/// What becomes of a request for a new window — `window.open`, or "Open
+/// Link in New Window" in the context menu: one of our pages opens in a
+/// window of ours, with the same geometry; anything else goes to the
+/// browser, as the links that leave the application do.
+fn new_window(app: &AppHandle, template: &WindowConfig, url: Url) -> NewWindowResponse<tauri::Wry> {
+    if is_own_page(&url) {
+        return match open_window(app, template, url) {
+            Ok(window) => NewWindowResponse::Create { window },
+            Err(_) => NewWindowResponse::Deny,
+        };
+    }
+    let _ = tauri_plugin_opener::open_url(url.as_str(), None::<&str>);
+    NewWindowResponse::Deny
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,12 +90,32 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             app.manage(process::Supervisor::default());
+            // The main window is built here rather than from the configuration
+            // alone (`"create": false` there), so that requests for new
+            // windows — ours, or the context menu's — are handled.
+            let template = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|window| window.label == MAIN_WINDOW)
+                .cloned()
+                .expect("the main window is configured");
+            let handle = app.handle().clone();
+            let config = template.clone();
+            WebviewWindowBuilder::from_config(app.handle(), &template)?
+                .on_new_window(move |url, _features| new_window(&handle, &config, url))
+                .build()?;
             Ok(())
         })
-        // Closing the window while something runs: stop it first, then go.
+        // Closing the last window while something runs: stop it first, then
+        // go. Any other window simply closes.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
+                if app.webview_windows().len() > 1 {
+                    return;
+                }
                 if !app.state::<process::Supervisor>().request_close(app) {
                     api.prevent_close();
                 }

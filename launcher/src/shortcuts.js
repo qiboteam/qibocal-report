@@ -39,6 +39,7 @@ export const SHORTCUTS = [
     .filter(section => section.accelerator)
     .map(section => ({ keys: [section.accelerator], what: `${section.title}, from the Go menu`, group: 'Menu' })),
   { keys: ['CmdOrCtrl+D'], what: 'Open the Dashboard, from the Go menu', group: 'Menu' },
+  { keys: ['CmdOrCtrl+Shift+N'], what: 'This page again, in a new window, from the Window menu', group: 'Menu' },
   { keys: ['CmdOrCtrl+N'], what: 'Register a server, from the Servers menu', group: 'Menu' }
 ]
 
@@ -106,7 +107,8 @@ export function installShortcuts({ go, dashboard, newServer, target = document }
       forget()
       return
     }
-    if (event.shiftKey) return
+    // Shift+Enter is a page's: the thing under the cursor, in a new window.
+    if (event.shiftKey && event.key !== 'Enter') return
 
     if (pending === 'g') {
       forget()

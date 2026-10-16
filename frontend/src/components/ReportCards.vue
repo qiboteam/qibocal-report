@@ -3,7 +3,8 @@
     <div
       v-for="report in reports"
       :key="report.id"
-      @click="$emit('select', report)"
+      @click="$emit('select', report, $event)"
+      @auxclick="$event.button === 1 && $emit('select', report, $event)"
       class="bm-card p-5 border border-gray-100 cursor-pointer hover:border-purple-200 transition group"
       :class="[
         selected.includes(report.id) ? 'border-purple-300 ring-1 ring-purple-300 bg-purple-50/20' : '',
@@ -50,7 +51,8 @@
         </div>
 
         <div class="flex items-center gap-3 text-xs text-gray-500 font-mono">
-          <span>📅 {{ report.date }} {{ report.time }}</span>
+          <!-- A link, so the context menu offers the report in a new window. -->
+          <a :href="hrefOf(report)" class="text-inherit" :title="`Open ${report.id}`" @click.prevent="$emit('select', report, $event)" @auxclick.stop>📅 {{ report.date }} {{ report.time }}</a>
           <span v-if="report.total_execution_time">⏱️ {{ report.total_execution_time }}</span>
           <button
             type="button"
@@ -131,6 +133,13 @@
 </template>
 
 <script setup>
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+/** The report's address, for the link and the context menu. */
+function hrefOf(report) {
+  return router.resolve({ path: `/reports/${report.id}` }).href
+}
 import { state, resolveAuthor, isViewer } from '../store.js'
 
 defineProps({

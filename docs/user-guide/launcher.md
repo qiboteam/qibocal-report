@@ -53,6 +53,10 @@ The home page opens onto every section — **Running** first, then what there is
 
 Under the cards, **Running now** names what is alive at the moment, in a line each: the server, session or installation, with the way to its card in **Running** and the way to where it is used — the dashboard for a server, the browser for a notebook, **Configuration** for an installation of `qibocal-report`.
 
+### Windows
+
+A second window shows another page next to the first — two reports, a report and the servers, the launcher and the dashboard. **Window → New Window** (`Cmd/Ctrl+Shift+N`) opens the page one is on again, in a window of its own. Wherever something opens — the Dashboard card, a server's **Open**, a report in the dashboard's list — a modifier held while clicking (command or control, or shift), the middle button, or `Shift+Enter` on the keyboard opens it in a new window instead. The context menu's *Open Link in New Window* works too, on every link, the dashboard's report rows and cards included; links that leave the application open in the browser, as before. Each window is a page of the same application, so they share the servers, the notifications and the processes; closing one of several closes it alone, and closing the last is closing the application. There are no tabs.
+
 ### Keyboard
 
 The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the list over any page — the launcher's and the dashboard's alike. Letters work anywhere but in a text field; the menu shortcuts, with their modifier, work everywhere.
@@ -74,6 +78,8 @@ The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the l
 | `Cmd/Ctrl+D` | Dashboard, from the Go menu |
 | `Cmd/Ctrl+N` | Register a server, from the Servers menu |
 | `Cmd/Ctrl+/` | Help |
+| `Cmd/Ctrl+Shift+N` | This page again, in a new window |
+| `Shift+Enter` | What is under the cursor, in a new window, where `Enter` opens it |
 
 On each page, `j` and `k` walk its list — `h` and `l` too, where there is a side to move to — the entry under the cursor wears an outline, `Enter` does what a click does, and a letter acts on that entry; `Esc` clears the cursor. No key does anything that cannot be undone: a server is started, never forgotten, from the keyboard. The cheatsheet on `?` lists the keys of the page it is opened on, first.
 

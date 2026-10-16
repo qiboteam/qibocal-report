@@ -15,7 +15,8 @@
         type="button"
         class="bm-card text-left p-5 flex items-start gap-3.5 hover:-translate-y-px transition min-h-[6.5rem]"
         :class="{ 'lx-focus': cursor === 0 }"
-        @click="openDashboard()"
+        @click="openDashboard(null, { newWindow: wantsNewWindow($event) })"
+        @auxclick.prevent="$event.button === 1 && openDashboard(null, { newWindow: true })"
       >
         <span class="w-9 h-9 rounded-xl bg-[#833dff] text-white inline-flex items-center justify-center shrink-0">
           <LayoutDashboard class="w-4.5 h-4.5" />
@@ -89,7 +90,8 @@
             type="button"
             class="lx-action"
             title="Read its reports in the dashboard"
-            @click="openDashboard(process.url)"
+            @click="openDashboard(process.url, { newWindow: wantsNewWindow($event) })"
+            @auxclick.prevent="$event.button === 1 && openDashboard(process.url, { newWindow: true })"
           >
             <LayoutDashboard class="w-3.5 h-3.5" /> Dashboard
           </button>
@@ -122,7 +124,7 @@ import { useRouter } from 'vue-router'
 import { Activity, ExternalLink, LayoutDashboard, Settings } from 'lucide-vue-next'
 import { sections } from '../router.js'
 import { sectionIcons } from '../icons.js'
-import { openExternal } from '../bridge.js'
+import { openExternal, openInNewWindow, wantsNewWindow } from '../bridge.js'
 import { state, openDashboard } from '../state.js'
 import { registerPageKeys } from '../shortcuts.js'
 import { pageShortcuts } from '../pagekeys.js'
@@ -201,24 +203,30 @@ function move(key) {
   return true
 }
 
-/** What the cursor is on: open it, as a click would. */
-function activate() {
+/** What the cursor is on: open it, as a click would — in a new window with Shift. */
+function activate(event) {
   const index = cursor.value
   if (index < 0) return false
-  if (index === 0) openDashboard()
-  else if (index < cards) router.push(others[index - 1].path)
-  else {
+  const newWindow = wantsNewWindow(event)
+  if (index === 0) openDashboard(null, { newWindow })
+  else if (index < cards) {
+    if (newWindow) openInNewWindow(`#${others[index - 1].path}`)
+    else router.push(others[index - 1].path)
+  } else {
     const process = live.value[index - cards]
-    if (process) router.push({ name: 'processes', query: { process: process.id } })
+    if (!process) return false
+    const route = { name: 'processes', query: { process: process.id } }
+    if (newWindow) openInNewWindow(router.resolve(route).href)
+    else router.push(route)
   }
   return true
 }
 
 /** Where what runs is used: the dashboard, the browser, Configuration. */
-function consume() {
+function consume(event) {
   const process = live.value[cursor.value - cards]
   if (!process) return false
-  if (process.kind === 'server' && process.url) openDashboard(process.url)
+  if (process.kind === 'server' && process.url) openDashboard(process.url, { newWindow: wantsNewWindow(event) })
   else if (process.kind === 'notebook' && process.url) openExternal(process.url)
   else if (process.kind === 'setup') router.push('/settings')
   else return false
@@ -228,8 +236,8 @@ function consume() {
 function handle(event) {
   switch (event.key) {
     case 'h': case 'j': case 'k': case 'l': return move(event.key)
-    case 'Enter': return activate()
-    case 'o': return consume()
+    case 'Enter': return activate(event)
+    case 'o': return consume(event)
     case 'Escape':
       if (cursor.value < 0) return false
       cursor.value = -1

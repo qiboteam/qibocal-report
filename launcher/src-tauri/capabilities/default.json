@@ -1,8 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Launcher window: menus, native dialogs, and opening report URLs.",
-  "windows": ["main"],
+  "description": "Every window of the application: menus, native dialogs, and opening report URLs.",
+  "windows": [
+    "main",
+    "window-*"
+  ],
   "permissions": [
     "core:default",
     "dialog:allow-open",
@@ -11,11 +14,22 @@
     "opener:allow-reveal-item-in-dir",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "http://*" }, { "url": "https://*" }]
+      "allow": [
+        {
+          "url": "http://*"
+        },
+        {
+          "url": "https://*"
+        }
+      ]
     },
     {
       "identifier": "opener:allow-open-path",
-      "allow": [{ "path": "**" }]
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
     }
   ]
 }

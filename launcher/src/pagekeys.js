@@ -14,6 +14,7 @@ export const PAGE_KEYS = {
     keys: {
       'h / j / k / l': 'Move over the cards as a grid; below them, the lines of what runs',
       Enter: 'Open the card, or the card in Running of what runs',
+      'Shift Enter': 'The same, in a new window',
       o: 'Where what runs is used: the dashboard, the browser, Configuration'
     }
   },
@@ -23,6 +24,7 @@ export const PAGE_KEYS = {
       j: 'Next registered server',
       k: 'Previous registered server',
       Enter: 'Open it in the dashboard while it runs; start it otherwise',
+      'Shift Enter': 'Open it in the dashboard, in a new window',
       s: 'Start it, or open it when it is running',
       e: 'Edit it',
       i: 'Invite an administrator'
@@ -34,6 +36,7 @@ export const PAGE_KEYS = {
       j: 'Next card — the selection itself',
       k: 'Previous card',
       Enter: 'Open it: the dashboard for a server, the browser for a notebook',
+      'Shift Enter': 'A server in the dashboard, in a new window',
       o: 'Open it: the dashboard for a server, the browser for a notebook',
       x: 'Stop it',
       s: 'Start it again',

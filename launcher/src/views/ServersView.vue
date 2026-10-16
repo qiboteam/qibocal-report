@@ -67,7 +67,13 @@
           <p class="lx-mono text-gray-500 truncate">{{ process.url }}</p>
         </div>
         <div class="ml-auto flex flex-wrap items-center gap-1.5">
-          <button type="button" class="lx-action" title="Open it in the dashboard, which registers it" @click="openDashboard(process.url)">
+          <button
+            type="button"
+            class="lx-action"
+            title="Open it in the dashboard, which registers it"
+            @click="openDashboard(process.url, { newWindow: wantsNewWindow($event) })"
+            @auxclick.prevent="$event.button === 1 && openDashboard(process.url, { newWindow: true })"
+          >
             <LayoutDashboard class="w-3.5 h-3.5" /> Open
           </button>
           <button type="button" class="lx-action" title="Keep it in servers.json" @click="keep(process)">
@@ -122,7 +128,8 @@
               type="button"
               class="lx-primary !py-1"
               title="Open it in the dashboard"
-              @click="openDashboard(server.url)"
+              @click="openDashboard(server.url, { newWindow: wantsNewWindow($event) })"
+              @auxclick.prevent="$event.button === 1 && openDashboard(server.url, { newWindow: true })"
             >
               <LayoutDashboard class="w-3.5 h-3.5" /> Open
             </button>
@@ -217,7 +224,7 @@ import {
 } from 'lucide-vue-next'
 import FormField from '../components/FormField.vue'
 import ServerFields from '../components/ServerFields.vue'
-import { desktop } from '../bridge.js'
+import { desktop, wantsNewWindow } from '../bridge.js'
 import {
   state,
   attempt,
@@ -313,8 +320,8 @@ async function launch(register) {
 }
 
 /** The main action of a registered server: open it while it runs, start it otherwise. */
-function activate(server) {
-  if (processFor(server)) return openDashboard(server.url)
+function activate(server, event = null) {
+  if (processFor(server)) return openDashboard(server.url, { newWindow: wantsNewWindow(event) })
   return relaunch(server)
 }
 
@@ -323,8 +330,8 @@ const { focused } = usePageKeys({
   page: 'servers',
   count: () => state.servers.length,
   actions: {
-    Enter: index => activate(state.servers[index]),
-    s: index => activate(state.servers[index]),
+    Enter: (index, event) => activate(state.servers[index], event),
+    s: (index, event) => activate(state.servers[index], event),
     e: index => toggleEdit(state.servers[index]),
     i: index => toggleInvite(state.servers[index])
   }

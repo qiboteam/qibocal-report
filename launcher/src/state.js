@@ -1,5 +1,5 @@
 import { reactive, computed, watch } from 'vue'
-import { desktop, isDesktop, subscribe } from './bridge.js'
+import { desktop, isDesktop, openInNewWindow, subscribe } from './bridge.js'
 import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './lib/servers.js'
 import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
 
@@ -433,7 +433,7 @@ export async function initialize() {
  * running server that is not registered yet registers it first: the
  * dashboard only knows registered servers.
  */
-export async function openDashboard(preferredUrl = null) {
+export async function openDashboard(preferredUrl = null, { newWindow = false } = {}) {
   if (preferredUrl) {
     const keys = new Set(launchKeys(preferredUrl))
     const registered = state.servers.some(server => launchKeys(server.url).some(key => keys.has(key)))
@@ -454,7 +454,9 @@ export async function openDashboard(preferredUrl = null) {
   syncDashboardServers(state.servers, { preferredUrl })
   const target = new URL('dashboard.html', window.location.href)
   if (preferredUrl) target.hash = '#/dashboard'
-  window.location.href = target.href
+  // In a new window when asked — a modifier held, the middle button, Shift+Enter.
+  if (newWindow) openInNewWindow(target.href)
+  else window.location.href = target.href
 }
 
 /**

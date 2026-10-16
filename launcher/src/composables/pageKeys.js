@@ -53,7 +53,7 @@ export function usePageKeys({ page, count, actions = {}, onCursor = null }) {
     }
     const action = actions[key]
     if (!action || cursor.value < 0 || cursor.value >= count()) return false
-    action(cursor.value)
+    action(cursor.value, event)
     return true
   }
 

@@ -94,6 +94,14 @@ async function build({ goTo, openDashboard, launchServer, servers }) {
   items.push(await Submenu.new({
     text: 'Window',
     items: [
+      await MenuItem.new({
+        id: 'menu-window-new',
+        text: 'New Window',
+        accelerator: 'CmdOrCtrl+Shift+N',
+        // The page one is on, again, in a window of its own: to compare two.
+        action: () => window.open(window.location.href, '_blank', 'noopener')
+      }),
+      await separator(),
       await PredefinedMenuItem.new({ item: 'Minimize' }),
       await PredefinedMenuItem.new({ item: 'Fullscreen' }),
       await PredefinedMenuItem.new({ item: 'CloseWindow' })

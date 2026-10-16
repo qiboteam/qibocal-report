@@ -52,7 +52,8 @@
               type="button"
               class="lx-action"
               title="Open it in the dashboard, registering it if it is not yet"
-              @click="openDashboard(current.latest.url)"
+              @click="openDashboard(current.latest.url, { newWindow: wantsNewWindow($event) })"
+              @auxclick.prevent="$event.button === 1 && openDashboard(current.latest.url, { newWindow: true })"
             >
               <LayoutDashboard class="w-3.5 h-3.5" /> Dashboard
             </button>
@@ -125,7 +126,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ChevronRight, ExternalLink, LayoutDashboard, Play, Square, Trash2 } from 'lucide-vue-next'
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
-import { desktop, openExternal } from '../bridge.js'
+import { desktop, openExternal, wantsNewWindow } from '../bridge.js'
 import { state, attempt, loadLog, openDashboard, refreshProcesses, restartProcess } from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
 
@@ -189,10 +190,10 @@ async function select(key) {
 watch(selected, key => place(groups.value.findIndex(group => group.key === key)), { immediate: true })
 
 /** Open what a card stands for: the dashboard for a server, the browser for a notebook. */
-function open(group) {
+function open(group, event = null) {
   const latest = group?.latest
   if (!latest?.url || latest.status !== 'running') return
-  if (latest.kind === 'server') openDashboard(latest.url)
+  if (latest.kind === 'server') openDashboard(latest.url, { newWindow: wantsNewWindow(event) })
   else if (latest.kind === 'notebook') openExternal(latest.url)
 }
 
@@ -202,8 +203,8 @@ const { place } = usePageKeys({
   count: () => groups.value.length,
   onCursor: index => { selected.value = groups.value[index]?.key || null },
   actions: {
-    Enter: index => open(groups.value[index]),
-    o: index => open(groups.value[index]),
+    Enter: (index, event) => open(groups.value[index], event),
+    o: (index, event) => open(groups.value[index], event),
     x: index => {
       const latest = groups.value[index]?.latest
       if (latest?.status === 'running') stop(latest)

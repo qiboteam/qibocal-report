@@ -1,6 +1,7 @@
 <template>
   <tr
-    @click="$emit('select', report)"
+    @click="$emit('select', report, $event)"
+    @auxclick="$event.button === 1 && $emit('select', report, $event)"
     class="hover:bg-purple-50/30 cursor-pointer transition"
     :class="[isSelected ? 'bg-purple-50/40' : '', isFocused ? 'bg-[#ebe0ff]/70 outline outline-2 -outline-offset-2 outline-[#833dff]/40' : '']"
     :data-focused="isFocused ? 'true' : undefined"
@@ -136,13 +137,13 @@
       </div>
     </td>
 
-    <!-- Date Column -->
+    <!-- Date Column: a link, so the context menu offers it in a new window. -->
     <td class="py-3.5 px-4 text-gray-500 text-xs whitespace-nowrap overflow-hidden">
       <div class="flex items-center justify-between gap-2">
-        <div>
+        <a :href="href" class="block text-inherit" :title="`Open ${report.id}`" @click.prevent="$emit('select', report, $event)" @auxclick.stop>
           <div>{{ report.date }}</div>
           <div class="text-[10px] text-gray-400 font-mono">{{ report.time }}</div>
-        </div>
+        </a>
         <button
           type="button"
           @click.stop="$emit('preview', report)"
@@ -160,14 +161,20 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { state, resolveAuthor, isViewer } from '../store.js'
 
-defineProps({
+const props = defineProps({
   report: { type: Object, required: true },
   isSelected: { type: Boolean, default: false },
   /** Under the keyboard's cursor: marked, mildly. */
   isFocused: { type: Boolean, default: false }
 })
+
+const router = useRouter()
+/** The report's address, for the link and the context menu. */
+const href = computed(() => router.resolve({ path: `/reports/${props.report.id}` }).href)
 
 defineEmits([
   'select',

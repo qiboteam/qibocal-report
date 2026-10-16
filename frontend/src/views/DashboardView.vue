@@ -403,6 +403,7 @@ import { desktopWidget, publishPage } from '../utils/desktop.js'
 import { useRouter, useRoute } from 'vue-router'
 import { state, addToHistory, apiFetch, ensureServersLoaded, holdReportStats, resolveAuthor, persistSearchState } from '../store.js'
 import { REPORT_FIELDS, STATS_FIELDS, apiGraphQL } from '../api.js'
+import { openInNewWindow, wantsNewWindow } from '../utils/newWindow.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useBulkActions } from '../composables/useBulkActions.js'
@@ -487,7 +488,7 @@ function onListKeydown(event) {
     case 'Enter': {
       const report = reports.value.find(entry => entry.id === focusedId.value)
       if (!report) return
-      openReport(report)
+      openReport(report, event)
       break
     }
     case 'Escape':
@@ -798,7 +799,24 @@ function onResetFilters() {
   })
 }
 
-function openReport(report, targetProtocol = null) {
+/** The address of a report, as a link holds it. */
+function reportHref(report, targetProtocol = null) {
+  return router.resolve(
+    targetProtocol
+      ? { path: `/reports/${report.id}`, query: { protocol: targetProtocol } }
+      : { path: `/reports/${report.id}` }
+  ).href
+}
+
+/**
+ * Open a report: here, or — with a modifier held, the middle button, or
+ * Shift+Enter — in a new window, to compare two.
+ */
+function openReport(report, event = null, targetProtocol = null) {
+  if (wantsNewWindow(event)) {
+    openInNewWindow(reportHref(report, targetProtocol))
+    return
+  }
   state.currentReportId = report.id
   addToHistory(report)
   if (targetProtocol) {
@@ -814,7 +832,7 @@ function openPreviewModal(report) {
 }
 
 function onOpenProtocol({ report, protocol }) {
-  openReport(report, protocol)
+  openReport(report, null, protocol)
 }
 
 async function onBulkActionSuccess() {
