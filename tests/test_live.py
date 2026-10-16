@@ -9,8 +9,14 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from qibocal_report import api, auth, generator, live
-from qibocal_report.live_inputs import metadata_inputs, protocol_inputs
+from qibocal_report import auth
+
+from qibocal_report.web import api
+
+from qibocal_report.reports import generator
+
+from qibocal_report.reports import live
+from qibocal_report.reports.live_inputs import metadata_inputs, protocol_inputs
 from qibocal_report.models import ProtocolDetail
 
 
@@ -162,7 +168,7 @@ def test_worker_forwards_selection_and_uses_fresh_process(tmp_path, monkeypatch)
     import subprocess
 
     def run(command, **options):
-        assert command[:3] == [sys.executable, "-m", "qibocal_report.generation_worker"]
+        assert command[:3] == [sys.executable, "-m", "qibocal_report.reports.generation_worker"]
         assert json.loads(command[-1]) == ["rabi-1"]
         (tmp_path / command[-2]).write_text(
             json.dumps({"protocols": [{"id": "rabi-1", "name": "Rabi"}], "error": None})

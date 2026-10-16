@@ -28,14 +28,14 @@ from strawberry.types import Info
 
 from qibocal_report import auth
 from qibocal_report.auth import UserRole
-from qibocal_report.generator import get_report_protocols
+from qibocal_report.reports.generator import get_report_protocols
 from qibocal_report.models import (
     FilterStats,
     ProtocolDetail,
     ReportDetail,
     ReportSummary,
 )
-from qibocal_report.scanner import (
+from qibocal_report.reports.scanner import (
     compute_filter_stats,
     filter_reports,
     get_report_detail,

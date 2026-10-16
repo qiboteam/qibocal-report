@@ -16,13 +16,21 @@
 ┌───────▼──────┐    ┌──────▼──────┐       ┌───────▼──────┐
 │  Directory   │    │  Generator  │       │  In-Memory   │
 │   Scanner    │    │ & Evaluator │       │    Cache     │
-│ (scanner.py) │    │(generator.py)│       │  & Streams   │
+│(reports/scan.)│   │(reports/gen.)│       │  & Streams   │
 └──────────────┘    └─────────────┘       └──────────────┘
 ```
 
 ---
 
 ## 🐍 Backend Architecture (`src/qibocal_report/`)
+
+The package is one level deep. At the top sit what everything shares — `cli.py`, the entry point; `config.py`, the shared configuration directory and the registered servers; `models.py`, the Pydantic shapes; `auth.py`, users and tokens; `logger.py`; `qibocal_environment.py`, the Qibocal installation the server generates plots with — and three subpackages group the rest:
+
+| Package | Holds |
+| --- | --- |
+| `web/` | The HTTP face: `api.py` (REST), `graphql.py`, `websocket.py`, and `docs.py`, the documentation it serves |
+| `reports/` | The calibration reports: `scanner.py`, `generator.py` and its `generation_worker.py`, `actions.py` (bulk changes, inferred targets), `notes.py` (comments), `archive.py`, `live.py` and `live_inputs.py` (runs in progress) |
+| `remote/` | Other machines: `notebook.py` and `server.py` start sessions and report servers over SSH with the workers shipped there as source, `notebook_worker.py` and `report_worker.py`; `slurm.py` asks the queues |
 
 ### 1. Web Framework: FastAPI & Uvicorn
 - Built on **FastAPI** for native asynchronous I/O, automatic OpenAPI 3.1 / Swagger generation, and dependency injection.
@@ -31,13 +39,13 @@
 ### 2. Strict Typing with Pydantic v2
 - All payload structures, metadata representations, and protocol outputs are modeled with **Pydantic v2** (`BaseModel`), guaranteeing contract validation and high serialization speeds.
 
-### 3. Report Scanner (`scanner.py`)
+### 3. Report Scanner (`reports/scanner.py`)
 - Traverses the directory tree configured via `QIBOCAL_REPORT_DIR` or the CLI argument.
 - Scans for directories containing `meta.json`.
 - Extracts runcards, platform snapshots (`platform/`, `new_platform/`), executed protocols, qubit sets, and execution timestamps.
 - Aggregates facets on the fly for lightning-fast statistical querying.
 
-### 4. Report Generator & Evaluator (`generator.py`)
+### 4. Report Generator & Evaluator (`reports/generator.py`)
 Provides two distinct operational modes:
 - **Pre-cached Mode (Default)**:
   - If a calibration folder contains a `report/` subdirectory, the server reads the serialized Plotly JSON figures and HTML tables directly from disk.

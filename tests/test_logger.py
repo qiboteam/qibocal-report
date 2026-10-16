@@ -11,7 +11,9 @@ import pytest
 from fastapi.testclient import TestClient
 from rich.console import Console
 
-from qibocal_report import api, auth, logger
+from qibocal_report import auth, logger
+
+from qibocal_report.web import api
 
 
 @pytest.fixture

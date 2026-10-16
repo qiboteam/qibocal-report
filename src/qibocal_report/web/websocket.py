@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from qibocal_report.generator import (
+from qibocal_report.reports.generator import (
     get_report_protocols,
     has_cached_report,
     load_cached_protocols,
@@ -16,8 +16,8 @@ from qibocal_report.logger import (
     log_success,
     log_warning,
 )
-from qibocal_report.notes import NotesError
-from qibocal_report.scanner import get_report_detail, scan_reports
+from qibocal_report.reports.notes import NotesError
+from qibocal_report.reports.scanner import get_report_detail, scan_reports
 
 
 async def handle_report_websocket(

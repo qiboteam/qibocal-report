@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from qibocal_report.generator import _generate_qibocal_protocols_native
+from qibocal_report.reports.generator import _generate_qibocal_protocols_native
 
 
 def _json_default(value):

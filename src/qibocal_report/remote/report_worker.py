@@ -28,7 +28,7 @@ if _source is None:
     _source = Path(__file__).with_name("notebook_worker.py").read_text(encoding="utf-8")
 
 # A name other than "__main__", or the notebook worker would start itself.
-_shared = {"__name__": "qibocal_report.notebook_worker"}
+_shared = {"__name__": "qibocal_report.remote.notebook_worker"}
 exec(compile(_source, "notebook_worker.py", "exec"), _shared)  # noqa: S102
 
 Runtime = _shared["Runtime"]

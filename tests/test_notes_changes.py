@@ -5,9 +5,13 @@ from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 
-from qibocal_report import api, auth, generator
+from qibocal_report import auth
+
+from qibocal_report.web import api
+
+from qibocal_report.reports import generator
 from qibocal_report.models import ProtocolDetail
-from qibocal_report.notes import (
+from qibocal_report.reports.notes import (
     NoteMismatch,
     append_note,
     load_notes,

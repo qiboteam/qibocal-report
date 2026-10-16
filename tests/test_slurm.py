@@ -7,7 +7,7 @@ import stat
 import pytest
 from click.testing import CliRunner
 
-from qibocal_report import slurm
+from qibocal_report.remote import slurm
 from qibocal_report.cli import main
 
 SQUEUE = """\

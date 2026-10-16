@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from qibocal_report.scanner import (
+from qibocal_report.reports.scanner import (
     IGNORED_DIRS,
     compute_filter_stats,
     filter_reports,

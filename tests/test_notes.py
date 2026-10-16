@@ -11,10 +11,16 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from qibocal_report import api, auth, generator, live
-from qibocal_report.live_inputs import metadata_inputs, protocol_inputs
+from qibocal_report import auth
+
+from qibocal_report.web import api
+
+from qibocal_report.reports import generator
+
+from qibocal_report.reports import live
+from qibocal_report.reports.live_inputs import metadata_inputs, protocol_inputs
 from qibocal_report.models import Note, ProtocolDetail, ReportDetail
-from qibocal_report.notes import (
+from qibocal_report.reports.notes import (
     NotesError,
     append_note,
     load_notes,

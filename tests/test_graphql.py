@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from qibocal_report.api import app, set_report_root
+from qibocal_report.web.api import app, set_report_root
 
 
 @pytest.fixture

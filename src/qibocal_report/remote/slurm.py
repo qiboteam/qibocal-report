@@ -17,7 +17,7 @@ import subprocess
 from datetime import datetime, timezone
 from typing import Any
 
-from qibocal_report.notebook import ssh_arguments
+from qibocal_report.remote.notebook import ssh_arguments
 
 SEPARATOR = "---QIBOCAL-QUEUE---"
 

@@ -8,7 +8,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from qibocal_report.generator import (
+from qibocal_report.reports.generator import (
     _extract_protocol_timing_map,
     format_execution_time,
     get_execution_order,
@@ -28,7 +28,7 @@ from qibocal_report.models import (
     ReportSummary,
     TagFrequency,
 )
-from qibocal_report.notes import load_notes
+from qibocal_report.reports.notes import load_notes
 
 IGNORED_DIRS = {
     "node_modules",

@@ -8,23 +8,23 @@ from pathlib import Path
 
 from fastapi import HTTPException, WebSocket, WebSocketDisconnect
 
-from qibocal_report.archive import resolve_report_dir
-from qibocal_report.generator import (
+from qibocal_report.reports.archive import resolve_report_dir
+from qibocal_report.reports.generator import (
     _generate_qibocal_protocols,
     load_cached_protocols,
     report_generation_lock,
     sort_protocols_by_execution_order,
     write_protocol_cache,
 )
-from qibocal_report.live_inputs import (
+from qibocal_report.reports.live_inputs import (
     metadata_inputs,
     protocol_inputs,
     write_input_cache,
 )
 from qibocal_report.logger import log_info, log_warning
 from qibocal_report.models import ProtocolDetail
-from qibocal_report.notes import attach_protocol_notes
-from qibocal_report.scanner import get_report_detail, invalidate_report_cache
+from qibocal_report.reports.notes import attach_protocol_notes
+from qibocal_report.reports.scanner import get_report_detail, invalidate_report_cache
 
 LIVE_POLL_INTERVAL = 1.0
 

@@ -14,7 +14,7 @@ from rich.table import Table
 import uvicorn
 
 from qibocal_report import config
-from qibocal_report.api import set_report_root
+from qibocal_report.web.api import set_report_root
 from qibocal_report.logger import get_uvicorn_log_config
 
 
@@ -177,7 +177,7 @@ def notebook():
 @notebook_options()
 def notebook_connect(connection: str | None, **options):
     """Start a local, SSH, or SLURM notebook, optionally using a named CONNECTION."""
-    from qibocal_report.notebook import launch, load_options
+    from qibocal_report.remote.notebook import launch, load_options
 
     launch(load_options(connection, options))
 
@@ -202,8 +202,8 @@ def notebook_queue(connection, ssh, queue, user, states, as_json, timeout):
     """
     import json as json_module
 
-    from qibocal_report.notebook import load_connections, registered_connection
-    from qibocal_report.slurm import query_queue
+    from qibocal_report.remote.notebook import load_connections, registered_connection
+    from qibocal_report.remote.slurm import query_queue
 
     values = {}
     if connection is not None:
@@ -244,7 +244,7 @@ def notebook_queue(connection, ssh, queue, user, states, as_json, timeout):
 @click.option("--raw", is_flag=True, help="Print the connection file verbatim.")
 def notebook_list(raw: bool):
     """List registered notebook connections."""
-    from qibocal_report.notebook import list_connections
+    from qibocal_report.remote.notebook import list_connections
 
     list_connections(raw=raw)
 
@@ -258,7 +258,7 @@ def notebook_add(connection: str | None, **options):
     See `qibocal notebook connect --help` for all connection options.
     With no options, prompt for a name and non-default options.
     """
-    from qibocal_report.notebook import add_connection, prompt_options
+    from qibocal_report.remote.notebook import add_connection, prompt_options
 
     interactive = all(value is None for value in options.values())
     if connection is None:
@@ -284,7 +284,7 @@ def notebook_update(connection: str | None, **options):
     Unspecified settings are preserved. With no options, prompt for changes
     using the connection's current values.
     """
-    from qibocal_report.notebook import load_options, prompt_options, update_connection
+    from qibocal_report.remote.notebook import load_options, prompt_options, update_connection
 
     if connection is None:
         connection = click.prompt("Connection name")
@@ -304,7 +304,7 @@ def notebook_update(connection: str | None, **options):
 @click.argument("connection")
 def notebook_remove(connection: str):
     """Remove a registered CONNECTION immediately, without confirmation."""
-    from qibocal_report.notebook import remove_connection
+    from qibocal_report.remote.notebook import remove_connection
 
     remove_connection(connection)
 
@@ -427,7 +427,7 @@ def server(
     if ctx.invoked_subcommand:
         return
     if ssh:
-        from qibocal_report.remote import launch, load_options
+        from qibocal_report.remote.server import launch, load_options
 
         launch(
             load_options(
@@ -496,7 +496,7 @@ def server(
     )
 
     uvicorn.run(
-        "qibocal_report.api:app",
+        "qibocal_report.web.api:app",
         host=host,
         port=port,
         log_config=get_uvicorn_log_config(),
@@ -531,7 +531,7 @@ def server_upgrade(ssh: str, **remote):
     which otherwise keeps what it holds for good, since it is only filled when
     it has no qibocal. Nothing is served; start the server as usual afterwards.
     """
-    from qibocal_report.remote import load_options, upgrade
+    from qibocal_report.remote.server import load_options, upgrade
 
     upgrade(load_options({"ssh": ssh, "upgrade": True, "registered": False, **remote}))
 
@@ -658,7 +658,7 @@ def dev(
 
     try:
         uvicorn.run(
-            "qibocal_report.api:app",
+            "qibocal_report.web.api:app",
             host=host,
             port=port,
             reload=reload,

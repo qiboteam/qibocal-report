@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from qibocal_report import auth
-from qibocal_report.api import app, set_report_root
+from qibocal_report.web.api import app, set_report_root
 from qibocal_report.models import UserRole
 
 

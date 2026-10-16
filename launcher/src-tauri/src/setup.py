@@ -35,7 +35,7 @@ def main():
     upgrade = bool(options.get("upgrade"))
 
     worker = Path(__file__).with_name("notebook_worker.py")
-    shared = {"__name__": "qibocal_report.notebook_worker"}
+    shared = {"__name__": "qibocal_report.remote.notebook_worker"}
     exec(compile(worker.read_text(encoding="utf-8"), str(worker), "exec"), shared)  # noqa: S102
     # Progress as plain lines: the launcher shows the output as it comes.
     shared["event"] = lambda kind, **details: print(details.get("message", kind), flush=True)

@@ -18,9 +18,15 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from qibocal_report import api, auth, generation_worker, generator, logger
+from qibocal_report import auth, logger
+
+from qibocal_report.web import api
+
+from qibocal_report.reports import generation_worker
+
+from qibocal_report.reports import generator
 from qibocal_report import qibocal_environment as environment
-from qibocal_report.api import app
+from qibocal_report.web.api import app
 from qibocal_report.models import ProtocolDetail, QibocalInstallRequest, QibocalStatus
 
 _REAL_SUBPROCESS_RUN = subprocess.run
@@ -1468,7 +1474,7 @@ async def test_disconnect_keeps_install_running_and_shutdown_waits(
 
 def test_generation_uses_result_file_not_qibocal_logs(monkeypatch, tmp_path):
     def run(command, **kwargs):
-        assert command[:3] == [sys.executable, "-m", "qibocal_report.generation_worker"]
+        assert command[:3] == [sys.executable, "-m", "qibocal_report.reports.generation_worker"]
         assert command[-2] == str(tmp_path.resolve())
         assert kwargs["timeout"] == environment.GENERATION_TIMEOUT
         assert kwargs.get("shell", False) is False

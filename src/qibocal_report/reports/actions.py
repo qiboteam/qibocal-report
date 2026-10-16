@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from qibocal_report.logger import log_error, log_info
 from qibocal_report.models import BulkActionRequest, BulkActionResponse
-from qibocal_report.scanner import invalidate_report_cache, scan_reports
+from qibocal_report.reports.scanner import invalidate_report_cache, scan_reports
 
 
 def find_report_dirs(root_dir: Path, report_ids: list[str]) -> list[Path]:

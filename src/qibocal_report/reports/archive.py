@@ -19,14 +19,14 @@ from typing import Any
 from fastapi import HTTPException
 
 from qibocal_report.logger import log_error, log_info, log_warning
-from qibocal_report.scanner import parse_report_directory
+from qibocal_report.reports.scanner import parse_report_directory
 
 
 def resolve_report_dir(root_dir: Path, report_id: str) -> Path:
     """Resolve report folder on disk by report ID or path."""
     target_dir = root_dir / report_id
     if not target_dir.is_dir():
-        from qibocal_report.scanner import scan_reports
+        from qibocal_report.reports.scanner import scan_reports
 
         for r in scan_reports(root_dir):
             if r.id == report_id:
@@ -94,7 +94,7 @@ def get_archive_storage_dir(root_dir: Path | None = None) -> Path:
     elif root_dir:
         path = root_dir.resolve() / ".archive"
     else:
-        from qibocal_report.api import get_report_root
+        from qibocal_report.web.api import get_report_root
 
         path = get_report_root().resolve() / ".archive"
     path.mkdir(parents=True, exist_ok=True)

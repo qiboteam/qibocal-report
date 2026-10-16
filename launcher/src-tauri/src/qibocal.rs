@@ -47,7 +47,7 @@ const MARKER: &str = "qibocal-launcher.json";
 /// worker it borrows from: both written to the cache before every run, so
 /// the files on disk are always the ones this build was made with.
 const SETUP_SCRIPT: &str = include_str!("setup.py");
-const WORKER_SOURCE: &str = include_str!("../../../src/qibocal_report/notebook_worker.py");
+const WORKER_SOURCE: &str = include_str!("../../../src/qibocal_report/remote/notebook_worker.py");
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]

@@ -11,10 +11,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from qibocal_report.live_inputs import protocol_inputs, write_input_cache
+from qibocal_report.reports.live_inputs import protocol_inputs, write_input_cache
 from qibocal_report.logger import log_info, log_success, log_warning
 from qibocal_report.models import ProtocolDetail
-from qibocal_report.notes import attach_protocol_notes
+from qibocal_report.reports.notes import attach_protocol_notes
 from qibocal_report.qibocal_environment import (
     GENERATION_TIMEOUT,
     EnvironmentOperationError,
@@ -338,7 +338,7 @@ def _generate_qibocal_protocols(
         with generation_environment():
             result = subprocess.run(
                 [
-                    sys.executable, "-m", "qibocal_report.generation_worker",
+                    sys.executable, "-m", "qibocal_report.reports.generation_worker",
                     str(report_dir.resolve()), str(result_path),
                     *([json.dumps(protocol_ids)] if protocol_ids is not None else []),
                 ],

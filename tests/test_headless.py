@@ -3,7 +3,9 @@
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-from qibocal_report import api, config
+from qibocal_report import config
+
+from qibocal_report.web import api
 from qibocal_report.cli import main
 
 

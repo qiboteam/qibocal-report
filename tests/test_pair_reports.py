@@ -14,7 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from qibocal_report import generator, scanner
+from qibocal_report.reports import generator
+
+from qibocal_report.reports import scanner
 
 CHSH = "13:36:40_[(2, 4)]_chsh"
 JAZZ = "12:07:17_[(2, 3)]_jazz"

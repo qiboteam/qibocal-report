@@ -1,6 +1,8 @@
 """Protocols on qubit pairs: a target that is not a single qubit."""
 
-from qibocal_report import generator, scanner
+from qibocal_report.reports import generator
+
+from qibocal_report.reports import scanner
 from qibocal_report.models import ReportSummary
 
 

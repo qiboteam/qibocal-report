@@ -10,9 +10,9 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from qibocal_report import report_worker
+from qibocal_report.remote import report_worker
 from qibocal_report.cli import main
-from qibocal_report.remote import (
+from qibocal_report.remote.server import (
     RemoteServerOptions,
     launch,
     load_options,
@@ -151,20 +151,20 @@ def test_a_worker_that_dies_before_readiness_is_reported():
     process.poll.return_value = 255
     process.stdout = iter(())
     process.stderr = iter(())
-    with patch("qibocal_report.remote.subprocess.Popen", return_value=process):
+    with patch("qibocal_report.remote.server.subprocess.Popen", return_value=process):
         with pytest.raises(click.ClickException, match="Report launcher exited"):
             launch(load_options({"ssh": "me@node", "timeout": 5}))
 
 
 def test_a_nonsensical_readiness_response_is_refused(monkeypatch):
     monkeypatch.setattr(
-        "qibocal_report.remote._wait_message",
+        "qibocal_report.remote.server._wait_message",
         lambda *_args, **_kwargs: {"port": 0},
     )
     process = MagicMock()
     process.stdout = iter(())
     process.stderr = iter(())
-    with patch("qibocal_report.remote.subprocess.Popen", return_value=process):
+    with patch("qibocal_report.remote.server.subprocess.Popen", return_value=process):
         with pytest.raises(click.ClickException, match="Invalid report startup"):
             launch(load_options({"ssh": "me@node", "timeout": 5}))
 
@@ -175,7 +175,7 @@ def test_the_cli_delegates_to_the_remote_launcher(tmp_path):
     def record(options: RemoteServerOptions):
         captured["options"] = options
 
-    with patch("qibocal_report.remote.launch", record):
+    with patch("qibocal_report.remote.server.launch", record):
         result = CliRunner().invoke(
             main,
             [
@@ -208,7 +208,7 @@ def test_the_cli_delegates_to_the_remote_launcher(tmp_path):
 
 def test_a_remote_directory_is_not_checked_here():
     """`/shared/runs` exists on the other machine, not on this one."""
-    with patch("qibocal_report.remote.launch") as launcher:
+    with patch("qibocal_report.remote.server.launch") as launcher:
         result = CliRunner().invoke(
             main, ["report", "server", "/definitely/not/here", "--ssh", "me@node"]
         )
@@ -307,7 +307,7 @@ def test_an_answering_server_ends_the_wait():
     process = MagicMock()
     process.poll.return_value = None
     opener = MagicMock()
-    with patch("qibocal_report.report_worker.build_opener", return_value=opener):
+    with patch("qibocal_report.remote.report_worker.build_opener", return_value=opener):
         report_worker.wait_http(runtime, "http://127.0.0.1:1/", process)
     opener.open.assert_called_once()
 
@@ -329,13 +329,13 @@ def test_the_readiness_line_names_the_port(capsys):
 
 
 def test_the_launcher_and_the_worker_agree_on_the_prefix():
-    from qibocal_report.remote import READY_PREFIX
+    from qibocal_report.remote.server import READY_PREFIX
 
     assert READY_PREFIX == report_worker.READY_PREFIX
 
 
 def test_waiting_for_a_message_gives_up(monkeypatch):
-    from qibocal_report.notebook import _wait_message
+    from qibocal_report.remote.notebook import _wait_message
 
     with pytest.raises(click.ClickException, match="Timed out waiting for report"):
         _wait_message(MagicMock(), queue.Queue(), time.monotonic() - 1, "report")
@@ -343,7 +343,7 @@ def test_waiting_for_a_message_gives_up(monkeypatch):
 
 def test_the_name_and_the_registration_travel_with_the_options():
     captured = {}
-    with patch("qibocal_report.remote.launch", lambda options: captured.update(o=options)):
+    with patch("qibocal_report.remote.server.launch", lambda options: captured.update(o=options)):
         result = CliRunner().invoke(
             main,
             ["report", "server", "--ssh", "me@node", "--name", "Lab", "--no-register"],
@@ -431,12 +431,12 @@ def test_an_update_travels_to_the_worker_and_puts_the_package_back_by_force():
     options = load_options({"ssh": "me@node", "upgrade": True})
     assert options.upgrade is True
     assert load_options({"ssh": "me@node"}).upgrade is False
-    from qibocal_report.remote import worker_command
+    from qibocal_report.remote.server import worker_command
 
     command = worker_command(options)
     assert '"upgrade": true' in command[-1]
 
-    from qibocal_report import report_worker
+    from qibocal_report.remote import report_worker
 
     first, second = report_worker.upgrade_commands("/env/bin/python", ["qibocal-report"], seeded=True)
     assert first[-4:] == ["--upgrade", "--force-reinstall", "--no-deps", "qibocal-report"]
@@ -447,8 +447,8 @@ def test_an_update_travels_to_the_worker_and_puts_the_package_back_by_force():
 def test_upgrade_is_a_subcommand_and_starts_nothing():
     captured = {}
     with (
-        patch("qibocal_report.remote.upgrade", lambda options: captured.update(o=options)),
-        patch("qibocal_report.remote.launch", lambda options: captured.update(launched=True)),
+        patch("qibocal_report.remote.server.upgrade", lambda options: captured.update(o=options)),
+        patch("qibocal_report.remote.server.launch", lambda options: captured.update(launched=True)),
     ):
         result = CliRunner().invoke(
             main, ["report", "server", "upgrade", "--ssh", "me@node", "--venv", "chip", "--install", "qibocal-report==1.2"]
@@ -462,13 +462,13 @@ def test_upgrade_is_a_subcommand_and_starts_nothing():
     alone = CliRunner().invoke(main, ["report", "server", "upgrade"])
     assert alone.exit_code != 0 and "--ssh" in alone.output
     # The word is the subcommand, never a directory; a directory still is one.
-    with patch("qibocal_report.remote.launch", lambda options: captured.update(dir=options.directory)):
+    with patch("qibocal_report.remote.server.launch", lambda options: captured.update(dir=options.directory)):
         CliRunner().invoke(main, ["report", "server", "/data", "--ssh", "me@node"])
     assert captured["dir"] == "/data"
 
 
 def test_the_upgrading_worker_puts_the_packages_back_and_exits(monkeypatch, tmp_path):
-    from qibocal_report import report_worker
+    from qibocal_report.remote import report_worker
 
     calls = []
     monkeypatch.setattr(

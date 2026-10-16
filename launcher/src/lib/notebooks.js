@@ -1,7 +1,7 @@
 /**
  * Notebook connection options, described once for the whole interface.
  *
- * The shape mirrors `qibocal_report.notebook.NotebookOptions`, so a connection
+ * The shape mirrors `qibocal_report.remote.notebook.NotebookOptions`, so a connection
  * saved here is understood verbatim by `qibocal notebook connect`.
  */
 export const NOTEBOOK_FIELDS = [

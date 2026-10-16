@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from qibocal_report import notebook_worker as worker
+from qibocal_report.remote import notebook_worker as worker
 
 
 def test_node_identity_logging(tmp_path, monkeypatch, capsys):

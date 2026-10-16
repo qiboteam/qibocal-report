@@ -25,7 +25,7 @@ from rich.table import Table
 from rich.text import Text
 
 from qibocal_report import config
-from qibocal_report.notebook_worker import EVENT_PREFIX
+from qibocal_report.remote.notebook_worker import EVENT_PREFIX
 
 READY_PREFIX = "QIBOCAL_NOTEBOOK_READY "
 

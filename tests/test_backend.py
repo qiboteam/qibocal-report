@@ -8,13 +8,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from qibocal_report import config
-from qibocal_report.api import app, get_report_root, set_report_root
-from qibocal_report.generator import (
+from qibocal_report.web.api import app, get_report_root, set_report_root
+from qibocal_report.reports.generator import (
     has_cached_report,
     load_cached_protocols,
     regenerate_report,
 )
-from qibocal_report.scanner import compute_filter_stats, filter_reports, scan_reports
+from qibocal_report.reports.scanner import compute_filter_stats, filter_reports, scan_reports
 
 
 @pytest.fixture(autouse=True)
@@ -160,10 +160,10 @@ def test_generator_modes():
     # Test error reporting when Qibocal is not available / cannot generate
     from unittest.mock import patch
 
-    from qibocal_report.generator import generate_report_on_the_fly
+    from qibocal_report.reports.generator import generate_report_on_the_fly
 
     with patch(
-        "qibocal_report.generator._generate_qibocal_protocols",
+        "qibocal_report.reports.generator._generate_qibocal_protocols",
         return_value=(None, "Qibocal is not installed in the environment."),
     ):
         rep_unavail = test_reports / "nonexistent_run"
@@ -620,7 +620,7 @@ def test_author_identities_and_search_index():
 
     # 4. Test compute_filter_stats and filter_reports with author_identities
     from qibocal_report.models import ReportSummary
-    from qibocal_report.scanner import compute_filter_stats, filter_reports
+    from qibocal_report.reports.scanner import compute_filter_stats, filter_reports
 
     dummy_reports = [
         ReportSummary(
@@ -714,7 +714,7 @@ def test_pagination_and_cache_invalidation():
     assert p1_ids.isdisjoint(p2_ids)
 
     # 2. Test backend caching and invalidation
-    from qibocal_report.scanner import _REPORT_CACHE, invalidate_report_cache
+    from qibocal_report.reports.scanner import _REPORT_CACHE, invalidate_report_cache
 
     # First scan caches the results
     scan1 = scan_reports(test_reports)
@@ -1059,13 +1059,13 @@ def test_archive_workflow(tmp_path):
 
 def test_protocol_execution_order_sorting(tmp_path: Path):
     """Test protocol execution order sorting in report view (Issue #3)."""
-    from qibocal_report.generator import (
+    from qibocal_report.reports.generator import (
         get_execution_order,
         load_cached_protocols,
         get_report_protocols,
         sort_protocols_by_execution_order,
     )
-    from qibocal_report.scanner import get_report_detail
+    from qibocal_report.reports.scanner import get_report_detail
     from qibocal_report.models import ProtocolDetail
 
     # 1. Test real sample data with 9 routines

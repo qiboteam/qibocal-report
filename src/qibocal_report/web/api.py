@@ -30,8 +30,8 @@ from fastapi.responses import (
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from qibocal_report import auth, config, qibocal_environment
-from qibocal_report.actions import execute_bulk_action, find_report_dirs
-from qibocal_report.archive import (
+from qibocal_report.reports.actions import execute_bulk_action, find_report_dirs
+from qibocal_report.reports.archive import (
     create_archive,
     delete_archive,
     get_archive_index,
@@ -46,10 +46,10 @@ from qibocal_report.archive import (
     update_archive,
     zip_directory,
 )
-from qibocal_report.docs import DOCS_NAVIGATION, resolve_docs_content
-from qibocal_report.generator import get_report_protocols, regenerate_report
-from qibocal_report.graphql import build_router as build_graphql_router
-from qibocal_report.live import handle_live_websocket
+from qibocal_report.web.docs import DOCS_NAVIGATION, resolve_docs_content
+from qibocal_report.reports.generator import get_report_protocols, regenerate_report
+from qibocal_report.web.graphql import build_router as build_graphql_router
+from qibocal_report.reports.live import handle_live_websocket
 from qibocal_report.logger import (
     log_error,
     log_history,
@@ -104,7 +104,7 @@ from qibocal_report.models import (
     UserRole,
     UserRoleUpdate,
 )
-from qibocal_report.notes import (
+from qibocal_report.reports.notes import (
     note_at,
     replace_note,
     remove_note,
@@ -114,7 +114,7 @@ from qibocal_report.notes import (
     load_notes,
     protocol_notes_directory,
 )
-from qibocal_report.scanner import (
+from qibocal_report.reports.scanner import (
     report_index_token,
     cached_report_count,
     _parse_meta_json,
@@ -124,7 +124,7 @@ from qibocal_report.scanner import (
     invalidate_report_cache,
     scan_reports,
 )
-from qibocal_report.websocket import handle_report_websocket
+from qibocal_report.web.websocket import handle_report_websocket
 
 # Backward-compatible internal aliases
 _find_report_dirs = find_report_dirs
@@ -948,7 +948,7 @@ def _get_relative_current() -> str:
 
 def _count_reports_fast(path: Path, root_dir: Path | None = None) -> int:
     """Fast count of reports in a folder without affecting main report cache."""
-    from qibocal_report.scanner import (
+    from qibocal_report.reports.scanner import (
         IGNORED_DIRS,
         is_discovery_directory,
         is_report_directory,
@@ -999,7 +999,7 @@ def browse_server_directory(
     scope: str = "original",
 ) -> DirectoryBrowseResponse:
     """Browse subdirectories of the originally spawned server directory or current report root."""
-    from qibocal_report.scanner import is_discovery_directory, is_report_directory
+    from qibocal_report.reports.scanner import is_discovery_directory, is_report_directory
 
     base_root = (
         REPORT_ROOT_DIR.resolve()
@@ -1093,7 +1093,7 @@ def browse_server_directory(
 )
 def change_server_directory(req: ChangeDirectoryRequest) -> ServerDirectoryInfo:
     """Change report root directory (must be subfolder of spawned directory)."""
-    from qibocal_report.scanner import is_report_directory
+    from qibocal_report.reports.scanner import is_report_directory
 
     orig = ORIGINAL_ROOT_DIR.resolve()
     clean_subpath = req.path.strip().lstrip("/")

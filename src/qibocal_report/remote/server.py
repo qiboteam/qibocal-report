@@ -4,7 +4,7 @@ The shape is the notebook's: ship a standard-library worker through ``ssh``,
 wait for it to announce its port, tunnel that port back, and register the local
 address so the dashboard finds it. Everything shared with the notebooks —
 reading the worker, stopping processes, waiting for the tunnel — is imported
-from :mod:`qibocal_report.notebook` rather than written twice.
+from :mod:`qibocal_report.remote.notebook` rather than written twice.
 """
 
 import json
@@ -23,7 +23,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from qibocal_report import config
-from qibocal_report.notebook import (
+from qibocal_report.remote.notebook import (
     NotebookOutput,
     _read_stderr,
     _read_worker,
@@ -33,7 +33,7 @@ from qibocal_report.notebook import (
     ssh_arguments,
     stop_process,
 )
-from qibocal_report.report_worker import READY_PREFIX
+from qibocal_report.remote.report_worker import READY_PREFIX
 
 
 class RemoteServerOptions(BaseModel):
