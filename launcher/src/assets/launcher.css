@@ -614,6 +614,34 @@
   color: var(--text-main);
 }
 
+/*
+ * A dialog that holds a reference — the keyboard shortcuts — rather than a
+ * question: as wide as its columns want, up to most of the window, and no
+ * taller than most of it either; its header and footer stay, the middle
+ * scrolls.
+ */
+.lx-dialog-sheet {
+  width: min(60rem, calc(100vw - 2.5rem));
+  max-height: min(38rem, calc(100vh - 4rem));
+  display: flex;
+  flex-direction: column;
+}
+
+.lx-dialog-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-right: -10px;
+  padding-right: 10px;
+}
+
+/* As many columns of shortcuts as fit, each wide enough for a key and its line. */
+.lx-shortcut-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  column-gap: 24px;
+}
+
 .lx-dialog-row {
   display: flex;
   align-items: center;
