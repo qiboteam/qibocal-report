@@ -57,6 +57,8 @@ from qibocal_report.logger import (
     setup_uvicorn_logging,
 )
 from qibocal_report.models import (
+    FolderListing,
+    FolderEntry,
     AdminConfigResponse,
     ArchiveCreateRequest,
     ArchiveMetadata,
@@ -394,6 +396,45 @@ def qibocal_options(
         return qibocal_environment.get_qibocal_options()
     except qibocal_environment.EnvironmentOperationError as error:
         raise HTTPException(error.status_code, error.detail) from error
+
+
+@app.get("/api/admin/filesystem", response_model=FolderListing, tags=["Qibocal"])
+def admin_filesystem(
+    response: Response,
+    _user: Annotated[dict, Depends(require_admin)],
+    path: str = "",
+) -> FolderListing:
+    """The folders under a path on the server, for picking the one Qibocal is installed from.
+
+    Any absolute path, the home folder without one: the sources are rarely
+    under the reports, and administering the environment is already the
+    administrator's — or anyone's, on an open server.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    target = Path(path).expanduser() if path.strip() else Path.home()
+    if not target.is_absolute():
+        raise HTTPException(status_code=400, detail="The path must be absolute.")
+    target = target.resolve()
+    if not target.is_dir():
+        raise HTTPException(status_code=404, detail=f"No such folder: {target}")
+
+    def is_project(folder: Path) -> bool:
+        return any((folder / name).is_file() for name in ("pyproject.toml", "setup.py"))
+
+    entries: list[FolderEntry] = []
+    try:
+        for item in sorted(target.iterdir(), key=lambda entry: entry.name.lower()):
+            if item.name.startswith(".") or not item.is_dir():
+                continue
+            entries.append(FolderEntry(name=item.name, path=str(item), project=is_project(item)))
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=f"Cannot read {target}: {error}") from error
+    return FolderListing(
+        path=str(target),
+        parent=None if target.parent == target else str(target.parent),
+        entries=entries,
+        project=is_project(target),
+    )
 
 
 @app.get("/api/admin/logs", tags=["Diagnostics"])

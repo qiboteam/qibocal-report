@@ -247,6 +247,9 @@ If absent, `installed` is `false` and both `version` and `source` are `null`.
 `source` is `"pypi"` or `"git"` for recognized installations, or `null` for an
 unrecognized installation origin.
 
+### `GET /api/admin/filesystem?path=`
+The folders under an absolute path on the server — the home folder without one — for picking the one Qibocal is installed from: `path`, `parent`, `project` (whether it holds a `pyproject.toml` or `setup.py`), and `entries` with the same for each subfolder, hidden ones left out. Administrators only; anyone on an open server.
+
 ### `GET /api/admin/qibocal/options`
 Available on open servers. When authentication is enabled, requires a logged-in
 user whose current role is **admin**.

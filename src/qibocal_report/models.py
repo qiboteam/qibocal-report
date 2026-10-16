@@ -100,15 +100,33 @@ class ProtocolDetail(BaseModel):
 class QibocalStatus(BaseModel):
     installed: bool
     version: str | None = None
-    source: Literal["pypi", "git"] | None = None
+    source: Literal["pypi", "git", "local"] | None = None
     git_branch: str | None = None
+    # The folder a local installation was made from.
+    local_path: str | None = None
 
 
 class QibocalOption(BaseModel):
     id: str
     label: str
-    source: Literal["pypi", "git"]
+    source: Literal["pypi", "git", "local"]
     version: str | None = None
+
+
+class FolderEntry(BaseModel):
+    name: str
+    path: str
+    # Whether the folder looks like a Python project: a pyproject.toml or setup.py.
+    project: bool = False
+
+
+class FolderListing(BaseModel):
+    """The folders under an absolute path on the server, for picking one."""
+
+    path: str
+    parent: str | None = None
+    entries: list[FolderEntry] = Field(default_factory=list)
+    project: bool = False
 
 
 class QibocalOptions(QibocalStatus):

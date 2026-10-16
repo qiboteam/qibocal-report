@@ -218,6 +218,12 @@ export async function apiGetQibocalOptions(server = state.activeServer) {
   return apiFetch('/api/admin/qibocal/options', { cache: 'no-store' }, server)
 }
 
+/** The folders under a path on the server, for picking the one Qibocal is installed from. */
+export async function apiBrowseServerFolders(path = '', server = state.activeServer) {
+  const query = path ? `?path=${encodeURIComponent(path)}` : ''
+  return apiFetch(`/api/admin/filesystem${query}`, { cache: 'no-store' }, server)
+}
+
 export async function apiInstallQibocal(option, server = state.activeServer) {
   return apiFetch('/api/admin/qibocal/install/stream', {
     method: 'POST',

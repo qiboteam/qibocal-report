@@ -177,7 +177,7 @@ def mock_script_installer(monkeypatch, script, *, stdin=None):
         (None, "pypi", None),
         ("0.2.7", "pypi", "pypi"),
         ("0.2.8.dev1", "git", "git"),
-        ("0.2.7", "local", None),
+        ("0.2.7", "local", "local"),
         ("0.2.7", "invalid", None),
     ],
 )
@@ -200,6 +200,8 @@ def test_status_reads_only_package_metadata(
         "version": version,
         "source": expected_source,
         "git_branch": None,
+        # Installed from a folder: the folder is named.
+        "local_path": "/local/qibocal" if expected_source == "local" else None,
     }
 
 
@@ -336,7 +338,8 @@ def test_options_sort_filter_and_limit_versions(monkeypatch, client, credentials
     assert data["installed"] is False
     assert data["version"] is None and data["source"] is None
     assert data["pypi_error"] is None
-    assert [option["version"] for option in data["options"][:-1]] == [
+    # The last two offers are the Git repository and a folder on the server.
+    assert [option["version"] for option in data["options"][:-2]] == [
         "0.10.1",
         "0.10.0",
         "0.9.9",
@@ -349,12 +352,13 @@ def test_options_sort_filter_and_limit_versions(monkeypatch, client, credentials
         "source": "pypi",
         "version": "0.10.1",
     }
-    assert data["options"][-1] == {
+    assert data["options"][-2] == {
         "id": "git",
         "label": "Git repository (latest)",
         "source": "git",
         "version": None,
     }
+    assert data["options"][-1]["id"] == "local" and data["options"][-1]["source"] == "local"
     request.assert_called_once_with(environment.PYPI_URL, timeout=10.0)
 
 
@@ -673,7 +677,7 @@ def test_pypi_errors_explicitly_preserve_git(monkeypatch, client, credentials, f
     data = client.get("/api/admin/qibocal/options", headers=credentials["admin"]).json()
     assert data["installed"] is True
     assert data["pypi_error"].startswith("Could not fetch Qibocal versions from PyPI:")
-    assert [option["id"] for option in data["options"]] == ["git"]
+    assert [option["id"] for option in data["options"]] == ["git", "local"]
 
 
 @pytest.mark.parametrize("source", ["pypi", "git"])
@@ -695,6 +699,7 @@ def test_admin_install_uses_fixed_target_and_server_python(
         "version": "0.2.7",
         "source": source,
         "git_branch": None,
+        "local_path": None,
     }
     args, kwargs = run.call_args
     command = args[0]
@@ -1008,6 +1013,7 @@ def test_streaming_install_protocol_success(monkeypatch, client, credentials, so
             "version": "0.2.7",
             "source": source,
             "git_branch": None,
+            "local_path": None,
         },
     }
     assert all(set(event) == {"type", "text"} for event in events[:-1])

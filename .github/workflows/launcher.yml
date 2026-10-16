@@ -104,6 +104,18 @@ jobs:
         run: pnpm run test
         working-directory: launcher
 
+      # The dashboard the launcher embeds has tests of its own; one platform
+      # is enough to run them, since nothing in them is platform-bound.
+      - name: Install the frontend dependencies
+        if: matrix.label == 'Linux'
+        run: pnpm install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Run the frontend tests
+        if: matrix.label == 'Linux'
+        run: pnpm run test
+        working-directory: frontend
+
       - name: Generate the application icons
         run: pnpm run icons
         working-directory: launcher

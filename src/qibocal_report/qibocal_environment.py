@@ -2,6 +2,7 @@
 
 import codecs
 import json
+from pathlib import Path
 import os
 import platform
 import re
@@ -16,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as ReaderTimeoutError
 from contextlib import contextmanager
 from importlib import metadata, util
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse
 
 import httpx
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
@@ -72,16 +73,22 @@ def _read_status(expected_git_commit: str | None = None) -> QibocalStatus:
 
     source = "pypi"
     origin = None
+    local_path = None
     if direct_url:
         try:
             origin = json.loads(direct_url)
-            source = (
-                "git"
-                if isinstance(origin, dict)
+            if (
+                isinstance(origin, dict)
                 and isinstance(origin.get("vcs_info"), dict)
                 and origin["vcs_info"].get("vcs") == "git"
-                else None
-            )
+            ):
+                source = "git"
+            elif isinstance(origin, dict) and str(origin.get("url", "")).startswith("file://"):
+                # Installed from a folder on this machine.
+                source = "local"
+                local_path = unquote(urlparse(origin["url"]).path)
+            else:
+                source = None
         except (ValueError, TypeError):
             source = None
     if expected_git_commit is not None:
@@ -106,7 +113,7 @@ def _read_status(expected_git_commit: str | None = None) -> QibocalStatus:
         ):
             branch = revision.removeprefix("refs/heads/")
     return QibocalStatus(
-        installed=True, version=version, source=source, git_branch=branch
+        installed=True, version=version, source=source, git_branch=branch, local_path=local_path
     )
 
 
@@ -247,6 +254,9 @@ def _github_branches() -> tuple[list[str], str | None, str | None]:
         return [], None, f"Could not fetch Qibocal branches from GitHub: {error}"
 
 
+LOCAL_OPTION = QibocalOption(id="local", label="A folder on the server", source="local")
+
+
 def get_qibocal_options() -> QibocalOptions:
     status = get_qibocal_status()
     options, error = _pypi_options()
@@ -258,7 +268,7 @@ def get_qibocal_options() -> QibocalOptions:
     )
     return QibocalOptions(
         **status.model_dump(),
-        options=options,
+        options=[*options, LOCAL_OPTION],
         pypi_error=error,
         git_branches=branches,
         git_default_branch=default,
@@ -296,9 +306,32 @@ def _git_branch_target(branch: str) -> str:
         ) from error
 
 
+def local_project(path_text: str) -> Path:
+    """A folder on this machine holding a Python project, or the error for the client.
+
+    Any absolute path: the folder with Qibocal's sources is rarely under the
+    reports, and only administrators — or anyone, on an open server, who may
+    already change the environment — get here.
+    """
+    if not path_text or len(path_text) > 4096:
+        raise EnvironmentOperationError(400, "Name the folder to install Qibocal from.")
+    path = Path(path_text).expanduser()
+    if not path.is_absolute():
+        raise EnvironmentOperationError(400, "The folder must be an absolute path on the server.")
+    if not path.is_dir():
+        raise EnvironmentOperationError(400, f"No such folder on the server: {path}")
+    if not any((path / name).is_file() for name in ("pyproject.toml", "setup.py")):
+        raise EnvironmentOperationError(
+            400, f"{path} is not a Python project: it has no pyproject.toml or setup.py."
+        )
+    return path.resolve()
+
+
 def _installation_target(option: str) -> tuple[str, str, str | None]:
     if option == "git":
         return GIT_URL, "git", None
+    if option.startswith("local:"):
+        return str(local_project(option.removeprefix("local:"))), "local", None
     if option.startswith("git:"):
         return _git_branch_target(option.removeprefix("git:")), "git", None
     if not option.startswith("pypi:"):
@@ -322,7 +355,10 @@ def _installation_target(option: str) -> tuple[str, str, str | None]:
     return f"qibocal=={selected.version}", "pypi", selected.version
 
 
-def _installer_command(target: str) -> list[str]:
+def _installer_command(target: str, editable: bool = False) -> list[str]:
+    # A local folder is installed editable: the sources are the installation,
+    # and a change there is live at the next plot, without installing again.
+    requirement = ["-e", target] if editable else [target]
     if util.find_spec("pip") is not None:
         return [
             sys.executable,
@@ -335,7 +371,7 @@ def _installer_command(target: str) -> list[str]:
             "--no-input",
             "--index-url",
             "https://pypi.org/simple",
-            target,
+            *requirement,
         ]
     uv = shutil.which("uv")
     if uv:
@@ -352,7 +388,7 @@ def _installer_command(target: str) -> list[str]:
             "qibocal",
             "--index-url",
             "https://pypi.org/simple",
-            target,
+            *requirement,
         ]
     raise EnvironmentOperationError(
         503,
@@ -512,7 +548,11 @@ def install_qibocal(
     try:
         target, source, version = _installation_target(option)
         _check_install_cancel(cancel)
-        command = _installer_command(target)
+        command = (
+            _installer_command(target, editable=True)
+            if source == "local"
+            else _installer_command(target)
+        )
         deadline = time.monotonic() + GENERATION_TIMEOUT + 30
         while not environment_acquired:
             _check_install_cancel(cancel)

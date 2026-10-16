@@ -6,6 +6,7 @@
         <span v-if="environment?.source === 'git'">
           (Git: <a v-if="environment.git_branch" :href="installedBranchUrl" target="_blank" rel="noopener noreferrer" class="installed-branch">{{ environment.git_branch }}</a><span v-else>branch unknown</span>)
         </span>
+        <span v-else-if="environment?.source === 'local'" class="font-mono" :title="environment.local_path || ''">(folder: {{ environment.local_path || 'on the server' }})</span>
       </p>
       <p v-if="loading" role="status" class="text-xs mb-3">Fetching recent Qibocal versions...</p>
       <p id="qibocal-source-label" class="source-heading">Installation source</p>
@@ -31,6 +32,33 @@
           </span>
           <span>{{ option.version }}</span>
         </button>
+        <!-- The sixth cell: a folder on the server, browsed from here. -->
+        <div v-if="localOption" class="git-source" :class="{ selected: selected === 'local' }">
+          <button
+            type="button"
+            role="radio"
+            :aria-checked="selected === 'local'"
+            :aria-label="localLabel"
+            :title="localLabel"
+            :tabindex="selected === 'local' ? 0 : -1"
+            :disabled="loading || installing"
+            class="version-button git-button"
+            @click="selected = 'local'"
+          >
+            <span class="source-icon"><FolderOpen :size="12" aria-hidden="true" /></span>
+            <span class="git-label">Folder: {{ localPath || 'choose one…' }}</span>
+          </button>
+          <button
+            type="button"
+            class="branch-picker browse-button"
+            :disabled="loading || installing"
+            aria-label="Browse the server's folders"
+            title="Browse the server's folders"
+            @click="selected = 'local'; showFolders = true"
+          >
+            <FolderSearch :size="12" aria-hidden="true" />
+          </button>
+        </div>
         <div v-if="gitOption" class="git-source" :class="{ selected: selected === 'git' }">
           <button
             :ref="element => versionButtons[pypiOptions.length] = element"
@@ -85,11 +113,13 @@
         Changes the server's Python environment for all users. The open report or preview is regenerated after installation; other cached reports are unchanged.
       </p>
       <p v-if="selected === 'git'" class="installation-note">Official Qibocal repository: {{ gitBranch || 'default branch' }} (https://github.com/qiboteam/qibocal)</p>
+      <p v-if="selected === 'local'" class="installation-note">Installed editable from the folder on the server: changes there are live at the next plot, with no reinstall.</p>
       <p v-if="pypiError" role="alert" class="text-xs text-amber-300 mt-3">{{ pypiError }} Git remains available.</p>
       <p v-if="githubError" role="alert" class="text-xs text-amber-300 mt-3">{{ githubError }} The default Git branch remains available.</p>
       <p v-if="error || statusError" role="alert" class="text-xs text-red-300 mt-3 whitespace-pre-wrap">{{ error || statusError }}</p>
       <p v-if="success" role="status" class="text-xs text-green-300 mt-3">{{ success }}</p>
     </div>
+    <folder-picker-modal :show="showFolders" :initial-path="localPath" :server="state.activeServer" @close="showFolders = false" @select="localPath = $event" />
     <div class="installation-output">
       <ansi-output :text="installOutput" :active="diagnostics.expanded && diagnostics.tab === 'qibocal'" label="Qibocal installation output" placeholder="Installer progress will appear here when you install or switch versions.">
         <template #heading>
@@ -107,19 +137,24 @@
 
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
-import { ChevronDown, GitBranch, Loader2, PackagePlus, RefreshCw, X } from 'lucide-vue-next'
+import { ChevronDown, FolderOpen, FolderSearch, GitBranch, Loader2, PackagePlus, RefreshCw, X } from 'lucide-vue-next'
 import { state, canManageQibocal } from '../../store.js'
 import { diagnostics } from '../../composables/useDiagnostics.js'
 import { useQibocalEnvironment } from '../../composables/useQibocalEnvironment.js'
 import AnsiOutput from './AnsiOutput.vue'
+import FolderPickerModal from '../modals/FolderPickerModal.vue'
 import pypiLogo from '../../assets/pypi.svg'
 
 const versionButtons = ref([])
 
-const { loading, installing, stopping, environment, options, selected, gitBranches, gitBranch, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install, stopInstallation } =
+const showFolders = ref(false)
+const { loading, installing, stopping, environment, options, selected, gitBranches, gitBranch, localPath, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install, stopInstallation } =
   useQibocalEnvironment(() => { diagnostics.qibocalRevision++ })
 const pypiOptions = computed(() => options.value.filter(option => option.source === 'pypi'))
 const gitOption = computed(() => options.value.find(option => option.source === 'git'))
+/** Offered by servers that take a folder; older ones do not list it. */
+const localOption = computed(() => options.value.find(option => option.source === 'local'))
+const localLabel = computed(() => `A folder on the server: ${localPath.value || 'none chosen'}`)
 const gitLabel = computed(() => `${gitOption.value?.label || 'Official Qibocal Git repository'}: ${gitBranch.value || 'default branch'}`)
 const installedBranchUrl = computed(() => `https://github.com/qiboteam/qibocal/tree/${encodeURIComponent(environment.value?.git_branch || '')}`)
 
@@ -163,6 +198,9 @@ watch(
 .branch-picker select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .branch-picker select:disabled { cursor: not-allowed; }
 .branch-picker:focus-within { outline: 2px solid #a878ff; outline-offset: -2px; border-radius: 0 5px 5px 0; }
+.browse-button { background: transparent; border-top: 0; border-right: 0; border-bottom: 0; color: #c8a8ff; cursor: pointer; }
+.browse-button:hover:not(:disabled) { background: #343434; }
+.browse-button:disabled { opacity: 0.5; cursor: not-allowed; }
 .source-icon { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; }
 .pypi-logo { width: 20px; height: 20px; object-fit: contain; }
 .installation-actions { display: flex; align-items: center; gap: 8px; margin-top: 18px; padding-top: 12px; border-top: 1px solid #444; }

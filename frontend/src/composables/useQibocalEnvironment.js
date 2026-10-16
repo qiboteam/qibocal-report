@@ -15,6 +15,8 @@ export function useQibocalEnvironment(onInstalled) {
   const stopping = ref(false)
   const environment = ref(null)
   const options = ref([])
+  /** The folder on the server a local installation is made from. */
+  const localPath = ref('')
   const selected = ref('')
   const gitBranches = ref([])
   const gitBranch = ref('')
@@ -81,7 +83,13 @@ export function useQibocalEnvironment(onInstalled) {
       error.value = 'Choose one of the available Qibocal Git branches.'
       return
     }
-    const option = selected.value === 'git' && gitBranch.value ? `git:${gitBranch.value}` : selected.value
+    if (selected.value === 'local' && !localPath.value.trim()) {
+      error.value = 'Choose the folder on the server to install Qibocal from.'
+      return
+    }
+    const option = selected.value === 'git' && gitBranch.value
+      ? `git:${gitBranch.value}`
+      : selected.value === 'local' ? `local:${localPath.value.trim()}` : selected.value
     installing.value = true
     error.value = ''
     success.value = ''
@@ -155,5 +163,5 @@ export function useQibocalEnvironment(onInstalled) {
     requestVersion++
   })
 
-  return { loading, installing, stopping, environment, options, selected, gitBranches, gitBranch, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install, stopInstallation }
+  return { loading, installing, stopping, environment, options, selected, gitBranches, gitBranch, localPath, githubError, error, pypiError, statusError, installOutput, success, refreshOptions, install, stopInstallation }
 }
