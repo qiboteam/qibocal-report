@@ -1494,6 +1494,52 @@ def add_protocol_note(
     return notes
 
 
+def _action_file(report_id: str, protocol_id: str) -> Path:
+    """The `action.yml` (or `.yaml`) Qibocal wrote next to a protocol's data."""
+    target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
+    data_dir = resolve_protocol_data_dir(target_dir, protocol_id)
+    if data_dir is None or not data_dir.is_dir():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Data directory for protocol '{protocol_id}' not found in report '{report_id}'",
+        )
+    for name in ("action.yml", "action.yaml"):
+        path = data_dir / name
+        if path.is_file() and not path.is_symlink():
+            return path
+    raise HTTPException(
+        status_code=404, detail=f"No action file for protocol '{protocol_id}'"
+    )
+
+
+@app.get(
+    "/api/reports/{report_id:path}/protocols/{protocol_id}/action",
+    tags=["Reports"],
+    dependencies=[Depends(require_viewer)],
+    response_class=PlainTextResponse,
+)
+def get_protocol_action(
+    report_id: str, protocol_id: str, download: bool = False
+) -> Response:
+    """The protocol's `action.yml`: the parameters it was run with, as Qibocal wrote them.
+
+    Inline as YAML text; with `download=true`, as an attachment named after
+    the report and the protocol.
+    """
+    path = _action_file(report_id, protocol_id)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise HTTPException(status_code=500, detail=f"Could not read {path.name}: {error}") from error
+    headers = {"Cache-Control": "private, no-cache"}
+    if download:
+        report_name = Path(path).parents[2].name.replace(":", "-")
+        headers["Content-Disposition"] = (
+            f'attachment; filename="{report_name}_{path.parent.name}_{path.name}"'
+        )
+    return PlainTextResponse(text, media_type="application/yaml; charset=utf-8", headers=headers)
+
+
 @app.get(
     "/api/reports/{report_id:path}/notes",
     response_model=list[Note],

@@ -67,6 +67,15 @@ Each protocol routine is presented in an individual card:
 
 ---
 
+## The action of a protocol
+
+Each protocol card folds, under its outputs, an **Action** line: the
+`action.yml` Qibocal wrote next to the protocol's data, with the parameters it
+was run with. Closed by default, it is read from the server when opened, and
+**Download** at the end of the line saves the file itself.
+
+---
+
 ## Session and protocol notes
 
 **Session comments** below the report header and **Protocol comments** at the
