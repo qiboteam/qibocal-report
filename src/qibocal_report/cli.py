@@ -182,6 +182,64 @@ def notebook_connect(connection: str | None, **options):
     launch(load_options(connection, options))
 
 
+@notebook.command(name="queue")
+@click.argument("connection", required=False)
+@click.option("--ssh", help="SSH options followed by a host or user@host destination.")
+@click.option("-q", "--queue", help="SLURM partition to look at.")
+@click.option("-u", "--user", help="Only the jobs of this user.")
+@click.option(
+    "-t", "--state", "states", multiple=True,
+    help="Only jobs in this state (repeatable): PENDING, RUNNING, …",
+)
+@click.option("--json", "as_json", is_flag=True, help="Print the answer as JSON.")
+@click.option("--timeout", type=float, default=30.0, show_default=True, help="Seconds to wait for the controller.")
+def notebook_queue(connection, ssh, queue, user, states, as_json, timeout):
+    """What a SLURM queue is doing, asked once.
+
+    The host and the partition come from a saved CONNECTION, or from --ssh
+    and --queue; squeue, sinfo and whoami are run in one round trip. Ask
+    sparingly: every call costs the controller something.
+    """
+    import json as json_module
+
+    from qibocal_report.notebook import load_connections, registered_connection
+    from qibocal_report.slurm import query_queue
+
+    values = {}
+    if connection is not None:
+        values = registered_connection(load_connections(), connection)
+    ssh = ssh or values.get("ssh")
+    queue = queue or values.get("queue")
+    try:
+        answer = query_queue(
+            ssh=ssh, partition=queue, user=user, states=list(states) or None, timeout=timeout
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    if as_json:
+        click.echo(json_module.dumps(answer, indent=2))
+        return
+    if answer["error"]:
+        raise click.ClickException(answer["error"])
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    summary = answer["summary"]
+    nodes = ", ".join(f"{count} {state.lower()}" for state, count in summary["nodes"].items())
+    where = f"partition {queue}" if queue else "every partition"
+    console.print(f"[bold]{where}[/bold]" + (f" on {ssh}" if ssh else "") + (f" · nodes: {nodes}" if nodes else ""))
+    table = Table(show_header=True, header_style="bold")
+    for column in ("Job", "Partition", "Name", "User", "State", "Time", "Limit", "Nodes"):
+        table.add_column(column)
+    for job in answer["jobs"]:
+        table.add_row(
+            job["id"], job["partition"], job["name"], job["user"], job["state"],
+            job["time"], job["time_limit"], job["nodes"] or (f"({job['reason']})" if job["reason"] else ""),
+        )
+    console.print(table)
+
+
 @notebook.command(name="list")
 @click.option("--raw", is_flag=True, help="Print the connection file verbatim.")
 def notebook_list(raw: bool):

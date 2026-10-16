@@ -2,6 +2,7 @@ import { reactive, computed, watch } from 'vue'
 import { desktop, isDesktop, openInNewWindow, subscribe } from './bridge.js'
 import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './lib/servers.js'
 import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
+import { queueKey } from './lib/slurm.js'
 
 export const LOG_EVENT = 'launcher://log'
 export const PROCESS_EVENT = 'launcher://process'
@@ -34,7 +35,9 @@ export const state = reactive({
   /** Whether the keyboard shortcuts are on screen, as GitHub shows them on `?`. */
   cheatsheet: false,
   /** The keys of the page on screen — `{ title, entries }` — or null. */
-  pageShortcuts: null
+  pageShortcuts: null,
+  /** What each SLURM queue answered, by `queueKey`: `{ data, error, loading, fetchedAt }`. */
+  queues: {}
 })
 
 // What is said on one page is still there on the other.
@@ -465,6 +468,79 @@ export async function openDashboard(preferredUrl = null, { newWindow = false } =
  */
 export async function quit(force = false) {
   await desktop.quit(force)
+}
+
+// --- SLURM queues -------------------------------------------------------------
+
+/** How often a queue on screen is asked, in seconds: a preference, never under ten. */
+export const queuePollSeconds = computed(() => {
+  const value = Number(state.preferences?.queuePollSeconds)
+  return Number.isFinite(value) && value > 0 ? Math.max(10, Math.round(value)) : 30
+})
+
+/** The entry of a queue, or null before it was ever asked. */
+export function queueEntry(queue) {
+  return state.queues[queueKey(queue)] || null
+}
+
+const queueWatchers = new Map()
+
+/**
+ * Ask a queue — unless it was asked a moment ago, in which case the last
+ * answer stands; `force` asks anyway. One question at a time per queue:
+ * every panel on the same queue shares it.
+ */
+export async function refreshQueue(queue, { force = false } = {}) {
+  const key = queueKey(queue)
+  if (!key) return null
+  const entry = state.queues[key] || (state.queues[key] = { data: null, error: null, loading: false, fetchedAt: 0 })
+  const minimum = (queuePollSeconds.value * 1000) / 2
+  if (entry.loading) return entry
+  if (!force && entry.fetchedAt && Date.now() - entry.fetchedAt < minimum) return entry
+  entry.loading = true
+  try {
+    const data = await withQibocal(() => desktop.slurmQueue({ ssh: queue.ssh, partition: queue.partition, timeout: 30 }))
+    entry.data = data
+    entry.error = data?.error || null
+    entry.fetchedAt = Date.now()
+  } catch (error) {
+    entry.error = error?.message || String(error)
+    entry.fetchedAt = entry.fetchedAt || Date.now()
+  } finally {
+    entry.loading = false
+  }
+  return entry
+}
+
+/**
+ * Keep a queue fresh while something looks at it: asked now, then every
+ * `queuePollSeconds`; the timer stops with the last watcher. Answers the
+ * function that stops watching.
+ */
+export function watchQueue(queue) {
+  const key = queueKey(queue)
+  if (!key) return () => {}
+  let watcher = queueWatchers.get(key)
+  if (!watcher) {
+    watcher = { count: 0, timer: null }
+    queueWatchers.set(key, watcher)
+    const tick = () => {
+      refreshQueue(queue).finally(() => {
+        if (queueWatchers.get(key) === watcher && watcher.count > 0) {
+          watcher.timer = setTimeout(tick, queuePollSeconds.value * 1000)
+        }
+      })
+    }
+    tick()
+  }
+  watcher.count += 1
+  return () => {
+    watcher.count -= 1
+    if (watcher.count <= 0) {
+      clearTimeout(watcher.timer)
+      queueWatchers.delete(key)
+    }
+  }
 }
 
 /**

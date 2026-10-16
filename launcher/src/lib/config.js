@@ -64,7 +64,8 @@ export const CONFIG_SHAPES = {
     known: [
       { name: 'executable', label: 'qibocal-report executable', type: 'text', mono: true },
       { name: 'package', label: 'qibocal-report to install', type: 'text', mono: true },
-      { name: 'launches', label: 'Remembered server launches', type: 'json' }
+      { name: 'launches', label: 'Remembered server launches', type: 'json' },
+      { name: 'queuePollSeconds', label: 'SLURM queue refresh (seconds)', help: 'Default 30, never under 10.', type: 'number' }
     ]
   },
   'auth.json': {

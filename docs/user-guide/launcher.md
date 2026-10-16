@@ -69,6 +69,7 @@ The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the l
 | `g b` | Notebooks |
 | `g c` | Configuration |
 | `g n` | Notifications |
+| `g q` | Queues |
 | `g d` | Dashboard |
 | `n` | New server: Servers, with the form open |
 | `?` | Show the keyboard shortcuts; `Esc` puts them away |
@@ -87,7 +88,7 @@ On each page, `j` and `k` walk its list — `h` and `l` too, where there is a si
 | --- | --- |
 | Home | `h`/`j`/`k`/`l` move over the cards as the grid they are, and below the last row over the lines of what runs; `Enter` opens the card, or the card in Running of what runs; `o` opens where what runs is used |
 | Servers | `Enter` or `s` opens the server in the dashboard while it runs, starts it otherwise; `e` edits it; `i` invites an administrator |
-| Running | `j`/`k` move the selection itself; `Enter` or `o` opens it — the dashboard for a server, the browser for a notebook; `x` stops it; `s` starts it again; `l` unfolds its latest run, `h` folds it |
+| Running | `j`/`k` move the selection itself; `Enter` or `o` opens it — the dashboard for a server, the browser for a notebook; `x` stops it; `s` starts it again; `l` unfolds its latest run, `h` folds it; `q` opens the SLURM queue of a dispatched session |
 | Notebooks | `j`/`k` move the selection itself; `Enter` or `o` opens a session with the form as it is |
 | Configuration | `j`/`k` walk the files; `Enter` opens one, or closes it |
 | Notifications | `Enter` goes where it points; `e` marks it done, or brings it back; `x` deletes it |
@@ -187,6 +188,12 @@ Named connections are read from and written to `notebooks.json`, the file `qiboc
 Opening a session runs it with `--no-interactive`: the address appears in **Running** as soon as the session answers.
 
 ---
+
+## 🧵 SLURM queues
+
+A notebook session dispatched to a SLURM partition waits in its queue before it runs, and the one looking at it wants to know why: who is ahead, which nodes are busy, whether the partition is up at all. In **Running**, the card of such a session shows its **queue** under the actions — the partition's nodes by state in one line, the jobs in a table with this session's own job marked and first, and, while it waits, where it stands in line. Filters narrow the table to one's own jobs, to a state, or to a text; **Refresh** asks the controller now; **Full view** opens the queue on the **Queues** page (`g q`), where every queue the launcher knows — of the sessions it runs, and of the saved connections — is one click away, with links back to the sessions on it. From a card, `q` goes there.
+
+The controller is asked sparingly, since every `squeue` costs it something: once when a queue comes on screen, then every 30 seconds while it stays there, and never otherwise. The interval is the `queuePollSeconds` preference in `launcher.json`, editable in **Configuration**, and never goes under 10. Several panels on the same queue share one question. The question itself is `qibocal notebook queue`, which runs `squeue`, `sinfo` and `whoami` in a single round trip over the session's own SSH destination.
 
 ## 🗂️ Configuration
 

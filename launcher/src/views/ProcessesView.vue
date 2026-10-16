@@ -93,6 +93,17 @@
           </div>
         </header>
 
+        <!--
+          A session dispatched to a SLURM partition: its queue, here, while
+          it waits and while it runs — who is ahead, which nodes are busy.
+        -->
+        <queue-panel
+          v-if="currentQueue"
+          class="pt-3 border-t border-gray-100"
+          :queue="currentQueue"
+          :job-id="currentJobId"
+        />
+
         <!-- The runs, newest first, each folded until wanted. -->
         <details
           v-for="(run, index) in current.runs"
@@ -123,14 +134,17 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ChevronRight, ExternalLink, LayoutDashboard, Play, Square, Trash2 } from 'lucide-vue-next'
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
+import QueuePanel from '../components/QueuePanel.vue'
+import { jobIdFromLog, queueOf } from '../lib/slurm.js'
 import { desktop, openExternal, wantsNewWindow } from '../bridge.js'
 import { state, attempt, loadLog, openDashboard, refreshProcesses, restartProcess } from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
 
 const route = useRoute()
+const router = useRouter()
 const selected = ref(null)
 const restarting = ref(false)
 /** Which runs are unfolded; none to begin with. */
@@ -158,6 +172,15 @@ const groups = computed(() => {
   })
 })
 const current = computed(() => groups.value.find(group => group.key === selected.value) || null)
+
+/** The queue of the selected session, when it was dispatched to one. */
+const currentQueue = computed(() => queueOf(state.launches[current.value?.latest?.id]?.options))
+/** Its job, read off the log once the worker reported it. */
+const currentJobId = computed(() => jobIdFromLog(state.logs[current.value?.latest?.id] || []))
+// The log is what names the job: loaded for a queued session as soon as it is selected.
+watch(() => [current.value?.latest?.id, Boolean(currentQueue.value)], async ([id, queued]) => {
+  if (id && queued && !state.logs[id]) await loadLog(id)
+}, { immediate: true })
 
 function logText(id) {
   return (state.logs[id] || []).join('\n')
@@ -220,6 +243,10 @@ const { place } = usePageKeys({
     h: index => {
       const latest = groups.value[index]?.latest
       if (latest) openRuns[latest.id] = false
+    },
+    q: index => {
+      const queue = queueOf(state.launches[groups.value[index]?.latest?.id]?.options)
+      if (queue) router.push({ name: 'queues', query: { ssh: queue.ssh || '', partition: queue.partition } })
     }
   }
 })

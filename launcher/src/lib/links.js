@@ -14,6 +14,7 @@ export function routePath(route) {
   let path = route.path
   if (!path) {
     if (route.name === 'notifications') path = '/notifications'
+    else if (route.name === 'queues') path = '/queues'
     else path = sections.find(section => section.name === route.name)?.path || '/'
   }
   const query = route.query ? new URLSearchParams(route.query).toString() : ''

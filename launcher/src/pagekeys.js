@@ -41,7 +41,8 @@ export const PAGE_KEYS = {
       x: 'Stop it',
       s: 'Start it again',
       l: 'Unfold its latest run',
-      h: 'Fold it again'
+      h: 'Fold it again',
+      q: 'The SLURM queue of the selected session, on its page'
     }
   },
   settings: {
