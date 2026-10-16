@@ -30,8 +30,8 @@ def test_a_local_folder_must_be_an_absolute_python_project(tmp_path):
     (project / "pyproject.toml").write_text("[project]\nname = 'qibocal'\n")
     target, source, version = qibocal_environment._installation_target(f"local:{project}")
     assert (target, source, version) == (str(project.resolve()), "local", None)
-    command = qibocal_environment._installer_command(target, editable=True)
-    assert command[-2:] == ["-e", str(project.resolve())], "a folder is installed editable"
+    for command in qibocal_environment._installer_commands(target, editable=True):
+        assert command[-2:] == ["-e", str(project.resolve())], "a folder is installed editable"
 
 
 def test_the_server_offers_the_folder_option(monkeypatch):

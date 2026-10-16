@@ -215,9 +215,12 @@ or browsing the server's folders with the magnifier beside it; folders holding
 a Python project are marked. The installation is editable: changes in the
 folder are live at the next plot, with no reinstall. Administrators only.
 
-**Install / Switch version** (the package-plus icon) changes Qibocal and its dependencies in the server's
+**Install / Switch version** (the package-plus icon) changes Qibocal in the server's
 Python environment for all users, then regenerates the current report's cached
-plots. Other reports' cached plots are not changed; use **Regenerate Plots** to
+plots. Qibocal itself is put back by force; its dependencies are left as they are
+unless the new version asks for others, and a version that comes as a wheel is
+preferred to a newer one that would have to be compiled — so a release published
+minutes earlier, before its wheels, does not turn an installation into a build. Other reports' cached plots are not changed; use **Regenerate Plots** to
 refresh them when needed. Future plot generation uses the installed version
 without a server restart. Viewers and editors on authentication-enabled servers
 cannot access the diagnostics footer or install or switch versions through the

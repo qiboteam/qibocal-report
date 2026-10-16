@@ -160,8 +160,13 @@ def mock_installer(monkeypatch, *, returncode=0, stderr="", side_effect=None):
 
 
 def mock_script_installer(monkeypatch, script, *, stdin=None):
-    """Run only a harmless test script, never the requested package command."""
+    """Run only a harmless test script, never the requested package command.
+
+    The installation is one run here — the one whose output, timing and
+    cancellation are under test — rather than pip's two.
+    """
     monkeypatch.setattr(environment.util, "find_spec", Mock(return_value=object()))
+    monkeypatch.setattr(environment, "_installer_commands", lambda target, editable=False: [["installer"]])
     processes = []
 
     def start(command, **kwargs):
@@ -707,11 +712,17 @@ def test_admin_install_uses_fixed_target_and_server_python(
         "git_branch": None,
         "local_path": None,
     }
+    # Qibocal alone by force, then its dependencies only where it needs others.
+    target = environment.GIT_URL if source == "git" else "qibocal==0.2.7"
+    assert run.call_count == 2
+    replace, dependencies = (call.args[0] for call in run.call_args_list)
+    assert replace[:4] == [sys.executable, "-m", "pip", "install"]
+    assert "--force-reinstall" in replace and "--no-deps" in replace
+    assert "--force-reinstall" not in dependencies and "--upgrade" not in dependencies
+    assert dependencies[dependencies.index("--upgrade-strategy") + 1] == "only-if-needed"
+    assert "--prefer-binary" in replace and "--prefer-binary" in dependencies
+    assert replace[-1] == dependencies[-1] == target
     args, kwargs = run.call_args
-    command = args[0]
-    assert command[:4] == [sys.executable, "-m", "pip", "install"]
-    assert "--upgrade" in command and "--force-reinstall" in command
-    assert command[-1] == (environment.GIT_URL if source == "git" else "qibocal==0.2.7")
     assert kwargs["stdout"] == subprocess.PIPE
     assert kwargs["stderr"] == subprocess.STDOUT
     assert kwargs["env"]["PYTHONUNBUFFERED"] == "1"
@@ -732,8 +743,10 @@ def test_uv_fallback_targets_server_python(monkeypatch, client, credentials):
     )
     assert response.status_code == 200
     command = run.call_args.args[0]
+    assert run.call_count == 1
     assert command[:5] == ["/tools/uv", "pip", "install", "--python", sys.executable]
-    assert "--upgrade" in command
+    assert "--upgrade" not in command, "the dependencies are not upgraded wholesale"
+    assert command[command.index("--upgrade-package") + 1] == "qibocal"
     assert "--reinstall-package" in command and "--refresh-package" in command
     assert command[-1] == environment.GIT_URL
 
@@ -981,14 +994,14 @@ def test_install_waits_for_active_generation(monkeypatch):
         return subprocess.CompletedProcess([], 0, "", "")
 
     mock_installer(monkeypatch, side_effect=run)
-    original_command = environment._installer_command
+    original_commands = environment._installer_commands
 
-    def command(target):
-        result = original_command(target)
+    def commands(target):
+        result = original_commands(target)
         waiting_for_environment.set()
         return result
 
-    monkeypatch.setattr(environment, "_installer_command", command)
+    monkeypatch.setattr(environment, "_installer_commands", commands)
     with ThreadPoolExecutor(max_workers=1) as executor:
         with environment.generation_environment():
             install = executor.submit(environment.install_qibocal, "git")
@@ -1172,8 +1185,8 @@ def test_stop_while_waiting_for_generation_never_starts_installer(monkeypatch):
     waiting = threading.Event()
     monkeypatch.setattr(
         environment,
-        "_installer_command",
-        lambda target: waiting.set() or ["unused"],
+        "_installer_commands",
+        lambda target: waiting.set() or [["unused"]],
     )
     with environment.generation_environment():
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -1333,7 +1346,7 @@ def test_unexpected_stream_error_is_logged_and_reported(
 def test_unexpected_preflight_failure_is_not_hidden(monkeypatch, credentials, caplog):
     monkeypatch.setattr(
         environment,
-        "_installer_command",
+        "_installer_commands",
         Mock(side_effect=RuntimeError("bad preflight")),
     )
     with TestClient(app, raise_server_exceptions=False) as client:

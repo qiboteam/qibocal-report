@@ -355,40 +355,58 @@ def _installation_target(option: str) -> tuple[str, str, str | None]:
     return f"qibocal=={selected.version}", "pypi", selected.version
 
 
-def _installer_command(target: str, editable: bool = False) -> list[str]:
+def _installer_commands(target: str, editable: bool = False) -> list[list[str]]:
+    """The installs that put Qibocal in place, run in turn.
+
+    Only Qibocal itself is put back by force — a branch or a commit carries
+    the same version number as the installation it replaces, so pip would
+    otherwise call it satisfied — and its dependencies are left as they are
+    unless the new Qibocal asks for others. Forcing them all would reinstall
+    each at its newest version, and a release published minutes ago may have
+    no wheel yet: pip would then compile it, SQLAlchemy say, with a compiler
+    the server may not have. For the same reason a version with a wheel is
+    preferred to a newer one that would have to be built.
+    """
     # A local folder is installed editable: the sources are the installation,
     # and a change there is live at the next plot, without installing again.
     requirement = ["-e", target] if editable else [target]
     if util.find_spec("pip") is not None:
-        return [
+        pip = [
             sys.executable,
             "-m",
             "pip",
             "install",
-            "--upgrade",
-            "--force-reinstall",
             "--disable-pip-version-check",
             "--no-input",
+            "--prefer-binary",
             "--index-url",
             "https://pypi.org/simple",
-            *requirement,
+        ]
+        return [
+            # Qibocal alone, whatever is installed.
+            [*pip, "--force-reinstall", "--no-deps", *requirement],
+            # Then what it needs, and nothing it does not.
+            [*pip, "--upgrade-strategy", "only-if-needed", *requirement],
         ]
     uv = shutil.which("uv")
     if uv:
         return [
-            uv,
-            "pip",
-            "install",
-            "--python",
-            sys.executable,
-            "--upgrade",
-            "--reinstall-package",
-            "qibocal",
-            "--refresh-package",
-            "qibocal",
-            "--index-url",
-            "https://pypi.org/simple",
-            *requirement,
+            [
+                uv,
+                "pip",
+                "install",
+                "--python",
+                sys.executable,
+                "--upgrade-package",
+                "qibocal",
+                "--reinstall-package",
+                "qibocal",
+                "--refresh-package",
+                "qibocal",
+                "--index-url",
+                "https://pypi.org/simple",
+                *requirement,
+            ]
         ]
     raise EnvironmentOperationError(
         503,
@@ -548,10 +566,10 @@ def install_qibocal(
     try:
         target, source, version = _installation_target(option)
         _check_install_cancel(cancel)
-        command = (
-            _installer_command(target, editable=True)
+        commands = (
+            _installer_commands(target, editable=True)
             if source == "local"
-            else _installer_command(target)
+            else _installer_commands(target)
         )
         deadline = time.monotonic() + GENERATION_TIMEOUT + 30
         while not environment_acquired:
@@ -575,8 +593,12 @@ def install_qibocal(
         # The first event follows validation and lock acquisition, so streaming
         # callers can still return ordinary HTTP errors for rejected requests.
         emit(f"\x1b[36mInstalling {target}...\x1b[0m\n")
-        returncode, tail = _run_installer(command, emit, cancel)
-        _check_install_cancel(cancel)
+        returncode, tail = 0, ""
+        for command in commands:
+            returncode, tail = _run_installer(command, emit, cancel)
+            _check_install_cancel(cancel)
+            if returncode:
+                break
         if returncode:
             output = tail.strip() or "No installer output."
             raise EnvironmentOperationError(
