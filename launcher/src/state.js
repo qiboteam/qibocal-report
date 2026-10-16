@@ -303,16 +303,14 @@ const pending = new Map()
  */
 export async function startServer(options, { url = null } = {}) {
   const info = await withQibocal(() => desktop.startServer(options))
-  // An update is asked once, not remembered: the next start is an ordinary one.
-  const { upgrade: _upgrade, ...remembered } = options
-  state.launches[info.id] = { kind: 'server', options: remembered, url }
+  state.launches[info.id] = { kind: 'server', options, url }
   mergeProcess(info)
   if (!info.url && options.ssh) {
-    pending.set(info.id, { options: remembered, url })
+    pending.set(info.id, { options, url })
     return info
   }
   const address = url || info.url || `http://${options.host || 'localhost'}:${options.port}`
-  await rememberLaunch(address, remembered)
+  await rememberLaunch(address, options)
   return info
 }
 
@@ -329,10 +327,11 @@ export async function awaitExit(id, timeoutMs = 15_000) {
 
 /**
  * Bring a registered server's qibocal-report up to date, and start it
- * again: a server on another machine has the package put back by force
- * in its own environment; one on this machine runs the launcher's own
- * installation, which is updated first. A running server is stopped,
- * and comes back at the same entry.
+ * again. A server on another machine has `qibocal report server upgrade`
+ * run against its environment — a process of its own, in Running — and is
+ * started once that is done; one on this machine runs the launcher's own
+ * installation, which is updated first. A running server is stopped, and
+ * comes back at the same entry.
  */
 export async function updateServerInstallation(server) {
   const options = launchOptionsFor(server)
@@ -349,7 +348,19 @@ export async function updateServerInstallation(server) {
     await refreshEnvironment()
     return startServer(options, { url: server.url })
   }
-  return startServer({ ...options, upgrade: true }, { url: server.url })
+  const update = await withQibocal(() => desktop.upgradeServer({
+    name: options.name || server.name || null,
+    ssh: options.ssh,
+    workdir: options.workdir || null,
+    venv: options.venv || null,
+    install: options.install || null,
+    timeout: options.timeout || null
+  }))
+  mergeProcess(update)
+  if (!(await awaitExit(update.id, 30 * 60_000))) throw new Error('The update did not finish in time; see Running.')
+  const done = processById(update.id)
+  if (!done || done.status !== 'exited') throw new Error(`The update failed; its output is in Running.`)
+  return startServer(options, { url: server.url })
 }
 
 /** Open a notebook session, installing the command line first if needed. */

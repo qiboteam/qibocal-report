@@ -127,13 +127,6 @@ def remote_server_options(command):
                 type=click.FloatRange(min=0, min_open=True),
                 help="Remote startup timeout in seconds (default: 300).",
             ),
-            click.option(
-                "--upgrade",
-                is_flag=True,
-                default=None,
-                help="Reinstall the --install packages in the remote environment "
-                "before starting, bringing qibocal-report up to date.",
-            ),
         ]
     ):
         command = option(command)
@@ -379,7 +372,28 @@ def report():
     """Manage and serve Qibocal calibration reports."""
 
 
-@report.command(name="server")
+class ServerGroup(click.Group):
+    """`qibocal report server [DIRECTORY]` starts a server; its subcommands act on one.
+
+    A group with an optional argument would read `upgrade` as the directory:
+    a first word that names a subcommand is the subcommand instead, and the
+    group's own options are left at their defaults.
+    """
+
+    # Options may follow DIRECTORY, as they always could: a group would
+    # otherwise stop at the directory and read `--ssh` as a command.
+    allow_interspersed_args = True
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        if args and args[0] in self.commands:
+            super().parse_args(ctx, [])
+            ctx._protected_args, ctx.args = [args[0]], list(args[1:])
+            return ctx.args
+        return super().parse_args(ctx, args)
+
+
+@report.group(name="server", cls=ServerGroup, invoke_without_command=True)
+@click.pass_context
 @click.argument("directory", required=False, type=click.Path(file_okay=False))
 @click.option("--host", default="localhost", help="Host address to bind to.")
 @click.option("--port", default=8000, type=int, help="Port to listen on.")
@@ -391,6 +405,7 @@ def report():
 @registration_options
 @remote_server_options
 def server(
+    ctx: click.Context,
     directory: str | None,
     host: str,
     port: int,
@@ -405,7 +420,12 @@ def server(
     DIRECTORY holds the calibration runs to serve. Left out, the shared
     reports directory is served — $XDG_DATA_HOME/qibocal/reports, created
     when missing — on whichever machine the server runs.
+
+    `qibocal report server upgrade` brings a remote server's qibocal-report
+    up to date instead of starting one.
     """
+    if ctx.invoked_subcommand:
+        return
     if ssh:
         from qibocal_report.remote import launch, load_options
 
@@ -479,6 +499,39 @@ def server(
         port=port,
         log_config=get_uvicorn_log_config(),
     )
+
+
+@server.command(name="upgrade")
+@click.option(
+    "--ssh",
+    required=True,
+    help="SSH options followed by a host or user@host destination: the machine whose environment is updated.",
+)
+@click.option("-w", "--workdir", help="Working directory on the remote host.")
+@click.option(
+    "--venv",
+    help="Environment name or path on the remote host (default: qibocal). It is created when missing.",
+)
+@click.option(
+    "--install",
+    help="Packages put back by force in the remote environment (default: qibocal-report).",
+)
+@click.option(
+    "--timeout",
+    type=click.FloatRange(min=0, min_open=True),
+    help="Seconds to wait for the installation (default: 300).",
+)
+def server_upgrade(ssh: str, **remote):
+    """Bring a remote server's qibocal-report up to date, without starting it.
+
+    The --install packages are put back by force in the --venv environment on
+    the --ssh host — the packages themselves first, then their dependencies —
+    which otherwise keeps what it holds for good, since it is only filled when
+    it has no qibocal. Nothing is served; start the server as usual afterwards.
+    """
+    from qibocal_report.remote import load_options, upgrade
+
+    upgrade(load_options({"ssh": ssh, "upgrade": True, "registered": False, **remote}))
 
 
 @report.command(name="dev")

@@ -158,6 +158,7 @@ pub fn run() {
             settings::preferences,
             settings::save_preferences,
             process::start_server,
+            process::upgrade_server,
             process::start_notebook,
             process::processes,
             process::process_log,

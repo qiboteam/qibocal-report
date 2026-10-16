@@ -128,6 +128,64 @@ def register(url: str, options: RemoteServerOptions, destination: str) -> None:
         raise click.ClickException(f"Could not register '{url}': {exc}") from exc
 
 
+def upgrade(options: RemoteServerOptions) -> None:
+    """Bring the remote environment's packages up to date, and come back.
+
+    The same worker as `launch`, told to upgrade: it puts the packages back
+    by force and exits instead of starting a server; its output is relayed
+    as it comes, and a failure is the command's failure.
+    """
+    output = NotebookOutput()
+    _, destination = ssh_arguments(options.ssh)
+    deadline = time.monotonic() + options.timeout
+    output.status(f"Connecting to SSH destination {destination}.")
+    process = subprocess.Popen(
+        worker_command(options.model_copy(update={"upgrade": True})),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    messages: queue.Queue = queue.Queue()
+    readers = [
+        threading.Thread(
+            target=_read_worker, args=(process, messages, output, READY_PREFIX), daemon=True
+        ),
+        threading.Thread(target=_read_stderr, args=(process, output), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+    try:
+        while process.poll() is None:
+            if time.monotonic() > deadline:
+                stop_process(process)
+                raise click.ClickException(
+                    f"The update on {destination} did not finish within {options.timeout:g} s."
+                )
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        stop_process(process)
+        raise click.ClickException("Update interrupted.") from None
+    for reader in readers:
+        reader.join(timeout=2)
+    if process.returncode:
+        raise click.ClickException(
+            f"The update on {destination} failed with status {process.returncode}."
+        )
+    output.console.print(
+        Panel(
+            Text(
+                f"{options.install} is up to date in {options.venv} on {destination}.\n"
+                "Start the server as usual to run it."
+            ),
+            title="Update done",
+            border_style="green",
+            expand=False,
+        )
+    )
+
+
 def launch(options: RemoteServerOptions) -> None:
     """Run the report server on the remote host and tunnel it back here."""
     output = NotebookOutput()

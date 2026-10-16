@@ -171,17 +171,19 @@ def run(options):
             if workdir
             else tempfile.mkdtemp(prefix="qibocal-report-")
         )
-        directory = reports_directory(options.get("directory"))
         packages = shlex.split(options.get("install") or "qibocal-report")
         if not packages:
             raise WorkerError("--install must name at least one package")
+        path = environment_path(options.get("venv") or "qibocal")
 
-        executable = ensure_qibocal(
-            runtime,
-            environment_path(options.get("venv") or "qibocal"),
-            packages,
-            upgrade=bool(options.get("upgrade")),
-        )
+        if options.get("upgrade"):
+            # An update, and nothing else: the packages put back, and done.
+            ensure_qibocal(runtime, path, packages, upgrade=True)
+            event("status", message=f"{', '.join(packages)} is up to date in {path}.")
+            return
+
+        directory = reports_directory(options.get("directory"))
+        executable = ensure_qibocal(runtime, path, packages)
         port = free_port()
         command = [
             str(executable),

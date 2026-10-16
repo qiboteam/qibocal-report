@@ -43,6 +43,8 @@ export const desktop = {
   removeNotebook: name => call('remove_notebook', { name }),
 
   startServer: options => call('start_server', { options }),
+  /** `qibocal report server upgrade` on another machine, as a process of its own. */
+  upgradeServer: options => call('upgrade_server', { options }),
   startNotebook: options => call('start_notebook', { options }),
   processes: () => call('processes'),
   processLog: id => call('process_log', { id }),

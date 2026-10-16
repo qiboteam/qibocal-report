@@ -12,6 +12,7 @@ import {
   SCIENTISTS,
   mergeDashboardServers,
   serverCommand,
+  upgradeCommand,
   defaultLaunch,
   launchKeys,
   suggestServerName,
@@ -179,11 +180,13 @@ test('a remote server replaces the address with the SSH options', () => {
   )
 })
 
-test('an update is a one-shot flag on the remote command', () => {
-  const command = serverCommand({ mode: 'server', ssh: 'me@node', upgrade: true })
-  assert.ok(command.endsWith('--ssh me@node --upgrade'), command)
-  assert.ok(!serverCommand({ mode: 'server', ssh: 'me@node' }).includes('--upgrade'))
-  assert.ok(!serverCommand({ mode: 'server', upgrade: true }).includes('--upgrade'), 'nothing remote, nothing to upgrade')
+test('an update is a command of its own, for a server on another machine', () => {
+  assert.equal(
+    upgradeCommand({ ssh: 'me@node', venv: 'chip', install: 'qibocal-report==1.2' }),
+    'qibocal report server upgrade --ssh me@node --venv chip --install qibocal-report==1.2'
+  )
+  assert.equal(upgradeCommand({ mode: 'server', host: 'localhost' }), '', 'nothing remote, nothing to upgrade')
+  assert.ok(!serverCommand({ mode: 'server', ssh: 'me@node' }).includes('upgrade'), 'starting is not updating')
 })
 
 test('the remote options are left out without a destination', () => {

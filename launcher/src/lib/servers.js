@@ -63,8 +63,25 @@ export function serverCommand(options = {}) {
       if (text) parts.push(flag, text)
     }
     if (options.timeout) parts.push('--timeout', String(options.timeout))
-    if (options.upgrade) parts.push('--upgrade')
   }
+  return parts.map(quote).join(' ')
+}
+
+/**
+ * The command that brings a remote server's qibocal-report up to date —
+ * `qibocal report server upgrade` — word for word what `process.rs::upgrade_server`
+ * assembles. Nothing for a server on this machine, whose qibocal-report is the
+ * launcher's own.
+ */
+export function upgradeCommand(options = {}) {
+  const ssh = typeof options.ssh === 'string' ? options.ssh.trim() : ''
+  if (!ssh) return ''
+  const parts = ['qibocal', 'report', 'server', 'upgrade', '--ssh', ssh]
+  for (const [flag, value] of [['--workdir', options.workdir], ['--venv', options.venv], ['--install', options.install]]) {
+    const text = typeof value === 'string' ? value.trim() : ''
+    if (text) parts.push(flag, text)
+  }
+  if (options.timeout) parts.push('--timeout', String(options.timeout))
   return parts.map(quote).join(' ')
 }
 

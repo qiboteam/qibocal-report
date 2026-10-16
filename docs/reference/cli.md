@@ -76,7 +76,6 @@ With `--ssh`, the server runs on another machine and its address is tunnelled ba
 
 - `--ssh TEXT`: SSH options followed by a host or `user@host` destination, as in `qibocal notebook connect`. The destination must be the last argument; do not include a remote command.
 - `-w, --workdir DIRECTORY`: Working directory on the remote host. Default: a fresh temporary directory, since the server writes nothing where it starts.
-- `--upgrade`: Reinstall the `--install` packages in the remote environment before starting — the package itself by force, then its dependencies — so a server keeps up with `qibocal-report` without the environment being removed. Only together with `--ssh`.
 - `--venv NAME_OR_PATH`: Environment on the remote host. Default: `qibocal`. Names resolve under `$XDG_CACHE_HOME/qibocal/envs/` (fallback `~/.cache/qibocal/envs/`), the same place the notebook sessions use; a missing environment is created, and an existing one without Qibocal has it installed.
 - `--install TEXT`: Packages installed in that environment when it has no `qibocal`. Default: `qibocal-report`.
 - `--timeout SECONDS`: Startup timeout, environment preparation included. Default: `300`.
@@ -95,6 +94,12 @@ qibocal report server /shared/calibration --ssh myuser@login --venv mychip --aut
 ```
 
 ---
+
+### `qibocal report server upgrade`
+Bring a remote server's `qibocal-report` up to date, without starting it: the `--install` packages are put back by force in the `--venv` environment on the `--ssh` host — the packages themselves first, then their dependencies — which otherwise keeps what it holds for good, since it is only filled when it has no qibocal. An independent action, hence a command of its own; start the server as usual afterwards.
+
+- `--ssh TEXT` (required): the machine whose environment is updated.
+- `--venv NAME_OR_PATH`, `--install PACKAGES`, `-w, --workdir`, `--timeout`: as for `qibocal report server`.
 
 ### `qibocal report client`
 

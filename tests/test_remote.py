@@ -444,11 +444,45 @@ def test_an_update_travels_to_the_worker_and_puts_the_package_back_by_force():
     assert first[:4] == ["/env/bin/python", "-m", "pip", "install"]
 
 
-def test_the_cli_passes_upgrade_only_with_a_destination():
+def test_upgrade_is_a_subcommand_and_starts_nothing():
     captured = {}
-    with patch("qibocal_report.remote.launch", lambda options: captured.update(o=options)):
-        result = CliRunner().invoke(main, ["report", "server", "--ssh", "me@node", "--upgrade"])
+    with (
+        patch("qibocal_report.remote.upgrade", lambda options: captured.update(o=options)),
+        patch("qibocal_report.remote.launch", lambda options: captured.update(launched=True)),
+    ):
+        result = CliRunner().invoke(
+            main, ["report", "server", "upgrade", "--ssh", "me@node", "--venv", "chip", "--install", "qibocal-report==1.2"]
+        )
     assert result.exit_code == 0, result.output
+    assert "launched" not in captured, "an upgrade starts no server"
     assert captured["o"].upgrade is True
-    alone = CliRunner().invoke(main, ["report", "server", "--upgrade"])
-    assert alone.exit_code != 0 and "only applies together with --ssh" in alone.output
+    assert captured["o"].venv == "chip" and captured["o"].install == "qibocal-report==1.2"
+    assert captured["o"].registered is False
+    # Without a destination there is nothing to update.
+    alone = CliRunner().invoke(main, ["report", "server", "upgrade"])
+    assert alone.exit_code != 0 and "--ssh" in alone.output
+    # The word is the subcommand, never a directory; a directory still is one.
+    with patch("qibocal_report.remote.launch", lambda options: captured.update(dir=options.directory)):
+        CliRunner().invoke(main, ["report", "server", "/data", "--ssh", "me@node"])
+    assert captured["dir"] == "/data"
+
+
+def test_the_upgrading_worker_puts_the_packages_back_and_exits(monkeypatch, tmp_path):
+    from qibocal_report import report_worker
+
+    calls = []
+    monkeypatch.setattr(
+        report_worker, "ensure_qibocal",
+        lambda runtime, path, packages, upgrade=False: calls.append((path, packages, upgrade)) or (path / "bin" / "qibocal"),
+    )
+    monkeypatch.setattr(report_worker, "environment_path", lambda name: tmp_path / name)
+    monkeypatch.setattr(report_worker, "log_node", lambda role: None)
+    monkeypatch.setattr(report_worker, "monitor_stdin", lambda stop: None)
+    events = []
+    monkeypatch.setattr(report_worker, "event", lambda kind, **details: events.append(details.get("message", kind)))
+    spawned = []
+    monkeypatch.setattr(report_worker.Runtime, "spawn", lambda self, *a, **k: spawned.append(a) or (None, None))
+    report_worker.run({"upgrade": True, "venv": "chip", "install": "qibocal-report", "workdir": str(tmp_path)})
+    assert calls == [(tmp_path / "chip", ["qibocal-report"], True)]
+    assert spawned == [], "nothing is started"
+    assert any("up to date" in message for message in events)

@@ -514,8 +514,53 @@ pub struct ServerOptions {
     pub venv: Option<String>,
     pub install: Option<String>,
     pub timeout: Option<f64>,
-    /// Put the package back by force in the remote environment first: an update.
-    pub upgrade: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpgradeOptions {
+    /// How the server is called, for the process list.
+    pub name: Option<String>,
+    pub ssh: String,
+    pub workdir: Option<String>,
+    pub venv: Option<String>,
+    pub install: Option<String>,
+    pub timeout: Option<f64>,
+}
+
+/// Bring a remote server's qibocal-report up to date: `report server upgrade`,
+/// supervised like any other process, so its output is in Running and the
+/// launcher knows when it is done.
+#[tauri::command]
+pub fn upgrade_server(
+    app: AppHandle,
+    supervisor: State<Supervisor>,
+    options: UpgradeOptions,
+) -> Result<ProcessInfo, String> {
+    let ssh = options.ssh.trim().to_string();
+    if ssh.is_empty() {
+        return Err("Only a server on another machine has an environment to update.".to_string());
+    }
+    let mut arguments = vec!["report".to_string(), "server".to_string(), "upgrade".to_string()];
+    push_text(&mut arguments, "--ssh", Some(ssh.clone()));
+    push_text(&mut arguments, "--workdir", options.workdir.clone());
+    push_text(&mut arguments, "--venv", options.venv.clone());
+    push_text(
+        &mut arguments,
+        "--install",
+        options
+            .install
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| Some(qibocal::default_package())),
+    );
+    if let Some(timeout) = options.timeout {
+        arguments.push("--timeout".to_string());
+        arguments.push(format!("{timeout}"));
+    }
+    let label = format!("Update {}", options.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| format!("ssh {ssh}")));
+    let detail = format!("ssh {ssh} · {}", options.venv.clone().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "qibocal".to_string()));
+    supervisor.spawn(&app, "update", label, detail, arguments, None, None)
 }
 
 #[tauri::command]
@@ -609,9 +654,6 @@ pub fn start_server(
         if let Some(timeout) = options.timeout {
             arguments.push("--timeout".to_string());
             arguments.push(format!("{timeout}"));
-        }
-        if options.upgrade.unwrap_or(false) {
-            arguments.push("--upgrade".to_string());
         }
     }
 
