@@ -1,13 +1,5 @@
 import { ref, computed } from 'vue'
-
-/**
- * How long a page of reports is trusted once fetched. The cache lives
- * outside the component, so a round trip to a report and back within this
- * time shows the list at once — the same server, the same filters, the same
- * page — instead of asking the server again for what it just answered.
- */
-export const PAGE_CACHE_TTL_MS = 10_000
-const pageCache = new Map()
+import { clearPages, hasPage, pageCacheKey, readPage, writePage } from '../utils/pageCache.js'
 
 /**
  * Composable for paginated data management with pre-fetch memory caching.
@@ -67,34 +59,12 @@ export function usePagination(initialPageSize = 10, initialPage = 1) {
     return Array.from(accessible).filter(p => p >= 1 && p <= total)
   }
 
-  function getCacheKey(queryKey, page) {
-    return `${queryKey}|p_${page}`
-  }
-
-  function clearCache() {
-    pageCache.clear()
-  }
-
-  function fresh(entry) {
-    return Boolean(entry) && Date.now() - entry.at < PAGE_CACHE_TTL_MS
-  }
-
-  function getFromCache(cacheKey) {
-    const entry = pageCache.get(cacheKey)
-    if (!fresh(entry)) {
-      pageCache.delete(cacheKey)
-      return undefined
-    }
-    return entry.data
-  }
-
-  function setCache(cacheKey, data) {
-    pageCache.set(cacheKey, { data, at: Date.now() })
-  }
-
-  function hasInCache(cacheKey) {
-    return fresh(pageCache.get(cacheKey))
-  }
+  // The cache is shared by every instance and outlives them: see pageCache.js.
+  const getCacheKey = pageCacheKey
+  const clearCache = clearPages
+  const getFromCache = readPage
+  const setCache = writePage
+  const hasInCache = hasPage
 
   return {
     currentPage,
