@@ -60,7 +60,8 @@
           :report="report"
           :is-selected="selected.includes(report.id)"
           :is-focused="report.id === focusedId"
-          @select="$emit('select', $event)"
+          @select="(report, event) => $emit('select', report, event)"
+          @context-menu="(report, event) => $emit('context-menu', report, event)"
           @toggle-select="$emit('toggle-select', $event)"
           @remove-tag="$emit('remove-tag', $event)"
           @edit-author="$emit('edit-author', $event)"
@@ -90,6 +91,7 @@ const props = defineProps({
 
 defineEmits([
   'select',
+  'context-menu',
   'toggle-select',
   'toggle-select-all',
   'remove-tag',

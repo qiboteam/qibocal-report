@@ -263,6 +263,7 @@
           :selected="selectedReports"
           :focused-id="focusedId"
           @select="openReport"
+          @context-menu="onReportContextMenu"
           @toggle-select="toggleSelect"
           @toggle-select-all="() => toggleSelectAll(reports.map(r => r.id))"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
@@ -282,6 +283,7 @@
           :selected="selectedReports"
           :focused-id="focusedId"
           @select="openReport"
+          @context-menu="onReportContextMenu"
           @toggle-select="toggleSelect"
           @remove-tag="payload => removeTagFromReport(payload, fetchStats)"
           @edit-author="r => openAuthorModal(r)"
@@ -403,7 +405,7 @@ import { desktopWidget, publishPage } from '../utils/desktop.js'
 import { useRouter, useRoute } from 'vue-router'
 import { state, addToHistory, apiFetch, ensureServersLoaded, holdReportStats, resolveAuthor, persistSearchState } from '../store.js'
 import { REPORT_FIELDS, STATS_FIELDS, apiGraphQL } from '../api.js'
-import { openInNewWindow, wantsNewWindow } from '../utils/newWindow.js'
+import { openInNewWindow, showContextMenu, wantsNewWindow } from '../utils/newWindow.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useBulkActions } from '../composables/useBulkActions.js'
@@ -806,6 +808,17 @@ function reportHref(report, targetProtocol = null) {
       ? { path: `/reports/${report.id}`, query: { protocol: targetProtocol } }
       : { path: `/reports/${report.id}` }
   ).href
+}
+
+/**
+ * The context menu of a row or card inside the application: the webview's
+ * own only knows links, and a row is not one. Open here, or in a new window.
+ */
+function onReportContextMenu(report, event) {
+  showContextMenu(event, [
+    { text: 'Open', action: () => openReport(report) },
+    { text: 'Open in New Window', action: () => openInNewWindow(reportHref(report)) }
+  ])
 }
 
 /**

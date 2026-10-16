@@ -52,6 +52,23 @@ window.qibocalDesktop = {
   notify: (message, kind = 'info') => (kind === 'error' ? fail(message) : notify(message)),
   /** Launcher components the dashboard renders in its own toolbars. */
   widgets: { bell: markRaw(NotificationBell) },
+  /**
+   * A native context menu at the pointer, for what is not a link — a
+   * report's row, say — with `items` of `{ text, action }`, or
+   * `{ separator: true }`. The dashboard calls it on right-click, instead
+   * of the webview's own menu, which only knows links.
+   */
+  contextMenu: async ({ items }) => {
+    const { Menu, MenuItem, PredefinedMenuItem } = await import('@tauri-apps/api/menu')
+    const built = []
+    for (const item of items) {
+      built.push(item.separator
+        ? await PredefinedMenuItem.new({ item: 'Separator' })
+        : await MenuItem.new({ text: item.text, enabled: item.enabled !== false, action: () => item.action?.() }))
+    }
+    const menu = await Menu.new({ items: built })
+    await menu.popup()
+  },
   /** The dashboard page on screen hands over its keys — `{ title, entries }` — for the cheatsheet. */
   pageShortcuts: page => { state.pageShortcuts = page ? pageShortcuts(page) : null },
   /** The address of a launcher section, for a link out of the dashboard. */

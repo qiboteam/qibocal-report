@@ -8,6 +8,7 @@ mod process;
 mod qibocal;
 mod settings;
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use tauri::utils::config::WindowConfig;
@@ -41,10 +42,14 @@ fn is_own_page(url: &Url) -> bool {
 /// window's configuration, and opening further windows the same way.
 fn open_window(app: &AppHandle, template: &WindowConfig, url: Url) -> tauri::Result<WebviewWindow> {
     let label = format!("window-{}", OPENED.fetch_add(1, Ordering::SeqCst) + 1);
-    let target = if url.scheme() == "tauri" {
-        WebviewUrl::CustomProtocol(url)
+    // Our own pages are opened as the application opens them — by their
+    // path under the application's origin — and taken to the exact address,
+    // hash and all, once the window exists; the Vite server's are external.
+    let own = url.scheme() == "tauri" || url.host_str() == Some("tauri.localhost");
+    let target = if own {
+        WebviewUrl::App(PathBuf::from(url.path().trim_start_matches('/')))
     } else {
-        WebviewUrl::External(url)
+        WebviewUrl::External(url.clone())
     };
     let handle = app.clone();
     let config = template.clone();
@@ -65,7 +70,11 @@ fn open_window(app: &AppHandle, template: &WindowConfig, url: Url) -> tauri::Res
             .title_bar_style(template.title_bar_style)
             .hidden_title(template.hidden_title);
     }
-    builder.build()
+    let window = builder.build()?;
+    if own && (url.fragment().is_some() || url.query().is_some()) {
+        window.navigate(url)?;
+    }
+    Ok(window)
 }
 
 /// What becomes of a request for a new window — `window.open`, or "Open
@@ -74,12 +83,18 @@ fn open_window(app: &AppHandle, template: &WindowConfig, url: Url) -> tauri::Res
 /// browser, as the links that leave the application do.
 fn new_window(app: &AppHandle, template: &WindowConfig, url: Url) -> NewWindowResponse<tauri::Wry> {
     if is_own_page(&url) {
-        return match open_window(app, template, url) {
-            Ok(window) => NewWindowResponse::Create { window },
-            Err(_) => NewWindowResponse::Deny,
-        };
+        // Built once this callback has returned, not handed back from it: a
+        // window returned here must share the caller's webview configuration
+        // on macOS, and WebKit aborts the application when it does not. The
+        // request itself is denied; ours opens a moment later.
+        let handle = app.clone();
+        let config = template.clone();
+        let _ = app.run_on_main_thread(move || {
+            let _ = open_window(&handle, &config, url);
+        });
+    } else {
+        let _ = tauri_plugin_opener::open_url(url.as_str(), None::<&str>);
     }
-    let _ = tauri_plugin_opener::open_url(url.as_str(), None::<&str>);
     NewWindowResponse::Deny
 }
 

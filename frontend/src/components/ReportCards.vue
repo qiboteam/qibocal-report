@@ -5,6 +5,7 @@
       :key="report.id"
       @click="$emit('select', report, $event)"
       @auxclick="$event.button === 1 && $emit('select', report, $event)"
+      @contextmenu="$emit('context-menu', report, $event)"
       class="bm-card p-5 border border-gray-100 cursor-pointer hover:border-purple-200 transition group"
       :class="[
         selected.includes(report.id) ? 'border-purple-300 ring-1 ring-purple-300 bg-purple-50/20' : '',
@@ -151,6 +152,7 @@ defineProps({
 
 defineEmits([
   'select',
+  'context-menu',
   'toggle-select',
   'remove-tag',
   'edit-author',

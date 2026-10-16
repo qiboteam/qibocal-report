@@ -2,6 +2,7 @@
   <tr
     @click="$emit('select', report, $event)"
     @auxclick="$event.button === 1 && $emit('select', report, $event)"
+    @contextmenu="$emit('context-menu', report, $event)"
     class="hover:bg-purple-50/30 cursor-pointer transition"
     :class="[isSelected ? 'bg-purple-50/40' : '', isFocused ? 'bg-[#ebe0ff]/70 outline outline-2 -outline-offset-2 outline-[#833dff]/40' : '']"
     :data-focused="isFocused ? 'true' : undefined"
@@ -178,6 +179,7 @@ const href = computed(() => router.resolve({ path: `/reports/${props.report.id}`
 
 defineEmits([
   'select',
+  'context-menu',
   'toggle-select',
   'remove-tag',
   'edit-author',
