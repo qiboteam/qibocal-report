@@ -180,7 +180,7 @@ Under **More options**, with their defaults:
 - **Extra srun options**.
 - **Working directory**, chosen with the file browser for local sessions.
 - **Kernel environment** on the computing node, `qibocal` by default, under the same `~/.cache/qibocal/envs/` as the launcher's own environment.
-- **Computing node subnet**, validated the way Python's `ip_network` validates it: a network with host bits set is refused before the command is run.
+- **Computing node subnet**, validated the way Python's `ip_network` validates it: a network with host bits set is refused before the command is run. Left empty, the computing node binds the notebook to the interface it routes through to reach the access node, leaving out any address the two nodes share — a container bridge every host has at the same address, say — and the access node checks that it can reach the notebook before forwarding to it; when it cannot, the session fails with the address it tried and this is the option to set.
 - **Startup timeout**.
 
 Named connections are read from and written to `notebooks.json`, the file `qibocal notebook add` manages, so a connection saved here is usable as `qibocal notebook connect <name>`. Only the options that differ from the defaults are stored.

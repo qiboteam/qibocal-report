@@ -515,6 +515,8 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo, 
         patch.object(worker, "Runtime", return_value=runtime),
         patch.object(runtime, "spawn", return_value=(process, messages)) as spawn,
         patch.object(worker, "Forwarder", return_value=forwarder) as forward,
+        # The composition is what is tested; nothing listens at the fake address.
+        patch.object(worker, "probe_reachable", return_value=None),
         patch.object(runtime, "close") as close,
         patch.object(worker, "monitor_stdin"),
         patch.object(
@@ -1159,3 +1161,63 @@ def test_server_dies_before_readiness():
     process.poll.return_value = 1
     with pytest.raises(worker.WorkerError, match="exited during startup"):
         worker.wait_http(worker.Runtime(1), 1, "token", "/lab", False, [process])
+
+
+def test_compute_address_leaves_out_what_the_two_nodes_share():
+    # A bridge every host has at the same address — Docker's 172.17.0.1 — is
+    # the perfect prefix match, and a connection to it lands on the access
+    # node itself. It is a per-host interface, not a network between them.
+    assert (
+        worker.compute_address(
+            ["172.17.0.1", "10.0.0.10"], ["172.17.0.1", "10.0.0.20"]
+        )
+        == "10.0.0.20"
+    )
+    # Nothing but shared addresses: better one of them than an error.
+    assert worker.compute_address(["172.17.0.1"], ["172.17.0.1"]) == "172.17.0.1"
+
+
+def test_compute_address_prefers_the_interface_that_routes_to_the_access_node():
+    routes = {"10.0.0.10": "192.168.5.20"}
+    assert (
+        worker.compute_address(
+            ["10.0.0.10"],
+            ["10.0.0.20", "192.168.5.20"],
+            source_for=routes.get,
+        )
+        == "192.168.5.20"
+    )
+    # A route through an interface that is not a candidate does not count.
+    assert (
+        worker.compute_address(
+            ["10.0.0.10"], ["10.0.0.20"], source_for=lambda _: "172.17.0.1"
+        )
+        == "10.0.0.20"
+    )
+    # The subnet still rules over the route.
+    assert (
+        worker.compute_address(
+            ["10.0.0.10"], ["10.0.0.20", "192.168.5.20"], "10.0.0.0/24", source_for=routes.get
+        )
+        == "10.0.0.20"
+    )
+
+
+def test_route_source_answers_an_address_or_nothing():
+    source = worker.route_source("127.0.0.1")
+    assert source is None or source.startswith("127.")
+    assert worker.route_source("not an address") is None
+
+
+def test_probe_reachable_reports_a_refusal_and_a_listener():
+    import socket
+    import threading
+    import time
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(1)
+        port = listener.getsockname()[1]
+        assert worker.probe_reachable("127.0.0.1", port, time.monotonic() + 2, threading.Event()) is None
+    failure = worker.probe_reachable("127.0.0.1", port, time.monotonic() + 0.8, threading.Event())
+    assert isinstance(failure, OSError)

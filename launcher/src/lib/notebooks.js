@@ -63,7 +63,7 @@ export const NOTEBOOK_FIELDS = [
     advanced: true,
     placeholder: '192.168.0.0/24',
     help: 'Empty: any address the computing node reports.',
-    info: 'A network, in CIDR notation, that the address of the SLURM computing node must belong to, for nodes with several interfaces.'
+    info: 'A network, in CIDR notation, that the address of the SLURM computing node must belong to. Left empty, the node picks the interface it routes through to reach the access node, leaving out any address the two share, such as a container bridge; set this when the notebook is reported ready but the access node cannot reach it.'
   },
   {
     name: 'timeout',
