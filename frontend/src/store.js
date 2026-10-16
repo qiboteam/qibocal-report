@@ -250,16 +250,29 @@ export const canAccessDashboard = computed(() => {
   return true
 })
 
+/** How long a verified session is trusted before the server is asked again. */
+const SESSION_TTL_MS = 30_000
+const verifiedAt = new Map()
+
 export function checkActiveServerAuth(targetServer = state.activeServer) {
   if (!targetServer) return Promise.resolve(false)
   const key = getServerAuthKey(targetServer)
   if (pendingAuthCheck?.key === key && pendingAuthCheck.version === authCheckVersion) {
     return pendingAuthCheck.promise
   }
+  // Verified a moment ago, for this very server and token: no need to ask again.
+  const recent = verifiedAt.get(key)
+  if (recent && Date.now() - recent.at < SESSION_TTL_MS && recent.token === getActiveAuthToken(targetServer) &&
+      state.auth?.checked && getServerAuthKey(state.activeServer) === key) {
+    return Promise.resolve(true)
+  }
   const version = ++authCheckVersion
   const promise = verifyServerAuth(targetServer, version)
   pendingAuthCheck = { key, version, promise }
-  promise.finally(() => {
+  promise.then(ok => {
+    if (ok) verifiedAt.set(key, { at: Date.now(), token: getActiveAuthToken(targetServer) })
+    else verifiedAt.delete(key)
+  }).finally(() => {
     if (pendingAuthCheck?.promise === promise) pendingAuthCheck = null
   })
   return promise

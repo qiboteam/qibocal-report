@@ -83,6 +83,7 @@ endpoints. A GET of the same address opens GraphiQL, the schema's own explorer.
 | `reports(where: ReportFilter, page: Int = 1, page_size: Int = 20)` | `GET /api/reports` with the same filters, paginated | viewer |
 | `stats(where: ReportFilter)` | `GET /api/reports/stats` | viewer |
 | `report(id: String!)` | `GET /api/reports/{id}`; its `protocols_detail` field is `GET /api/reports/{id}/protocols`, computed only when selected; `null` for a report that does not exist | viewer |
+| `protocol(report_id: String!, protocol_id: String!)` | one protocol of `GET /api/reports/{id}/protocols`, for its `html` and `figures` alone; `null` when either is not there | viewer |
 | `session` | `GET /api/auth/status` and `GET /api/auth/me`, in one: `auth_enabled`, and the `user` the token names, or `null` | anyone |
 | `health` | `GET /api/health` | anyone |
 
@@ -100,6 +101,13 @@ query Dashboard($where: ReportFilter, $page: Int!, $page_size: Int!) {
   filtered: stats(where: $where) { total_reports }
 }
 ```
+
+A report is opened in two steps by the dashboard: `report(id)` with
+`protocols_detail { id name status num_figures notes { … } }` — the cards,
+without the megabytes they show — then `protocol(report_id, protocol_id) { html
+figures }` for each card as it nears the viewport, and for the rest in idle
+time. Pre-cached outputs are parsed once on the server and kept in memory while
+their files are unchanged, so the per-protocol requests cost a lookup.
 
 Authorization is the same bearer token, in the same header. A field refused
 for want of a session comes back `null`, with an error whose

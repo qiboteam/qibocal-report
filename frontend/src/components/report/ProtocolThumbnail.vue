@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="root"
     class="relative min-w-0 text-left bg-white rounded-xl border border-gray-200 hover:border-purple-400 p-3 shadow-2xs"
   >
     <div class="flex items-center justify-between gap-2">
@@ -7,7 +8,8 @@
       <span class="text-[10px] font-mono" :class="proto.status === 'error' ? 'text-amber-700' : 'text-emerald-700'">{{ proto.status }}</span>
     </div>
     <div class="pointer-events-none" aria-hidden="true">
-      <plotly-viewer v-if="proto.figures?.length" :figure="proto.figures[0]" thumbnail />
+      <div v-if="['pending', 'loading'].includes(proto.outputs)" class="h-40 flex items-center justify-center text-xs text-gray-400">Fetching…</div>
+      <plotly-viewer v-else-if="proto.figures?.length" :figure="proto.figures[0]" thumbnail />
       <div v-else-if="proto.html" class="h-40 overflow-hidden my-2" inert>
         <div class="thumbnail-table" v-html="proto.html"></div>
       </div>
@@ -27,14 +29,23 @@
 </template>
 
 <script setup>
+import { inject, ref } from 'vue'
 import { TriangleAlert } from 'lucide-vue-next'
 import PlotlyViewer from '../PlotlyViewer.vue'
+import { useNearViewport } from '../../composables/useNearViewport.js'
 
-defineProps({
+const props = defineProps({
   proto: { type: Object, required: true },
   index: { type: Number, required: true }
 })
 defineEmits(['select'])
+
+// The first figure is the thumbnail: fetched, like the card's, when near.
+const root = ref(null)
+const requestOutputs = inject('requestProtocolOutputs', null)
+useNearViewport(root, () => {
+  if (props.proto?.outputs === 'pending' && requestOutputs) requestOutputs(props.proto.id)
+})
 </script>
 
 <style scoped>

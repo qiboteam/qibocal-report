@@ -246,7 +246,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick, provide } from 'vue'
 import { desktopWidget, publishPage } from '../utils/desktop.js'
 import { isPlainKey, isTypingTarget } from '../utils/shortcuts.js'
 import { downloadApiFile, getReportDownloadFilename } from '../utils/apiFiles.js'
@@ -306,8 +306,12 @@ const {
   loadReportData,
   handleRegenerate,
   handleSaveAuthor,
-  handleRemoveTag
+  handleRemoveTag,
+  requestProtocolOutputs
 } = useReportDetail(reportId)
+
+// The cards and thumbnails ask for their outputs as they come near.
+provide('requestProtocolOutputs', requestProtocolOutputs)
 
 const reportPanel = ref(null)
 const protocolList = ref(null)

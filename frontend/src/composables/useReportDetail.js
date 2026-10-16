@@ -93,20 +93,32 @@ export function sortProtocolsByExecutionOrder(protocolsList, reportDetail) {
  * Composable for loading report details via WebSocket streaming or HTTP fallback,
  * managing routine protocols, plot regeneration, author updates, and tag removals.
  */
+/**
+ * The report, with its protocols named but their outputs left out: what the
+ * cards need to exist. The HTML and the figures of each come separately,
+ * one protocol at a time, as its card nears the viewport.
+ */
 const REPORT_QUERY = `
   query Report($id: String!) {
     report(id: $id) {
       ${REPORT_FIELDS}
-      history platform_snapshot
+      history
       protocols_summary { id name category execution_time status num_figures }
       notes { content timestamp author }
       protocols_detail {
-        id name category execution_time status html figures error error_code
+        id name category execution_time status num_figures
         notes { content timestamp author }
       }
     }
   }
 `
+const OUTPUTS_QUERY = `
+  query Outputs($report_id: String!, $protocol_id: String!) {
+    protocol(report_id: $report_id, protocol_id: $protocol_id) { html figures error error_code }
+  }
+`
+/** How many protocols' outputs are in flight at once. */
+const OUTPUTS_CONCURRENCY = 2
 
 export function useReportDetail(reportId) {
   const loading = ref(true)
@@ -270,10 +282,81 @@ export function useReportDetail(reportId) {
     })
   }
 
+  // --- The outputs, protocol by protocol ------------------------------------
+
+  /** Which load the outputs belong to: a new report, or server, drops the old requests. */
+  let outputsContext = 0
+  const outputsQueue = { near: [], later: [], active: 0, server: null, reportId: null }
+
+  function setProtocol(id, changes) {
+    const index = protocols.value.findIndex(protocol => protocol.id === id)
+    if (index < 0) return
+    const next = [...protocols.value]
+    next[index] = { ...next[index], ...changes }
+    protocols.value = next
+  }
+
+  async function fetchOutputs(id, context) {
+    setProtocol(id, { outputs: 'loading' })
+    let outputs = null
+    try {
+      const data = await apiGraphQL(OUTPUTS_QUERY, { report_id: outputsQueue.reportId, protocol_id: id }, outputsQueue.server)
+      outputs = data?.protocol || null
+    } catch (err) {
+      console.warn(`Outputs of ${id} could not be fetched`, err)
+    }
+    if (context !== outputsContext) return
+    if (!outputs) {
+      setProtocol(id, { outputs: 'failed' })
+      return
+    }
+    setProtocol(id, { ...outputs, figures: outputs.figures || [], outputs: 'ready' })
+  }
+
+  function pumpOutputs(context) {
+    while (outputsQueue.active < OUTPUTS_CONCURRENCY) {
+      const id = outputsQueue.near.shift() ?? outputsQueue.later.shift()
+      if (id === undefined) return
+      const protocol = protocols.value.find(entry => entry.id === id)
+      if (!protocol || protocol.outputs !== 'pending') continue
+      outputsQueue.active += 1
+      fetchOutputs(id, context).finally(() => {
+        outputsQueue.active -= 1
+        if (context !== outputsContext) return
+        // The ones in view follow at once; the rest wait for an idle moment.
+        if (outputsQueue.near.length) pumpOutputs(context)
+        else idle(() => pumpOutputs(context))
+      })
+    }
+  }
+
+  function idle(callback) {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(callback, { timeout: 1000 })
+    else setTimeout(callback, 100)
+  }
+
+  /** A card came near: its outputs go to the head of the line. */
+  function requestProtocolOutputs(id) {
+    const protocol = protocols.value.find(entry => entry.id === id)
+    if (!protocol || protocol.outputs !== 'pending') return
+    outputsQueue.later = outputsQueue.later.filter(entry => entry !== id)
+    if (!outputsQueue.near.includes(id)) outputsQueue.near.push(id)
+    pumpOutputs(outputsContext)
+  }
+
+  /** Everything still pending, in reading order, for the idle moments. */
+  function prefetchOutputs() {
+    outputsQueue.later = protocols.value.filter(entry => entry.outputs === 'pending').map(entry => entry.id)
+    idle(() => pumpOutputs(outputsContext))
+  }
+
   /**
-   * The report and its protocols in one GraphQL request; false when the
-   * server has none, or could not be reached that way, and the two REST
-   * requests are the way. A missing report is thrown, as over REST.
+   * The report over GraphQL, its protocols named but not yet fetched.
+   * Answers 'ready' when the outputs can be fetched one by one — a report
+   * with pre-cached outputs — 'generate' when they have to be generated
+   * first, which the WebSocket does with progress, and false when the
+   * server has no GraphQL or could not be asked that way. A missing report
+   * is thrown, as over REST.
    */
   async function loadViaGraphQL(id) {
     let data = null
@@ -281,7 +364,7 @@ export function useReportDetail(reportId) {
       data = await apiGraphQL(REPORT_QUERY, { id })
     } catch (err) {
       if (err?.code === 'UNAUTHENTICATED') throw err
-      console.warn('GraphQL request failed, asking over REST instead', err)
+      console.warn('GraphQL request failed, asking otherwise', err)
       return false
     }
     if (!data) return false
@@ -289,18 +372,25 @@ export function useReportDetail(reportId) {
       removeFromHistory(id)
       throw new Error('Report not found (404)')
     }
-    const { protocols_detail: detail, ...metadata } = data.report
+    const { protocols_detail: named, ...metadata } = data.report
     report.value = metadata
     state.currentReportId = metadata.id
     addToHistory(metadata)
-    protocols.value = sortProtocolsByExecutionOrder(detail || [], metadata)
-    return true
+    if (!metadata.has_cached_report) return 'generate'
+    outputsContext += 1
+    outputsQueue.near = []
+    outputsQueue.later = []
+    outputsQueue.server = state.activeServer
+    outputsQueue.reportId = id
+    protocols.value = sortProtocolsByExecutionOrder(
+      (named || []).map(protocol => ({ ...protocol, html: '', figures: [], outputs: 'pending' })),
+      metadata
+    )
+    return 'ready'
   }
 
   async function loadViaHttp(id) {
     try {
-      loadingStatus.value = 'Fetching report...'
-      if (await loadViaGraphQL(id)) return
       loadingStatus.value = 'Fetching report metadata...'
       const encodedId = encodeURIComponent(id)
       const res = await apiFetch(`/api/reports/${encodedId}`)
@@ -346,6 +436,24 @@ export function useReportDetail(reportId) {
     if (activeWs) {
       try { activeWs.close() } catch {}
       activeWs = null
+    }
+    outputsContext += 1
+
+    // One request names the report and its protocols; a pre-cached report
+    // then fetches its outputs card by card. One that has to generate its
+    // plots goes through the WebSocket, which reports the progress.
+    try {
+      loadingStatus.value = 'Fetching report...'
+      const via = await loadViaGraphQL(id)
+      if (via === 'ready') {
+        loading.value = false
+        prefetchOutputs()
+        return
+      }
+    } catch (err) {
+      error.value = err.message
+      loading.value = false
+      return
     }
 
     try {
@@ -452,6 +560,7 @@ export function useReportDetail(reportId) {
   })
 
   return {
+    requestProtocolOutputs,
     loading,
     loadingStatus,
     error,

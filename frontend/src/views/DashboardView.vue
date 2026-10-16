@@ -647,15 +647,42 @@ function getCurrentFilterKey() {
   return getFilterQueryKey(activeServer.value, pageSize.value)
 }
 
+/**
+ * The neighbouring pages, fetched one at a time once the page is idle —
+ * not all at once the moment the current one lands — and only while the
+ * filters they were meant for are still the ones on screen.
+ */
+let prefetchToken = 0
 function prefetchAccessiblePages() {
-  const targetPages = getAccessiblePages(currentPage.value, totalPages.value)
+  const token = ++prefetchToken
   const qKey = getCurrentFilterKey()
-  for (const p of targetPages) {
-    const key = getCacheKey(qKey, p)
-    if (!hasInCache(key)) {
-      fetchReports(p, true)
+  const pending = getAccessiblePages(currentPage.value, totalPages.value)
+    .filter(p => !hasInCache(getCacheKey(qKey, p)))
+  const idle = typeof requestIdleCallback === 'function'
+    ? callback => requestIdleCallback(callback, { timeout: 2000 })
+    : callback => setTimeout(callback, 300)
+  const next = async () => {
+    if (token !== prefetchToken || getCurrentFilterKey() !== qKey) return
+    const p = pending.shift()
+    if (p === undefined) return
+    await fetchReports(p, true)
+    idle(next)
+  }
+  idle(next)
+}
+
+/** One page over GraphQL, in the shape the REST endpoint answers; null without GraphQL. */
+const PAGE_QUERY = `
+  query Page($where: ReportFilter, $page: Int!, $page_size: Int!) {
+    reports(where: $where, page: $page, page_size: $page_size) {
+      items { ${REPORT_FIELDS} }
+      total page page_size total_pages
     }
   }
+`
+async function pageViaGraphQL(page) {
+  const data = await apiGraphQL(PAGE_QUERY, { where: filterInput(), page, page_size: pageSize.value })
+  return data?.reports || null
 }
 
 function goToPage(p) {
@@ -934,45 +961,12 @@ async function fetchFilteredStats() {
     filters.labels.forEach(l => params.append('label', l))
     filters.qubits?.forEach(q => params.append('qubit', q))
 
-    // 1. Try backend /api/reports/stats endpoint
-    let statsData = null
-    try {
-      const res = await apiFetch(`/api/reports/stats?${params.toString()}`)
-      if (res.ok) {
-        statsData = await res.json()
-      }
-    } catch {
-      statsData = null
-    }
-
-    // 2. Verify if the returned stats actually reflect the filter.
-    // If backend ignored query parameters, statsData.total_reports will equal fullStats.total_reports
-    // while totalReports.value is smaller, or it won't respect active criteria.
-    const fullTotal = filterStats.value?.total_reports ?? 0
-    const isHonored = Boolean(
-      statsData &&
-      (fullTotal === 0 || totalReports.value === 0 || statsData.total_reports === totalReports.value || statsData.total_reports < fullTotal) &&
-      (!filters.platform || statsData.platforms.every(p => p.name === filters.platform)) &&
-      (!filters.author || statsData.authors.every(a => a === filters.author)) &&
-      (!start || statsData.date_histogram.every(d => d.date >= start)) &&
-      (!end || statsData.date_histogram.every(d => d.date <= end))
-    )
-
-    if (isHonored) {
-      filteredStats.value = statsData
-      return
-    }
-
-    // 3. Fallback: Fetch all matching reports from /api/reports (unpaginated) and compute stats client-side.
-    // This is 100% reliable across all servers and dev setups.
-    const reportsRes = await apiFetch(`/api/reports?${params.toString()}`)
-    if (reportsRes.ok) {
-      const data = await reportsRes.json()
-      const items = Array.isArray(data) ? data : (data.items || [])
-      filteredStats.value = computeStatsFromReports(items)
-    } else {
-      filteredStats.value = null
-    }
+    // The server's statistics of what is filtered. Every server this
+    // client speaks to honours the filters here; the old doubt about it
+    // used to be settled by downloading every matching report and counting
+    // client-side — the largest transfer the page could make, on a guess.
+    const res = await apiFetch(`/api/reports/stats?${params.toString()}`)
+    filteredStats.value = res.ok ? await res.json() : null
   } catch (err) {
     console.error('Failed to fetch filtered stats', err)
     filteredStats.value = null
@@ -1010,6 +1004,14 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
   }
 
   try {
+    // A server with GraphQL answers the page in the REST shape; the REST
+    // request below is for the others.
+    let data = null
+    try {
+      data = await pageViaGraphQL(page)
+    } catch (err) {
+      console.warn('GraphQL page request failed, asking over REST instead', err)
+    }
     const params = new URLSearchParams()
     params.set('page', String(page))
     params.set('page_size', String(pageSize.value))
@@ -1026,9 +1028,9 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
     filters.labels.forEach(l => params.append('label', l))
     filters.qubits?.forEach(q => params.append('qubit', q))
 
-    const res = await apiFetch(`/api/reports?${params.toString()}`)
-    if (res.ok) {
-      const data = await res.json()
+    const res = data ? null : await apiFetch(`/api/reports?${params.toString()}`)
+    if (data || res.ok) {
+      if (!data) data = await res.json()
       const items = Array.isArray(data) ? data : (data.items || [])
       const total = Array.isArray(data) ? data.length : (data.total ?? items.length)
       const total_pages = Array.isArray(data) ? 1 : (data.total_pages ?? 1)

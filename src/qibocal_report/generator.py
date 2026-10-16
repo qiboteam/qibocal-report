@@ -674,13 +674,56 @@ def generate_report_on_the_fly(
     return attach_protocol_notes(report_dir, protocols)
 
 
+# The pre-cached outputs of the reports looked at most recently, parsed once:
+# a report's figures are asked for by the detail (to count them), by the
+# protocols endpoint, and now protocol by protocol over GraphQL, and parsing
+# megabytes of Plotly JSON for each of those is what made a report slow to
+# open. An entry is keyed by the files it was read from and their mtimes, so
+# a regenerated report is read again; the notes are attached afresh at every
+# use, since they change without the outputs changing.
+_OUTPUT_CACHE: dict[str, tuple[tuple, list[ProtocolDetail]]] = {}
+_OUTPUT_CACHE_LIMIT = 16
+
+
+def _outputs_key(report_dir: Path) -> tuple | None:
+    report_path = report_dir / "report"
+    try:
+        files = sorted(
+            (entry.name, entry.stat().st_mtime_ns)
+            for entry in report_path.iterdir()
+            if entry.suffix == ".json" and not entry.name.startswith(".")
+        )
+        return (report_path.stat().st_mtime_ns, tuple(files))
+    except OSError:
+        return None
+
+
+def cached_protocols(report_dir: Path) -> list[ProtocolDetail]:
+    """`load_cached_protocols`, remembered while the cached files are unchanged."""
+    key = _outputs_key(report_dir)
+    slot = str(report_dir.resolve())
+    entry = _OUTPUT_CACHE.get(slot)
+    if key is not None and entry is not None and entry[0] == key:
+        return attach_protocol_notes(report_dir, entry[1])
+    protocols = load_cached_protocols(report_dir)
+    if key is not None:
+        if slot not in _OUTPUT_CACHE and len(_OUTPUT_CACHE) >= _OUTPUT_CACHE_LIMIT:
+            _OUTPUT_CACHE.pop(next(iter(_OUTPUT_CACHE)))
+        _OUTPUT_CACHE[slot] = (key, protocols)
+    return protocols
+
+
+def forget_cached_protocols(report_dir: Path) -> None:
+    _OUTPUT_CACHE.pop(str(report_dir.resolve()), None)
+
+
 def get_report_protocols(
     report_dir: Path, progress_callback: Callable[[int, int, str], None] | None = None
 ) -> list[ProtocolDetail]:
     """Retrieve report protocols: pre-cached if present, or generate on-the-fly."""
     with report_generation_lock(report_dir):
         if has_cached_report(report_dir):
-            protocols = load_cached_protocols(report_dir)
+            protocols = cached_protocols(report_dir)
         else:
             protocols = generate_report_on_the_fly(report_dir, progress_callback=progress_callback)
         return sort_protocols_by_execution_order(protocols, report_dir)
@@ -695,6 +738,7 @@ def regenerate_report(
     """
     with report_generation_lock(report_dir):
         log_info(f"Regenerating plots: removing existing cache for '{report_dir.name}'...")
+        forget_cached_protocols(report_dir)
         report_path = report_dir / "report"
         if report_path.is_dir():
             shutil.rmtree(report_path)

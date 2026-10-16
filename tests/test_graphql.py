@@ -166,3 +166,50 @@ def test_a_server_without_graphql_answers_405_to_the_client(client):
     response = client.post("/api/no-such-endpoint", json={})
     assert response.status_code == 405
     assert json.loads(client.post("/api/graphql", json={"query": "{ health { status } }"}).text)["data"]
+
+
+def test_outputs_come_one_protocol_at_a_time(client):
+    listing = graphql(client, "{ reports(page_size: 500) { items { id has_cached_report } } }")
+    report_id = next(r["id"] for r in listing["data"]["reports"]["items"] if r["has_cached_report"])
+
+    # The report with its protocols named, their figures left out: what a card
+    # needs to exist, without the megabytes it shows.
+    body = graphql(
+        client,
+        """
+        query ($id: String!) {
+          report(id: $id) {
+            has_cached_report
+            protocols_detail { id name status num_figures notes { content } }
+          }
+        }
+        """,
+        {"id": report_id},
+    )
+    assert "errors" not in body, body
+    stubs = body["data"]["report"]["protocols_detail"]
+    rest = client.get(f"/api/reports/{report_id}/protocols").json()
+    assert [p["id"] for p in stubs] == [p["id"] for p in rest]
+    assert [p["num_figures"] for p in stubs] == [len(p["figures"]) for p in rest]
+    assert all("figures" not in p for p in stubs)
+
+    # One protocol's outputs, as the card comes into view.
+    one = graphql(
+        client,
+        """
+        query ($report_id: String!, $protocol_id: String!) {
+          protocol(report_id: $report_id, protocol_id: $protocol_id) { id html figures error }
+        }
+        """,
+        {"report_id": report_id, "protocol_id": stubs[0]["id"]},
+    )["data"]["protocol"]
+    assert one["id"] == rest[0]["id"]
+    assert one["figures"] == rest[0]["figures"]
+    assert one["html"] == rest[0]["html"]
+
+    missing = graphql(
+        client,
+        'query ($r: String!) { protocol(report_id: $r, protocol_id: "no-such-protocol") { id } }',
+        {"r": report_id},
+    )
+    assert missing["data"]["protocol"] is None

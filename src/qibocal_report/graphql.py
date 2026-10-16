@@ -221,6 +221,7 @@ class Protocol:
     status: str
     html: str | None
     figures: JSON
+    num_figures: int
     error: str | None
     error_code: str | None
     notes: list[Note]
@@ -235,6 +236,7 @@ class Protocol:
             status=detail.status,
             html=detail.html,
             figures=detail.figures,
+            num_figures=len(detail.figures),
             error=detail.error,
             error_code=detail.error_code,
             notes=[Note.of(n) for n in detail.notes],
@@ -251,8 +253,9 @@ class ReportFull(Report):
 
     @strawberry.field(
         description=(
-            "The protocols' outputs, HTML and figures, as `/api/reports/{id}/protocols`: "
-            "pre-cached ones are read from disk, the others are generated now."
+            "The protocols as `/api/reports/{id}/protocols` lists them. Select `html` and "
+            "`figures` here to have every output at once, or leave them out and ask "
+            "`protocol` for one protocol's outputs at a time, as the cards come into view."
         )
     )
     def protocols_detail(self) -> list[Protocol]:
@@ -369,6 +372,24 @@ class Query:
         if detail is None:
             return None
         return ReportFull.of(detail, Path(detail.path))
+
+    @strawberry.field(
+        description=(
+            "One protocol of a report, for its outputs: the figures and the HTML of the "
+            "card that just came into view. Null when the report, or the protocol, is not there."
+        )
+    )
+    def protocol(self, info: Info, report_id: str, protocol_id: str) -> Protocol | None:
+        require(info)
+        root = info.context.report_root().resolve()
+        detail = get_report_detail(root, report_id)
+        if detail is None:
+            return None
+        wanted = protocol_id.lower().replace("-", "_")
+        for item in get_report_protocols(Path(detail.path)):
+            if item.id == protocol_id or item.id.lower().replace("-", "_") == wanted:
+                return Protocol.of(item)
+        return None
 
     @strawberry.field(description="Whether this server authenticates, and who is asking.")
     def session(self, info: Info) -> Session:
