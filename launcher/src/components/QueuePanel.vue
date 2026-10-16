@@ -8,9 +8,11 @@
 <template>
   <section class="space-y-2.5">
     <header class="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <h3 class="text-xs font-semibold text-gray-900">
-        Queue <span class="lx-mono font-normal text-gray-500">{{ queue.partition }}</span>
-        <span v-if="queue.ssh" class="lx-mono font-normal text-gray-400">on {{ queue.ssh }}</span>
+      <!-- Explicit gaps: the template's whitespace between the spans is dropped. -->
+      <h3 class="text-xs font-semibold text-gray-900 flex items-baseline gap-1.5">
+        <span>Queue</span>
+        <span class="lx-mono font-normal text-gray-500">{{ queue.partition }}</span>
+        <span v-if="queue.ssh" class="font-normal text-gray-400">on <span class="lx-mono">{{ queue.ssh }}</span></span>
       </h3>
       <span v-if="standing" class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[11px] font-medium">
         {{ standing }}
@@ -66,9 +68,13 @@
         />
       </div>
 
-      <div class="lx-list bg-white overflow-x-auto">
+      <!--
+        In a card, the table keeps to a share of the window and scrolls
+        within itself, its header staying put; on its own page it has the room.
+      -->
+      <div class="lx-list bg-white overflow-auto" :class="full ? '' : 'max-h-[45vh]'">
         <table class="w-full text-xs">
-          <thead>
+          <thead class="sticky top-0 bg-white z-10">
             <tr class="text-[11px] text-gray-400 text-left">
               <th class="font-medium px-3 py-1.5">Job</th>
               <th class="font-medium px-3 py-1.5">Name</th>

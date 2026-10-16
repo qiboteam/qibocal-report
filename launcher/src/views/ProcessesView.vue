@@ -125,6 +125,7 @@
             :active="run.status === 'running'"
             :label="`Output of ${run.label}`"
             placeholder="Waiting for output…"
+            max-height="55vh"
           />
         </details>
       </section>

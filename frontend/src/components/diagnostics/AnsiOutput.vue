@@ -7,7 +7,7 @@
         <slot name="actions" />
       </div>
     </div>
-    <pre ref="terminal" tabindex="0" :aria-label="label" @scroll="handleScroll"><code><span v-for="(segment, index) in segments" :key="index" :style="segment.style">{{ segment.text }}</span><span v-if="!text" class="terminal-placeholder">{{ placeholder }}</span></code></pre>
+    <pre ref="terminal" tabindex="0" :aria-label="label" :style="maxHeight ? { maxHeight } : undefined" @scroll="handleScroll"><code><span v-for="(segment, index) in segments" :key="index" :style="segment.style">{{ segment.text }}</span><span v-if="!text" class="terminal-placeholder">{{ placeholder }}</span></code></pre>
   </div>
 </template>
 
@@ -19,20 +19,47 @@ const props = defineProps({
   text: { type: String, default: '' },
   active: { type: Boolean, default: true },
   label: { type: String, default: 'Terminal output' },
-  placeholder: { type: String, default: 'Waiting for output...' }
+  placeholder: { type: String, default: 'Waiting for output...' },
+  /**
+   * A ceiling for the output, as CSS — `55vh`, say. Within it the output
+   * scrolls by itself, and "Follow output" has something to follow: left
+   * unset, the output grows with its content and the page scrolls instead.
+   */
+  maxHeight: { type: String, default: '' }
 })
 const terminal = ref(null)
 const follow = ref(true)
 const segments = computed(() => ansiSegments(props.text))
 
+/** How close to the bottom counts as "at the bottom": a couple of lines. */
+const THRESHOLD = 40
+let scrollingProgrammatically = false
+
+/**
+ * Following tracks the reader: scrolled up, it stops, so new output does
+ * not pull the view away from what is being read; scrolled back down to
+ * within the threshold, it resumes. Our own scrolls to the bottom do not
+ * count as the reader's.
+ */
 function handleScroll() {
+  if (scrollingProgrammatically) return
   const element = terminal.value
-  follow.value = element.scrollHeight - element.scrollTop - element.clientHeight < 24
+  if (!element) return
+  follow.value = element.scrollHeight - element.scrollTop - element.clientHeight < THRESHOLD
 }
 
+function scrollToBottom() {
+  const element = terminal.value
+  if (!element) return
+  scrollingProgrammatically = true
+  element.scrollTop = element.scrollHeight
+  requestAnimationFrame(() => { scrollingProgrammatically = false })
+}
+
+// New output, or following switched on, brings the bottom into view.
 watch([() => props.text, () => props.active, follow], async () => {
   await nextTick()
-  if (props.active && follow.value && terminal.value) terminal.value.scrollTop = terminal.value.scrollHeight
+  if (follow.value) scrollToBottom()
 })
 </script>
 
