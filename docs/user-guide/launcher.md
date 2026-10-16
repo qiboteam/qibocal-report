@@ -57,6 +57,10 @@ Under the cards, **Running now** names what is alive at the moment, in a line ea
 
 A second window shows another page next to the first — two reports, a report and the servers, the launcher and the dashboard. **Window → New Window** (`Cmd/Ctrl+Shift+N`) opens the page one is on again, in a window of its own. Wherever something opens — the Dashboard card, a server's **Open**, a report in the dashboard's list — a modifier held while clicking (command or control, or shift), the middle button, or `Shift+Enter` on the keyboard opens it in a new window instead. The context menu's *Open Link in New Window* works too, on every link; a report's row or card in the dashboard's list, which is not a link, has a menu of its own on right-click — *Open*, *Open in New Window*. Links that leave the application open in the browser, as before. Each window is a page of the same application, so they share the servers, the notifications and the processes; closing one of several closes it alone, and closing the last is closing the application. There are no tabs.
 
+### Zoom
+
+The interface zooms as a browser does: `Cmd/Ctrl` with `+` and `-` steps the level up and down through the usual stops, from 50% to 300%, `Cmd/Ctrl+0` returns to the actual size, and the wheel with `Cmd/Ctrl` held — or a pinch on a trackpad — does the same; the **View** menu has the three, with the current level named on *Actual Size*. The level is remembered, and is the same on the launcher's pages, on the dashboard's, and in every window.
+
 ### Keyboard
 
 The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the list over any page — the launcher's and the dashboard's alike. Letters work anywhere but in a text field; the menu shortcuts, with their modifier, work everywhere.
@@ -80,6 +84,7 @@ The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the l
 | `Cmd/Ctrl+N` | Register a server, from the Servers menu |
 | `Cmd/Ctrl+/` | Help |
 | `Cmd/Ctrl+Shift+N` | This page again, in a new window |
+| `Cmd/Ctrl++`, `Cmd/Ctrl+-`, `Cmd/Ctrl+0` | Zoom in, zoom out, actual size; the wheel with the key held zooms too |
 | `Shift+Enter` | What is under the cursor, in a new window, where `Enter` opens it |
 
 On each page, `j` and `k` walk its list — `h` and `l` too, where there is a side to move to — the entry under the cursor wears an outline, `Enter` does what a click does, and a letter acts on that entry; `Esc` clears the cursor. No key does anything that cannot be undone: a server is started, never forgotten, from the keyboard. The cheatsheet on `?` lists the keys of the page it is opened on, first.

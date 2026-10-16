@@ -41,7 +41,10 @@ export const SHORTCUTS = [
     .map(section => ({ keys: [section.accelerator], what: `${section.title}, from the Go menu`, group: 'Menu' })),
   { keys: ['CmdOrCtrl+D'], what: 'Open the Dashboard, from the Go menu', group: 'Menu' },
   { keys: ['CmdOrCtrl+Shift+N'], what: 'This page again, in a new window, from the Window menu', group: 'Menu' },
-  { keys: ['CmdOrCtrl+N'], what: 'Register a server, from the Servers menu', group: 'Menu' }
+  { keys: ['CmdOrCtrl+N'], what: 'Register a server, from the Servers menu', group: 'Menu' },
+  { keys: ['CmdOrCtrl+Plus'], what: 'Zoom in; also the wheel with the key held', group: 'Menu' },
+  { keys: ['CmdOrCtrl+-'], what: 'Zoom out', group: 'Menu' },
+  { keys: ['CmdOrCtrl+0'], what: 'Actual size', group: 'Menu' }
 ]
 
 /** A menu accelerator as the keys on this keyboard, for showing. */
@@ -54,6 +57,7 @@ export function describeKeys(keys, platform = typeof navigator === 'undefined' ?
       if (part === 'Shift') return mac ? '⇧' : 'Shift'
       if (part === 'Comma') return ','
       if (part === 'Slash') return '/'
+      if (part === 'Plus' || part === '') return '+'
       return part
     })
   })

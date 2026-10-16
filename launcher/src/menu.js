@@ -6,6 +6,7 @@
  */
 import { isDesktop } from './bridge.js'
 import { sections } from './router.js'
+import { describeZoom, zoom, zoomLevel } from './zoom.js'
 
 const MAX_QUICK_SERVERS = 8
 
@@ -87,6 +88,31 @@ async function build({ goTo, openDashboard, launchServer, servers }) {
         text: 'Register a Server…',
         accelerator: 'CmdOrCtrl+N',
         action: () => goTo('servers')
+      })
+    ]
+  }))
+
+  // The zoom, as every browser has it; the level is shown on the reset item.
+  items.push(await Submenu.new({
+    text: 'View',
+    items: [
+      await MenuItem.new({
+        id: 'menu-zoom-in',
+        text: 'Zoom In',
+        accelerator: 'CmdOrCtrl+Plus',
+        action: () => zoom('in')
+      }),
+      await MenuItem.new({
+        id: 'menu-zoom-out',
+        text: 'Zoom Out',
+        accelerator: 'CmdOrCtrl+-',
+        action: () => zoom('out')
+      }),
+      await MenuItem.new({
+        id: 'menu-zoom-reset',
+        text: `Actual Size${zoomLevel() === 1 ? '' : ` (now ${describeZoom(zoomLevel())})`}`,
+        accelerator: 'CmdOrCtrl+0',
+        action: () => zoom('reset')
       })
     ]
   }))

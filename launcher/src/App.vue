@@ -33,6 +33,7 @@ import ShortcutsDialog from './components/ShortcutsDialog.vue'
 import StatusBar from './components/StatusBar.vue'
 import { installMenu } from './menu.js'
 import { installShortcuts } from './shortcuts.js'
+import { installZoom, onZoom } from './zoom.js'
 import { state, fail, initialize, launchOptionsFor, openDashboard, startServer } from './state.js'
 
 const router = useRouter()
@@ -65,8 +66,13 @@ function refreshMenu() {
 }
 
 let uninstallShortcuts = () => {}
+let uninstallZoom = () => {}
+let forgetZoom = () => {}
 
 onMounted(async () => {
+  uninstallZoom = installZoom()
+  // The View menu names the level: rebuilt when it changes.
+  forgetZoom = onZoom(refreshMenu)
   uninstallShortcuts = installShortcuts({
     go: name => router.push({ name }),
     dashboard: () => openDashboard(),
@@ -76,7 +82,11 @@ onMounted(async () => {
   refreshMenu()
 })
 
-onBeforeUnmount(() => uninstallShortcuts())
+onBeforeUnmount(() => {
+  uninstallShortcuts()
+  uninstallZoom()
+  forgetZoom()
+})
 
 watch(() => state.servers.map(server => `${server.id}:${server.name}`).join('|'), refreshMenu)
 </script>

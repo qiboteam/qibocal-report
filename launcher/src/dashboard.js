@@ -16,6 +16,7 @@ import { launchKeys, serverUrl } from './lib/servers.js'
 import { installMenu } from './menu.js'
 import { sections } from './router.js'
 import { installShortcuts } from './shortcuts.js'
+import { installZoom, onZoom } from './zoom.js'
 import { state, fail, initialize, notify } from './state.js'
 import { pageShortcuts } from './pagekeys.js'
 
@@ -114,8 +115,10 @@ installShortcuts({
   target: window
 })
 
-servers().then(registered =>
-  installMenu({
+installZoom()
+
+function menu(registered) {
+  return installMenu({
     goTo,
     // The dashboard is already on screen; the item scrolls back to its top.
     openDashboard: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
@@ -123,4 +126,10 @@ servers().then(registered =>
     launchServer: server => goTo('servers', `?server=${encodeURIComponent(server.id)}`),
     servers: registered
   })
-)
+}
+
+servers().then(registered => {
+  menu(registered)
+  // The View menu names the level: rebuilt when it changes.
+  onZoom(() => menu(registered))
+})
