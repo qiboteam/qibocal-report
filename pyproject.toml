@@ -5,7 +5,7 @@ build-backend = "uv_build"
 [project]
 name = "qibocal-report"
 version = "0.1.0"
-description = "Modern web app and server for Qibocal calibration reports"
+description = "The server behind the Qibocal calibration report dashboard"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }

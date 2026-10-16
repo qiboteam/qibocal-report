@@ -78,13 +78,10 @@ Checks enforce:
 
 ## 📦 Building & Packaging
 
-`qibocal-report` bundles the compiled Vue frontend inside the Python wheel distribution (`src/qibocal_report/static/`) so users can install and run the complete app with a single `pip install`:
+The Python package is the server alone: headless, without the dashboard, which is deployed from `frontend/` to GitHub Pages by `.github/workflows/deploy.yml` and embedded in the desktop launcher — one build of the pages, in two places, rather than a third copy in every wheel.
 
 ```bash
-# 1. Build frontend and copy assets into Python package static directory
-devenv shell -- build-frontend
-
-# 2. Build standalone Python wheel using uv
+# The wheel, with uv
 devenv shell -- build-wheel
 # or: uv build
 ```

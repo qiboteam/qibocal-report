@@ -54,7 +54,7 @@ qibocal config clean -f
 
 ### `qibocal report server`
 
-Starts the FastAPI backend server and serves the embedded web application.
+Starts the report server: the API the dashboard reads. The server is headless — the dashboard is deployed at [qibo.science/qibocal-report](https://qibo.science/qibocal-report), and embedded in the desktop application; the server's address is added there.
 
 ```bash
 qibocal report server [DIRECTORY] [OPTIONS]
@@ -101,25 +101,6 @@ Bring a remote server's `qibocal-report` up to date, without starting it: the `-
 - `--ssh TEXT` (required): the machine whose environment is updated.
 - `--venv NAME_OR_PATH`, `--install PACKAGES`, `-w, --workdir`, `--timeout`: as for `qibocal report server`.
 
-### `qibocal report client`
-
-Starts the standalone client web application. Useful for monitoring multiple remote servers from your workstation.
-
-```bash
-qibocal report client [OPTIONS]
-```
-
-#### Options
-- `--host TEXT`: Host address to bind to. Default: `127.0.0.1`.
-- `--port INTEGER`: Port to listen on. Default: `8000`.
-- `--reload`: Enable auto-reload for local development. Default: `False`.
-- `--help`: Show help message and exit.
-
-#### Aliases
-- `qibocal report dashboard` (backward-compatible alias).
-
----
-
 ### `qibocal report dev`
 
 Starts the developer server with live Vite Hot Module Replacement (HMR) for the frontend and Uvicorn auto-reload for the backend.
@@ -142,24 +123,6 @@ qibocal report dev [DIRECTORY] [OPTIONS]
 
 #### Aliases
 - `qibocal report develop` (backward-compatible alias).
-
----
-
-### `qibocal report export`
-
-Exports the standalone frontend application for deployment to static web hosts (such as GitHub Pages).
-
-```bash
-qibocal report export [OUTPUT_DIR] [OPTIONS]
-```
-
-#### Arguments
-- `OUTPUT_DIR`: Directory where static assets (`index.html`, `404.html`, `.nojekyll`, and `assets/`) will be written. Default: `./dist`.
-
-#### Options
-- `--build / --no-build`: Build from frontend source tree if present. Default: `--build`.
-- `--base-path TEXT`: Base URL path for assets. Default: `./` (relative paths, compatible with GitHub Pages project subpaths).
-- `--help`: Show help message and exit.
 
 ---
 
@@ -236,7 +199,7 @@ Ask sparingly: every call costs the controller something. The launcher asks ever
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `QIBOCAL_REPORT_DIR` | Absolute path to the calibration directory scanned for reports. | Set by CLI argument |
-| `QIBOCAL_FRONTEND_URL` | Used by developer mode to proxy requests to the Vite dev server. | Unset |
+| `QIBOCAL_DASHBOARD_URL` | The dashboard that invitation links open, told the server's address. | `https://qibo.science/qibocal-report` |
 | `QIBOCAL_REPORT_CONFIG_DIR` | Override the directory containing server configurations and the default authentication database. | `$XDG_CONFIG_HOME/qibocal/`, falling back to `~/.config/qibocal/` |
 | `XDG_CONFIG_HOME` | Default configuration root. | `~/.config/` |
 | `QIBOCAL_REPORT_DATA_DIR` | Override the data directory, whose `reports/` subfolder is served when no directory is named. | `$XDG_DATA_HOME/qibocal/`, falling back to `~/.local/share/qibocal/` |

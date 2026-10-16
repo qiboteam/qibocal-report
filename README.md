@@ -45,13 +45,15 @@ pip install qibocal-report
 Point `qibocal report server` to any directory containing Qibocal calibration runs:
 
 ```bash
-# Start backend server and embedded web app
 qibocal report server ./sample_data --port 8000
 ```
 
-Open your browser at **`http://localhost:8000`**. Without a directory, the
-shared one under `~/.local/share/qibocal/reports` is served, and created if
-it is not there yet.
+The server is headless: it answers its API at `http://localhost:8000`, and no
+page. It is read by the dashboard — deployed at
+[qibo.science/qibocal-report](https://qibo.science/qibocal-report), where the
+server's address is added under **Servers** — or by the desktop application
+below. Without a directory, the shared one under
+`~/.local/share/qibocal/reports` is served, and created if it is not there yet.
 
 The runs often live on another machine. Add `--ssh` and the server starts there
 instead, in a managed environment, and is tunnelled back to a local address:
@@ -86,15 +88,7 @@ See **`man qibocal`** ([source](data/share/man/man1/qibocal.1)) for connection
 management, environment setup, networking requirements, and configuration
 examples, or `qibocal notebook connect --help` for command options.
 
-### 3. Standalone Client Mode
-
-To monitor and manage multiple remote report servers across your lab network from your workstation:
-
-```bash
-qibocal report client --port 8000
-```
-
-### 4. Developer Mode (Live HMR)
+### 3. Developer Mode (Live HMR)
 
 For developers modifying the frontend or backend:
 
@@ -104,19 +98,20 @@ qibocal report dev ./sample_data
 
 Starts the FastAPI backend with auto-reload and the Vite frontend dev server at `http://localhost:5173` with instant Hot Module Replacement.
 
-### 5. Static Export & GitHub Pages Deployment
+### 4. The Dashboard
 
-The frontend can be exported as a standalone static Single Page Application (SPA) for static hosts such as **GitHub Pages**. Because GitHub Pages serves static files, only the frontend is deployed; backend instances run independently on your lab servers or cloud infrastructure and connect directly via the web interface:
+The dashboard is a static single-page application, built from
+[`frontend/`](frontend/) and deployed to GitHub Pages at
+[qibo.science/qibocal-report](https://qibo.science/qibocal-report) by
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to
+`main`. The report servers do not serve it — they stay headless — and the Python
+package does not carry it: it connects to any number of servers from the
+browser, and the desktop launcher embeds the very same pages. To build it by
+hand:
 
 ```bash
-# Export static bundle via CLI
-qibocal report export ./dist
-
-# Or build directly with pnpm
 cd frontend && pnpm run build
 ```
-
-Automated deployment to GitHub Pages is configured via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml).
 
 Navigation uses hash URLs so that refreshing or sharing a page works on static
 hosts without server-side routing. The deployment path is preserved: for example,
@@ -124,7 +119,7 @@ the hosted documentation is at
 [`https://qibo.science/qibocal-report/#/docs`](https://qibo.science/qibocal-report/#/docs).
 Static exports also work at other subpaths without configuring the router.
 
-### 6. Desktop Launcher
+### 5. Desktop Launcher
 
 The [launcher](launcher/) is a desktop application that does what the web page cannot: it
 reaches the machine it runs on. It starts report servers and notebook sessions,

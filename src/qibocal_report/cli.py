@@ -478,16 +478,18 @@ def server(
         if initial_token:
             auth_lines += (
                 f"\n[bold yellow]🔑 Admin Invite Link  :[/bold yellow] "
-                f"{url}/#/invite?token={initial_token}"
+                f"{config.invite_link(url, initial_token)}"
             )
 
     console.print(
         Panel.fit(
             f"[bold cyan]📁 Reports Directory :[/bold cyan] {dir_path}\n"
             f"[bold cyan]⚙️  FastAPI Server   :[/bold cyan] {url}\n"
-            f"[bold cyan]📖 REST API Docs     :[/bold cyan] {url}/api/docs/swagger"
+            f"[bold cyan]📖 REST API Docs     :[/bold cyan] {url}/api/docs/swagger\n"
+            f"[bold cyan]🖥️  Dashboard        :[/bold cyan] {config.DASHBOARD_URL}"
             f"{auth_lines}\n\n"
-            "[dim]Press Ctrl+C to stop the server.[/dim]",
+            "[dim]The server has no page of its own: add its address in the dashboard,\n"
+            "or in the Qibocal desktop application. Press Ctrl+C to stop the server.[/dim]",
             title="[bold magenta]⚛️  Qibocal Report Server[/bold magenta]",
             border_style="magenta",
         )
@@ -615,7 +617,6 @@ def dev(
 
     backend_url = f"http://{host}:{port}"
     frontend_url = f"http://{host}:{frontend_port}"
-    os.environ["QIBOCAL_FRONTEND_URL"] = frontend_url
 
     if register:
         config.add_server(
@@ -635,7 +636,7 @@ def dev(
         if initial_token:
             auth_lines += (
                 f"\n[bold yellow]🔑 Admin Invite Link  :[/bold yellow] "
-                f"{frontend_url}/#/invite?token={initial_token}"
+                f"{config.invite_link(backend_url, initial_token, dashboard=frontend_url)}"
             )
 
     panel_content = (
@@ -705,136 +706,6 @@ def develop_alias(
 ):
     """Backward-compatible alias for 'dev'."""
     ctx.forward(dev)
-
-
-@report.command(name="client")
-@click.option("--host", default="127.0.0.1", help="Host address to bind to.")
-@click.option("--port", default=8000, type=int, help="Port to listen on.")
-@click.option("--reload", is_flag=True, default=False, help="Enable auto-reload.")
-def client(host: str, port: int, reload: bool):
-    """Start the client.
-
-    To browse and manage multiple Qibocal report servers.
-    """
-    url = f"http://{host}:{port}"
-    console = Console()
-    console.print(
-        Panel.fit(
-            f"[bold cyan]🌐 Client URL :[/bold cyan] {url}/#/servers\n\n"
-            "[dim]Press Ctrl+C to stop the client.[/dim]",
-            title="[bold magenta]⚛️  Qibocal Report Client[/bold magenta]",
-            border_style="magenta",
-        )
-    )
-
-    uvicorn.run(
-        "qibocal_report.api:app",
-        host=host,
-        port=port,
-        reload=reload,
-        log_config=get_uvicorn_log_config(),
-    )
-
-
-@report.command(name="dashboard", hidden=True)
-@click.option("--host", default="127.0.0.1", help="Host address to bind to.")
-@click.option("--port", default=8000, type=int, help="Port to listen on.")
-@click.option("--reload", is_flag=True, default=False, help="Enable auto-reload.")
-@click.pass_context
-def dashboard_alias(ctx, host: str, port: int, reload: bool):
-    """Backward-compatible alias for 'client'."""
-    ctx.forward(client)
-
-
-@report.command(name="export")
-@click.argument(
-    "output_dir",
-    default="./dist",
-    type=click.Path(file_okay=False, dir_okay=True),
-)
-@click.option(
-    "--build/--no-build",
-    default=True,
-    help="Build frontend from source if frontend directory exists.",
-)
-@click.option(
-    "--base-path",
-    default="./",
-    help="Base URL path for assets (default: ./ for relative paths).",
-)
-def export_static(output_dir: str, build: bool, base_path: str):
-    """Export static web application for hosting (e.g. GitHub Pages)."""
-    out_path = Path(output_dir).resolve()
-    console = Console()
-
-    # Locate frontend directory
-    frontend_dir = Path(__file__).resolve().parent.parent.parent / "frontend"
-    if not frontend_dir.is_dir() or not (frontend_dir / "package.json").is_file():
-        frontend_dir = Path.cwd() / "frontend"
-
-    has_frontend_src = (
-        frontend_dir.is_dir() and (frontend_dir / "package.json").is_file()
-    )
-
-    built_fresh = False
-    if build and has_frontend_src:
-        console.print(f"[dim]Building frontend in {frontend_dir}...[/dim]")
-        if shutil.which("pnpm"):
-            cmd = ["pnpm", "run", "build"]
-        elif shutil.which("npm"):
-            cmd = ["npm", "run", "build"]
-        elif shutil.which("npx"):
-            cmd = ["npx", "vite", "build"]
-        else:
-            raise click.ClickException(
-                "Neither pnpm nor npm found in PATH to build frontend."
-            )
-        env = os.environ.copy()
-        env["BASE_PATH"] = base_path
-        res = subprocess.run(cmd, cwd=frontend_dir, env=env, check=False)
-        if res.returncode != 0:
-            raise click.ClickException(
-                f"Frontend build failed with exit code {res.returncode}"
-            )
-        source_dist = frontend_dir / "dist"
-        built_fresh = True
-    else:
-        source_dist = Path(__file__).resolve().parent / "static"
-        if not source_dist.is_dir() or not (source_dist / "index.html").is_file():
-            if has_frontend_src and (frontend_dir / "dist" / "index.html").is_file():
-                source_dist = frontend_dir / "dist"
-            else:
-                raise click.ClickException(
-                    "No static build found in static directory or frontend/dist. "
-                    "Run with --build or build the frontend first."
-                )
-
-    out_path.mkdir(parents=True, exist_ok=True)
-    if out_path != source_dist.resolve():
-        for item in source_dist.iterdir():
-            dest = out_path / item.name
-            if item.is_dir():
-                if dest.exists():
-                    shutil.rmtree(dest)
-                shutil.copytree(item, dest)
-            else:
-                shutil.copy2(item, dest)
-
-    (out_path / ".nojekyll").touch(exist_ok=True)
-    if (out_path / "index.html").is_file() and not (out_path / "404.html").is_file():
-        shutil.copy2(out_path / "index.html", out_path / "404.html")
-
-    src_label = "Fresh build from source" if built_fresh else str(source_dist)
-    console.print(
-        Panel.fit(
-            f"[bold cyan]📁 Export Destination :[/bold cyan] {out_path}\n"
-            f"[bold cyan]🌐 Base Asset Path    :[/bold cyan] {base_path}\n"
-            f"[bold cyan]📦 Source             :[/bold cyan] {src_label}\n\n"
-            "[green]✓ Static export ready for GitHub Pages or static web hosts.[/green]",
-            title="[bold magenta]⚛️  Qibocal Report Static Export[/bold magenta]",
-            border_style="magenta",
-        )
-    )
 
 
 # --- Administrator and Invite Link Management ---
@@ -1079,7 +950,7 @@ def admin_invite(
             else:
                 base_url = "http://localhost:8000"
 
-    invite_url = f"{base_url}/#/invite?token={invite_data['token']}"
+    invite_url = config.invite_link(base_url, invite_data["token"])
     expires_str = invite_data.get("expires_at") or "Never"
 
     if output_json:
@@ -1106,9 +977,8 @@ def admin_invite(
         f"[bold cyan]🌐 Server Endpoint:[/bold cyan] {base_url}\n\n"
         f"[bold yellow]🔑 Invite Link    :[/bold yellow]\n"
         f"[underline bold]{invite_url}[/underline bold]\n\n"
-        "[dim]To restore access:\n"
-        "  1. Open the invite link directly in your browser, or\n"
-        "  2. Paste it into the connect bar in Server Management (#/servers).[/dim]"
+        "[dim]To restore access, open the invite link in a browser: it opens the\n"
+        "dashboard on this server.[/dim]"
     )
     console.print(
         Panel.fit(

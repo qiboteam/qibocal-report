@@ -307,3 +307,22 @@ def delete_server(server_id: str) -> bool:
         save_servers(servers)
         return True
     return False
+
+
+# --- The dashboard, which no server serves itself ---------------------------
+# The server is headless: the dashboard that reads it is the one deployed from
+# the frontend package, or the one the desktop launcher embeds. A link that
+# needs a page — an invitation — points at the deployed one, which takes the
+# server to address in its query.
+DASHBOARD_URL = os.environ.get(
+    "QIBOCAL_DASHBOARD_URL", "https://qibo.science/qibocal-report"
+).rstrip("/")
+
+
+def invite_link(server_url: str, token: str, dashboard: str | None = None) -> str:
+    """The link an invitation is sent as: the dashboard, told the server and the token."""
+    from urllib.parse import urlencode
+
+    page = (dashboard or DASHBOARD_URL).rstrip("/")
+    query = urlencode({"token": token, "server": server_url.rstrip("/")})
+    return f"{page}/#/invite?{query}"

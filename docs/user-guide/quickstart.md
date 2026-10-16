@@ -32,11 +32,11 @@ pip install -e .
 
 ## 🚀 Running the Server & Application
 
-The command-line tool `qibocal report` provides three execution modes:
+The command-line tool `qibocal report` runs the server in two ways:
 
-### 1. Standard Server Mode
+### 1. Report Server
 
-Start the FastAPI backend server and embedded web application on any directory containing Qibocal calibration folders:
+Start the server on any directory containing Qibocal calibration folders:
 
 ```bash
 # Serve reports from current directory
@@ -46,19 +46,9 @@ qibocal report server
 qibocal report server ./sample_data --port 8000
 ```
 
-Open your browser at **`http://localhost:8000`**.
+The server is headless: it answers its API at `http://localhost:8000`, and no page. Open the dashboard at [qibo.science/qibocal-report](https://qibo.science/qibocal-report) — or the Qibocal desktop application — and add the server's address under **Servers**. The dashboard reads any number of servers from one browser, on lab computers, measurement rigs and clusters alike.
 
-### 2. Standalone Client Mode
-
-If you are running report servers across remote lab computers, measurement rigs, or HPC clusters, launch the standalone client on your local workstation:
-
-```bash
-qibocal report client --port 8000
-```
-
-The client opens directly to the **Server Management** interface, where you can register and monitor multiple remote servers simultaneously.
-
-### 3. Developer Mode (Live HMR)
+### 2. Developer Mode (Live HMR)
 
 For frontend and backend developers wanting live Hot Module Replacement:
 

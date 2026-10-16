@@ -427,12 +427,14 @@ def test_docs_endpoint():
     assert r.status_code == 404
 
 
-def test_dev_mode_redirect(monkeypatch):
-    monkeypatch.setenv("QIBOCAL_FRONTEND_URL", "http://localhost:5173")
-    client = TestClient(app, follow_redirects=False)
+def test_the_root_names_the_dashboard():
+    from qibocal_report.config import DASHBOARD_URL
+
+    client = TestClient(app)
     r = client.get("/")
-    assert r.status_code in (307, 302)
-    assert r.headers["location"] == "http://localhost:5173"
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert DASHBOARD_URL in r.text
 
 
 def test_bulk_actions():

@@ -22,12 +22,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import (
     FileResponse,
+    HTMLResponse,
     JSONResponse,
     PlainTextResponse,
     StreamingResponse,
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.staticfiles import StaticFiles
 
 from qibocal_report import auth, config, qibocal_environment
 from qibocal_report.actions import execute_bulk_action, find_report_dirs
@@ -2106,28 +2106,30 @@ app.include_router(
 )
 
 
-# --- Static Files and SPA Frontend Mount ---
-STATIC_DIR = Path(__file__).parent / "static"
+# --- No page of its own: the server is headless ---
+# The dashboard is deployed from the frontend package, and embedded in the
+# desktop launcher; either reads any number of servers. Whoever opens the
+# address in a browser is told where to go.
+ROOT_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Qibocal report server</title>
+<style>
+body { font: 15px/1.5 system-ui, sans-serif; max-width: 36em; margin: 4em auto; padding: 0 1em; color: #1f2937; }
+a { color: #833dff; }
+code { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 0.25em; }
+</style>
+</head>
+<body>
+<h1>Qibocal report server</h1>
+<p>This server has no page of its own. Open the <a href="{dashboard}">dashboard</a>, or the Qibocal desktop application, and add this server's address there.</p>
+<p>The API is under <code>/api</code>; its documentation is at <a href="/api/docs/swagger">/api/docs/swagger</a>.</p>
+</body>
+</html>
+"""
 
-if (STATIC_DIR / "assets").is_dir():
-    app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets"), name="assets")
 
-
-@app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
-async def serve_spa(full_path: str):
-    dev_frontend_url = os.environ.get("QIBOCAL_FRONTEND_URL")
-    if dev_frontend_url:
-        from fastapi.responses import RedirectResponse
-
-        target = f"{dev_frontend_url}/{full_path}".rstrip("/")
-        return RedirectResponse(url=target if full_path else dev_frontend_url)
-
-    if STATIC_DIR.is_dir() and (STATIC_DIR / "index.html").is_file():
-        file_path = STATIC_DIR / full_path
-        if file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(STATIC_DIR / "index.html")
-
-    return PlainTextResponse(
-        "Qibocal Report Server running (API only mode)", status_code=200
-    )
+@app.get("/", include_in_schema=False)
+async def root() -> HTMLResponse:
+    return HTMLResponse(ROOT_PAGE.replace("{dashboard}", config.DASHBOARD_URL))

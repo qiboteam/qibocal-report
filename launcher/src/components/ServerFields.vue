@@ -46,7 +46,6 @@
         </form-field>
 
         <form-field
-          v-if="form.mode !== 'client'"
           v-slot="{ id }"
           class="sm:col-span-2"
           label="Reports directory"
@@ -144,7 +143,7 @@
           </form-field>
         </template>
 
-        <div v-if="form.mode !== 'client'" class="flex items-end sm:col-span-2">
+        <div class="flex items-end sm:col-span-2">
           <toggle-switch
             v-model="form.auth"
             label="User accounts"
@@ -179,8 +178,7 @@ const places = PLACES
 
 const modes = [
   { value: 'server', label: 'Reports', help: 'Serve a directory of calibration runs.' },
-  { value: 'dev', label: 'Developer', help: 'Live interface with hot reloading.' },
-  { value: 'client', label: 'Client', help: 'Browse other servers, serving none.' }
+  { value: 'dev', label: 'Developer', help: 'Live interface with hot reloading.' }
 ]
 
 // Worded like the matching notebook options, which describe the same things.
