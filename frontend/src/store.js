@@ -479,6 +479,25 @@ export function hasActiveSearchFilters(filters = state.searchState?.filters) {
   )
 }
 
+/**
+ * The statistics of everything on the active server, as the list page last
+ * loaded them, so the statistics page opens on them instead of asking
+ * again; kept a minute.
+ */
+const STATS_TTL_MS = 60_000
+let heldStats = null
+
+export function holdReportStats(stats, server = state.activeServer) {
+  if (!stats) return
+  heldStats = { key: getServerAuthKey(server), at: Date.now(), stats }
+}
+
+export function heldReportStats(server = state.activeServer) {
+  if (!heldStats || heldStats.key !== getServerAuthKey(server)) return null
+  if (Date.now() - heldStats.at > STATS_TTL_MS) return null
+  return heldStats.stats
+}
+
 export function notifyServerDataChanged() {
   state.serverDataVersion = (state.serverDataVersion || 0) + 1
 }

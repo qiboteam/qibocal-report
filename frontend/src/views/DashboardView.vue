@@ -401,7 +401,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { desktopWidget, publishPage } from '../utils/desktop.js'
 import { useRouter, useRoute } from 'vue-router'
-import { state, addToHistory, apiFetch, ensureServersLoaded, resolveAuthor, persistSearchState } from '../store.js'
+import { state, addToHistory, apiFetch, ensureServersLoaded, holdReportStats, resolveAuthor, persistSearchState } from '../store.js'
 import { REPORT_FIELDS, STATS_FIELDS, apiGraphQL } from '../api.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
 import { usePagination } from '../composables/usePagination.js'
@@ -919,7 +919,10 @@ async function loadViaGraphQL(page, { everything = false } = {}) {
   totalReports.value = pageData.total
   totalPages.value = pageData.total_pages
   currentPage.value = pageData.page
-  if (everything) filterStats.value = data.stats || filterStats.value
+  if (everything) {
+    filterStats.value = data.stats || filterStats.value
+    holdReportStats(filterStats.value)
+  }
   filteredStats.value = hasActiveFilters.value ? (data.filtered || filterStats.value) : filterStats.value
   loading.value = false
   connectionError.value = null
@@ -932,6 +935,7 @@ async function fetchStats() {
     const res = await apiFetch('/api/reports/stats')
     if (res.ok) {
       filterStats.value = await res.json()
+      holdReportStats(filterStats.value)
     } else {
       filterStats.value = null
     }

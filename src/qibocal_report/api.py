@@ -18,6 +18,7 @@ from fastapi import (
     WebSocket,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import (
     FileResponse,
     JSONResponse,
@@ -106,6 +107,8 @@ from qibocal_report.notes import (
     protocol_notes_directory,
 )
 from qibocal_report.scanner import (
+    report_index_token,
+    cached_report_count,
     _parse_meta_json,
     compute_filter_stats,
     filter_reports,
@@ -325,6 +328,9 @@ async def notes_error_handler(_request: Request, error: NotesError) -> JSONRespo
     return JSONResponse(status_code=500, content={"detail": str(error)})
 
 
+# Plotly JSON compresses five to ten times; anything above a kilobyte goes gzipped.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 # Enable CORS for development frontend
 app.add_middleware(
     CORSMiddleware,
@@ -446,6 +452,23 @@ def qibocal_install_stop(
     return {"detail": "Qibocal installation stop requested."}
 
 
+def unchanged_since(request: Request, response: Response) -> Response | None:
+    """Answer a list or statistics request from the client's own copy when nothing changed.
+
+    The index has a token — the newest mtime it was built from — which goes
+    out as a weak `ETag`; a request bringing it back in `If-None-Match` is
+    answered `304 Not Modified`, and the client keeps what it has.
+    `Cache-Control: private, no-cache` has the browser ask every time, and
+    keep the copy to itself. `scan_reports` first, so the token is current.
+    """
+    etag = f'W/"{report_index_token()}"'
+    response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "private, no-cache"
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "private, no-cache"})
+    return None
+
+
 # --- Health Endpoint ---
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
 def health_check(
@@ -463,11 +486,11 @@ def health_check(
             root_dir="",
             original_root_dir="",
         )
-    reports = scan_reports(REPORT_ROOT_DIR)
+    # Counted from the index as it stands: a health ping must not walk the tree.
     return HealthResponse(
         status="ok",
         server_name=SERVER_NAME,
-        reports_count=len(reports),
+        reports_count=cached_report_count(REPORT_ROOT_DIR),
         root_dir=str(REPORT_ROOT_DIR),
         original_root_dir=str(ORIGINAL_ROOT_DIR),
     )
@@ -1075,6 +1098,7 @@ def change_server_directory(req: ChangeDirectoryRequest) -> ServerDirectoryInfo:
     dependencies=[Depends(require_viewer)],
 )
 def get_reports(
+    request: Request,
     response: Response,
     q: str | None = None,
     folder: str | None = None,
@@ -1096,6 +1120,8 @@ def get_reports(
 ) -> PaginatedReportsResponse | list[ReportSummary]:
     """List and filter Qibocal reports, optionally paginated."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
+    if (unchanged := unchanged_since(request, response)) is not None:
+        return unchanged
     combined_tags = list(set((label or []) + (tag or []))) or None
     combined_qubits = list(set((qubit or []) + (target or []))) or None
     filtered = filter_reports(
@@ -1149,6 +1175,8 @@ def get_reports(
     dependencies=[Depends(require_viewer)],
 )
 def get_filter_statistics(
+    request: Request,
+    response: Response,
     q: str | None = None,
     folder: str | None = None,
     author: Annotated[list[str] | None, Query()] = None,
@@ -1164,6 +1192,8 @@ def get_filter_statistics(
 ) -> FilterStats:
     """Return filter statistics: protocol frequencies, authors, date histogram."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
+    if (unchanged := unchanged_since(request, response)) is not None:
+        return unchanged
     combined_tags = list(set((label or []) + (tag or []))) or None
     combined_qubits = list(set((qubit or []) + (target or []))) or None
     filtered = filter_reports(

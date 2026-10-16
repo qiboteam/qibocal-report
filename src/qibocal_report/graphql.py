@@ -39,6 +39,7 @@ from qibocal_report.scanner import (
     compute_filter_stats,
     filter_reports,
     get_report_detail,
+    read_platform_snapshot,
     scan_reports,
 )
 
@@ -246,10 +247,15 @@ class Protocol:
 @strawberry.type(description="A report in full: `ReportDetail`, with its protocols on request.")
 class ReportFull(Report):
     history: JSON
-    platform_snapshot: JSON
     protocols_summary: list[ProtocolSummary]
     notes: list[Note]
     _directory: strawberry.Private[Path]
+
+    @strawberry.field(
+        description="Every file of `platform/`, parsed, by stem; read only when selected."
+    )
+    def platform_snapshot(self) -> JSON:
+        return read_platform_snapshot(self._directory)
 
     @strawberry.field(
         description=(
@@ -267,7 +273,6 @@ class ReportFull(Report):
         return ReportFull(
             **{name: getattr(base, name) for name in base.__dataclass_fields__},
             history=detail.history if detail.history is not None else {},
-            platform_snapshot=detail.platform_snapshot or {},
             protocols_summary=[
                 ProtocolSummary(
                     id=p.id,

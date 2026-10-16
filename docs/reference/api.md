@@ -67,6 +67,13 @@ entry to the new address instead of adding a second one.
 
 ---
 
+## 🚚 Transport
+
+- **Compression.** Responses above a kilobyte are gzipped when the client accepts it; protocol figures, which are Plotly JSON, shrink five to ten times.
+- **Conditional requests.** `GET /api/reports` and `GET /api/reports/stats` carry a weak `ETag` — the newest modification time the report index was built from — and `Cache-Control: private, no-cache`. A request bringing the tag back in `If-None-Match` is answered `304 Not Modified`.
+- **Index validation.** The report index is validated by walking the report tree; a walk stands for `QIBOCAL_REPORT_SCAN_INTERVAL` seconds (default `2`; `0` walks at every request) before the next, so a burst of requests costs one walk.
+- **What is not sent.** `search_index`, the server's full-text index of a report, stays on the server; `platform_snapshot` is no longer inlined in a report's detail, nor in the WebSocket `metadata` message. `GET /api/health` counts reports from the index as it stands, without validating it.
+
 ## 🧬 GraphQL
 
 ### `POST /api/graphql`
@@ -141,7 +148,7 @@ Returns aggregated statistical distributions across all discovered reports:
 - `date_histogram`: Array of `{ date, count }` chronologically ordered.
 
 ### `GET /api/reports/{report_id}`
-Retrieve detailed metadata, platform snapshots, history, and protocol summaries for a single report.
+Retrieve detailed metadata, history, and protocol summaries for a single report. The `platform_snapshot` field is empty here: the platform files are served by `GET /api/reports/{report_id}/platform/{type}`, and by the GraphQL `report(id) { platform_snapshot }` field when selected.
 
 Report details include session `notes`; protocol outputs include per-execution
 `notes`. Both default to `[]` for reports without a notes file. Notes are read
