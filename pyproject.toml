@@ -22,6 +22,7 @@ dependencies = [
     "rich>=13.0.0",
     "pyjwt>=2.14.0",
     "packaging>=24.0",
+    "strawberry-graphql>=0.240.0",
 ]
 
 [project.optional-dependencies]

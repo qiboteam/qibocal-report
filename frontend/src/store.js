@@ -250,19 +250,67 @@ export const canAccessDashboard = computed(() => {
   return true
 })
 
+/** How long a verified session is trusted before the server is asked again. */
+const SESSION_TTL_MS = 30_000
+const verifiedAt = new Map()
+
 export function checkActiveServerAuth(targetServer = state.activeServer) {
   if (!targetServer) return Promise.resolve(false)
   const key = getServerAuthKey(targetServer)
   if (pendingAuthCheck?.key === key && pendingAuthCheck.version === authCheckVersion) {
     return pendingAuthCheck.promise
   }
+  // Verified a moment ago, for this very server and token: no need to ask again.
+  const recent = verifiedAt.get(key)
+  if (recent && Date.now() - recent.at < SESSION_TTL_MS && recent.token === getActiveAuthToken(targetServer) &&
+      state.auth?.checked && getServerAuthKey(state.activeServer) === key) {
+    return Promise.resolve(true)
+  }
   const version = ++authCheckVersion
   const promise = verifyServerAuth(targetServer, version)
   pendingAuthCheck = { key, version, promise }
-  promise.finally(() => {
+  promise.then(ok => {
+    if (ok) verifiedAt.set(key, { at: Date.now(), token: getActiveAuthToken(targetServer) })
+    else verifiedAt.delete(key)
+  }).finally(() => {
     if (pendingAuthCheck?.promise === promise) pendingAuthCheck = null
   })
   return promise
+}
+
+/**
+ * Whether a server authenticates and who the caller is, in one GraphQL
+ * request; null for a server from before the endpoint, which is asked the
+ * two REST questions instead. Remembered per server, so an old server is
+ * asked once.
+ */
+const serversWithoutGraphQL = new Set()
+
+async function sessionViaGraphQL(targetServer, serverUrl) {
+  const key = serverUrl || 'local'
+  if (serversWithoutGraphQL.has(key)) return null
+  const token = getActiveAuthToken(targetServer)
+  const res = await fetch(serverUrl ? `${serverUrl}/api/graphql` : '/api/graphql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ query: '{ session { auth_enabled user { id username role } } }' }),
+    signal: AbortSignal.timeout(4000),
+    cache: 'no-store'
+  })
+  if (res.status === 404 || res.status === 405) {
+    serversWithoutGraphQL.add(key)
+    return null
+  }
+  if (!res.ok) throw new Error(`Session request failed (${res.status})`)
+  const body = await res.json()
+  if (!body?.data?.session) throw new Error(body?.errors?.[0]?.message || 'Session request failed')
+  const session = body.data.session
+  return {
+    auth_enabled: Boolean(session.auth_enabled),
+    // A token the server does not recognise is no token.
+    token: session.auth_enabled && session.user ? token : null,
+    user: session.user
+  }
 }
 
 async function verifyServerAuth(targetServer, version) {
@@ -272,6 +320,17 @@ async function verifyServerAuth(targetServer, version) {
   const statusUrl = serverUrl ? `${serverUrl}/api/auth/status` : '/api/auth/status'
 
   try {
+    const session = await sessionViaGraphQL(targetServer, serverUrl)
+    if (session) {
+      if (!isCurrent()) return false
+      setServerAuth(targetServer, session.token, session.user)
+      state.auth.enabled = session.auth_enabled
+      state.auth.checked = true
+      state.auth.user = session.auth_enabled ? session.user : { id: 'admin', username: 'local-admin', role: 'admin' }
+      state.auth.errorMessage = ''
+      return true
+    }
+
     const res = await fetch(statusUrl, { signal: AbortSignal.timeout(4000), cache: 'no-store' })
     if (!res.ok) throw new Error(`Authentication status request failed (${res.status})`)
     const data = await res.json()
@@ -418,6 +477,25 @@ export function hasActiveSearchFilters(filters = state.searchState?.filters) {
     (filters.labels && filters.labels.length > 0) ||
     (filters.qubits && filters.qubits.length > 0)
   )
+}
+
+/**
+ * The statistics of everything on the active server, as the list page last
+ * loaded them, so the statistics page opens on them instead of asking
+ * again; kept a minute.
+ */
+const STATS_TTL_MS = 60_000
+let heldStats = null
+
+export function holdReportStats(stats, server = state.activeServer) {
+  if (!stats) return
+  heldStats = { key: getServerAuthKey(server), at: Date.now(), stats }
+}
+
+export function heldReportStats(server = state.activeServer) {
+  if (!heldStats || heldStats.key !== getServerAuthKey(server)) return null
+  if (Date.now() - heldStats.at > STATS_TTL_MS) return null
+  return heldStats.stats
 }
 
 export function notifyServerDataChanged() {

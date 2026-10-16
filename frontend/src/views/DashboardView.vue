@@ -401,7 +401,8 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { desktopWidget, publishPage } from '../utils/desktop.js'
 import { useRouter, useRoute } from 'vue-router'
-import { state, addToHistory, apiFetch, ensureServersLoaded, resolveAuthor, persistSearchState } from '../store.js'
+import { state, addToHistory, apiFetch, ensureServersLoaded, holdReportStats, resolveAuthor, persistSearchState } from '../store.js'
+import { REPORT_FIELDS, STATS_FIELDS, apiGraphQL } from '../api.js'
 import { useReportFilters } from '../composables/useReportFilters.js'
 import { usePagination } from '../composables/usePagination.js'
 import { useBulkActions } from '../composables/useBulkActions.js'
@@ -646,15 +647,42 @@ function getCurrentFilterKey() {
   return getFilterQueryKey(activeServer.value, pageSize.value)
 }
 
+/**
+ * The neighbouring pages, fetched one at a time once the page is idle —
+ * not all at once the moment the current one lands — and only while the
+ * filters they were meant for are still the ones on screen.
+ */
+let prefetchToken = 0
 function prefetchAccessiblePages() {
-  const targetPages = getAccessiblePages(currentPage.value, totalPages.value)
+  const token = ++prefetchToken
   const qKey = getCurrentFilterKey()
-  for (const p of targetPages) {
-    const key = getCacheKey(qKey, p)
-    if (!hasInCache(key)) {
-      fetchReports(p, true)
+  const pending = getAccessiblePages(currentPage.value, totalPages.value)
+    .filter(p => !hasInCache(getCacheKey(qKey, p)))
+  const idle = typeof requestIdleCallback === 'function'
+    ? callback => requestIdleCallback(callback, { timeout: 2000 })
+    : callback => setTimeout(callback, 300)
+  const next = async () => {
+    if (token !== prefetchToken || getCurrentFilterKey() !== qKey) return
+    const p = pending.shift()
+    if (p === undefined) return
+    await fetchReports(p, true)
+    idle(next)
+  }
+  idle(next)
+}
+
+/** One page over GraphQL, in the shape the REST endpoint answers; null without GraphQL. */
+const PAGE_QUERY = `
+  query Page($where: ReportFilter, $page: Int!, $page_size: Int!) {
+    reports(where: $where, page: $page, page_size: $page_size) {
+      items { ${REPORT_FIELDS} }
+      total page page_size total_pages
     }
   }
+`
+async function pageViaGraphQL(page) {
+  const data = await apiGraphQL(PAGE_QUERY, { where: filterInput(), page, page_size: pageSize.value })
+  return data?.reports || null
 }
 
 function goToPage(p) {
@@ -662,10 +690,13 @@ function goToPage(p) {
   fetchReports(p, false)
 }
 
-function applyFilterChange(changeFn) {
+async function applyFilterChange(changeFn) {
   if (changeFn) changeFn()
   currentPage.value = 1
   clearCache()
+  loading.value = true
+  // The new page and its statistics, in one request where the server allows.
+  if (await loadViaGraphQL(1)) return
   fetchReports(1, false)
   fetchFilteredStats()
 }
@@ -818,8 +849,85 @@ async function refreshData(preservePage = false) {
   filterStats.value = null
   filteredStats.value = null
   clearCache()
+  // One request where there were three, on a server that answers GraphQL.
+  if (await loadViaGraphQL(targetPage, { everything: true })) return
   await Promise.all([fetchStats(), fetchReports(targetPage, false)])
   await fetchFilteredStats()
+}
+
+/**
+ * The page, the statistics of everything and the statistics of what is
+ * filtered, in one GraphQL request. Answers false when the server has no
+ * GraphQL, or the request failed in a way the REST path should retry: the
+ * caller then asks over REST, as before.
+ */
+const DASHBOARD_QUERY = `
+  query Dashboard($where: ReportFilter, $page: Int!, $page_size: Int!, $everything: Boolean!, $filtered: Boolean!) {
+    reports(where: $where, page: $page, page_size: $page_size) {
+      items { ${REPORT_FIELDS} }
+      total page page_size total_pages
+    }
+    stats @include(if: $everything) { ${STATS_FIELDS} }
+    filtered: stats(where: $where) @include(if: $filtered) { ${STATS_FIELDS} }
+  }
+`
+
+/** The filters as the GraphQL schema takes them: the REST query parameters, named. */
+function filterInput() {
+  const start = filters.startDate || filters.date
+  const end = filters.endDate || filters.date
+  return {
+    query: filters.q.trim() || null,
+    folder: filters.folder || null,
+    authors: filters.author ? [filters.author] : null,
+    platforms: filters.platform ? [filters.platform] : null,
+    protocols: filters.protocols.length ? [...filters.protocols] : null,
+    labels: filters.labels.length ? [...filters.labels] : null,
+    qubits: filters.qubits?.length ? [...filters.qubits] : null,
+    start_date: start || null,
+    end_date: end || null,
+    sort_by: filters.sort_by || 'date_desc'
+  }
+}
+
+async function loadViaGraphQL(page, { everything = false } = {}) {
+  if (!activeServer.value && (!state.servers || state.servers.length === 0)) return false
+  let data = null
+  try {
+    data = await apiGraphQL(DASHBOARD_QUERY, {
+      where: filterInput(),
+      page,
+      page_size: pageSize.value,
+      everything,
+      filtered: hasActiveFilters.value
+    })
+  } catch (err) {
+    console.warn('GraphQL request failed, asking over REST instead', err)
+    return false
+  }
+  if (!data?.reports) return false
+  const pageData = data.reports
+  const payload = {
+    items: pageData.items,
+    total: pageData.total,
+    total_pages: pageData.total_pages,
+    page: pageData.page,
+    page_size: pageSize.value
+  }
+  setCache(getCacheKey(getCurrentFilterKey(), pageData.page), payload)
+  reports.value = pageData.items
+  totalReports.value = pageData.total
+  totalPages.value = pageData.total_pages
+  currentPage.value = pageData.page
+  if (everything) {
+    filterStats.value = data.stats || filterStats.value
+    holdReportStats(filterStats.value)
+  }
+  filteredStats.value = hasActiveFilters.value ? (data.filtered || filterStats.value) : filterStats.value
+  loading.value = false
+  connectionError.value = null
+  prefetchAccessiblePages()
+  return true
 }
 
 async function fetchStats() {
@@ -827,6 +935,7 @@ async function fetchStats() {
     const res = await apiFetch('/api/reports/stats')
     if (res.ok) {
       filterStats.value = await res.json()
+      holdReportStats(filterStats.value)
     } else {
       filterStats.value = null
     }
@@ -856,45 +965,12 @@ async function fetchFilteredStats() {
     filters.labels.forEach(l => params.append('label', l))
     filters.qubits?.forEach(q => params.append('qubit', q))
 
-    // 1. Try backend /api/reports/stats endpoint
-    let statsData = null
-    try {
-      const res = await apiFetch(`/api/reports/stats?${params.toString()}`)
-      if (res.ok) {
-        statsData = await res.json()
-      }
-    } catch {
-      statsData = null
-    }
-
-    // 2. Verify if the returned stats actually reflect the filter.
-    // If backend ignored query parameters, statsData.total_reports will equal fullStats.total_reports
-    // while totalReports.value is smaller, or it won't respect active criteria.
-    const fullTotal = filterStats.value?.total_reports ?? 0
-    const isHonored = Boolean(
-      statsData &&
-      (fullTotal === 0 || totalReports.value === 0 || statsData.total_reports === totalReports.value || statsData.total_reports < fullTotal) &&
-      (!filters.platform || statsData.platforms.every(p => p.name === filters.platform)) &&
-      (!filters.author || statsData.authors.every(a => a === filters.author)) &&
-      (!start || statsData.date_histogram.every(d => d.date >= start)) &&
-      (!end || statsData.date_histogram.every(d => d.date <= end))
-    )
-
-    if (isHonored) {
-      filteredStats.value = statsData
-      return
-    }
-
-    // 3. Fallback: Fetch all matching reports from /api/reports (unpaginated) and compute stats client-side.
-    // This is 100% reliable across all servers and dev setups.
-    const reportsRes = await apiFetch(`/api/reports?${params.toString()}`)
-    if (reportsRes.ok) {
-      const data = await reportsRes.json()
-      const items = Array.isArray(data) ? data : (data.items || [])
-      filteredStats.value = computeStatsFromReports(items)
-    } else {
-      filteredStats.value = null
-    }
+    // The server's statistics of what is filtered. Every server this
+    // client speaks to honours the filters here; the old doubt about it
+    // used to be settled by downloading every matching report and counting
+    // client-side — the largest transfer the page could make, on a guess.
+    const res = await apiFetch(`/api/reports/stats?${params.toString()}`)
+    filteredStats.value = res.ok ? await res.json() : null
   } catch (err) {
     console.error('Failed to fetch filtered stats', err)
     filteredStats.value = null
@@ -932,6 +1008,14 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
   }
 
   try {
+    // A server with GraphQL answers the page in the REST shape; the REST
+    // request below is for the others.
+    let data = null
+    try {
+      data = await pageViaGraphQL(page)
+    } catch (err) {
+      console.warn('GraphQL page request failed, asking over REST instead', err)
+    }
     const params = new URLSearchParams()
     params.set('page', String(page))
     params.set('page_size', String(pageSize.value))
@@ -948,9 +1032,9 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
     filters.labels.forEach(l => params.append('label', l))
     filters.qubits?.forEach(q => params.append('qubit', q))
 
-    const res = await apiFetch(`/api/reports?${params.toString()}`)
-    if (res.ok) {
-      const data = await res.json()
+    const res = data ? null : await apiFetch(`/api/reports?${params.toString()}`)
+    if (data || res.ok) {
+      if (!data) data = await res.json()
       const items = Array.isArray(data) ? data : (data.items || [])
       const total = Array.isArray(data) ? data.length : (data.total ?? items.length)
       const total_pages = Array.isArray(data) ? 1 : (data.total_pages ?? 1)

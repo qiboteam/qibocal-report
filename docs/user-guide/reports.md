@@ -32,7 +32,10 @@ goes back to the search, `d` opens the documentation of the selected protocol,
 `x` downloads its data, `c` toggles its comments (the session's, from the
 header), `n` and `o` open the new and old platform pages, and `w` toggles the
 live mode. Plots are drawn as they come near the viewport, and the rest in the
-idle moments after, so a large report shows its first screen at once. Sidebar entries
+idle moments after, so a large report shows its first screen at once. On a
+server with the GraphQL endpoint, a pre-cached report is also *fetched* that
+way: the page opens with the protocols named, and each card's figures arrive
+as it nears the viewport, the rest in idle time. Sidebar entries
 work in both expanded and collapsed mode. Arrow shortcuts do not intercept text
 editing, chart interactions, or modal controls.
 

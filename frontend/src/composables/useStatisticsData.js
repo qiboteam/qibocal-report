@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { state, apiFetch, resolveAuthor } from '../store.js'
+import { state, apiFetch, heldReportStats, holdReportStats, resolveAuthor } from '../store.js'
+import { STATS_FIELDS, apiGraphQL } from '../api.js'
 
 /**
  * Composable providing statistics calculations, filtering, and data fetching.
@@ -103,15 +104,33 @@ export function useStatisticsData() {
   }
 
   async function loadStats() {
+    // What the list page loaded a moment ago is these very statistics.
+    const held = heldReportStats()
+    if (held) {
+      stats.value = held
+      loading.value = false
+      connectionError.value = null
+      return
+    }
     loading.value = true
     connectionError.value = null
     try {
-      const res = await apiFetch('/api/reports/stats')
-      if (res.ok) {
-        stats.value = await res.json()
-      } else {
-        connectionError.value = `Server responded with status ${res.status}`
+      let data = null
+      try {
+        data = (await apiGraphQL(`{ stats { ${STATS_FIELDS} } }`))?.stats || null
+      } catch (err) {
+        console.warn('GraphQL request failed, asking over REST instead', err)
       }
+      if (!data) {
+        const res = await apiFetch('/api/reports/stats')
+        if (!res.ok) {
+          connectionError.value = `Server responded with status ${res.status}`
+          return
+        }
+        data = await res.json()
+      }
+      stats.value = data
+      holdReportStats(data)
     } catch (err) {
       connectionError.value = `Could not connect to server: ${err.message}`
     } finally {

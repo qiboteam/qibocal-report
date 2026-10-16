@@ -2,6 +2,7 @@
 
 import json
 import os
+import time
 import re
 from collections import Counter
 from pathlib import Path
@@ -12,6 +13,7 @@ from qibocal_report.generator import (
     format_execution_time,
     get_execution_order,
     has_cached_report,
+    cached_protocols,
     load_cached_protocols,
     sort_protocols_by_execution_order,
 )
@@ -247,13 +249,48 @@ _REPORT_CACHE: dict[str, Any] = {
     "author_identities_key": None,
     "last_mtime": 0.0,
     "reports": None,
+    # When the tree was last walked to check the cache: see `scan_interval`.
+    "checked_at": 0.0,
 }
+
+
+def scan_interval() -> float:
+    """How long a validated index is trusted before the tree is walked again.
+
+    Validating the cache means walking the whole report tree and stat-ing
+    every directory, which every list, statistics, health and notes request
+    did, in full, every time — the dominant cost on a large share. Within
+    this many seconds the last walk stands; `QIBOCAL_REPORT_SCAN_INTERVAL`
+    sets it, and 0 walks every time, as before.
+    """
+    try:
+        return max(0.0, float(os.environ.get("QIBOCAL_REPORT_SCAN_INTERVAL", "2")))
+    except ValueError:
+        return 2.0
 
 
 def invalidate_report_cache() -> None:
     """Invalidate the in-memory indexed reports cache."""
     _REPORT_CACHE["last_mtime"] = 0.0
     _REPORT_CACHE["reports"] = None
+    _REPORT_CACHE["checked_at"] = 0.0
+
+
+def report_index_token() -> str:
+    """What the index is, as a string: the newest mtime it was built from.
+
+    The same token for the same content, so a client that still holds a
+    response with it is told nothing changed; `scan_reports` first.
+    """
+    return f"{int(_REPORT_CACHE['last_mtime'] * 1000)}"
+
+
+def cached_report_count(root_dir: Path) -> int:
+    """How many reports there are, from the index as it stands when there is one."""
+    reports = _REPORT_CACHE["reports"]
+    if reports is not None and _REPORT_CACHE["root_path"] == str(root_dir.resolve()):
+        return len(reports)
+    return len(scan_reports(root_dir))
 
 
 def get_directory_mtime(root_dir: Path) -> float:
@@ -336,15 +373,21 @@ def scan_reports(
     auth_key = (
         json.dumps(author_identities, sort_keys=True) if author_identities else ""
     )
-    current_mtime = get_directory_mtime(resolved_root)
-
-    # Check if cache is still valid
-    if (
+    same_index = (
         _REPORT_CACHE["root_path"] == str(resolved_root)
         and _REPORT_CACHE["author_identities_key"] == auth_key
         and _REPORT_CACHE["reports"] is not None
-        and current_mtime <= _REPORT_CACHE["last_mtime"]
-    ):
+    )
+    # Walked a moment ago: the last walk stands.
+    now = time.monotonic()
+    if same_index and now - _REPORT_CACHE["checked_at"] < scan_interval():
+        return _REPORT_CACHE["reports"]
+
+    current_mtime = get_directory_mtime(resolved_root)
+    _REPORT_CACHE["checked_at"] = now
+
+    # Check if cache is still valid
+    if same_index and current_mtime <= _REPORT_CACHE["last_mtime"]:
         return _REPORT_CACHE["reports"]
 
     reports: list[ReportSummary] = []
@@ -576,12 +619,40 @@ def compute_filter_stats(
     )
 
 
+def read_platform_snapshot(target_dir: Path) -> dict[str, Any]:
+    """Every file of `platform/`, parsed, by stem: the `platform_snapshot`."""
+    platform_data: dict[str, Any] = {}
+    plat_dir = target_dir / "platform"
+    if not plat_dir.is_dir():
+        return platform_data
+    for f in plat_dir.glob("*.json"):
+        try:
+            with open(f, encoding="utf-8") as pf:
+                platform_data[f.stem] = json.load(pf)
+        except (json.JSONDecodeError, OSError):
+            pass
+    for f in plat_dir.glob("*.yaml"):
+        try:
+            import yaml
+
+            with open(f, encoding="utf-8") as yf:
+                platform_data[f.stem] = yaml.safe_load(yf)
+        except (yaml.YAMLError, OSError):
+            pass
+    return platform_data
+
+
 def get_report_detail(
     root_dir: Path,
     report_id: str,
     author_identities: dict[str, list[str]] | None = None,
+    include_platform: bool = False,
 ) -> ReportDetail | None:
-    """Retrieve full details for a specific report."""
+    """Retrieve full details for a specific report.
+
+    The platform snapshot is left out unless asked for: it is served by its
+    own endpoint, and nothing else reads it from here.
+    """
     root_dir = root_dir.resolve()
     target_dir = root_dir / report_id
     if not target_dir.is_dir():
@@ -621,29 +692,16 @@ def get_report_detail(
         except (json.JSONDecodeError, OSError):
             pass
 
-    # Read platform/ snapshot
-    platform_data = {}
-    plat_dir = target_dir / "platform"
-    if plat_dir.is_dir():
-        for f in plat_dir.glob("*.json"):
-            try:
-                with open(f, encoding="utf-8") as pf:
-                    platform_data[f.stem] = json.load(pf)
-            except (json.JSONDecodeError, OSError):
-                pass
-        for f in plat_dir.glob("*.yaml"):
-            try:
-                import yaml
-
-                with open(f, encoding="utf-8") as yf:
-                    platform_data[f.stem] = yaml.safe_load(yf)
-            except (yaml.YAMLError, OSError):
-                pass
+    # The platform snapshot only on request: the dashboard reads it from its
+    # own endpoint, and it is every file of platform/, parsed, otherwise sent
+    # with every report opened.
+    platform_data = read_platform_snapshot(target_dir) if include_platform else {}
 
     # Protocol summaries: read from cache if available, otherwise summarize from
     # metadata in execution order
     if has_cached_report(target_dir):
-        protocols = load_cached_protocols(target_dir)
+        # Counted from the outputs, which are kept in memory once read.
+        protocols = cached_protocols(target_dir)
         proto_summaries = [
             ProtocolSummary(
                 id=p.id,

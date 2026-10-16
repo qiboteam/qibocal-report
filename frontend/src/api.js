@@ -7,18 +7,28 @@ import { getApiUrl, getActiveServerUrl } from './utils/url.js'
  */
 export async function apiFetch(path, options = {}, server = state.activeServer) {
   const url = getApiUrl(path, server)
-  const serverUrl = getActiveServerUrl(server)
   const headers = new Headers(options.headers || {})
   const token = getActiveAuthToken(server)
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`)
   }
   const res = await fetch(url, { ...options, headers })
+  if (res.status === 401) noteUnauthorized(server, token)
+  return res
+}
+
+/**
+ * A request was refused for want of a session: forget the token it carried,
+ * and — when it concerned the active server — say so and go to the servers
+ * page, where one signs in.
+ */
+function noteUnauthorized(server, token) {
+  const serverUrl = getActiveServerUrl(server)
   const sessionIsCurrent = token === getActiveAuthToken(server)
-  if (res.status === 401 && token && sessionIsCurrent) {
+  if (token && sessionIsCurrent) {
     setServerAuth(server, null, null)
   }
-  if (res.status === 401 && sessionIsCurrent && state.auth?.enabled &&
+  if (sessionIsCurrent && state.auth?.enabled &&
       getServerAuthKey(server) === getServerAuthKey(state.activeServer) &&
       serverUrl === getActiveServerUrl(state.activeServer)) {
     setServerAuth(server, null, null)
@@ -27,8 +37,64 @@ export async function apiFetch(path, options = {}, server = state.activeServer) 
       window.location.hash = '#/servers'
     }
   }
-  return res
 }
+
+/**
+ * Which servers answer GraphQL: learnt at the first request, per server.
+ * A server from before the endpoint answers the POST with a 404 or a 405,
+ * and is asked over REST from then on.
+ */
+const graphqlSupport = new Map()
+
+function graphqlKey(server) {
+  return getActiveServerUrl(server) || 'local'
+}
+
+/**
+ * Ask several questions in one request, at `/api/graphql`.
+ *
+ * Answers the `data` of the response; `null` when the server has no such
+ * endpoint, which is the caller's cue to ask over REST instead. Errors in
+ * the response are thrown, with the first error's code on the exception —
+ * `UNAUTHENTICATED` is handled like a 401 before that. The field names are
+ * the REST ones, so what comes back is read exactly like a REST response.
+ */
+export async function apiGraphQL(query, variables = {}, server = state.activeServer, options = {}) {
+  const key = graphqlKey(server)
+  if (graphqlSupport.get(key) === false) return null
+  const token = getActiveAuthToken(server)
+  const res = await apiFetch('/api/graphql', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, variables }),
+    ...options
+  }, server)
+  if (res.status === 404 || res.status === 405) {
+    graphqlSupport.set(key, false)
+    return null
+  }
+  if (!res.ok) throw new Error(`GraphQL request failed (${res.status})`)
+  const body = await res.json()
+  graphqlSupport.set(key, true)
+  if (Array.isArray(body.errors) && body.errors.length) {
+    const code = body.errors[0]?.extensions?.code || null
+    if (body.errors.some(error => error?.extensions?.code === 'UNAUTHENTICATED')) noteUnauthorized(server, token)
+    const failure = new Error(body.errors.map(error => error.message).join('; '))
+    failure.code = code
+    throw failure
+  }
+  return body.data
+}
+
+/** The fields of a report as the list shows it, for GraphQL selections. */
+export const REPORT_FIELDS =
+  'id path title date time author platform targets protocols tags labels ' +
+  'total_execution_time has_cached_report has_old_platform has_new_platform'
+
+/** The fields of the filter statistics, for GraphQL selections. */
+export const STATS_FIELDS =
+  'authors tags labels protocols { name count } date_histogram { date count } ' +
+  'platforms { name count } author_frequencies { name count } tag_frequencies { name count } total_reports'
 
 /**
  * Authentication & Role Management endpoints.

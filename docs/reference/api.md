@@ -67,6 +67,65 @@ entry to the new address instead of adding a second one.
 
 ---
 
+## 🚚 Transport
+
+- **Compression.** Responses above a kilobyte are gzipped when the client accepts it; protocol figures, which are Plotly JSON, shrink five to ten times.
+- **Conditional requests.** `GET /api/reports` and `GET /api/reports/stats` carry a weak `ETag` — the newest modification time the report index was built from — and `Cache-Control: private, no-cache`. A request bringing the tag back in `If-None-Match` is answered `304 Not Modified`.
+- **Index validation.** The report index is validated by walking the report tree; a walk stands for `QIBOCAL_REPORT_SCAN_INTERVAL` seconds (default `2`; `0` walks at every request) before the next, so a burst of requests costs one walk.
+- **What is not sent.** `search_index`, the server's full-text index of a report, stays on the server; `platform_snapshot` is no longer inlined in a report's detail, nor in the WebSocket `metadata` message. `GET /api/health` counts reports from the index as it stands, without validating it.
+
+## 🧬 GraphQL
+
+### `POST /api/graphql`
+One request where the REST API needs several. The schema answers, together,
+what the dashboard asks at once — the page of reports, the statistics of
+everything and of what is filtered; a report and its protocols; whether a
+server authenticates and who the caller is — and keeps the REST shapes field
+for field: names are `snake_case`, so a GraphQL result is read exactly as the
+REST response it stands for. Queries only; mutations stay with the REST
+endpoints. A GET of the same address opens GraphiQL, the schema's own explorer.
+
+| Query | Answers as | Role |
+| --- | --- | --- |
+| `reports(where: ReportFilter, page: Int = 1, page_size: Int = 20)` | `GET /api/reports` with the same filters, paginated | viewer |
+| `stats(where: ReportFilter)` | `GET /api/reports/stats` | viewer |
+| `report(id: String!)` | `GET /api/reports/{id}`; its `protocols_detail` field is `GET /api/reports/{id}/protocols`, computed only when selected; `null` for a report that does not exist | viewer |
+| `protocol(report_id: String!, protocol_id: String!)` | one protocol of `GET /api/reports/{id}/protocols`, for its `html` and `figures` alone; `null` when either is not there | viewer |
+| `session` | `GET /api/auth/status` and `GET /api/auth/me`, in one: `auth_enabled`, and the `user` the token names, or `null` | anyone |
+| `health` | `GET /api/health` | anyone |
+
+`ReportFilter` names the query parameters of `/api/reports`: `query`, `folder`,
+`authors`, `platforms`, `protocols`, `labels`, `qubits`, `start_date`,
+`end_date`, `sort_by`.
+
+```graphql
+query Dashboard($where: ReportFilter, $page: Int!, $page_size: Int!) {
+  reports(where: $where, page: $page, page_size: $page_size) {
+    items { id title date author platform targets protocols tags has_cached_report }
+    total page page_size total_pages
+  }
+  stats { protocols { name count } date_histogram { date count } total_reports }
+  filtered: stats(where: $where) { total_reports }
+}
+```
+
+A report is opened in two steps by the dashboard: `report(id)` with
+`protocols_detail { id name status num_figures notes { … } }` — the cards,
+without the megabytes they show — then `protocol(report_id, protocol_id) { html
+figures }` for each card as it nears the viewport, and for the rest in idle
+time. Pre-cached outputs are parsed once on the server and kept in memory while
+their files are unchanged, so the per-protocol requests cost a lookup.
+
+Authorization is the same bearer token, in the same header. A field refused
+for want of a session comes back `null`, with an error whose
+`extensions.code` is `UNAUTHENTICATED` — the 401 of the REST API — or
+`FORBIDDEN` for the 403; the response itself is a 200, as GraphQL responses
+are. A server from before this endpoint answers the POST with a 404 or a 405,
+which is what the dashboard reads as "ask over REST": it falls back by itself,
+and remembers the answer per server.
+
+---
+
 ## 📑 Reports & Filtering
 
 ### `GET /api/reports`
@@ -89,7 +148,7 @@ Returns aggregated statistical distributions across all discovered reports:
 - `date_histogram`: Array of `{ date, count }` chronologically ordered.
 
 ### `GET /api/reports/{report_id}`
-Retrieve detailed metadata, platform snapshots, history, and protocol summaries for a single report.
+Retrieve detailed metadata, history, and protocol summaries for a single report. The `platform_snapshot` field is empty here: the platform files are served by `GET /api/reports/{report_id}/platform/{type}`, and by the GraphQL `report(id) { platform_snapshot }` field when selected.
 
 Report details include session `notes`; protocol outputs include per-execution
 `notes`. Both default to `[]` for reports without a notes file. Notes are read

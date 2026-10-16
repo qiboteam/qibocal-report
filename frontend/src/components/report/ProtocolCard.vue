@@ -1,6 +1,7 @@
 <template>
   <div
     :id="`proto-${proto.id}`"
+    ref="root"
     class="bm-card p-6 border border-gray-100 page-break"
     :class="{ 'outline outline-2 outline-offset-2 outline-[#833dff]/45': focused }"
   >
@@ -90,8 +91,13 @@
       @click="handleTableClick"
     ></div>
 
+    <!-- Outputs not fetched yet: they come as the card nears the viewport. -->
+    <div v-if="pendingOutputs" class="my-4 rounded-xl border border-dashed border-gray-200 min-h-[120px] flex items-center justify-center text-xs text-gray-400">
+      {{ proto.outputs === 'failed' ? 'The plots could not be fetched.' : 'Fetching plots…' }}
+    </div>
+
     <!-- Injected Plotly Figures -->
-    <div v-if="proto.figures && proto.figures.length > 0" class="mt-4 space-y-4">
+    <div v-else-if="proto.figures && proto.figures.length > 0" class="mt-4 space-y-4">
       <plotly-viewer
         v-for="fig in proto.figures"
         :key="fig.id || fig.title"
@@ -114,8 +120,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { state } from '../../store.js'
+import { useNearViewport } from '../../composables/useNearViewport.js'
 import { getProtocolDocUrl, hasSpecificDoc } from '../../utils/protocolDocs.js'
 import { copyToClipboard } from '../../utils/clipboard.js'
 import { getReportDownloadFilename } from '../../utils/apiFiles.js'
@@ -131,6 +138,18 @@ const props = defineProps({
   reportId: { type: String, default: null },
   /** Under the keyboard's cursor, in the continuous view: outlined. */
   focused: { type: Boolean, default: false }
+})
+
+/**
+ * The outputs — HTML and figures — are fetched when the card comes near
+ * the viewport, through what the report page provides; a report loaded
+ * whole has nothing pending and asks for nothing.
+ */
+const root = ref(null)
+const requestOutputs = inject('requestProtocolOutputs', null)
+const pendingOutputs = computed(() => ['pending', 'loading', 'failed'].includes(props.proto?.outputs))
+useNearViewport(root, () => {
+  if (props.proto?.outputs === 'pending' && requestOutputs) requestOutputs(props.proto.id)
 })
 
 const docUrl = computed(() => {

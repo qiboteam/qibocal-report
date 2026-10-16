@@ -133,7 +133,8 @@ class ReportSummary(BaseModel):
     has_cached_report: bool = False
     has_old_platform: bool = False
     has_new_platform: bool = False
-    search_index: str = ""
+    # The server's own full-text index, for filtering in memory: never sent.
+    search_index: str = Field(default="", exclude=True)
 
 
 class ReportDetail(ReportSummary):
