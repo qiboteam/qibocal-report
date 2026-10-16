@@ -40,15 +40,13 @@ export function serverCommand(options = {}) {
   const directory = typeof options.directory === 'string' ? options.directory.trim() : ''
   const parts = ['qibocal', 'report', mode]
   // No directory is the shared one, found and created where the server runs.
-  if (mode !== 'client' && directory) parts.push(directory)
+  if (directory) parts.push(directory)
   if (!ssh) {
     parts.push('--host', options.host || 'localhost', '--port', String(options.port ?? 8000))
   }
-  if (mode !== 'client') {
-    parts.push(options.auth ? '--auth' : '--no-auth')
-    if (name) parts.push('--name', name)
-    if (options.register === false) parts.push('--no-register')
-  }
+  parts.push(options.auth ? '--auth' : '--no-auth')
+  if (name) parts.push('--name', name)
+  if (options.register === false) parts.push('--no-register')
   if (mode === 'dev') parts.push('--frontend-port', String(options.frontendPort ?? 5173))
   // Without a destination the rest of the remote options mean nothing, and
   // the command line refuses them: they go together or not at all.
@@ -175,7 +173,7 @@ export function launchFrom(where, form, { name = null, register = false } = {}) 
     mode,
     name: text(form.name) || name,
     register,
-    directory: mode === 'client' ? null : text(form.directory),
+    directory: text(form.directory),
     host: text(form.host) || 'localhost',
     port: Number(form.port),
     auth: Boolean(form.auth),

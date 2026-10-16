@@ -198,9 +198,7 @@ def test_report_help():
     result = runner.invoke(main, ["report", "--help"])
     assert result.exit_code == 0
     assert "server" in result.output
-    assert "client" in result.output
     assert "dev" in result.output
-    assert "export" in result.output
 
 
 def test_dev_command(tmp_path):
@@ -251,18 +249,6 @@ def test_server_command(tmp_path):
         assert "log_config" in mock_uvicorn.call_args.kwargs
 
 
-def test_client_command():
-    runner = CliRunner()
-    with patch("qibocal_report.cli.uvicorn.run") as mock_uvicorn:
-        result = runner.invoke(
-            main,
-            ["report", "client", "--port", "8002"],
-        )
-        assert result.exit_code == 0
-        assert mock_uvicorn.called
-        assert "log_config" in mock_uvicorn.call_args.kwargs
-
-
 def test_request_logging_configuration():
     import logging
 
@@ -294,44 +280,6 @@ def test_request_logging_configuration():
     assert "127.0.0.1" not in formatted
     assert "GET /api/reports HTTP/1.1" in formatted
     assert "200" in formatted
-
-
-def test_export_command(tmp_path):
-    runner = CliRunner()
-    export_dest = tmp_path / "exported_site"
-
-    result = runner.invoke(
-        main,
-        ["report", "export", str(export_dest), "--no-build"],
-    )
-    assert result.exit_code == 0
-    assert (export_dest / "index.html").is_file()
-    assert (export_dest / "404.html").is_file()
-    assert (export_dest / ".nojekyll").is_file()
-
-
-def test_export_command_with_build(tmp_path):
-    runner = CliRunner()
-    export_dest = tmp_path / "built_site"
-
-    mock_res = MagicMock()
-    mock_res.returncode = 0
-
-    with patch("qibocal_report.cli.subprocess.run", return_value=mock_res) as mock_run:
-        result = runner.invoke(
-            main,
-            [
-                "report",
-                "export",
-                str(export_dest),
-                "--build",
-                "--base-path",
-                "/qibocal-report/",
-            ],
-        )
-        assert result.exit_code == 0
-        assert mock_run.called
-        assert (export_dest / ".nojekyll").is_file()
 
 
 def test_cli_server_registration_isolation(tmp_path):
@@ -440,7 +388,12 @@ def test_admin_invite_non_interactive(tmp_path, monkeypatch):
     )
     assert res.exit_code == 0
     assert "chief_admin" in res.output
-    assert "http://192.168.1.50:9000/#/invite?token=" in res.output
+    # The link opens the dashboard on that server; the panel may fold it.
+    from qibocal_report import config
+
+    joined = "".join(res.output.split())
+    assert f"{config.DASHBOARD_URL}/#/invite?token=" in joined
+    assert "server=http%3A%2F%2F192.168.1.50%3A9000" in joined
 
     # Option --username and --json
     res_json = runner.invoke(
@@ -463,7 +416,8 @@ def test_admin_invite_non_interactive(tmp_path, monkeypatch):
     assert data["username"] == "chief_admin"
     assert data["role"] == "admin"
     assert "token" in data
-    assert "http://localhost:8080/#/invite?token=" in data["invite_url"]
+    assert data["invite_url"].startswith(f"{config.DASHBOARD_URL}/#/invite?token=")
+    assert data["invite_url"].endswith("&server=http%3A%2F%2Flocalhost%3A8080")
 
 
 def test_admin_invite_interactive_and_shortcuts(tmp_path, monkeypatch):

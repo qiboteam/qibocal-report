@@ -147,19 +147,13 @@ test('the name and the registration are passed on, the directory left out when e
     serverCommand({ mode: 'server', directory: '  ', port: 8000, name: 'Server 1', register: false }),
     "qibocal report server --host localhost --port 8000 --no-auth --name 'Server 1' --no-register"
   )
-  assert.equal(
-    serverCommand({ mode: 'client', port: 8000, name: 'Server 1', register: false }),
-    'qibocal report client --host localhost --port 8000',
-    'the client registers nothing, so it takes neither flag'
-  )
 })
 
-test('the developer mode carries the frontend port, the client no directory', () => {
+test('the developer mode carries the frontend port', () => {
   assert.equal(
     serverCommand({ mode: 'dev', directory: '/data', port: 8000, auth: true, frontendPort: 5174 }),
     'qibocal report dev /data --host localhost --port 8000 --auth --frontend-port 5174'
   )
-  assert.equal(serverCommand({ mode: 'client', port: 9000 }), 'qibocal report client --host localhost --port 9000')
 })
 
 test('a remote server replaces the address with the SSH options', () => {

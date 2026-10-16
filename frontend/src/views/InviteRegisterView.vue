@@ -211,10 +211,13 @@ async function resolveAndValidate() {
     return
   }
 
-  // Determine server
-  let serverParam = route.query.server ? route.query.server.toString().trim() : null
-  if (!serverParam && typeof window !== 'undefined') {
-    serverParam = window.location.origin
+  // The server the invitation is for, named by the link: no server serves
+  // this page itself, so its origin says nothing.
+  const serverParam = route.query.server ? route.query.server.toString().trim() : null
+  if (!serverParam) {
+    tokenError.value = 'The invitation names no server: ask for a new link.'
+    validating.value = false
+    return
   }
 
   let serverObj = state.activeServer

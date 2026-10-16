@@ -14,10 +14,6 @@
     pnpm.enable = true;
   };
 
-  scripts.build-frontend.exec = ''
-    cd frontend && pnpm build && rm -rf ../src/qibocal_report/static/* && cp -r dist/* ../src/qibocal_report/static/
-  '';
-
   scripts.export-static.exec = ''
     cd frontend && pnpm build && touch dist/.nojekyll && cp dist/index.html dist/404.html
   '';
@@ -33,10 +29,6 @@
 
   scripts.server.exec = ''
     qibocal report server sample_data
-  '';
-
-  scripts.client.exec = ''
-    qibocal report client
   '';
 
   scripts.test-backend.exec = ''

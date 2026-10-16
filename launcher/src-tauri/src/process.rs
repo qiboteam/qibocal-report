@@ -603,7 +603,6 @@ pub fn start_server(
                 arguments.push(directory.clone());
             }
         }
-        "client" => {}
         other => return Err(format!("Unknown server mode '{other}'.")),
     }
     // A local server writes nothing where it starts: a fresh temporary
@@ -620,12 +619,10 @@ pub fn start_server(
         arguments.push("--port".to_string());
         arguments.push(options.port.to_string());
     }
-    if options.mode != "client" {
-        arguments.push(if options.auth { "--auth" } else { "--no-auth" }.to_string());
-        push_text(&mut arguments, "--name", name.clone());
-        if options.register == Some(false) {
-            arguments.push("--no-register".to_string());
-        }
+    arguments.push(if options.auth { "--auth" } else { "--no-auth" }.to_string());
+    push_text(&mut arguments, "--name", name.clone());
+    if options.register == Some(false) {
+        arguments.push("--no-register".to_string());
     }
     if options.mode == "dev" {
         if let Some(port) = options.frontend_port {
@@ -657,11 +654,9 @@ pub fn start_server(
         }
     }
 
-    let served = match (&options.mode[..], &directory) {
-        ("client", _) => "Multi-server client".to_string(),
-        (_, Some(directory)) => directory.clone(),
-        (_, None) => "shared reports directory".to_string(),
-    };
+    let served = directory
+        .clone()
+        .unwrap_or_else(|| "shared reports directory".to_string());
     match ssh {
         // The tunnel picks its own local port, so wait for the address the
         // command prints instead of guessing one.

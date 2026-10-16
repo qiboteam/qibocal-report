@@ -109,7 +109,7 @@ The header carries no navigation of its own: the logo in the top-left corner ret
 
 The launcher drives the `qibocal` command line of the **`qibocal-report`** package — a different thing from Qibocal, the calibration library, whose name it shares. Nothing to install by hand: the first time a server, a notebook session or an invitation needs the command line and none is there, the launcher installs it in the background, in an environment of its own, and carries on with what was asked once it is done. While it works, the status bar at the bottom says so, with a spinner and the way to **Running**, where the output is; the line disappears by itself when the installation ends. The environment lives in `~/.cache/qibocal/envs/launcher` (or `$XDG_CACHE_HOME/qibocal/envs/launcher`), next to the ones the notebook sessions make. All this needs is a Python 3.10 or newer on the machine: the launcher looks on the `PATH` and in the usual places — Homebrew, `/usr/local`, the python.org installers, pyenv — and says so, in **Configuration**, when it finds none. The same page offers **Install qibocal-report** to do it ahead of time or to try again, and **Update** reinstalls the chosen version with its dependencies brought up to date.
 
-What gets installed, unless another version is chosen, is **the very commit the launcher was built from**, fetched as an archive from the repository — no `git` is needed — so the command line takes exactly the options the launcher passes. The same requirement is handed to a server started on another machine, as its `--install`. A package installed from sources serves its API without the bundled web page, which is no loss here: the launcher's own dashboard is the client.
+What gets installed, unless another version is chosen, is **the very commit the launcher was built from**, fetched as an archive from the repository — no `git` is needed — so the command line takes exactly the options the launcher passes. The same requirement is handed to a server started on another machine, as its `--install`. The server is headless, and the launcher's own dashboard is its client.
 
 The launcher then uses, in order:
 
@@ -141,7 +141,6 @@ The fields below follow that choice, so what does not apply is not there, and th
 | --- | --- | --- |
 | Reports | `qibocal report server` | Serve a directory of calibration runs |
 | Developer | `qibocal report dev` | Live interface with hot reloading |
-| Client | `qibocal report client` | Browse other servers, serving none |
 
 The **Reports directory** is optional: left empty, the shared one is served — `~/.local/share/qibocal/reports`, or `$XDG_DATA_HOME/qibocal/reports`, created when it is not there yet — which is where runs go when they have no better home. Under **More options**, the host and port fields pick the address, and **Free port** asks the operating system for one nobody is listening on; the **User accounts** switch is the `--auth` flag: it enables authentication and produces the initial administrator invitation, which appears in the output of the running server. The server starts from a fresh temporary directory, since it writes nothing where it starts.
 

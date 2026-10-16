@@ -160,11 +160,12 @@ def test_without_a_token_the_reports_answer_as_the_rest_api_does(client, monkeyp
     assert codes == ["UNAUTHENTICATED"]
 
 
-def test_a_server_without_graphql_answers_405_to_the_client(client):
+def test_a_server_without_graphql_answers_404_to_the_client(client):
     # The client reads a 404 or a 405 as "an older server": the REST fallback.
-    # Here the endpoint exists; the SPA catch-all would answer a POST with 405.
+    # An older server's page catch-all answered a POST with 405; this one has
+    # no page, and an endpoint it does not have is a 404.
     response = client.post("/api/no-such-endpoint", json={})
-    assert response.status_code == 405
+    assert response.status_code == 404
     assert json.loads(client.post("/api/graphql", json={"query": "{ health { status } }"}).text)["data"]
 
 
