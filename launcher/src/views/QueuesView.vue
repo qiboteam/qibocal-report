@@ -38,7 +38,7 @@
       </div>
 
       <section v-if="selected" class="bm-card p-4">
-        <queue-panel :queue="selected" :job-id="jobId" full />
+        <queue-panel :queue="selected" :job-id="jobId" :job-name="jobName" full />
         <p v-if="sessionsOf(selected).length" class="mt-3 text-[11px] text-gray-400">
           Sessions on this queue:
           <router-link
@@ -58,7 +58,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import QueuePanel from '../components/QueuePanel.vue'
 import { state, queuePollSeconds } from '../state.js'
-import { jobIdFromLog, queueKey, queueOf } from '../lib/slurm.js'
+import { jobIdFromLog, jobNameFromLog, queueKey, queueOf } from '../lib/slurm.js'
 
 const route = useRoute()
 const pollSeconds = queuePollSeconds
@@ -95,11 +95,18 @@ const selected = computed(() => {
   return known.value[0]?.queue || null
 })
 
-/** The job of the first running session on this queue, to mark it. */
+/** The job of the first running session on this queue, to mark it: by id, or by name until then. */
 const jobId = computed(() => {
   for (const process of sessionsOf(selected.value || {})) {
     const id = jobIdFromLog(state.logs[process.id] || [])
     if (id) return id
+  }
+  return null
+})
+const jobName = computed(() => {
+  for (const process of sessionsOf(selected.value || {})) {
+    const name = jobNameFromLog(state.logs[process.id] || [])
+    if (name) return name
   }
   return null
 })

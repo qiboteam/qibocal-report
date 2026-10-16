@@ -2,7 +2,7 @@ import { reactive, computed, watch } from 'vue'
 import { desktop, isDesktop, openInNewWindow, subscribe } from './bridge.js'
 import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './lib/servers.js'
 import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
-import { queueKey } from './lib/slurm.js'
+import { queueKey, queueOf } from './lib/slurm.js'
 
 export const LOG_EVENT = 'launcher://log'
 export const PROCESS_EVENT = 'launcher://process'
@@ -319,6 +319,11 @@ export async function startNotebook(options) {
   const info = await withQibocal(() => desktop.startNotebook(options))
   state.launches[info.id] = { kind: 'notebook', options, url: null }
   mergeProcess(info)
+  // Dispatched to a partition: its queue is asked now, so the answer is
+  // there by the time Running shows the card — one question, shared with
+  // the panel that follows, which asks again only when this one has aged.
+  const queue = queueOf(options)
+  if (queue) refreshQueue(queue).catch(() => {})
   return info
 }
 

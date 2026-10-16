@@ -115,6 +115,51 @@
         </div>
       </div>
     </section>
+
+    <!--
+      The SLURM queues of the sessions that run: how busy each is, and my
+      own jobs in it. Read from what Running last asked, or asked once on
+      arrival; never polled from here, the controller being left alone.
+    -->
+    <section v-if="queues.length" class="mt-6">
+      <div class="flex items-center gap-2 px-1 mb-2">
+        <h2 class="text-sm font-semibold text-gray-900">Queues</h2>
+        <span class="text-xs text-gray-400">{{ queues.length }}</span>
+        <router-link to="/queues" class="ml-auto text-xs text-gray-500 hover:text-gray-900">All queues</router-link>
+      </div>
+      <div class="bm-card divide-y divide-gray-100">
+        <div v-for="item in queues" :key="item.key" class="px-4 py-2.5">
+          <div class="flex items-center gap-2 text-xs">
+            <router-link
+              :to="{ name: 'queues', query: { ssh: item.queue.ssh || '', partition: item.queue.partition } }"
+              class="font-medium text-gray-900 hover:text-[#3b107e] lx-mono"
+            >{{ item.queue.partition }}</router-link>
+            <span v-if="item.queue.ssh" class="text-gray-400 lx-mono truncate">on {{ item.queue.ssh }}</span>
+            <span v-if="item.entry?.data?.summary?.available === false" class="text-red-700 font-medium">down</span>
+            <span class="ml-auto text-[11px] text-gray-400 whitespace-nowrap">
+              <template v-if="item.entry?.loading && !item.entry?.data">asking…</template>
+              <template v-else-if="item.entry?.fetchedAt">{{ timeAgo(item.entry.fetchedAt, now) }}</template>
+            </span>
+          </div>
+          <p v-if="item.entry?.error" class="mt-0.5 text-[11px] text-amber-800">{{ item.entry.error }}</p>
+          <template v-else-if="item.entry?.data">
+            <p class="mt-0.5 text-[11px] text-gray-500">{{ describeOccupation(item.entry.data.summary) }}</p>
+            <p class="mt-0.5 text-[11px] text-gray-600 flex flex-wrap gap-x-3 gap-y-0.5">
+              <span class="text-gray-400">mine:</span>
+              <template v-if="item.mine.length">
+                <span v-for="job in item.mine" :key="job.id" class="inline-flex items-center gap-1">
+                  <span class="lx-dot" :class="jobDot(job.state)" />
+                  <span class="lx-mono">{{ job.id }}</span>
+                  <span class="truncate max-w-[10rem]" :title="job.name">{{ job.name }}</span>
+                  <span class="text-gray-400">{{ job.state.toLowerCase() }}<template v-if="job.time && job.time !== '0:00'"> · {{ job.time }}</template></span>
+                </span>
+              </template>
+              <span v-else class="text-gray-400">none</span>
+            </p>
+          </template>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -125,9 +170,11 @@ import { Activity, ExternalLink, LayoutDashboard, Settings } from 'lucide-vue-ne
 import { sections } from '../router.js'
 import { sectionIcons } from '../icons.js'
 import { openExternal, openInNewWindow, wantsNewWindow } from '../bridge.js'
-import { state, openDashboard } from '../state.js'
+import { state, openDashboard, queueEntry, refreshQueue } from '../state.js'
 import { registerPageKeys } from '../shortcuts.js'
 import { pageShortcuts } from '../pagekeys.js'
+import { describeOccupation, ownJobs, queueKey, queueOf } from '../lib/slurm.js'
+import { timeAgo } from '../lib/time.js'
 
 const router = useRouter()
 
@@ -153,6 +200,39 @@ function kindLabel(process) {
   if (process.kind === 'setup') return 'installation'
   return process.kind
 }
+
+// --- The queues of the sessions that run ---------------------------------------
+
+/** One line per queue with a live session on it, with what it last answered and my jobs in it. */
+const queues = computed(() => {
+  const byKey = new Map()
+  for (const process of live.value) {
+    if (process.kind !== 'notebook') continue
+    const queue = queueOf(state.launches[process.id]?.options)
+    if (queue && !byKey.has(queueKey(queue))) byKey.set(queueKey(queue), { key: queueKey(queue), queue })
+  }
+  return [...byKey.values()].map(item => {
+    const entry = queueEntry(item.queue)
+    return { ...item, entry, mine: ownJobs(entry?.data) }
+  })
+})
+
+function jobDot(jobState) {
+  const key = String(jobState || '').toUpperCase()
+  if (key.startsWith('RUNNING')) return 'bg-emerald-500'
+  if (key.startsWith('PENDING')) return 'bg-amber-400'
+  return 'bg-gray-300'
+}
+
+const now = ref(Date.now())
+let ticker = null
+// Asked once on arrival — served from the last answer when it is recent —
+// and not again while here: the home page does not poll the controller.
+onMounted(() => {
+  ticker = setInterval(() => { now.value = Date.now() }, 15_000)
+  for (const item of queues.value) refreshQueue(item.queue).catch(() => {})
+})
+onBeforeUnmount(() => clearInterval(ticker))
 
 // --- The keyboard: the cards as the grid they are, the lines below them -----
 

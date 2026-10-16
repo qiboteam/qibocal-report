@@ -746,6 +746,17 @@ def run(options):
             command = ["srun", "--unbuffered"]
             if options.get("queue"):
                 command += ["--partition", options["queue"]]
+            # A name of ours, unless the caller chose one: the launcher finds
+            # the job in the queue by it the moment it is submitted, long
+            # before the compute node reports the job id.
+            if not any(
+                item == "-J" or item.startswith(("--job-name", "-J"))
+                for item in extra
+            ):
+                job_name = f"qibocal-nb-{secrets.token_hex(3)}"
+                extra = [*extra, "--job-name", job_name]
+            else:
+                job_name = None
             command += extra + [
                 "--nodes=1",
                 "--ntasks=1",
@@ -759,6 +770,7 @@ def run(options):
             event(
                 "status",
                 message="Submitting SLURM job"
+                + (f" {job_name}" if job_name else "")
                 + (f" on partition {options['queue']}" if options.get("queue") else "")
                 + (f" ({shlex.join(extra)})" if extra else "")
                 + "; waiting for a compute node.",

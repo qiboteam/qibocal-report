@@ -102,6 +102,7 @@
           class="pt-3 border-t border-gray-100"
           :queue="currentQueue"
           :job-id="currentJobId"
+          :job-name="currentJobName"
         />
 
         <!-- The runs, newest first, each folded until wanted. -->
@@ -139,7 +140,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ChevronRight, ExternalLink, LayoutDashboard, Play, Square, Trash2 } from 'lucide-vue-next'
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
 import QueuePanel from '../components/QueuePanel.vue'
-import { jobIdFromLog, queueOf } from '../lib/slurm.js'
+import { jobIdFromLog, jobNameFromLog, queueOf } from '../lib/slurm.js'
 import { desktop, openExternal, wantsNewWindow } from '../bridge.js'
 import { state, attempt, loadLog, openDashboard, refreshProcesses, restartProcess } from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
@@ -178,6 +179,8 @@ const current = computed(() => groups.value.find(group => group.key === selected
 const currentQueue = computed(() => queueOf(state.launches[current.value?.latest?.id]?.options))
 /** Its job, read off the log once the worker reported it. */
 const currentJobId = computed(() => jobIdFromLog(state.logs[current.value?.latest?.id] || []))
+/** Its name, said at submission: the job is found by it before the id exists. */
+const currentJobName = computed(() => jobNameFromLog(state.logs[current.value?.latest?.id] || []))
 // The log is what names the job: loaded for a queued session as soon as it is selected.
 watch(() => [current.value?.latest?.id, Boolean(currentQueue.value)], async ([id, queued]) => {
   if (id && queued && !state.logs[id]) await loadLog(id)

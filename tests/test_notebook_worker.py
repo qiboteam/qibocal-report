@@ -536,7 +536,10 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo, 
         )
     command = spawn.call_args_list[0].args[0]
     assert command[:5] == ["srun", "--unbuffered", "--partition", "chip", "--mem=4G"]
-    assert command[5:11] == [
+    # Named, so the launcher finds the job in the queue as soon as it is submitted.
+    assert command[command.index("--job-name") + 1].startswith("qibocal-nb-")
+    # The name sits after the caller's options; the fixed arguments follow it.
+    assert command[7:13] == [
         "--nodes=1",
         "--ntasks=1",
         "--ntasks-per-node=1",
@@ -544,8 +547,8 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo, 
         "-u",
         "-c",
     ]
-    assert command[11].startswith("WORKER_SOURCE = ")
-    nested = json.loads(command[12])
+    assert command[13].startswith("WORKER_SOURCE = ")
+    nested = json.loads(command[14])
     assert nested["queue"] is None and nested["slurm"] is None
     assert nested["_node_role"] == "compute"
     assert nested["_access_addresses"] == access_addresses

@@ -73,15 +73,27 @@
         within itself, its header staying put; on its own page it has the room.
       -->
       <div class="lx-list bg-white overflow-auto" :class="full ? '' : 'max-h-[45vh]'">
-        <table class="w-full text-xs">
+        <!-- Columns as the dashboard's table has them: dragged at their edge, reset by a double click, remembered. -->
+        <table class="text-xs table-fixed" :style="{ width: `${totalTableWidth}px`, minWidth: '100%' }">
           <thead class="sticky top-0 bg-white z-10">
             <tr class="text-[11px] text-gray-400 text-left">
-              <th class="font-medium px-3 py-1.5">Job</th>
-              <th class="font-medium px-3 py-1.5">Name</th>
-              <th class="font-medium px-3 py-1.5">User</th>
-              <th class="font-medium px-3 py-1.5">State</th>
-              <th class="font-medium px-3 py-1.5">Time</th>
-              <th class="font-medium px-3 py-1.5">Nodes</th>
+              <th
+                v-for="(column, index) in columns"
+                :key="column.key"
+                class="relative font-medium px-3 py-1.5 select-none"
+                :style="{ width: `${column.width}px`, minWidth: `${column.minWidth}px` }"
+              >
+                <div class="truncate pr-2">{{ column.label }}</div>
+                <div
+                  class="absolute right-0 top-0 bottom-0 w-3 cursor-col-resize select-none flex justify-center items-center group/resizer z-10"
+                  :title="`Drag to resize; double-click to reset`"
+                  @mousedown.stop.prevent="startResize(index, $event)"
+                  @dblclick.stop="resetColumnWidth(index)"
+                  @click.stop
+                >
+                  <div class="w-[2px] h-full transition-colors" :class="resizingIndex === index ? 'bg-[#833dff]' : 'bg-transparent group-hover/resizer:bg-[#833dff]/70'"></div>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -89,19 +101,19 @@
               v-for="job in shown"
               :key="job.id"
               class="border-t border-gray-100"
-              :class="job.id === jobId ? 'bg-[#f7f5ff] text-gray-900' : 'text-gray-700'"
+              :class="isOwnJob(job, own) ? 'bg-[#f7f5ff] text-gray-900' : 'text-gray-700'"
             >
-              <td class="px-3 py-1.5 lx-mono whitespace-nowrap">
+              <td class="px-3 py-1.5 lx-mono truncate" :title="job.id">
                 {{ job.id }}
-                <span v-if="job.id === jobId" class="ml-1 text-[10px] uppercase tracking-wide text-[#833dff] font-semibold">this session</span>
+                <span v-if="isOwnJob(job, own)" class="ml-1 text-[10px] uppercase tracking-wide text-[#833dff] font-semibold">this session</span>
               </td>
-              <td class="px-3 py-1.5 truncate max-w-[14rem]" :title="job.name">{{ job.name }}</td>
-              <td class="px-3 py-1.5 whitespace-nowrap">{{ job.user }}</td>
-              <td class="px-3 py-1.5 whitespace-nowrap">
+              <td class="px-3 py-1.5 truncate" :title="job.name">{{ job.name }}</td>
+              <td class="px-3 py-1.5 truncate" :title="job.user">{{ job.user }}</td>
+              <td class="px-3 py-1.5 truncate">
                 <span class="lx-dot mr-1.5 align-middle" :class="dot(job.state)" />{{ job.state.toLowerCase() }}
               </td>
-              <td class="px-3 py-1.5 lx-mono whitespace-nowrap" :title="job.time_limit ? `limit ${job.time_limit}` : ''">{{ job.time }}</td>
-              <td class="px-3 py-1.5 lx-mono truncate max-w-[16rem]" :title="job.nodes || job.reason">
+              <td class="px-3 py-1.5 lx-mono truncate" :title="job.time_limit ? `limit ${job.time_limit}` : ''">{{ job.time }}</td>
+              <td class="px-3 py-1.5 lx-mono truncate" :title="job.nodes || job.reason">
                 <template v-if="job.nodes">{{ job.nodes }}</template>
                 <span v-else class="text-gray-400">{{ job.reason ? `waiting: ${job.reason}` : '—' }}</span>
               </td>
@@ -123,8 +135,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { Maximize2, RefreshCw } from 'lucide-vue-next'
+import { useTableColumns } from '@dashboard/composables/useTableColumns.js'
 import { state, queueEntry, queuePollSeconds, refreshQueue, watchQueue } from '../state.js'
-import { JOB_STATES, describeNodes, filterJobs, positionOf, queueKey } from '../lib/slurm.js'
+import { JOB_STATES, describeNodes, filterJobs, isOwnJob, positionOf, queueKey } from '../lib/slurm.js'
 import { timeAgo } from '../lib/time.js'
 
 const props = defineProps({
@@ -132,23 +145,37 @@ const props = defineProps({
   queue: { type: Object, required: true },
   /** The id of this session's job, when known: marked, and first. */
   jobId: { type: String, default: null },
+  /** The name the worker gave the job: marks it until the id is known. */
+  jobName: { type: String, default: null },
   /** On the page of its own: no link to it. */
   full: { type: Boolean, default: false }
 })
 
 const filters = reactive({ mine: false, states: [], search: '' })
 const entry = computed(() => queueEntry(props.queue))
+const own = computed(() => ({ jobId: props.jobId, jobName: props.jobName }))
+
+/** The columns, dragged at their edge and remembered, as the dashboard's table does. */
+const { columns, totalTableWidth, resizingIndex, startResize, resetColumnWidth } = useTableColumns([
+  { key: 'id', label: 'Job', width: 110, minWidth: 60, resizable: true },
+  { key: 'name', label: 'Name', width: 200, minWidth: 80, resizable: true },
+  { key: 'user', label: 'User', width: 100, minWidth: 60, resizable: true },
+  { key: 'state', label: 'State', width: 110, minWidth: 70, resizable: true },
+  { key: 'time', label: 'Time', width: 90, minWidth: 60, resizable: true },
+  { key: 'nodes', label: 'Nodes', width: 220, minWidth: 80, resizable: true }
+], 'qibocal_launcher_queue_columns_v1')
 const pollSeconds = queuePollSeconds
 const shown = computed(() => filterJobs(entry.value?.data?.jobs || [], {
   mine: filters.mine,
   user: entry.value?.data?.user,
   states: filters.states,
   search: filters.search,
-  jobId: props.jobId
+  jobId: props.jobId,
+  jobName: props.jobName
 }))
 /** Where our job stands, while it waits. */
 const standing = computed(() => {
-  const position = positionOf(entry.value?.data?.jobs || [], props.jobId)
+  const position = positionOf(entry.value?.data?.jobs || [], props.jobId, props.jobName)
   return position ? `${position}${ordinal(position)} in line` : ''
 })
 
