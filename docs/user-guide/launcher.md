@@ -55,7 +55,7 @@ Under the cards, **Running now** names what is alive at the moment, in a line ea
 
 ### Windows
 
-A second window shows another page next to the first — two reports, a report and the servers, the launcher and the dashboard. **Window → New Window** (`Cmd/Ctrl+Shift+N`) opens the page one is on again, in a window of its own. Wherever something opens — the Dashboard card, a server's **Open**, a report in the dashboard's list — a modifier held while clicking (command or control, or shift), the middle button, or `Shift+Enter` on the keyboard opens it in a new window instead. The context menu's *Open Link in New Window* works too, on every link; a report's row or card in the dashboard's list, which is not a link, has a menu of its own on right-click — *Open*, *Open in New Window*. Links that leave the application open in the browser, as before. Each window is a page of the same application, so they share the servers, the notifications and the processes; closing one of several closes it alone, and closing the last is closing the application. There are no tabs.
+A second window shows another page next to the first — two reports, a report and the servers, the launcher and the dashboard. **Window → New Window** (`Cmd/Ctrl+N`, as in every browser) opens the page one is on again, in a window of its own. Wherever something opens — the Dashboard card, a server's **Open**, a report in the dashboard's list — a modifier held while clicking (command or control, or shift), the middle button, or `Shift+Enter` on the keyboard opens it in a new window instead. The context menu's *Open Link in New Window* works too, on every link; a report's row or card in the dashboard's list, which is not a link, has a menu of its own on right-click — *Open*, *Open in New Window*. Links that leave the application open in the browser, as before. Each window is a page of the same application, so they share the servers, the notifications and the processes; closing one of several closes it alone, and closing the last is closing the application. There are no tabs.
 
 ### Zoom
 
@@ -81,9 +81,9 @@ The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the l
 | `Cmd/Ctrl+Shift+S`, `+R`, `+B` | Servers, Running, Notebooks, from the Go menu |
 | `Cmd/Ctrl+,` | Configuration, from the Go menu — where every application keeps its preferences |
 | `Cmd/Ctrl+D` | Dashboard, from the Go menu |
-| `Cmd/Ctrl+N` | Register a server, from the Servers menu |
+| `Cmd/Ctrl+Shift+N` | Register a server, from the Servers menu |
 | `Cmd/Ctrl+/` | Help |
-| `Cmd/Ctrl+Shift+N` | This page again, in a new window |
+| `Cmd/Ctrl+N` | This page again, in a new window |
 | `Cmd/Ctrl++`, `Cmd/Ctrl+-`, `Cmd/Ctrl+0` | Zoom in, zoom out, actual size; the wheel with the key held zooms too |
 | `Shift+Enter` | What is under the cursor, in a new window, where `Enter` opens it |
 

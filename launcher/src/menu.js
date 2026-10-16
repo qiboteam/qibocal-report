@@ -86,7 +86,7 @@ async function build({ goTo, openDashboard, launchServer, servers }) {
       await MenuItem.new({
         id: 'menu-server-register',
         text: 'Register a Server…',
-        accelerator: 'CmdOrCtrl+N',
+        accelerator: 'CmdOrCtrl+Shift+N',
         action: () => goTo('servers')
       })
     ]
@@ -123,7 +123,7 @@ async function build({ goTo, openDashboard, launchServer, servers }) {
       await MenuItem.new({
         id: 'menu-window-new',
         text: 'New Window',
-        accelerator: 'CmdOrCtrl+Shift+N',
+        accelerator: 'CmdOrCtrl+N',
         // The page one is on, again, in a window of its own: to compare two.
         action: () => window.open(window.location.href, '_blank', 'noopener')
       }),
