@@ -8,6 +8,7 @@ import math
 import os
 import platform
 import queue
+import re
 import secrets
 import select
 import shlex
@@ -601,6 +602,47 @@ def has_pip(runtime, python):
     )
 
 
+def requirement_name(line):
+    """The distribution a requirements.txt line names, normalised; None for an option line.
+
+    `name[extra]>=1`, `name @ url` and a bare URL with `#egg=name` all name one.
+    """
+    line = line.strip()
+    if not line or line.startswith(("#", "-")):
+        return None
+    egg = re.search(r"#egg=([A-Za-z0-9][A-Za-z0-9._-]*)", line)
+    found = egg or re.match(r"([A-Za-z0-9][A-Za-z0-9._-]*)", line)
+    if not found or (not egg and "://" in line.split("@")[0]):
+        return None
+    return re.sub(r"[-_.]+", "-", found.group(1)).lower()
+
+
+def requirement_arguments(runtime, directory, stem, wanted, defaults=()):
+    """What installs `defaults` with the requirements `wanted`, the requirements winning.
+
+    A default the requirements name is left out — theirs is the one asked
+    for. With uv, the requirements are also overrides: what they say of a
+    package holds for every package that depends on it, so `qibocal @ git+ssh…`
+    is not contradicted by a dependency declaring `qibocal @ git+https…`.
+    Answers the arguments and the files written for them, to remove after.
+    """
+    named = {requirement_name(line) for line in wanted.splitlines()} - {None}
+    arguments = [package for package in defaults if requirement_name(package) not in named]
+    files = []
+    if wanted:
+        listing = directory / f".{stem}.{REQUIREMENTS_MARKER}.pending"
+        listing.write_text(wanted, encoding="utf-8")
+        files.append(listing)
+        arguments += ["-r", str(listing)]
+        overrides = [line for line in wanted.splitlines() if requirement_name(line)]
+        if overrides and find_uv(runtime):
+            override = directory / f".{stem}.qibocal-overrides.txt.pending"
+            override.write_text("\n".join(overrides) + "\n", encoding="utf-8")
+            files.append(override)
+            arguments += ["--override", str(override)]
+    return arguments, files
+
+
 def apply_requirements(runtime, path, python, text):
     """Make the environment hold what the connection asks for.
 
@@ -622,37 +664,36 @@ def apply_requirements(runtime, path, python, text):
         # Nothing asked for any more: nothing to install, and nothing removed.
         marker.unlink(missing_ok=True)
         return
-    pending = path / f".{REQUIREMENTS_MARKER}.pending"
-    pending.write_text(wanted, encoding="utf-8")
     event(
         "status",
         message=f"Installing the connection's requirements in: {path}\n{wanted.rstrip()}",
     )
+    arguments, files = requirement_arguments(runtime, path, "requirements", wanted)
     try:
-        runtime.command(install_command(runtime, python, ["-r", str(pending)]))
+        runtime.command(install_command(runtime, python, arguments))
     finally:
-        pending.unlink(missing_ok=True)
+        for file in files:
+            file.unlink(missing_ok=True)
     marker.write_text(wanted, encoding="utf-8")
 
 
 def create_kernel_environment(runtime, path, requirements):
     """A new kernel environment: qibocal and the requirements, in a single install."""
     wanted = normalize_requirements(requirements)
-    pending = path.parent / f".{path.name}.{REQUIREMENTS_MARKER}.pending"
     path.parent.mkdir(parents=True, exist_ok=True)
-    extra = []
-    if wanted:
-        pending.write_text(wanted, encoding="utf-8")
-        extra = ["-r", str(pending)]
+    arguments, files = requirement_arguments(runtime, path.parent, path.name, wanted, defaults=("qibocal",))
+    kept = [argument for argument in arguments if argument == "qibocal"]
     event(
         "status",
-        message="Installing kernel dependencies: qibocal"
-        + (f" and the requirements\n{wanted.rstrip()}" if wanted else ""),
+        message="Installing kernel dependencies: "
+        + " and ".join(kept + (["the requirements"] if wanted else []))
+        + (f"\n{wanted.rstrip()}" if wanted else ""),
     )
     try:
-        python = create_environment(runtime, path, ["qibocal", *extra])
+        python = create_environment(runtime, path, arguments)
     finally:
-        pending.unlink(missing_ok=True)
+        for file in files:
+            file.unlink(missing_ok=True)
     if wanted:
         (path / REQUIREMENTS_MARKER).write_text(wanted, encoding="utf-8")
     return python

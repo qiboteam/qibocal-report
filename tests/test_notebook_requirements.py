@@ -170,3 +170,33 @@ def test_a_slurm_connection_regenerates_on_the_access_node_unless_asked(monkeypa
     rebuilt.clear()
     worker.run_rebuild(runtime, {"queue": "chip", "rebuild_on_compute": True}, scheduled=True)
     assert submitted and not rebuilt, "a computing node, through srun, when asked"
+
+
+def test_a_requirement_line_names_its_distribution():
+    assert worker.requirement_name("Qibocal[extra]>=0.2") == "qibocal"
+    assert worker.requirement_name("qibocal @ git+ssh://git@github.com/qiboteam/qibocal.git@protodev") == "qibocal"
+    assert worker.requirement_name("git+https://github.com/qiboteam/qibocal-widgets.git#egg=qibocal_widgets") == "qibocal-widgets"
+    assert worker.requirement_name("git+https://github.com/x/y.git") is None, "a bare URL names nothing we can read"
+    assert worker.requirement_name("--index-url https://example.org") is None
+    assert worker.requirement_name("-e ./local") is None
+
+
+def test_explicit_requirements_override_the_defaults_and_the_dependencies(tmp_path, monkeypatch):
+    monkeypatch.setitem(worker._UV, "path", "/tools/uv")
+    wanted = "qibocal @ git+ssh://git@github.com/qiboteam/qibocal.git@protodev\nqibocal-widgets==0.0.1\n--index-url https://pypi.org/simple\n"
+    arguments, files = worker.requirement_arguments(MagicMock(), tmp_path, "chip", wanted, defaults=("qibocal",))
+    assert "qibocal" not in arguments, "the default qibocal yields to the one asked for"
+    listing = arguments[arguments.index("-r") + 1]
+    override = arguments[arguments.index("--override") + 1]
+    assert open(listing, encoding="utf-8").read() == wanted
+    assert open(override, encoding="utf-8").read().splitlines() == [
+        "qibocal @ git+ssh://git@github.com/qiboteam/qibocal.git@protodev", "qibocal-widgets==0.0.1"
+    ], "what they say of a package holds for its dependants too; options are not overrides"
+    assert len(files) == 2
+
+    kept, _ = worker.requirement_arguments(MagicMock(), tmp_path, "other", "numpy\n", defaults=("qibocal",))
+    assert kept[0] == "qibocal", "a default the requirements do not name stays"
+
+    monkeypatch.setitem(worker._UV, "path", None)
+    plain, _ = worker.requirement_arguments(MagicMock(), tmp_path, "pip", wanted, defaults=("qibocal",))
+    assert "--override" not in plain, "pip has no overrides"
