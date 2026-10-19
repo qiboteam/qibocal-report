@@ -6,11 +6,16 @@ on:
   workflow_dispatch:
   # Changing the launcher, or this very workflow, rebuilds everything: the
   # installers are the only way to tell whether the desktop application still
-  # builds on the three platforms.
+  # builds on the three platforms. The Python package too: the application
+  # installs the qibocal-report of the very commit it is built from, and
+  # embeds the notebook worker's source, so a change there reaches it only
+  # through a new build.
   pull_request:
     paths:
       - "launcher/**"
       - "frontend/**"
+      - "src/**"
+      - "pyproject.toml"
       - ".github/workflows/launcher.yml"
   # Work that lands on main directly is built the same way.
   push:
@@ -18,6 +23,8 @@ on:
     paths:
       - "launcher/**"
       - "frontend/**"
+      - "src/**"
+      - "pyproject.toml"
       - ".github/workflows/launcher.yml"
 
 # Only the release event needs to write, to attach the installers.
