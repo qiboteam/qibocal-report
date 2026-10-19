@@ -7,7 +7,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
+import { confirm as confirmDialog, open as openFileDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 
 export const isDesktop = typeof window !== 'undefined' &&
@@ -46,6 +46,8 @@ export const desktop = {
   /** `qibocal report server upgrade` on another machine, as a process of its own. */
   upgradeServer: options => call('upgrade_server', { options }),
   startNotebook: options => call('start_notebook', { options }),
+  /** `qibocal notebook rebuild`: the kernel environment destroyed and made again. */
+  rebuildNotebook: options => call('rebuild_notebook', { options }),
   processes: () => call('processes'),
   processLog: id => call('process_log', { id }),
   stopProcess: id => call('stop_process', { id }),
@@ -111,4 +113,13 @@ export async function openExternal(url) {
 export async function revealInFileManager(path) {
   if (!isDesktop) throw new Error(UNAVAILABLE)
   await revealItemInDir(path)
+}
+
+/**
+ * Ask before something that cannot be undone: the system's own dialog in
+ * the application, the browser's in a plain page. True when confirmed.
+ */
+export async function confirmAction(message, { title = 'Qibocal', okLabel = 'OK' } = {}) {
+  if (!isDesktop) return typeof window !== 'undefined' && window.confirm(message)
+  return confirmDialog(message, { title, kind: 'warning', okLabel, cancelLabel: 'Cancel' })
 }

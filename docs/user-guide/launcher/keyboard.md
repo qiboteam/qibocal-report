@@ -31,7 +31,7 @@ On each page, `j` and `k` walk its list — `h` and `l` too, where there is a si
 | Home | `h`/`j`/`k`/`l` move over the cards as the grid they are, and below the last row over the lines of what runs; `Enter` opens the card, or the card in Running of what runs; `o` opens where what runs is used |
 | Servers | `Enter` or `s` opens the server in the dashboard while it runs, starts it otherwise; `e` edits it; `i` invites an administrator; `u` updates its `qibocal-report` and starts it again |
 | Running | `j`/`k` move the selection itself; `Enter` or `o` opens it — the dashboard for a server, the browser for a notebook; `x` stops it; `s` starts it again; `r` registers a server started for a look; `l` unfolds its latest run, `h` folds it; `q` opens the SLURM queue of a dispatched session |
-| Notebooks | `j`/`k` move the selection itself; `Enter` or `o` opens a session with the form as it is |
+| Notebooks | `j`/`k` walk the registered sessions; `Enter` or `s` opens a running one in the browser, or starts it; `e` edits it, `d` duplicates it |
 | Configuration | `j`/`k` walk the files; `Enter` opens one, or closes it |
 | Notifications | `Enter` goes where it points; `e` marks it done, or brings it back; `x` deletes it |
 | Dashboard, everywhere | `g s` the report servers; `g l` the report list of the active server |

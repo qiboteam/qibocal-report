@@ -11,6 +11,7 @@ import queue
 import secrets
 import select
 import shlex
+import shutil
 import signal
 import socket
 import socketserver
@@ -776,6 +777,100 @@ def monitor_stdin(stop):
     threading.Thread(target=read, daemon=True).start()
 
 
+def srun_command(options, nested):
+    """The srun call that runs this worker again on a computing node, with `nested` options.
+
+    Answers the command and the job name given to it, when it is ours.
+    """
+    extra = slurm_arguments(options.get("slurm"))
+    source = globals().get("WORKER_SOURCE")
+    if not source:
+        raise WorkerError("SLURM execution requires embedded WORKER_SOURCE")
+    script = "WORKER_SOURCE = " + repr(source) + "\n" + source
+    command = ["srun", "--unbuffered"]
+    if options.get("queue"):
+        command += ["--partition", options["queue"]]
+    # A name of ours, unless the caller chose one: the launcher finds
+    # the job in the queue by it the moment it is submitted, long
+    # before the compute node reports the job id.
+    if not any(
+        item == "-J" or item.startswith(("--job-name", "-J"))
+        for item in extra
+    ):
+        job_name = f"qibocal-nb-{secrets.token_hex(3)}"
+        extra = [*extra, "--job-name", job_name]
+    else:
+        job_name = None
+    command += extra + [
+        "--nodes=1",
+        "--ntasks=1",
+        "--ntasks-per-node=1",
+        "python3",
+        "-u",
+        "-c",
+        script,
+        json.dumps(nested),
+    ]
+    description = (
+        (f" {job_name}" if job_name else "")
+        + (f" on partition {options['queue']}" if options.get("queue") else "")
+        + (f" ({shlex.join(extra)})" if extra else "")
+    )
+    return command, description
+
+
+def kernel_paths(options):
+    """The kernel environment of these options, and the notebook server's, which must stay apart."""
+    target_path = environment_path(options.get("venv", "qibocal"))
+    server_path = cache_home() / "qibocal" / "envs" / "jupyter"
+    resolved_server = server_path.resolve()
+    resolved_target = target_path.resolve()
+    if (
+        resolved_server == resolved_target
+        or resolved_server in resolved_target.parents
+        or resolved_target in resolved_server.parents
+    ):
+        raise WorkerError("The target and notebook server environments must be separate")
+    return target_path, server_path
+
+
+def rebuild_environment(runtime, options):
+    """Destroy the kernel environment and make it again, from qibocal and the requirements.
+
+    Only a Python virtual environment is removed — a folder without
+    `pyvenv.cfg` is refused, so a mistyped path costs nothing — and the
+    notebook server's environment is never touched.
+    """
+    target_path, _ = kernel_paths(options)
+    if target_path.exists() or target_path.is_symlink():
+        if target_path.is_symlink() or not (target_path / "pyvenv.cfg").is_file():
+            raise WorkerError(
+                f"{target_path} is not a Python virtual environment; it is left as it is"
+            )
+        event("status", message=f"Removing the kernel environment: {target_path}")
+        shutil.rmtree(target_path)
+    target = ensure_environment(runtime, target_path, packages=("qibocal",))
+    apply_requirements(runtime, target_path, target, options.get("requirements"))
+    event("status", message=f"Kernel environment rebuilt: {target_path}")
+
+
+def run_rebuild(runtime, options, scheduled):
+    """Rebuild where the sessions run: on a computing node through srun, when they do."""
+    if not scheduled:
+        rebuild_environment(runtime, options)
+        return
+    nested = dict(options, queue=None, slurm=None, workdir=str(Path.cwd()), _node_role="compute")
+    command, description = srun_command(options, nested)
+    event("status", message=f"Submitting SLURM job{description}; waiting for a compute node.")
+    process, messages = runtime.spawn(command, capture=True)
+    # The computing node's own events and lines, passed on as they come.
+    for line in iter(messages.get, None):
+        print(line, end="", flush=True)
+    process.wait()
+    if process.returncode:
+        raise WorkerError(f"The rebuild on the computing node failed ({process.returncode})")
+
+
 def run(options):
     timeout = float(options.get("timeout", 300))
     if not math.isfinite(timeout) or timeout <= 0:
@@ -794,15 +889,13 @@ def run(options):
         monitor_stdin(runtime.stop)
         if options.get("workdir"):
             os.chdir(Path(options["workdir"]).expanduser())
+        if options.get("_rebuild"):
+            run_rebuild(runtime, options, scheduled)
+            return
         marimo = options.get("marimo", False)
         listen_host = "127.0.0.1"
         if scheduled:
-            extra = slurm_arguments(options.get("slurm"))
-            source = globals().get("WORKER_SOURCE")
-            if not source:
-                raise WorkerError("SLURM execution requires embedded WORKER_SOURCE")
             access_addresses = node_addresses(runtime)
-            script = "WORKER_SOURCE = " + repr(source) + "\n" + source
             nested = dict(
                 options,
                 queue=None,
@@ -811,37 +904,10 @@ def run(options):
                 _node_role="compute",
                 _access_addresses=access_addresses,
             )
-            command = ["srun", "--unbuffered"]
-            if options.get("queue"):
-                command += ["--partition", options["queue"]]
-            # A name of ours, unless the caller chose one: the launcher finds
-            # the job in the queue by it the moment it is submitted, long
-            # before the compute node reports the job id.
-            if not any(
-                item == "-J" or item.startswith(("--job-name", "-J"))
-                for item in extra
-            ):
-                job_name = f"qibocal-nb-{secrets.token_hex(3)}"
-                extra = [*extra, "--job-name", job_name]
-            else:
-                job_name = None
-            command += extra + [
-                "--nodes=1",
-                "--ntasks=1",
-                "--ntasks-per-node=1",
-                "python3",
-                "-u",
-                "-c",
-                script,
-                json.dumps(nested),
-            ]
+            command, description = srun_command(options, nested)
             event(
                 "status",
-                message="Submitting SLURM job"
-                + (f" {job_name}" if job_name else "")
-                + (f" on partition {options['queue']}" if options.get("queue") else "")
-                + (f" ({shlex.join(extra)})" if extra else "")
-                + "; waiting for a compute node.",
+                message=f"Submitting SLURM job{description}; waiting for a compute node.",
             )
             worker, messages = runtime.spawn(command, capture=True)
             data = wait_nested(runtime, worker, messages)
@@ -890,20 +956,11 @@ def run(options):
                     message=f"Selected compute interface: {listen_host}. "
                     "The notebook is token-protected on this interface.",
                 )
-            target_name = options.get("venv", "qibocal")
-            target_path = environment_path(target_name)
-            server_path = cache_home() / "qibocal" / "envs" / "jupyter"
-            if not marimo:
-                resolved_server = server_path.resolve()
-                resolved_target = target_path.resolve()
-                if (
-                    resolved_server == resolved_target
-                    or resolved_server in resolved_target.parents
-                    or resolved_target in resolved_server.parents
-                ):
-                    raise WorkerError(
-                        "The target and notebook server environments must be separate"
-                    )
+            if marimo:
+                target_path = environment_path(options.get("venv", "qibocal"))
+                server_path = cache_home() / "qibocal" / "envs" / "jupyter"
+            else:
+                target_path, server_path = kernel_paths(options)
             event(
                 "status",
                 message=f"Preparing notebook in {Path.cwd()}\n"

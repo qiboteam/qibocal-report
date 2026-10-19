@@ -163,6 +163,7 @@ pub fn run() {
             process::start_server,
             process::upgrade_server,
             process::start_notebook,
+            process::rebuild_notebook,
             process::processes,
             process::process_log,
             process::stop_process,

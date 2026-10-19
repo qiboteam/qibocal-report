@@ -2,7 +2,7 @@
 
 ## 📓 Notebook sessions
 
-**Notebooks** is the graphical face of `qibocal notebook`. Every option of the command line is a control, and none is required — empty, the session is a local one:
+**Notebooks** is the graphical face of `qibocal notebook`, laid out as **Servers** is: the page opens on the **Registered sessions**, with their count and **Refresh**, and **New session**, in the top-right corner, opens the form for a new one. Every option of the command line is a control, and none is required — empty, the session is a local one:
 
 - **SSH destination** — empty for a local session.
 - **SLURM partition**, and **Interface**: JupyterLab or Marimo.
@@ -17,6 +17,10 @@ Under **More options**, with their defaults:
 - **Startup timeout**.
 
 Named connections are read from and written to `notebooks.json`, the file `qibocal notebook add` manages, so a connection saved here is usable as `qibocal notebook connect <name>`. Only the options that differ from the defaults are stored.
+
+**Open and register** keeps the new session in `notebooks.json` under its **Name** and opens it; **Open** opens it for a look, saving nothing.
+
+Every registered session is a card, with the same actions as a server's. **Start** opens a session with its options — while one runs, the card wears a *running* pill leading to Running, and **Open** takes its address to the browser. **Wipe and rebuild** deletes the session's kernel environment entirely, with everything ever installed in it, and creates it again from `qibocal` and the session's **Kernel requirements** alone — after asking, since it cannot be undone, and only while no session of it runs; it is `qibocal notebook rebuild`, and its output is in **Running**. Only a Python virtual environment is ever removed: a folder without `pyvenv.cfg` is refused. **Edit** opens the form on the session, its name included, **Duplicate** opens the form for a new session with its options, and the bin forgets it — its environment stays.
 
 Opening a session runs it with `--no-interactive`: the address appears in **Running** as soon as the session answers.
 

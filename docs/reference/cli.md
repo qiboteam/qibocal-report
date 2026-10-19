@@ -182,6 +182,9 @@ qibocal report admin invite alice_admin --json
 
 ---
 
+### `qibocal notebook rebuild [CONNECTION]`
+Destroy a session's kernel environment and make it again from scratch: where the sessions of `CONNECTION` — or of the options given, those of `qibocal notebook connect` — run, here, over SSH or on a computing node through SLURM, the environment is removed entirely and created anew with `qibocal` and the `--requirements` alone. No notebook is started. Only a Python virtual environment is removed: a folder without `pyvenv.cfg` is refused, and the notebook server's own environment is never touched.
+
 ### `qibocal notebook queue [CONNECTION]`
 What a SLURM queue is doing, asked once: `squeue`, `sinfo` and `whoami` run in a single round trip — over SSH when a destination is given — and answered as a table, or as JSON with `--json`. The host and the partition come from a saved `CONNECTION`, or from the options.
 

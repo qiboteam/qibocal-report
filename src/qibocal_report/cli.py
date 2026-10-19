@@ -202,6 +202,22 @@ def notebook_connect(connection: str | None, **options):
     launch(load_options(connection, options))
 
 
+@notebook.command(name="rebuild")
+@click.argument("connection", required=False)
+@notebook_options()
+def notebook_rebuild(connection: str | None, **options):
+    """Destroy the kernel environment of a session and make it again from scratch.
+
+    Where the sessions of CONNECTION — or of the options given — run, the
+    kernel environment is removed entirely and created anew, with qibocal
+    and the --requirements alone; whatever else was installed in it is gone.
+    No notebook is started. Only a Python virtual environment is removed.
+    """
+    from qibocal_report.remote.notebook import load_options, rebuild
+
+    rebuild(load_options(connection, options))
+
+
 @notebook.command(name="queue")
 @click.argument("connection", required=False)
 @click.option("--ssh", help="SSH options followed by a host or user@host destination.")

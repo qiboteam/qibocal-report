@@ -764,13 +764,9 @@ fn push_text(arguments: &mut Vec<String>, flag: &str, value: Option<String>) {
     }
 }
 
-#[tauri::command]
-pub fn start_notebook(
-    app: AppHandle,
-    supervisor: State<Supervisor>,
-    options: NotebookOptions,
-) -> Result<ProcessInfo, String> {
-    let mut arguments = vec!["notebook".to_string(), "connect".to_string()];
+/// `qibocal notebook <subcommand> [CONNECTION] <options>`, and the connection's name.
+fn notebook_arguments(subcommand: &str, options: &NotebookOptions) -> (Vec<String>, Option<String>) {
+    let mut arguments = vec!["notebook".to_string(), subcommand.to_string()];
     let connection = options
         .connection
         .clone()
@@ -780,12 +776,12 @@ pub fn start_notebook(
         arguments.push(name);
     }
     push_text(&mut arguments, "--ssh", options.ssh.clone());
-    push_text(&mut arguments, "--queue", options.queue);
-    push_text(&mut arguments, "--slurm", options.slurm);
-    push_text(&mut arguments, "--workdir", options.workdir);
-    push_text(&mut arguments, "--venv", options.venv);
-    push_text(&mut arguments, "--subnet", options.subnet);
-    push_text(&mut arguments, "--requirements", options.requirements);
+    push_text(&mut arguments, "--queue", options.queue.clone());
+    push_text(&mut arguments, "--slurm", options.slurm.clone());
+    push_text(&mut arguments, "--workdir", options.workdir.clone());
+    push_text(&mut arguments, "--venv", options.venv.clone());
+    push_text(&mut arguments, "--subnet", options.subnet.clone());
+    push_text(&mut arguments, "--requirements", options.requirements.clone());
     if let Some(marimo) = options.marimo {
         arguments.push(if marimo { "--marimo" } else { "--jupyter" }.to_string());
     }
@@ -793,6 +789,35 @@ pub fn start_notebook(
         arguments.push("--timeout".to_string());
         arguments.push(format!("{timeout}"));
     }
+    (arguments, connection)
+}
+
+/// Destroy a connection's kernel environment and make it again from qibocal
+/// and its requirements: `qibocal notebook rebuild`, supervised like any
+/// other process, so its output is in Running.
+#[tauri::command]
+pub fn rebuild_notebook(
+    app: AppHandle,
+    supervisor: State<Supervisor>,
+    options: NotebookOptions,
+) -> Result<ProcessInfo, String> {
+    let (arguments, connection) = notebook_arguments("rebuild", &options);
+    let label = format!("Rebuild {}", connection.unwrap_or_else(|| "kernel environment".to_string()));
+    let detail = format!(
+        "{} · {}",
+        options.ssh.clone().map(|ssh| format!("ssh {ssh}")).unwrap_or_else(|| "this machine".to_string()),
+        options.venv.clone().filter(|venv| !venv.trim().is_empty()).unwrap_or_else(|| "qibocal".to_string())
+    );
+    supervisor.spawn(&app, "update", label, detail, arguments, None, None)
+}
+
+#[tauri::command]
+pub fn start_notebook(
+    app: AppHandle,
+    supervisor: State<Supervisor>,
+    options: NotebookOptions,
+) -> Result<ProcessInfo, String> {
+    let (mut arguments, connection) = notebook_arguments("connect", &options);
     // The launcher opens the URL itself, once the session reports it.
     arguments.push("--no-interactive".to_string());
 

@@ -392,6 +392,23 @@ export async function startNotebook(options) {
   return info
 }
 
+/** The running notebook sessions of a saved connection. */
+export function sessionsOf(connection) {
+  return state.processes.filter(process =>
+    process.kind === 'notebook' && (process.status === 'running' || process.status === 'stopping') &&
+    state.launches[process.id]?.options?.connection === connection)
+}
+
+/**
+ * Destroy a connection's kernel environment and make it again from qibocal
+ * and its requirements, as a process of its own in Running.
+ */
+export async function rebuildNotebook(connection) {
+  const info = await withQibocal(() => desktop.rebuildNotebook({ connection }))
+  mergeProcess(info)
+  return info
+}
+
 /** Run a process again, as it was started: the same options, the same entry. */
 export async function restartProcess(process) {
   const launch = state.launches[process.id]

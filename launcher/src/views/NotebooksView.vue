@@ -1,224 +1,254 @@
 <template>
-  <div class="max-w-5xl mx-auto px-5 py-8">
-    <div class="mb-5">
-      <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Notebooks</h1>
-      <p class="mt-1 text-xs text-gray-500">
-        Open a JupyterLab or Marimo session — here, over SSH, or through SLURM. Saved connections are
-        the very ones <code class="lx-mono">qibocal notebook</code> uses.
-      </p>
+  <div class="max-w-4xl mx-auto px-5 py-8 space-y-5">
+    <div class="flex items-start gap-4">
+      <div class="min-w-0">
+        <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Notebooks</h1>
+        <p class="mt-1 text-xs text-gray-500">
+          A JupyterLab or Marimo session runs here, over SSH, or through SLURM. Registered sessions are the very
+          connections <code class="lx-mono">qibocal notebook</code> uses.
+        </p>
+      </div>
+      <!-- The form for a new session opens from here; the page starts on the sessions it has. -->
+      <button
+        type="button"
+        class="ml-auto shrink-0 lx-primary"
+        :class="{ 'is-open': creating }"
+        :aria-expanded="creating"
+        :title="creating ? 'Close the form' : 'New session'"
+        @click="creating = !creating"
+      >
+        <component :is="creating ? X : Plus" class="w-3.5 h-3.5" /> {{ creating ? 'Close' : 'New session' }}
+      </button>
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-[16rem_1fr] items-start">
-      <aside class="space-y-2">
+    <!-- One form for every new session; nothing is required, and empty it is a local one. -->
+    <section v-if="creating" class="bm-card p-5">
+      <h2 class="text-sm font-semibold text-gray-900 mb-4">New session</h2>
+      <notebook-fields
+        :values="form"
+        :errors="created.errors"
+        :warnings="created.warnings"
+        named
+        :name-error="newNameError"
+      />
+
+      <div class="flex flex-wrap items-center gap-2.5 mt-5">
+        <!-- Registering is the rule; opening for a look, the exception. -->
         <button
           type="button"
-          class="bm-card w-full text-left p-3 transition"
-          :class="selected === null ? 'ring-2 ring-[#833dff]/30' : ''"
-          @click="choose(null)"
+          class="lx-primary"
+          :disabled="!created.valid || !form.name || Boolean(newNameError) || starting"
+          :title="form.name ? 'Open it, and keep it in notebooks.json for next time' : 'Give it a name to keep it'"
+          @click="openNew(true)"
         >
-          <span class="text-xs font-medium text-gray-900">New session</span>
-          <span class="block lx-help !mt-0.5">Start without saving anything.</span>
+          <Bookmark class="w-3.5 h-3.5" /> {{ starting ? 'Opening…' : 'Open and register' }}
         </button>
-
         <button
-          v-for="(options, name) in state.notebooks"
-          :key="name"
           type="button"
-          class="bm-card w-full text-left p-3 transition"
-          :class="selected === name ? 'ring-2 ring-[#833dff]/30' : ''"
-          @click="choose(name)"
+          class="lx-action"
+          :disabled="!created.valid || starting"
+          title="Open it for a look, without touching notebooks.json"
+          @click="openNew(false)"
         >
-          <span class="text-xs font-medium text-gray-900 truncate block">{{ name }}</span>
-          <span class="block lx-help !mt-0.5 truncate">{{ describeConnection(options) }}</span>
+          <Play class="w-3.5 h-3.5" /> Open
         </button>
-      </aside>
+        <span class="lx-mono text-gray-400 truncate">{{ preview }}</span>
+      </div>
+    </section>
 
-      <section class="bm-card p-5">
-        <div class="flex flex-wrap items-center gap-2 mb-4">
-          <h2 class="text-sm font-semibold text-gray-900">
-            {{ selected || 'New session' }}
-          </h2>
-          <button
-            v-if="selected"
-            type="button"
-            class="lx-action ml-auto"
-            @click="remove(selected)"
-          >
-            <Trash2 class="w-3.5 h-3.5" /> Remove
-          </button>
-        </div>
+    <!-- Registered sessions -->
+    <section class="space-y-2.5">
+      <div class="flex items-center gap-2 px-1">
+        <h2 class="text-sm font-semibold text-gray-900">Registered sessions</h2>
+        <span class="text-xs text-gray-400">{{ names.length }}</span>
+        <button
+          type="button"
+          class="ml-auto text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+          @click="refreshNotebooks"
+        >
+          <RefreshCw class="w-3 h-3" />
+          Refresh
+        </button>
+      </div>
 
-        <!-- Nothing is required: empty, the session is a local one. -->
-        <div class="grid gap-4 sm:grid-cols-2">
-          <form-field
-            v-for="field in primaryFields"
-            v-slot="{ id }"
-            :key="field.name"
-            :label="field.label"
-            :help="field.help"
-            :info="field.info"
-            :error="errors[field.name]"
-            :warning="warnings[field.name]"
-          >
-            <segmented-control
-              v-if="field.type === 'choice'"
-              v-model="values[field.name]"
-              :options="field.options"
-            />
-            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-              v-else
-              :id="id"
-              v-model.trim="values[field.name]"
-              type="text"
-              class="lx-input lx-mono"
-              :placeholder="field.placeholder"
-            />
-          </form-field>
-        </div>
+      <p v-if="!names.length" class="bm-card p-5 text-xs text-gray-500">
+        No session registered yet. Opening one with <em>Open and register</em> adds it here.
+      </p>
 
-        <details class="lx-more">
-          <summary><ChevronRight class="lx-chevron w-3.5 h-3.5" /> More options</summary>
-          <div class="lx-more-body grid gap-4 sm:grid-cols-2">
-            <form-field
-              v-for="field in advancedFields"
-              v-slot="{ id }"
-              :key="field.name"
-              :class="field.type === 'textarea' ? 'sm:col-span-2' : ''"
-              :label="field.label"
-              :help="field.help"
-              :info="field.info"
-              :error="errors[field.name]"
-              :warning="warnings[field.name]"
-            >
-              <textarea spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-                v-if="field.type === 'textarea'"
-                :id="id"
-                v-model="values[field.name]"
-                rows="4"
-                class="lx-input lx-mono"
-                :placeholder="field.placeholder"
-              />
-              <div v-else-if="field.type === 'number'" class="flex items-center gap-2">
-                <input :id="id" v-model="values[field.name]" type="number" min="1" class="lx-input lx-mono" />
-                <span class="text-[11px] text-gray-400 shrink-0">{{ field.unit }}</span>
-              </div>
-              <path-picker
-                v-else-if="field.name === 'workdir' && !values.ssh"
-                :id="id"
-                v-model="values[field.name]"
-                title="Choose the working directory"
-              />
-              <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-                v-else
-                :id="id"
-                v-model.trim="values[field.name]"
-                type="text"
-                class="lx-input lx-mono"
-                :placeholder="field.placeholder"
-              />
-            </form-field>
+      <article
+        v-for="(name, index) in names"
+        :key="name"
+        class="bm-card p-4"
+        :class="{ 'lx-focus': focused(index) }"
+      >
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-gray-900 truncate">{{ name }}</p>
+            <p class="lx-mono text-gray-500 truncate">{{ describeConnection(state.notebooks[name]) }}</p>
           </div>
-        </details>
+          <!-- The pill leads to the card of this session in Running. -->
+          <router-link
+            v-if="runningSession(name)"
+            :to="{ name: 'processes', query: { process: runningSession(name).id } }"
+            class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-medium hover:bg-emerald-100 transition"
+            title="See it in Running"
+          >running</router-link>
 
-        <div class="flex flex-wrap items-center gap-2.5 mt-5">
-          <button
-            type="button"
-            class="lx-primary"
-            :disabled="!valid || starting"
-            @click="start"
-          >
-            {{ starting ? 'Opening…' : 'Open session' }}
-          </button>
-
-          <div class="flex items-center gap-2">
-            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-              v-model.trim="saveName"
-              type="text"
-              class="lx-input w-40"
-              placeholder="Connection name"
-              aria-label="Connection name"
-            />
-            <button type="button" class="lx-action" :disabled="!saveName || !valid" @click="save">
-              <Bookmark class="w-3.5 h-3.5" /> Save
+          <div class="ml-auto flex flex-wrap items-center gap-1.5">
+            <!-- Running and answering: open it. Otherwise: start it. -->
+            <button
+              v-if="runningSession(name)?.url"
+              type="button"
+              class="lx-primary !py-1"
+              title="Open the session in the browser"
+              @click="openExternal(runningSession(name).url)"
+            >
+              <ExternalLink class="w-3.5 h-3.5" /> Open
+            </button>
+            <button
+              v-else
+              type="button"
+              class="lx-primary !py-1"
+              :disabled="starting || Boolean(runningSession(name))"
+              :title="runningSession(name) ? 'Starting: its address appears in Running' : 'Start a session with these options'"
+              @click="start(name)"
+            >
+              <Play class="w-3.5 h-3.5" /> Start
+            </button>
+            <button
+              type="button"
+              class="lx-action"
+              :disabled="rebuilding === name || Boolean(runningSession(name))"
+              :title="runningSession(name)
+                ? 'Stop its session first: the environment is in use'
+                : 'Delete the kernel environment entirely, and create it again from qibocal and the requirements alone'"
+              @click="rebuild(name)"
+            >
+              <RefreshCw class="w-3.5 h-3.5" :class="{ 'lx-spin': rebuilding === name }" /> {{ rebuilding === name ? 'Rebuilding…' : 'Wipe and rebuild' }}
+            </button>
+            <button type="button" class="lx-action" title="Edit its options" @click="toggleEdit(name)">
+              <Pencil class="w-3.5 h-3.5" /> Edit
+            </button>
+            <button
+              type="button"
+              class="lx-action"
+              title="Open the form for a new session with this one's options, to change a few"
+              @click="duplicate(name)"
+            >
+              <Files class="w-3.5 h-3.5" /> Duplicate
+            </button>
+            <button type="button" class="lx-action" title="Forget this session" @click="remove(name)">
+              <Trash2 class="w-3.5 h-3.5" />
             </button>
           </div>
-
-          <code class="lx-mono text-gray-400 truncate">{{ preview }}</code>
         </div>
-      </section>
-    </div>
+
+        <!-- Its options, in the very form of a new session, with its name. -->
+        <form v-if="editing.name === name" class="mt-3.5 pt-3.5 border-t border-gray-100" @submit.prevent="saveEdit(name)">
+          <notebook-fields
+            :values="editing.form"
+            :errors="edited.errors"
+            :warnings="edited.warnings"
+            named
+            name-required
+            :name-error="editNameError"
+          />
+          <div class="flex flex-wrap items-center gap-2 mt-4">
+            <button type="submit" class="lx-primary" :disabled="editing.busy || !edited.valid || Boolean(editNameError)">Save</button>
+            <button type="button" class="lx-action" @click="editing.name = null">Cancel</button>
+            <span class="lx-mono text-gray-400 truncate">{{ commandFor(editing.form.name, edited.options) }}</span>
+          </div>
+        </form>
+      </article>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bookmark, ChevronRight, Trash2 } from 'lucide-vue-next'
-import FormField from '../components/FormField.vue'
-import PathPicker from '../components/PathPicker.vue'
-import SegmentedControl from '../components/SegmentedControl.vue'
-import { desktop } from '../bridge.js'
-import { state, attempt, fail, notify, refreshNotebooks, startNotebook } from '../state.js'
-import { usePageKeys } from '../composables/pageKeys.js'
+import { Bookmark, ExternalLink, Files, Pencil, Play, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
+import NotebookFields from '../components/NotebookFields.vue'
+import { confirmAction, desktop, openExternal } from '../bridge.js'
 import {
-  NOTEBOOK_FIELDS,
-  defaultNotebookOptions,
-  describeConnection,
-  normalizeNotebookOptions,
-  toEditorValues
-} from '../lib/notebooks.js'
+  state,
+  attempt,
+  fail,
+  notify,
+  rebuildNotebook,
+  refreshNotebooks,
+  sessionsOf,
+  startNotebook
+} from '../state.js'
+import { usePageKeys } from '../composables/pageKeys.js'
+import { defaultNotebookOptions, describeConnection, normalizeNotebookOptions, toEditorValues } from '../lib/notebooks.js'
 
 const router = useRouter()
 
-const primaryFields = NOTEBOOK_FIELDS.filter(field => !field.advanced)
-const advancedFields = NOTEBOOK_FIELDS.filter(field => field.advanced)
-
-const selected = ref(null)
-const saveName = ref('')
+const creating = ref(false)
+const form = reactive({ ...defaultNotebookOptions(), name: '' })
+/** The session being edited, with the form opened on it. */
+const editing = reactive({ name: null, form: { ...defaultNotebookOptions(), name: '' }, busy: false })
 const starting = ref(false)
-const values = reactive(defaultNotebookOptions())
+/** The session whose environment is being rebuilt, by name. */
+const rebuilding = ref(null)
 
-const normalized = computed(() => normalizeNotebookOptions(values))
-const errors = computed(() => normalized.value.errors)
-const warnings = computed(() => normalized.value.warnings)
-const valid = computed(() => normalized.value.valid)
+const names = computed(() => Object.keys(state.notebooks || {}))
+const created = computed(() => normalizeNotebookOptions(form))
+const edited = computed(() => normalizeNotebookOptions(editing.form))
 
-const preview = computed(() => {
+const newNameError = computed(() =>
+  form.name && names.value.includes(form.name) ? `A session named ${form.name} is registered already.` : ''
+)
+const editNameError = computed(() => {
+  if (!editing.form.name) return 'A registered session needs a name.'
+  if (editing.form.name !== editing.name && names.value.includes(editing.form.name)) {
+    return `A session named ${editing.form.name} is registered already.`
+  }
+  return ''
+})
+
+/** The command a form stands for, as the command line takes it. */
+function commandFor(name, options) {
   const parts = ['qibocal', 'notebook', 'connect']
-  if (selected.value) parts.push(selected.value)
-  for (const [key, value] of Object.entries(normalized.value.options)) {
+  if (name) parts.push(name)
+  for (const [key, value] of Object.entries(options)) {
     if (key === 'marimo') parts.push(value ? '--marimo' : '--jupyter')
+    else if (key === 'requirements') parts.push('--requirements', '…')
     else parts.push(`--${key}`, String(value))
   }
   return parts.join(' ')
-})
+}
+const preview = computed(() => commandFor(null, created.value.options))
 
-/** The list as the keyboard walks it: the new session first, then the saved connections. */
-const choices = computed(() => [null, ...Object.keys(state.notebooks || {})])
+/** The session of a registered name running now, if any. */
+function runningSession(name) {
+  return sessionsOf(name)[0] || null
+}
 
-// j and k move the selection itself; Enter or o opens the session.
-const { place } = usePageKeys({
+const { focused } = usePageKeys({
   page: 'notebooks',
-  count: () => choices.value.length,
-  onCursor: index => choose(choices.value[index]),
+  count: () => names.value.length,
   actions: {
-    Enter: () => { if (valid.value && !starting.value) start() },
-    o: () => { if (valid.value && !starting.value) start() }
+    Enter: index => activate(names.value[index]),
+    s: index => activate(names.value[index]),
+    e: index => toggleEdit(names.value[index]),
+    d: index => duplicate(names.value[index])
   }
 })
 
-function choose(name) {
-  place(choices.value.indexOf(name))
-  selected.value = name
-  saveName.value = name || ''
-  Object.assign(values, toEditorValues(name ? state.notebooks[name] : {}))
+/** Open a running session, start a stopped one. */
+function activate(name) {
+  const running = runningSession(name)
+  if (running?.url) openExternal(running.url)
+  else if (!running) start(name)
 }
 
-async function start() {
+async function launch(options, message) {
   starting.value = true
   try {
-    await startNotebook({ connection: selected.value, ...normalized.value.options })
-    notify('Opening the notebook session; its address appears in the output.', 'processes')
+    await startNotebook(options)
+    notify(message, 'processes')
     router.push({ name: 'processes' })
   } catch (error) {
     fail(error)
@@ -227,27 +257,78 @@ async function start() {
   }
 }
 
-async function save() {
-  const saved = await attempt(
-    () => desktop.saveNotebook(saveName.value, normalized.value.options),
-    `Connection '${saveName.value}' saved.`,
-    'notebooks'
-  )
+/** The options of a registered session, beside its name: Running finds its queue in them. */
+function registered(name) {
+  return { connection: name, ...normalizeNotebookOptions(toEditorValues(state.notebooks[name])).options }
+}
+
+function start(name) {
+  return launch(registered(name), `Opening ${name}; its address appears in Running.`)
+}
+
+async function openNew(register) {
+  const { options } = created.value
+  if (register) {
+    const saved = await attempt(() => desktop.saveNotebook(form.name, options), `Session ${form.name} registered.`, 'notebooks')
+    if (saved === undefined) return
+    state.notebooks = saved
+    const name = form.name
+    creating.value = false
+    Object.assign(form, defaultNotebookOptions(), { name: '' })
+    return launch(registered(name), `Opening ${name}; its address appears in Running.`)
+  }
+  return launch({ ...options }, 'Opening the notebook session; its address appears in Running.')
+}
+
+function toggleEdit(name) {
+  if (editing.name === name) {
+    editing.name = null
+    return
+  }
+  Object.assign(editing.form, toEditorValues(state.notebooks[name]), { name })
+  Object.assign(editing, { name, busy: false })
+}
+
+async function saveEdit(name) {
+  editing.busy = true
+  const renamed = editing.form.name
+  const saved = await attempt(async () => {
+    let current = await desktop.saveNotebook(renamed, edited.value.options)
+    if (renamed !== name) current = await desktop.removeNotebook(name)
+    return current
+  }, `Session ${renamed} saved.`, 'notebooks')
+  editing.busy = false
   if (saved === undefined) return
   state.notebooks = saved
-  selected.value = saveName.value
+  editing.name = null
+}
+
+function duplicate(name) {
+  Object.assign(form, toEditorValues(state.notebooks[name]), { name: `${name} copy` })
+  creating.value = true
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+async function rebuild(name) {
+  const venv = state.notebooks[name]?.venv || 'qibocal'
+  const confirmed = await confirmAction(
+    `The kernel environment "${venv}" of ${name} is deleted entirely, with everything installed in it, ` +
+      'and created again from qibocal and the session\'s requirements alone. This cannot be undone.',
+    { title: 'Wipe and rebuild the environment', okLabel: 'Wipe and rebuild' }
+  )
+  if (!confirmed) return
+  rebuilding.value = name
+  const started = await attempt(() => rebuildNotebook(name), `Rebuilding the environment of ${name}; its output is in Running.`, 'processes')
+  rebuilding.value = null
+  if (started) router.push({ name: 'processes' })
 }
 
 async function remove(name) {
-  const left = await attempt(() => desktop.removeNotebook(name), `Connection '${name}' removed.`, 'notebooks')
+  const left = await attempt(() => desktop.removeNotebook(name), `Session ${name} removed.`, 'notebooks')
   if (left === undefined) return
   state.notebooks = left
-  choose(null)
+  if (editing.name === name) editing.name = null
 }
 
 onMounted(() => refreshNotebooks())
-// Picking a connection in the list replaces the editor contents.
-watch(() => state.notebooks, () => {
-  if (selected.value && !state.notebooks[selected.value]) choose(null)
-})
 </script>

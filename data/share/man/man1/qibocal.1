@@ -232,6 +232,15 @@ Updating a connection does not start or stop a notebook session.
 Remove the named connection immediately, without confirmation.
 The name must exist. Other connections, environments, and running sessions
 are unchanged. Removing the last connection leaves an empty JSON object.
+.SS Rebuilding an environment
+.B qibocal notebook rebuild
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+Remove the kernel environment of a connection entirely, where its sessions run
+(through srun when it names a partition), and create it again with qibocal and
+the \-\-requirements alone. No notebook is started. Only a directory holding
+pyvenv.cfg is removed; the notebook server environment is never touched.
 .SS Examples
 .nf
 qibocal notebook connect
@@ -246,6 +255,7 @@ qibocal notebook list
 qibocal notebook list --raw
 qibocal notebook update mychip --subnet 192.168.0.0/24
 qibocal notebook update mychip --requirements @requirements.txt
+qibocal notebook rebuild mychip
 qibocal notebook remove mychip
 .fi
 .SH REPORT COMMANDS

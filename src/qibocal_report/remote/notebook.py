@@ -466,11 +466,14 @@ def _wait_tunnel(
     raise click.ClickException(f"Timed out waiting for the {what} SSH tunnel.")
 
 
-def launch(options: NotebookOptions) -> None:
-    output = NotebookOutput()
+def _worker_command(options: NotebookOptions, **extra) -> tuple[list[str], list[str] | None, str | None]:
+    """The worker, shipped as source, run here or over SSH with these options.
+
+    Answers the command, the SSH invocation it goes through, and its destination.
+    """
     worker = Path(__file__).with_name("notebook_worker.py").read_text(encoding="utf-8")
     source = f"WORKER_SOURCE = {worker!r}\n{worker}"
-    worker_options = options.model_dump(exclude={"ssh", "no_interactive"})
+    worker_options = {**options.model_dump(exclude={"ssh", "no_interactive"}), **extra}
     command = [
         "python3" if options.ssh else sys.executable,
         "-u",
@@ -478,22 +481,81 @@ def launch(options: NotebookOptions) -> None:
         source,
         json.dumps(worker_options),
     ]
-    ssh_base = None
-    destination = None
-    if options.ssh:
-        arguments, destination = ssh_arguments(options.ssh)
-        ssh_base = [
-            "ssh",
-            *arguments,
-            "-T",
-            "-o",
-            "ExitOnForwardFailure=yes",
-            "-o",
-            "ServerAliveInterval=30",
-            "-o",
-            "ServerAliveCountMax=3",
-        ]
-        command = [*ssh_base, destination, shlex.join(command)]
+    if not options.ssh:
+        return command, None, None
+    arguments, destination = ssh_arguments(options.ssh)
+    ssh_base = [
+        "ssh",
+        *arguments,
+        "-T",
+        "-o",
+        "ExitOnForwardFailure=yes",
+        "-o",
+        "ServerAliveInterval=30",
+        "-o",
+        "ServerAliveCountMax=3",
+    ]
+    return [*ssh_base, destination, shlex.join(command)], ssh_base, destination
+
+
+def rebuild(options: NotebookOptions) -> None:
+    """Destroy the connection's kernel environment and make it again.
+
+    Where its sessions run — here, on the SSH host, or on a computing node
+    through SLURM — the environment is removed and created anew, with
+    qibocal and the connection's requirements and nothing else. No notebook
+    is started. Only a Python virtual environment is ever removed.
+    """
+    output = NotebookOutput()
+    command, _, destination = _worker_command(options, _rebuild=True)
+    deadline = time.monotonic() + options.timeout
+    output.status(
+        f"Connecting to SSH destination {destination}." if destination else "Rebuilding here."
+    )
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    messages: queue.Queue = queue.Queue()
+    readers = [
+        threading.Thread(target=_read_worker, args=(process, messages, output), daemon=True),
+        threading.Thread(target=_read_stderr, args=(process, output), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+    try:
+        while process.poll() is None:
+            if time.monotonic() > deadline:
+                stop_process(process)
+                raise click.ClickException(
+                    f"The rebuild did not finish within {options.timeout:g} s; "
+                    "raise --timeout for a slow index or a long SLURM queue."
+                )
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        stop_process(process)
+        raise click.ClickException("Rebuild interrupted.") from None
+    for reader in readers:
+        reader.join(timeout=2)
+    if process.returncode:
+        raise click.ClickException(f"The rebuild failed with status {process.returncode}.")
+    output.console.print(
+        Panel(
+            Text(f"The kernel environment {options.venv} was rebuilt from scratch."),
+            title="Rebuild done",
+            border_style="green",
+            expand=False,
+        )
+    )
+
+
+def launch(options: NotebookOptions) -> None:
+    output = NotebookOutput()
+    command, ssh_base, destination = _worker_command(options)
     deadline = time.monotonic() + options.timeout
     processes = []
     previous_sigterm = signal.getsignal(signal.SIGTERM)

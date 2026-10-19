@@ -87,3 +87,48 @@ def test_requirements_are_a_connection_option_from_text_or_a_file(tmp_path, monk
     assert notebook.load_connections()["lab"]["requirements"] == "pandas\n", "kept in notebooks.json"
     missing = CliRunner().invoke(main, ["notebook", "add", "other", "--requirements", "@/no/such/file"])
     assert missing.exit_code != 0 and "Could not read" in missing.output
+
+
+def test_a_rebuild_removes_the_environment_and_makes_it_from_qibocal_and_the_requirements(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(worker, "cache_home", lambda: tmp_path / "cache")
+    environment = tmp_path / "envs" / "chip"
+    (environment / "lib").mkdir(parents=True)
+    (environment / "pyvenv.cfg").write_text("home = /usr/bin\n")
+    (environment / "lib" / "leftover.py").write_text("")
+    made = []
+
+    def ensure(runtime, path, server=False, packages=()):
+        made.append((path, packages))
+        (path / "bin").mkdir(parents=True)
+        return str(path / "bin" / "python")
+
+    applied = []
+    monkeypatch.setattr(worker, "ensure_environment", ensure)
+    monkeypatch.setattr(worker, "apply_requirements", lambda runtime, path, python, text: applied.append(text))
+    worker.rebuild_environment(MagicMock(), {"venv": str(environment), "requirements": "numpy\n"})
+    assert not (environment / "lib" / "leftover.py").exists(), "the old environment is gone"
+    assert made == [(environment, ("qibocal",))] and applied == ["numpy\n"]
+
+
+def test_a_rebuild_refuses_what_is_not_a_virtual_environment(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker, "event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(worker, "cache_home", lambda: tmp_path / "cache")
+    folder = tmp_path / "precious"
+    folder.mkdir()
+    (folder / "thesis.tex").write_text("")
+    with pytest.raises(worker.WorkerError, match="not a Python virtual environment"):
+        worker.rebuild_environment(MagicMock(), {"venv": str(folder)})
+    assert (folder / "thesis.tex").exists()
+    with pytest.raises(worker.WorkerError, match="must be separate"):
+        worker.rebuild_environment(MagicMock(), {"venv": str(tmp_path / "cache" / "qibocal" / "envs" / "jupyter")})
+
+
+def test_rebuild_is_a_command_that_runs_the_worker_in_rebuild_mode(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(notebook, "rebuild", lambda options: captured.update(options=options))
+    result = CliRunner().invoke(main, ["notebook", "rebuild", "--ssh", "lab", "--venv", "chip", "--requirements", "numpy"])
+    assert result.exit_code == 0, result.output
+    assert captured["options"].venv == "chip" and captured["options"].requirements == "numpy"
+    command, _, destination = notebook._worker_command(captured["options"], _rebuild=True)
+    assert destination == "lab" and '"_rebuild": true' in command[-1]

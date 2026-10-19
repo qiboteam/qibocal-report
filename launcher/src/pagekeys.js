@@ -59,10 +59,12 @@ export const PAGE_KEYS = {
   notebooks: {
     title: 'Notebooks',
     keys: {
-      j: 'Next connection',
-      k: 'Previous connection',
-      Enter: 'Open a session with the form as it is',
-      o: 'Open a session with the form as it is'
+      j: 'Next registered session',
+      k: 'Previous registered session',
+      Enter: 'Open it in the browser while it runs; start it otherwise',
+      s: 'Start it, or open it when it is running',
+      e: 'Edit it',
+      d: 'Duplicate it: the form for a new session, with its options'
     }
   },
   notifications: {
