@@ -72,7 +72,7 @@
         In a card, the table keeps to a share of the window and scrolls
         within itself, its header staying put; on its own page it has the room.
       -->
-      <div class="lx-list bg-white overflow-auto" :class="full ? '' : 'max-h-[45vh]'">
+      <div class="lx-list is-scrolling bg-white" :class="full ? '' : 'max-h-[45vh]'">
         <!-- Columns as the dashboard's table has them: dragged at their edge, reset by a double click, remembered. -->
         <table class="text-xs table-fixed" :style="{ width: `${totalTableWidth}px`, minWidth: '100%' }">
           <thead class="sticky top-0 bg-white z-10">
@@ -125,7 +125,7 @@
         </table>
       </div>
       <p class="text-[11px] text-gray-400">
-        Asked every {{ pollSeconds }} s while this is on screen; the controller is left alone otherwise.
+        Refresh rate: {{ pollSeconds }} s
       </p>
     </template>
     <p v-else-if="!entry?.error" class="text-xs text-gray-400">Asking the queue…</p>

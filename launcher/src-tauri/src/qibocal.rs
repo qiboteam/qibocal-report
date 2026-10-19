@@ -18,7 +18,7 @@ use std::process::Command;
 
 use serde::Serialize;
 use serde_json::{json, Value};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager};
 
 use crate::process::{ProcessInfo, Supervisor};
 use crate::settings;
@@ -180,11 +180,13 @@ pub fn find_python() -> Result<(PathBuf, String), String> {
 
 /// Create the managed environment, or update what is installed in it.
 #[tauri::command]
-pub fn install_qibocal(
-    app: AppHandle,
-    supervisor: State<Supervisor>,
-    upgrade: Option<bool>,
-) -> Result<ProcessInfo, String> {
+pub async fn install_qibocal(app: AppHandle, upgrade: Option<bool>) -> Result<ProcessInfo, String> {
+    off_main(move || install(app, upgrade)).await?
+}
+
+/// Looking for a Python asks each candidate its version: off the main thread.
+fn install(app: AppHandle, upgrade: Option<bool>) -> Result<ProcessInfo, String> {
+    let supervisor = app.state::<Supervisor>();
     let (python, _) = find_python()?;
     let cache = launcher_cache();
     fs::create_dir_all(&cache)
@@ -416,8 +418,24 @@ pub fn knows(words: &[&str]) -> Result<bool, String> {
     Ok(output.status.success() && usage.contains(&words.join(" ")))
 }
 
+/// Run blocking work away from the main thread. A synchronous command runs
+/// on it, so a subprocess it waits for — Python asked its version, an SSH
+/// round trip to a queue — freezes the whole window until it answers.
+pub async fn off_main<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|error| format!("The work could not finish: {error}"))
+}
+
 #[tauri::command]
-pub fn environment() -> Environment {
+pub async fn environment() -> Result<Environment, String> {
+    off_main(describe_environment).await
+}
+
+/// What the launcher runs, and what it would install: asks Python, so slow.
+pub fn describe_environment() -> Environment {
     let (resolved, searched) = resolve();
     let (executable, source) = match resolved {
         Some((path, source)) => (Some(path), Some(source)),
@@ -453,7 +471,11 @@ pub fn environment() -> Environment {
 }
 
 #[tauri::command]
-pub fn set_executable(path: Option<String>) -> Result<Environment, String> {
+pub async fn set_executable(path: Option<String>) -> Result<Environment, String> {
+    off_main(move || choose_executable(path)).await?
+}
+
+fn choose_executable(path: Option<String>) -> Result<Environment, String> {
     let mut preferences = settings::launcher_preferences();
     match path.map(PathBuf::from) {
         Some(requested) => {
@@ -473,7 +495,7 @@ pub fn set_executable(path: Option<String>) -> Result<Environment, String> {
         }
     }
     settings::store_launcher_preferences(preferences)?;
-    Ok(environment())
+    Ok(describe_environment())
 }
 
 /// Pick a port the operating system is willing to hand out right now.
@@ -486,7 +508,11 @@ pub fn free_port() -> Result<u16, String> {
 }
 
 #[tauri::command]
-pub fn administrators() -> Result<Value, String> {
+pub async fn administrators() -> Result<Value, String> {
+    off_main(list_administrators).await?
+}
+
+fn list_administrators() -> Result<Value, String> {
     let output = run(&[
         "report".to_string(),
         "admin".to_string(),
@@ -512,7 +538,11 @@ pub struct QueueRequest {
 
 /// Ask a SLURM queue once, through `qibocal notebook queue --json`.
 #[tauri::command]
-pub fn slurm_queue(request: QueueRequest) -> Result<Value, String> {
+pub async fn slurm_queue(request: QueueRequest) -> Result<Value, String> {
+    off_main(move || ask_queue(request)).await?
+}
+
+fn ask_queue(request: QueueRequest) -> Result<Value, String> {
     let mut arguments = vec!["notebook".to_string(), "queue".to_string()];
     if let Some(connection) = request.connection.filter(|value| !value.trim().is_empty()) {
         arguments.push(connection);
@@ -552,7 +582,11 @@ pub struct InviteRequest {
 
 /// Re-issue an administrator invitation for a locally managed server.
 #[tauri::command]
-pub fn reissue_invite(request: InviteRequest) -> Result<Value, String> {
+pub async fn reissue_invite(request: InviteRequest) -> Result<Value, String> {
+    off_main(move || invite(request)).await?
+}
+
+fn invite(request: InviteRequest) -> Result<Value, String> {
     let mut arguments = vec![
         "report".to_string(),
         "admin".to_string(),

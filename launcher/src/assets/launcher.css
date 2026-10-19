@@ -325,6 +325,16 @@
   overflow: hidden;
 }
 
+/*
+ * A list that scrolls within itself — the queue's table in a card. `.lx-list`
+ * clips, and this stylesheet comes after the utilities, so an `overflow-auto`
+ * beside it lost and the table could not be scrolled at all.
+ */
+.lx-list.is-scrolling {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
 .lx-list > * + * {
   border-top: 1px solid #ececef;
 }

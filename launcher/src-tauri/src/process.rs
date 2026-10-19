@@ -557,11 +557,13 @@ pub struct UpgradeOptions {
 /// supervised like any other process, so its output is in Running and the
 /// launcher knows when it is done.
 #[tauri::command]
-pub fn upgrade_server(
-    app: AppHandle,
-    supervisor: State<Supervisor>,
-    options: UpgradeOptions,
-) -> Result<ProcessInfo, String> {
+pub async fn upgrade_server(app: AppHandle, options: UpgradeOptions) -> Result<ProcessInfo, String> {
+    qibocal::off_main(move || upgrade(app, options)).await?
+}
+
+/// Asking the command line whether it knows the subcommand starts Python: off the main thread.
+fn upgrade(app: AppHandle, options: UpgradeOptions) -> Result<ProcessInfo, String> {
+    let supervisor = app.state::<Supervisor>();
     let ssh = options.ssh.trim().to_string();
     if ssh.is_empty() {
         return Err("Only a server on another machine has an environment to update.".to_string());
@@ -569,7 +571,7 @@ pub fn upgrade_server(
     // An older qibocal-report would read `upgrade` as the directory to serve,
     // and fail on the other machine, far from the cause.
     if !qibocal::knows(&["report", "server", "upgrade"])? {
-        let environment = qibocal::environment();
+        let environment = qibocal::describe_environment();
         return Err(format!(
             "The qibocal-report this launcher runs ({}, {}) is older than the launcher: it has no \
              'report server upgrade'. Update the launcher's own installation in Configuration, or \
