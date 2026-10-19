@@ -493,6 +493,74 @@ def ensure_environment(runtime, path, server=False, packages=()):
     return str(python)
 
 
+# The requirements last installed in an environment, kept inside it: a session
+# whose connection asks for others installs them on top, and only then.
+REQUIREMENTS_MARKER = "qibocal-requirements.txt"
+
+
+def normalize_requirements(text):
+    """The requirements as compared: one per line, blank lines and comments dropped."""
+    lines = []
+    for line in str(text or "").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            lines.append(line)
+    return "\n".join(lines) + "\n" if lines else ""
+
+
+def has_pip(runtime, python):
+    """Whether the environment can install on its own, or needs an external pip."""
+    return json.loads(
+        runtime.command(
+            [
+                python,
+                "-c",
+                "import json, importlib.util; "
+                "print(json.dumps(importlib.util.find_spec('pip') is not None))",
+            ],
+            capture=True,
+        )
+    )
+
+
+def apply_requirements(runtime, path, python, text):
+    """Make the environment hold what the connection asks for.
+
+    The requirements installed last are recorded in the environment; when
+    the connection asks for the same, nothing happens, and when it asks for
+    others they are installed on top with pip — nothing is removed, and the
+    environment is never rebuilt. A failure stops the session: the kernel
+    would otherwise lack what it was promised.
+    """
+    wanted = normalize_requirements(text)
+    marker = path / REQUIREMENTS_MARKER
+    try:
+        applied = marker.read_text(encoding="utf-8")
+    except OSError:
+        applied = ""
+    if wanted == applied:
+        return
+    if not wanted:
+        # Nothing asked for any more: nothing to install, and nothing removed.
+        marker.unlink(missing_ok=True)
+        return
+    pending = path / f".{REQUIREMENTS_MARKER}.pending"
+    pending.write_text(wanted, encoding="utf-8")
+    event(
+        "status",
+        message=f"Installing the connection's requirements in: {path}\n{wanted.rstrip()}",
+    )
+    try:
+        runtime.command(
+            environment_install_command(
+                python, ["-r", str(pending)], seeded=has_pip(runtime, python)
+            )
+        )
+    finally:
+        pending.unlink(missing_ok=True)
+    marker.write_text(wanted, encoding="utf-8")
+
+
 def server_sites(runtime, python):
     packages = ["jupyterlab", "ipykernel"]
     try:
@@ -847,24 +915,13 @@ def run(options):
                 target_path,
                 packages=("qibocal",),
             )
+            apply_requirements(runtime, target_path, target, options.get("requirements"))
             if marimo:
-                has_pip = json.loads(
-                    runtime.command(
-                        [
-                            target,
-                            "-c",
-                            (
-                                "import json, importlib.util; "
-                                "print(json.dumps(importlib.util.find_spec('pip') "
-                                "is not None))"
-                            ),
-                        ],
-                        capture=True,
-                    )
-                )
                 event("status", message=f"Installing marimo in: {target_path}")
                 runtime.command(
-                    environment_install_command(target, ["marimo"], seeded=has_pip)
+                    environment_install_command(
+                        target, ["marimo"], seeded=has_pip(runtime, target)
+                    )
                 )
             else:
                 server = ensure_environment(runtime, server_path, server=True)

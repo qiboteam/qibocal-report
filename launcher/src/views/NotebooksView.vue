@@ -83,13 +83,22 @@
               v-for="field in advancedFields"
               v-slot="{ id }"
               :key="field.name"
+              :class="field.type === 'textarea' ? 'sm:col-span-2' : ''"
               :label="field.label"
               :help="field.help"
               :info="field.info"
               :error="errors[field.name]"
               :warning="warnings[field.name]"
             >
-              <div v-if="field.type === 'number'" class="flex items-center gap-2">
+              <textarea spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+                v-if="field.type === 'textarea'"
+                :id="id"
+                v-model="values[field.name]"
+                rows="4"
+                class="lx-input lx-mono"
+                :placeholder="field.placeholder"
+              />
+              <div v-else-if="field.type === 'number'" class="flex items-center gap-2">
                 <input :id="id" v-model="values[field.name]" type="number" min="1" class="lx-input lx-mono" />
                 <span class="text-[11px] text-gray-400 shrink-0">{{ field.unit }}</span>
               </div>

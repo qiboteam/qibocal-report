@@ -6,6 +6,7 @@ import {
   defaultNotebookOptions,
   describeConnection,
   normalizeNotebookOptions,
+  requirementCount,
   toEditorValues
 } from '../src/lib/notebooks.js'
 
@@ -76,4 +77,15 @@ test('connections are described in one line', () => {
     describeConnection({ ssh: 'user@login', queue: 'mychip', marimo: true }),
     'ssh user@login · partition mychip · Marimo'
   )
+})
+
+test('requirements keep their lines, are optional, and are counted in the summary', () => {
+  const text = '  numpy>=2\n# for the fits\nscipy\n\n'
+  const { options, valid } = normalizeNotebookOptions({ ...defaultNotebookOptions(), requirements: text })
+  assert.equal(valid, true)
+  assert.equal(options.requirements, 'numpy>=2\n# for the fits\nscipy', 'only the ends are trimmed')
+  assert.equal(normalizeNotebookOptions(defaultNotebookOptions()).options.requirements, undefined)
+  assert.equal(requirementCount(text), 2, 'comments and blank lines do not count')
+  assert.match(describeConnection({ ssh: 'lab', requirements: 'numpy\nscipy' }), /2 requirements$/)
+  assert.doesNotMatch(describeConnection({ ssh: 'lab' }), /requirement/)
 })

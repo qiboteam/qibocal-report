@@ -105,6 +105,15 @@ for example 192.168.0.0/24. Among matching addresses, choose the IP with the
 longest network prefix in common with an access-node IP.
 Startup fails if no usable computing-node IP matches.
 Local and unscheduled SSH sessions still bind only to loopback.
+.TP
+.BI \-\-requirements " TEXT|@FILE"
+What the kernel environment must hold, in requirements.txt format: the text
+itself, or @FILE to read it from a local file. Stored with a named connection
+in notebooks.json. Installed with pip when the environment is created; at
+every later session, if the requirements differ from those last installed in
+that environment, they are installed on top of it. The environment is never
+rebuilt and nothing is uninstalled; a failed installation stops the session
+and is tried again at the next one.
 .SS Requirements and environments
 Local execution requires Python 3.10+ with venv support. SSH execution requires
 OpenSSH locally and python3 (3.10+) with venv support on the access
@@ -236,6 +245,7 @@ qibocal notebook add mychip --ssh myuser@login -q mychip
 qibocal notebook list
 qibocal notebook list --raw
 qibocal notebook update mychip --subnet 192.168.0.0/24
+qibocal notebook update mychip --requirements @requirements.txt
 qibocal notebook remove mychip
 .fi
 .SH REPORT COMMANDS

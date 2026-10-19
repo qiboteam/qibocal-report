@@ -381,10 +381,10 @@ def test_add_interactive_selected_options():
 
 def test_add_interactive_invalid_selection_reprompts():
     result = CliRunner().invoke(
-        main, ["notebook", "add"], input="chip\n0,10\nbad\n2,2\nchip\n"
+        main, ["notebook", "add"], input="chip\n0,11\nbad\n2,2\nchip\n"
     )
     assert result.exit_code == 0, result.output
-    assert "Choose numbers between 1 and 9" in result.output
+    assert "Choose numbers between 1 and 10" in result.output
     assert stored_connections() == {"chip": {"queue": "chip"}}
 
 

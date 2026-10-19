@@ -101,7 +101,7 @@
                   v-for="field in fieldsOf(item)"
                   :key="`${item.key}:${field.name}`"
                   v-slot="{ id }"
-                  :class="field.type === 'json' ? 'sm:col-span-2' : ''"
+                  :class="field.type === 'json' || field.type === 'textarea' ? 'sm:col-span-2' : ''"
                   :label="field.label"
                   :help="field.help"
                   :error="jsonErrors[`${item.key}:${field.name}`]"
@@ -127,6 +127,14 @@
                     class="lx-input lx-mono"
                     :value="json(field.value)"
                     @input="setJson(item.key, field.name, $event.target.value)"
+                  />
+                  <textarea spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+                    v-else-if="field.type === 'textarea'"
+                    :id="id"
+                    rows="4"
+                    class="lx-input lx-mono"
+                    :value="field.value ?? ''"
+                    @change="set(item.key, field.name, $event.target.value)"
                   />
                   <input :spellcheck="field.name === 'description'" autocomplete="off" autocorrect="off" autocapitalize="off"
                     v-else

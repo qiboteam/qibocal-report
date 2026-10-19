@@ -118,6 +118,10 @@ class NotebookOptions(BaseModel):
     no_interactive: bool = False
     timeout: float = Field(default=300.0, gt=0, allow_inf_nan=False)
     subnet: str | None = Field(default=None, min_length=1)
+    # What the kernel environment must hold, in requirements.txt format: put
+    # in when the environment is created, and installed on top of it at the
+    # next session whenever it changes. Nothing is uninstalled.
+    requirements: str | None = Field(default=None, min_length=1)
 
     @field_validator("subnet")
     @classmethod

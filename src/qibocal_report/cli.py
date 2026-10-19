@@ -24,6 +24,17 @@ def main():
     """Qibocal: Quantum calibration and characterization framework."""
 
 
+def requirements_text(_context, _parameter, value: str | None) -> str | None:
+    """The requirements as given, or the content of the file named after `@`."""
+    if value is None or not value.startswith("@"):
+        return value
+    path = Path(value[1:]).expanduser()
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise click.BadParameter(f"Could not read '{path}': {error}") from error
+
+
 def notebook_options(*, hidden: bool = False):
     """Keep connect and add option parsing identical."""
 
@@ -82,6 +93,15 @@ def notebook_options(*, hidden: bool = False):
                     metavar="CIDR",
                     help="Restrict SLURM computing-node IPs to this subnet "
                     "(e.g. 192.168.0.0/24).",
+                ),
+                click.option(
+                    "--requirements",
+                    hidden=hidden,
+                    metavar="TEXT|@FILE",
+                    callback=requirements_text,
+                    help="What the kernel environment must hold, in requirements.txt "
+                    "format, or @FILE to read it from a file: installed when the "
+                    "environment is created, and on top of it whenever it changes.",
                 ),
             ]
         ):

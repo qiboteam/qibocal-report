@@ -737,6 +737,8 @@ pub struct NotebookOptions {
     pub marimo: Option<bool>,
     pub timeout: Option<f64>,
     pub subnet: Option<String>,
+    /// What the kernel environment must hold, in requirements.txt format.
+    pub requirements: Option<String>,
 }
 
 /// A fresh directory under the system temporary folder, for a process to start from.
@@ -781,6 +783,7 @@ pub fn start_notebook(
     push_text(&mut arguments, "--workdir", options.workdir);
     push_text(&mut arguments, "--venv", options.venv);
     push_text(&mut arguments, "--subnet", options.subnet);
+    push_text(&mut arguments, "--requirements", options.requirements);
     if let Some(marimo) = options.marimo {
         arguments.push(if marimo { "--marimo" } else { "--jupyter" }.to_string());
     }

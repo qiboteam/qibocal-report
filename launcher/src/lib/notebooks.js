@@ -66,6 +66,15 @@ export const NOTEBOOK_FIELDS = [
     info: 'A network, in CIDR notation, that the address of the SLURM computing node must belong to. Left empty, the node picks the interface it routes through to reach the access node, leaving out any address the two share, such as a container bridge; set this when the notebook is reported ready but the access node cannot reach it.'
   },
   {
+    name: 'requirements',
+    label: 'Kernel requirements',
+    type: 'textarea',
+    advanced: true,
+    placeholder: 'numpy>=2\nscipy\nqibolab[qm]',
+    help: 'requirements.txt format. Empty: qibocal alone.',
+    info: 'What the kernel environment must hold, one requirement per line, as pip reads a requirements.txt file. Installed when the environment is created; when the list changes, the next session installs it on top of the environment, without rebuilding it — nothing is uninstalled.'
+  },
+  {
     name: 'timeout',
     label: 'Startup timeout',
     type: 'number',
@@ -133,6 +142,7 @@ export function normalizeNotebookOptions(values = {}) {
       if (parsed !== field.default) options[field.name] = parsed
       continue
     }
+    // A textarea keeps its lines; only the ends are trimmed.
     const text = typeof raw === 'string' ? raw.trim() : ''
     if (!text || text === field.default) continue
     if (field.name === 'subnet' && !validSubnet(text)) {
@@ -150,6 +160,11 @@ export function normalizeNotebookOptions(values = {}) {
   return { options, errors, warnings, valid: Object.keys(errors).length === 0 }
 }
 
+/** How many requirements a requirements.txt text names: blank lines and comments do not count. */
+export function requirementCount(text) {
+  return String(text || '').split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#')).length
+}
+
 /** One-line summary of a stored connection, for the connection list. */
 export function describeConnection(connection = {}) {
   const parts = []
@@ -158,5 +173,7 @@ export function describeConnection(connection = {}) {
   if (connection.queue) parts.push(`partition ${connection.queue}`)
   if (connection.workdir) parts.push(connection.workdir)
   parts.push(connection.marimo ? 'Marimo' : 'JupyterLab')
+  const requirements = requirementCount(connection.requirements)
+  if (requirements) parts.push(`${requirements} requirement${requirements === 1 ? '' : 's'}`)
   return parts.join(' · ')
 }
