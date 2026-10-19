@@ -1077,6 +1077,8 @@ def test_real_transported_script_lifecycle(
         os.environ,
         XDG_CACHE_HOME=str(cache),
         XDG_RUNTIME_DIR=str(runtime_directory),
+        # The fake environments here answer pip, not uv.
+        QIBOCAL_NO_UV="1",
         FAKE_PID=str(pidfile),
         EXPECTED_TARGET=str(target / "bin/python"),
     )

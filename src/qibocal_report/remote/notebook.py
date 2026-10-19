@@ -122,6 +122,10 @@ class NotebookOptions(BaseModel):
     # in when the environment is created, and installed on top of it at the
     # next session whenever it changes. Nothing is uninstalled.
     requirements: str | None = Field(default=None, min_length=1)
+    # Where `rebuild` regenerates the environment of a SLURM connection: on
+    # the access node — the nodes share the home it lives in — unless this
+    # asks for a computing node, through srun like a session.
+    rebuild_on_compute: bool = False
 
     @field_validator("subnet")
     @classmethod

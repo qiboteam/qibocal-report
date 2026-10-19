@@ -36,6 +36,7 @@ Stopped = _shared["Stopped"]
 WorkerError = _shared["WorkerError"]
 ensure_environment = _shared["ensure_environment"]
 environment_install_command = _shared["environment_install_command"]
+install_command = _shared["install_command"]
 environment_path = _shared["environment_path"]
 event = _shared["event"]
 free_port = _shared["free_port"]
@@ -104,6 +105,14 @@ def upgrade_commands(python, packages, seeded):
     ]
 
 
+def upgrade_installs(runtime, python, packages):
+    """`upgrade_commands`, with uv when there is one: the same two steps."""
+    return [
+        install_command(runtime, python, packages, upgrade=True, reinstall=True, no_deps=True),
+        install_command(runtime, python, packages, upgrade=True),
+    ]
+
+
 def ensure_qibocal(runtime, path, packages, upgrade=False):
     """Return the environment's ``qibocal``, installing it when it is missing.
 
@@ -117,12 +126,10 @@ def ensure_qibocal(runtime, path, packages, upgrade=False):
     executable = path / "bin" / "qibocal"
     if not executable.is_file():
         event("status", message=f"Installing {', '.join(packages)} in: {path}")
-        runtime.command(
-            environment_install_command(python, packages, has_pip(runtime, python))
-        )
+        runtime.command(install_command(runtime, python, packages))
     elif upgrade:
         event("status", message=f"Updating {', '.join(packages)} in: {path}")
-        for command in upgrade_commands(python, packages, has_pip(runtime, python)):
+        for command in upgrade_installs(runtime, python, packages):
             runtime.command(command)
     if not executable.is_file() or not os.access(executable, os.X_OK):
         raise WorkerError(

@@ -75,6 +75,19 @@ export const NOTEBOOK_FIELDS = [
     info: 'What the kernel environment must hold, one requirement per line, as pip reads a requirements.txt file. Installed when the environment is created; when the list changes, the next session installs it on top of the environment, without rebuilding it — nothing is uninstalled.'
   },
   {
+    name: 'rebuild_on_compute',
+    label: 'Regenerate env on',
+    type: 'choice',
+    advanced: true,
+    default: false,
+    options: [
+      { value: false, label: 'Access node' },
+      { value: true, label: 'Computing node' }
+    ],
+    help: 'Only with a SLURM partition.',
+    info: 'Where Regenerate env rebuilds the kernel environment of a SLURM session. The access node by default: the environment lives in a home the nodes share, and nothing waits in the queue. A computing node when the environment has to be built there — a different architecture, a local disk — through srun like a session, its queue shown in Running.'
+  },
+  {
     name: 'timeout',
     label: 'Startup timeout',
     type: 'number',

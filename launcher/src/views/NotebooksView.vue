@@ -124,7 +124,7 @@
                 : 'Delete the kernel environment entirely, and create it again from qibocal and the requirements alone'"
               @click="rebuild(name)"
             >
-              <RefreshCw class="w-3.5 h-3.5" :class="{ 'lx-spin': rebuilding === name }" /> {{ rebuilding === name ? 'Rebuilding…' : 'Wipe and rebuild' }}
+              <RefreshCw class="w-3.5 h-3.5" :class="{ 'lx-spin': rebuilding === name }" /> {{ rebuilding === name ? 'Regenerating…' : 'Regenerate env' }}
             </button>
             <button type="button" class="lx-action" title="Edit its options" @click="toggleEdit(name)">
               <Pencil class="w-3.5 h-3.5" /> Edit
@@ -314,11 +314,15 @@ async function rebuild(name) {
   const confirmed = await confirmAction(
     `The kernel environment "${venv}" of ${name} is deleted entirely, with everything installed in it, ` +
       'and created again from qibocal and the session\'s requirements alone. This cannot be undone.',
-    { title: 'Wipe and rebuild the environment', okLabel: 'Wipe and rebuild' }
+    { title: 'Regenerate the environment', okLabel: 'Regenerate env' }
   )
   if (!confirmed) return
   rebuilding.value = name
-  const started = await attempt(() => rebuildNotebook(name), `Rebuilding the environment of ${name}; its output is in Running.`, 'processes')
+  const started = await attempt(
+    () => rebuildNotebook(registered(name)),
+    `Regenerating the environment of ${name}; its output is in Running.`,
+    'processes'
+  )
   rebuilding.value = null
   if (started) router.push({ name: 'processes' })
 }

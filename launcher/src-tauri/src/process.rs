@@ -741,6 +741,9 @@ pub struct NotebookOptions {
     pub subnet: Option<String>,
     /// What the kernel environment must hold, in requirements.txt format.
     pub requirements: Option<String>,
+    /// Regenerate a SLURM connection's environment on a computing node, not the access node.
+    #[serde(alias = "rebuild_on_compute")]
+    pub rebuild_on_compute: Option<bool>,
 }
 
 /// A fresh directory under the system temporary folder, for a process to start from.
@@ -782,6 +785,9 @@ fn notebook_arguments(subcommand: &str, options: &NotebookOptions) -> (Vec<Strin
     push_text(&mut arguments, "--venv", options.venv.clone());
     push_text(&mut arguments, "--subnet", options.subnet.clone());
     push_text(&mut arguments, "--requirements", options.requirements.clone());
+    if options.rebuild_on_compute == Some(true) {
+        arguments.push("--rebuild-on-compute".to_string());
+    }
     if let Some(marimo) = options.marimo {
         arguments.push(if marimo { "--marimo" } else { "--jupyter" }.to_string());
     }
@@ -802,7 +808,7 @@ pub fn rebuild_notebook(
     options: NotebookOptions,
 ) -> Result<ProcessInfo, String> {
     let (arguments, connection) = notebook_arguments("rebuild", &options);
-    let label = format!("Rebuild {}", connection.unwrap_or_else(|| "kernel environment".to_string()));
+    let label = format!("Regenerate env {}", connection.unwrap_or_else(|| "kernel environment".to_string()));
     let detail = format!(
         "{} · {}",
         options.ssh.clone().map(|ssh| format!("ssh {ssh}")).unwrap_or_else(|| "this machine".to_string()),

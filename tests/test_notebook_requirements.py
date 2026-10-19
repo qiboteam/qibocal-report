@@ -89,26 +89,50 @@ def test_requirements_are_a_connection_option_from_text_or_a_file(tmp_path, monk
     assert missing.exit_code != 0 and "Could not read" in missing.output
 
 
-def test_a_rebuild_removes_the_environment_and_makes_it_from_qibocal_and_the_requirements(tmp_path, monkeypatch):
+def test_a_rebuild_removes_the_environment_and_makes_it_in_one_install(tmp_path, monkeypatch):
     monkeypatch.setattr(worker, "event", lambda *args, **kwargs: None)
     monkeypatch.setattr(worker, "cache_home", lambda: tmp_path / "cache")
     environment = tmp_path / "envs" / "chip"
     (environment / "lib").mkdir(parents=True)
     (environment / "pyvenv.cfg").write_text("home = /usr/bin\n")
     (environment / "lib" / "leftover.py").write_text("")
-    made = []
+    installs = []
 
-    def ensure(runtime, path, server=False, packages=()):
-        made.append((path, packages))
-        (path / "bin").mkdir(parents=True)
-        return str(path / "bin" / "python")
+    def create(runtime, path, packages=()):
+        assert not (path / "lib" / "leftover.py").exists(), "the old environment is gone first"
+        listing = packages[packages.index("-r") + 1]
+        installs.append((list(packages[:-1]), open(listing, encoding="utf-8").read()))
+        path.mkdir(parents=True)
+        return path / "bin" / "python"
 
-    applied = []
-    monkeypatch.setattr(worker, "ensure_environment", ensure)
-    monkeypatch.setattr(worker, "apply_requirements", lambda runtime, path, python, text: applied.append(text))
-    worker.rebuild_environment(MagicMock(), {"venv": str(environment), "requirements": "numpy\n"})
-    assert not (environment / "lib" / "leftover.py").exists(), "the old environment is gone"
-    assert made == [(environment, ("qibocal",))] and applied == ["numpy\n"]
+    monkeypatch.setattr(worker, "create_environment", create)
+    worker.rebuild_environment(MagicMock(), {"venv": str(environment), "requirements": "numpy\n# fits\nscipy\n"})
+    assert installs == [(["qibocal", "-r"], "numpy\nscipy\n")], "qibocal and the requirements, together"
+    assert (environment / worker.REQUIREMENTS_MARKER).read_text() == "numpy\nscipy\n", "recorded as installed"
+    assert not any(path.name.endswith(".pending") for path in environment.parent.iterdir())
+
+
+def test_uv_makes_and_fills_environments_when_there_is_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(worker, "event", lambda *args, **kwargs: None)
+    monkeypatch.setitem(worker._UV, "path", "/tools/uv")
+    runtime = MagicMock()
+    path = tmp_path / "env"
+    worker.create_environment(runtime, path, ["qibocal", "-r", "requirements.txt"])
+    venv, install = (call.args[0] for call in runtime.command.call_args_list)
+    assert venv[:3] == ["/tools/uv", "venv", "--seed"], "seeded: pip is still there for whoever uses it"
+    assert install == ["/tools/uv", "pip", "install", "--python", str(path / "bin" / "python"),
+                       "qibocal", "-r", "requirements.txt"]
+    upgrade = worker.install_command(runtime, "/env/bin/python", ["pkg"], upgrade=True, reinstall=True, no_deps=True)
+    assert upgrade == ["/tools/uv", "pip", "install", "--python", "/env/bin/python",
+                       "--upgrade", "--no-deps", "--reinstall", "pkg"]
+
+
+def test_without_uv_the_worker_installs_none_when_told_not_to(monkeypatch):
+    monkeypatch.delitem(worker._UV, "path")
+    monkeypatch.setenv("QIBOCAL_NO_UV", "1")
+    runtime = MagicMock()
+    assert worker.find_uv(runtime) is None
+    runtime.command.assert_not_called()
 
 
 def test_a_rebuild_refuses_what_is_not_a_virtual_environment(tmp_path, monkeypatch):
@@ -132,3 +156,17 @@ def test_rebuild_is_a_command_that_runs_the_worker_in_rebuild_mode(monkeypatch):
     assert captured["options"].venv == "chip" and captured["options"].requirements == "numpy"
     command, _, destination = notebook._worker_command(captured["options"], _rebuild=True)
     assert destination == "lab" and '"_rebuild": true' in command[-1]
+
+
+def test_a_slurm_connection_regenerates_on_the_access_node_unless_asked(monkeypatch):
+    rebuilt, submitted = [], []
+    monkeypatch.setattr(worker, "rebuild_environment", lambda runtime, options: rebuilt.append(options))
+    monkeypatch.setattr(worker, "srun_command", lambda options, nested: submitted.append(nested) or (["true"], ""))
+    monkeypatch.setattr(worker, "event", lambda *args, **kwargs: None)
+    runtime = MagicMock()
+    runtime.spawn.return_value = (MagicMock(returncode=0), MagicMock(get=MagicMock(return_value=None)))
+    worker.run_rebuild(runtime, {"queue": "chip"}, scheduled=True)
+    assert rebuilt and not submitted, "the access node: nothing waits in the queue"
+    rebuilt.clear()
+    worker.run_rebuild(runtime, {"queue": "chip", "rebuild_on_compute": True}, scheduled=True)
+    assert submitted and not rebuilt, "a computing node, through srun, when asked"

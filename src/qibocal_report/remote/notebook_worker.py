@@ -464,29 +464,106 @@ def environment_install_command(python, packages, seeded):
     )
 
 
+# --- uv: environments made and filled far faster than with venv and pip -------
+# uv is used wherever it can be: the one on the PATH, or one the worker
+# installs once for itself, under the cache, with venv and pip. Without
+# either — no index, no pip anywhere — the worker falls back on venv and
+# pip, as before.
+_UV = {}
+
+
+def tools_path():
+    return cache_home() / "qibocal" / "tools" / "uv"
+
+
+def _bin(path, name):
+    return path / ("Scripts" if os.name == "nt" else "bin") / (f"{name}.exe" if os.name == "nt" else name)
+
+
+def find_uv(runtime):
+    """The uv to use, installing it once when there is none; None to fall back on pip."""
+    if "path" in _UV:
+        return _UV["path"]
+    if os.environ.get("QIBOCAL_NO_UV"):
+        # Asked for venv and pip: nothing found, nothing installed.
+        _UV["path"] = None
+        return None
+    found = shutil.which("uv")
+    managed = _bin(tools_path(), "uv")
+    if found is None and managed.is_file():
+        found = str(managed)
+    if found is None:
+        try:
+            event("status", message=f"Installing uv, once, in: {tools_path()}")
+            seeded = util.find_spec("ensurepip") is not None
+            tools_path().parent.mkdir(parents=True, exist_ok=True)
+            runtime.command(
+                [sys.executable, "-m", "venv", *([] if seeded else ["--without-pip"]), str(tools_path())]
+            )
+            runtime.command(environment_install_command(str(_bin(tools_path(), "python")), ["uv"], seeded))
+            if managed.is_file():
+                found = str(managed)
+        except WorkerError as error:
+            event("status", message=f"uv is unavailable ({error}); using venv and pip.")
+    _UV["path"] = found
+    return found
+
+
+def install_command(runtime, python, packages, *, upgrade=False, reinstall=False, no_deps=False):
+    """Install `packages` — names, specifications, `-r FILE` — into the environment of `python`.
+
+    With uv when there is one, else with pip, in or for the environment.
+    """
+    flags = (["--upgrade"] if upgrade else []) + (["--no-deps"] if no_deps else [])
+    uv = find_uv(runtime)
+    if uv:
+        return [uv, "pip", "install", "--python", str(python), *flags,
+                *(["--reinstall"] if reinstall else []), *packages]
+    return environment_install_command(
+        str(python),
+        [*flags, *(["--force-reinstall"] if reinstall else []), *packages],
+        seeded=has_pip(runtime, python),
+    )
+
+
+def create_environment(runtime, path, packages=()):
+    """Make an environment, with pip in it, and install `packages` in one go."""
+    python = path / "bin" / "python"
+    event("status", message=f"Creating environment: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    uv = find_uv(runtime)
+    if uv:
+        # Seeded: whoever uses the environment can still pip install in it.
+        runtime.command([uv, "venv", "--seed", "--python", sys.executable, str(path)])
+        if packages:
+            runtime.command([uv, "pip", "install", "--python", str(python), *packages])
+        return python
+    seeded = util.find_spec("ensurepip") is not None
+    if not seeded:
+        packages = ["pip", *packages]
+    if packages:
+        install = environment_install_command(str(python), list(packages), seeded)
+    command = [sys.executable, "-m", "venv"]
+    if not seeded:
+        command.append("--without-pip")
+    runtime.command([*command, str(path)])
+    if packages:
+        runtime.command(install)
+    return python
+
+
 def ensure_environment(runtime, path, server=False, packages=()):
     python = path / "bin" / "python"
     if not path.exists() and not path.is_symlink():
         if server:
             packages = ["jupyterlab", "ipykernel"]
-        seeded = util.find_spec("ensurepip") is not None
-        if not seeded:
-            packages = ["pip", *packages]
-        if packages:
-            install = environment_install_command(str(python), packages, seeded)
-        event("status", message=f"Creating environment: {path}")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        command = [sys.executable, "-m", "venv"]
-        if not seeded:
-            command.append("--without-pip")
-        runtime.command([*command, str(path)])
         if packages:
             event(
                 "status",
                 message=f"Installing {'notebook' if server else 'kernel'} "
                 f"dependencies: {', '.join(packages)}",
             )
-            runtime.command(install)
+        create_environment(runtime, path, list(packages))
     if not python.is_file() or not os.access(python, os.X_OK):
         raise WorkerError(
             f"Environment {path} has no executable bin/python; repair it manually"
@@ -552,14 +629,33 @@ def apply_requirements(runtime, path, python, text):
         message=f"Installing the connection's requirements in: {path}\n{wanted.rstrip()}",
     )
     try:
-        runtime.command(
-            environment_install_command(
-                python, ["-r", str(pending)], seeded=has_pip(runtime, python)
-            )
-        )
+        runtime.command(install_command(runtime, python, ["-r", str(pending)]))
     finally:
         pending.unlink(missing_ok=True)
     marker.write_text(wanted, encoding="utf-8")
+
+
+def create_kernel_environment(runtime, path, requirements):
+    """A new kernel environment: qibocal and the requirements, in a single install."""
+    wanted = normalize_requirements(requirements)
+    pending = path.parent / f".{path.name}.{REQUIREMENTS_MARKER}.pending"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    extra = []
+    if wanted:
+        pending.write_text(wanted, encoding="utf-8")
+        extra = ["-r", str(pending)]
+    event(
+        "status",
+        message="Installing kernel dependencies: qibocal"
+        + (f" and the requirements\n{wanted.rstrip()}" if wanted else ""),
+    )
+    try:
+        python = create_environment(runtime, path, ["qibocal", *extra])
+    finally:
+        pending.unlink(missing_ok=True)
+    if wanted:
+        (path / REQUIREMENTS_MARKER).write_text(wanted, encoding="utf-8")
+    return python
 
 
 def server_sites(runtime, python):
@@ -849,14 +945,14 @@ def rebuild_environment(runtime, options):
             )
         event("status", message=f"Removing the kernel environment: {target_path}")
         shutil.rmtree(target_path)
-    target = ensure_environment(runtime, target_path, packages=("qibocal",))
-    apply_requirements(runtime, target_path, target, options.get("requirements"))
-    event("status", message=f"Kernel environment rebuilt: {target_path}")
+    create_kernel_environment(runtime, target_path, options.get("requirements"))
+    event("status", message=f"Kernel environment regenerated: {target_path}")
 
 
 def run_rebuild(runtime, options, scheduled):
-    """Rebuild where the sessions run: on a computing node through srun, when they do."""
-    if not scheduled:
+    """Regenerate on the access node — the environments live in a home the nodes
+    share — or on a computing node through srun, when the connection asks for it."""
+    if not scheduled or not options.get("rebuild_on_compute"):
         rebuild_environment(runtime, options)
         return
     nested = dict(options, queue=None, slurm=None, workdir=str(Path.cwd()), _node_role="compute")
@@ -868,7 +964,7 @@ def run_rebuild(runtime, options, scheduled):
         print(line, end="", flush=True)
     process.wait()
     if process.returncode:
-        raise WorkerError(f"The rebuild on the computing node failed ({process.returncode})")
+        raise WorkerError(f"The regeneration on the computing node failed ({process.returncode})")
 
 
 def run(options):
@@ -975,11 +1071,7 @@ def run(options):
             apply_requirements(runtime, target_path, target, options.get("requirements"))
             if marimo:
                 event("status", message=f"Installing marimo in: {target_path}")
-                runtime.command(
-                    environment_install_command(
-                        target, ["marimo"], seeded=has_pip(runtime, target)
-                    )
-                )
+                runtime.command(install_command(runtime, target, ["marimo"]))
             else:
                 server = ensure_environment(runtime, server_path, server=True)
                 sites = server_sites(runtime, server)

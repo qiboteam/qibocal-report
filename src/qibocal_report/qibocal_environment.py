@@ -370,24 +370,7 @@ def _installer_commands(target: str, editable: bool = False) -> list[list[str]]:
     # A local folder is installed editable: the sources are the installation,
     # and a change there is live at the next plot, without installing again.
     requirement = ["-e", target] if editable else [target]
-    if util.find_spec("pip") is not None:
-        pip = [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            "--no-input",
-            "--prefer-binary",
-            "--index-url",
-            "https://pypi.org/simple",
-        ]
-        return [
-            # Qibocal alone, whatever is installed.
-            [*pip, "--force-reinstall", "--no-deps", *requirement],
-            # Then what it needs, and nothing it does not.
-            [*pip, "--upgrade-strategy", "only-if-needed", *requirement],
-        ]
+    # uv first: it resolves and installs far faster than pip.
     uv = shutil.which("uv")
     if uv:
         return [
@@ -407,6 +390,24 @@ def _installer_commands(target: str, editable: bool = False) -> list[list[str]]:
                 "https://pypi.org/simple",
                 *requirement,
             ]
+        ]
+    if util.find_spec("pip") is not None:
+        pip = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-input",
+            "--prefer-binary",
+            "--index-url",
+            "https://pypi.org/simple",
+        ]
+        return [
+            # Qibocal alone, whatever is installed.
+            [*pip, "--force-reinstall", "--no-deps", *requirement],
+            # Then what it needs, and nothing it does not.
+            [*pip, "--upgrade-strategy", "only-if-needed", *requirement],
         ]
     raise EnvironmentOperationError(
         503,

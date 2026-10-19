@@ -95,6 +95,14 @@ def notebook_options(*, hidden: bool = False):
                     "(e.g. 192.168.0.0/24).",
                 ),
                 click.option(
+                    "--rebuild-on-compute/--rebuild-on-access",
+                    default=None,
+                    hidden=hidden,
+                    help="Where `notebook rebuild` regenerates the environment of a "
+                    "SLURM connection: on a computing node through srun, or on the "
+                    "access node (default).",
+                ),
+                click.option(
                     "--requirements",
                     hidden=hidden,
                     metavar="TEXT|@FILE",

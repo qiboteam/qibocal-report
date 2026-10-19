@@ -63,8 +63,13 @@
           :error="errors[field.name]"
           :warning="warnings[field.name]"
         >
+          <segmented-control
+            v-if="field.type === 'choice'"
+            v-model="values[field.name]"
+            :options="field.options"
+          />
           <textarea spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-            v-if="field.type === 'textarea'"
+            v-else-if="field.type === 'textarea'"
             :id="id"
             v-model="values[field.name]"
             rows="4"

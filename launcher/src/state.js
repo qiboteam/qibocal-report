@@ -403,9 +403,14 @@ export function sessionsOf(connection) {
  * Destroy a connection's kernel environment and make it again from qibocal
  * and its requirements, as a process of its own in Running.
  */
-export async function rebuildNotebook(connection) {
-  const info = await withQibocal(() => desktop.rebuildNotebook({ connection }))
+export async function rebuildNotebook(options) {
+  const info = await withQibocal(() => desktop.rebuildNotebook(options))
+  // Through SLURM only when asked: then its queue is shown in Running, as a session's is.
+  const queued = options.rebuild_on_compute ? options : { ...options, queue: undefined }
+  state.launches[info.id] = { kind: 'rebuild', options: queued, rerun: options, url: null }
   mergeProcess(info)
+  const queue = queueOf(queued)
+  if (queue) refreshQueue(queue).catch(() => {})
   return info
 }
 
@@ -414,6 +419,7 @@ export async function restartProcess(process) {
   const launch = state.launches[process.id]
   if (!launch) throw new Error('The launcher does not know how this was started.')
   if (launch.kind === 'notebook') return startNotebook(launch.options)
+  if (launch.kind === 'rebuild') return rebuildNotebook(launch.rerun || launch.options)
   return startServer(launch.options, { url: launch.url || process.url })
 }
 

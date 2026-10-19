@@ -139,6 +139,10 @@ Marimo is installed directly into the target environment and launched with its
 Python; no separate Marimo environment is used. Installing notebook dependencies or
 Qibocal into a new kernel environment requires package-index access
 on the computing node and either ensurepip or pip (22.3+) in the worker's Python.
+Environments are created with uv venv \-\-seed and filled with uv pip install,
+using the uv on the PATH or one installed once under
+$XDG_CACHE_HOME/qibocal/tools/uv; without either, or when QIBOCAL_NO_UV is set,
+with venv and pip as described here.
 All newly created environments include pip. If ensurepip is unavailable,
 the worker uses the external installer to install pip and any requested
 dependencies into the new environment; system packages
@@ -237,9 +241,11 @@ are unchanged. Removing the last connection leaves an empty JSON object.
 .RI [ CONNECTION ]
 .RI [ OPTIONS ]
 .PP
-Remove the kernel environment of a connection entirely, where its sessions run
-(through srun when it names a partition), and create it again with qibocal and
-the \-\-requirements alone. No notebook is started. Only a directory holding
+Remove the kernel environment of a connection entirely and create it again
+with qibocal and the \-\-requirements alone, in a single install. A SLURM
+connection is regenerated on the access node, which shares the home the
+environment lives in, unless \-\-rebuild\-on\-compute asks for a computing
+node, through srun. No notebook is started. Only a directory holding
 pyvenv.cfg is removed; the notebook server environment is never touched.
 .SS Examples
 .nf
@@ -336,6 +342,10 @@ Ask before removing servers.json and authentication data.
 \-f/\-\-force skips confirmation. Does not remove notebooks.json, notebook
 environments, reports, unrelated files, or directories.
 .SH ENVIRONMENT
+.TP
+.B QIBOCAL_NO_UV
+When set, environments are created and filled with venv and pip, and uv is
+neither used nor installed.
 .TP
 .B XDG_CONFIG_HOME
 Configuration root for notebook connections.

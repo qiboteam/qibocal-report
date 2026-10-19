@@ -130,6 +130,8 @@ def mock_pypi(monkeypatch, releases=None):
 
 def mock_installer(monkeypatch, *, returncode=0, stderr="", side_effect=None):
     monkeypatch.setattr(environment.util, "find_spec", Mock(return_value=object()))
+    # pip, whatever the machine running the tests has on its PATH.
+    monkeypatch.setattr(environment.shutil, "which", Mock(return_value=None))
     processes = []
     if isinstance(side_effect, subprocess.TimeoutExpired):
         monkeypatch.setattr(environment, "INSTALL_TIMEOUT", 0.05)

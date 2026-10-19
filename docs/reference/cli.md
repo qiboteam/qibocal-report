@@ -186,7 +186,7 @@ qibocal report admin invite alice_admin --json
 ---
 
 ### `qibocal notebook rebuild [CONNECTION]`
-Destroy a session's kernel environment and make it again from scratch: where the sessions of `CONNECTION` — or of the options given, those of `qibocal notebook connect` — run, here, over SSH or on a computing node through SLURM, the environment is removed entirely and created anew with `qibocal` and the `--requirements` alone. No notebook is started. Only a Python virtual environment is removed: a folder without `pyvenv.cfg` is refused, and the notebook server's own environment is never touched.
+Destroy a session's kernel environment and make it again from scratch: where the sessions of `CONNECTION` — or of the options given, those of `qibocal notebook connect` — run, here, over SSH or on a computing node through SLURM, the environment is removed entirely and created anew with `qibocal` and the `--requirements` alone, in a single install. A SLURM connection is regenerated on the access node unless `--rebuild-on-compute` asks for a computing node, through srun. No notebook is started. Only a Python virtual environment is removed: a folder without `pyvenv.cfg` is refused, and the notebook server's own environment is never touched.
 
 ### `qibocal notebook queue [CONNECTION]`
 What a SLURM queue is doing, asked once: `squeue`, `sinfo` and `whoami` run in a single round trip — over SSH when a destination is given — and answered as a table, or as JSON with `--json`. The host and the partition come from a saved `CONNECTION`, or from the options.
@@ -205,6 +205,7 @@ Ask sparingly: every call costs the controller something. The launcher asks ever
 | Variable | Description | Default |
 | :--- | :--- | :--- |
 | `QIBOCAL_REPORT_DIR` | Absolute path to the calibration directory scanned for reports. | Set by CLI argument |
+| `QIBOCAL_NO_UV` | When set, the workers create and fill environments with venv and pip instead of uv. | Unset |
 | `QIBOCAL_DASHBOARD_URL` | The dashboard that invitation links open, told the server's address. | `https://qibo.science/qibocal-report` |
 | `QIBOCAL_REPORT_CONFIG_DIR` | Override the directory containing server configurations and the default authentication database. | `$XDG_CONFIG_HOME/qibocal/`, falling back to `~/.config/qibocal/` |
 | `XDG_CONFIG_HOME` | Default configuration root. | `~/.config/` |

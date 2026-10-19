@@ -3,29 +3,16 @@
 Run by the launcher as ``python setup.py '<json>'`` with the environment
 ``path``, the ``packages`` to put in it, whether to ``upgrade`` them, and a
 ``timeout`` in seconds. The notebook worker that ships with qibocal-report
-already knows how to create an environment with or without a usable pip, so
-it is written next to this file and executed from here, the way the report
-worker uses it on a remote host — nothing is installed to run this.
+already knows how to create and fill an environment — with uv, installed
+once under the cache when there is none, or with venv and pip — so it is
+written next to this file and executed from here, the way the report worker
+uses it on a remote host — nothing is installed to run this.
 """
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
-
-
-def has_pip(python):
-    """Whether the environment can install on its own, or needs an external pip."""
-    return (
-        subprocess.run(
-            [str(python), "-c", "import pip"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        ).returncode
-        == 0
-    )
 
 
 def main():
@@ -60,22 +47,21 @@ def main():
         except (OSError, ValueError, AttributeError):
             held = None
 
-        if has_pip(python):
-            pip = [str(python), "-m", "pip", "install"]
-        else:
-            pip = [sys.executable, "-m", "pip", "--python", str(python), "install"]
+        # uv when it can be had, pip otherwise: the worker decides.
+        def install(**flags):
+            return shared["install_command"](runtime, str(python), packages, **flags)
 
         if not executable.is_file():
             print(f"Installing {', '.join(packages)} in: {path}", flush=True)
-            runtime.command([*pip, "--upgrade", *packages])
+            runtime.command(install(upgrade=True))
         elif upgrade or held != packages[0]:
             # A branch or commit archive carries the same version number as
             # the one installed, so pip would call it satisfied and change
             # nothing: the package itself is put back by force, on its own,
             # and the dependencies brought up to date after it.
             print(f"Replacing {held or 'what is installed'} with {', '.join(packages)} in: {path}", flush=True)
-            runtime.command([*pip, "--upgrade", "--force-reinstall", "--no-deps", *packages])
-            runtime.command([*pip, "--upgrade", *packages])
+            runtime.command(install(upgrade=True, reinstall=True, no_deps=True))
+            runtime.command(install(upgrade=True))
         if not executable.is_file():
             raise WorkerError(
                 f"{path} has no qibocal after installing {', '.join(packages)}; "
