@@ -210,6 +210,11 @@ export async function apiGetAdminConfig() {
   return apiFetch('/api/admin/config')
 }
 
+/** Gather every report's targets from its protocols, into its meta. Administrators. */
+export async function apiInferTargets(server = state.activeServer) {
+  return apiFetch('/api/admin/reports/infer-targets', { method: 'POST' }, server)
+}
+
 export async function apiGetQibocal(server = state.activeServer) {
   return apiFetch('/api/qibocal', { cache: 'no-store' }, server)
 }

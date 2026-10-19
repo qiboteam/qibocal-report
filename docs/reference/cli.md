@@ -95,6 +95,9 @@ qibocal report server /shared/calibration --ssh myuser@login --venv mychip --aut
 
 ---
 
+### `qibocal report targets [DIRECTORY]`
+Gather each report's targets from its protocols: every protocol's `action.yml` under `DIRECTORY` — the shared reports directory, left out — names the qubits, or pairs, it was run on, and their union goes into the report's `meta.json` as `targets-inferred`, next to the session's own `targets`. The dashboard shows the inferred targets first. The same action as **Infer targets** in the dashboard's Server Administration.
+
 ### `qibocal report server upgrade`
 Bring a remote server's `qibocal-report` up to date, without starting it: the `--install` packages are put back by force in the `--venv` environment on the `--ssh` host — the packages themselves first, then their dependencies — which otherwise keeps what it holds for good, since it is only filled when it has no qibocal. An independent action, hence a command of its own; start the server as usual afterwards.
 

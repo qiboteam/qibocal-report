@@ -206,7 +206,9 @@ def parse_report_directory(
     else:
         author = raw_author
     platform = meta.get("platform") or "Generic QPU"
-    targets = meta.get("targets") or meta.get("qubits") or []
+    # What the protocols were run on, when it was gathered, over what the
+    # session claims: see `actions.infer_targets`.
+    targets = meta.get("targets-inferred") or meta.get("targets") or meta.get("qubits") or []
     if not isinstance(targets, list):
         targets = [targets] if targets is not None else []
     if not targets:
