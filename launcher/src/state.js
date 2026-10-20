@@ -23,6 +23,8 @@ export const state = reactive({
   environment: null,
   servers: [],
   notebooks: {},
+  /** Remote execution connections, from remotes.json: qibocal-widgets reads them. */
+  remotes: {},
   processes: [],
   configEntries: [],
   preferences: {},
@@ -171,6 +173,11 @@ export async function refreshServers() {
 export async function refreshNotebooks() {
   state.notebooks = await load(desktop.listNotebooks, {})
   return state.notebooks
+}
+
+export async function refreshRemotes() {
+  state.remotes = await load(desktop.listRemotes, {})
+  return state.remotes
 }
 
 export async function refreshProcesses() {
@@ -405,8 +412,7 @@ export function notebookReportsServer(key) {
  * channel, serving its reports folder — or, when one runs already, the
  * dashboard on it. Started for a look: nothing is registered.
  */
-export async function startNotebookReports(options, name = null) {
-  const key = notebookKey(options, name)
+export async function startNotebookReports(options, name = null, { key = notebookKey(options, name) } = {}) {
   const running = notebookReportsServer(key)
   if (running) {
     if (running.url) await openDashboard(running.url)
@@ -563,6 +569,7 @@ export async function initialize() {
     refreshEnvironment(),
     refreshServers(),
     refreshNotebooks(),
+    refreshRemotes(),
     refreshProcesses(),
     refreshConfigEntries(),
     refreshPreferences()

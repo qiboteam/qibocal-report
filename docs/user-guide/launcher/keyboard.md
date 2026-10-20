@@ -8,6 +8,7 @@ The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the l
 | `g s` | Servers |
 | `g r` | Running |
 | `g b` | Notebooks |
+| `g e` | Remote execution |
 | `g c` | Configuration |
 | `g n` | Notifications |
 | `g q` | Queues |
@@ -15,7 +16,7 @@ The keys follow GitHub's: a letter after `g` goes somewhere, and `?` shows the l
 | `n` | New server: Servers, with the form open |
 | `?` | Show the keyboard shortcuts; `Esc` puts them away |
 | `Cmd/Ctrl+Shift+H` | Home, from the Go menu |
-| `Cmd/Ctrl+Shift+S`, `+R`, `+B` | Servers, Running, Notebooks, from the Go menu |
+| `Cmd/Ctrl+Shift+S`, `+R`, `+B`, `+E` | Servers, Running, Notebooks, Remote execution, from the Go menu |
 | `Cmd/Ctrl+,` | Configuration, from the Go menu — where every application keeps its preferences |
 | `Cmd/Ctrl+D` | Dashboard, from the Go menu |
 | `Cmd/Ctrl+Shift+N` | Register a server, from the Servers menu |

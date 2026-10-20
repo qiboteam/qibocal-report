@@ -93,6 +93,12 @@ DOCS_NAVIGATION = [
                 "description": "JupyterLab and Marimo sessions, locally, over SSH or through SLURM, and the queues",
             },
             {
+                "id": "user-guide/launcher/remote",
+                "path": "user-guide/launcher/remote",
+                "title": "Remote Execution",
+                "description": "Connections for qibocal-widgets' remote executor, and their reports",
+            },
+            {
                 "id": "user-guide/launcher/configuration",
                 "path": "user-guide/launcher/configuration",
                 "title": "Configuration",

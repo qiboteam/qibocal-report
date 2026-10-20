@@ -6,6 +6,7 @@ The home page opens onto every section — **Running** first, then what there is
 - **Servers** (`Cmd/Ctrl+Shift+S`, or `g s`): one form for a new server, wherever it runs — here, on another machine, or already reachable — and the registered ones with their invitations.
 - **Running** (`Cmd/Ctrl+Shift+R`, or `g r`): the live output of everything the launcher started, with graceful stop.
 - **Notebooks** (`Cmd/Ctrl+Shift+B`, or `g b`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
+- **Remote execution** (`Cmd/Ctrl+Shift+E`, or `g e`): where qibocal-widgets runs a notebook's acquisitions, and the reports of those runs.
 - **Configuration** (`Cmd/Ctrl+,`, or `g c`): install or update Qibocal, and edit the files shared with the command line.
 - **Help** (`Cmd/Ctrl+/`): this guide, inside the application, and every keyboard shortcut.
 

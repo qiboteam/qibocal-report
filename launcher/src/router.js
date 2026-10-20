@@ -7,6 +7,7 @@ import SettingsView from './views/SettingsView.vue'
 import NotificationsView from './views/NotificationsView.vue'
 import HelpView from './views/HelpView.vue'
 import QueuesView from './views/QueuesView.vue'
+import RemotesView from './views/RemotesView.vue'
 
 /**
  * The launcher sections, described once: the router, the home page cards,
@@ -58,6 +59,16 @@ export const sections = [
     accelerator: 'CmdOrCtrl+Shift+B',
     key: 'b',
     summary: 'Open a JupyterLab or Marimo session here, over SSH or through a SLURM partition.'
+  },
+  {
+    name: 'remotes',
+    path: '/remotes',
+    component: RemotesView,
+    title: 'Remote execution',
+    icon: 'Cpu',
+    accelerator: 'CmdOrCtrl+Shift+E',
+    key: 'e',
+    summary: 'Where qibocal-widgets runs the acquisitions of a notebook: over SSH, through SLURM.'
   },
   {
     name: 'settings',

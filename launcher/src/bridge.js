@@ -42,6 +42,11 @@ export const desktop = {
   saveNotebook: (name, options) => call('save_notebook', { name, options }),
   removeNotebook: name => call('remove_notebook', { name }),
 
+  /** qibocal-widgets' remote execution connections, in remotes.json. */
+  listRemotes: () => call('list_remotes'),
+  saveRemote: (name, options) => call('save_remote', { name, options }),
+  removeRemote: name => call('remove_remote', { name }),
+
   startServer: options => call('start_server', { options }),
   /** `qibocal report server upgrade` on another machine, as a process of its own. */
   upgradeServer: options => call('upgrade_server', { options }),

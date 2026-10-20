@@ -11,9 +11,10 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 /// Files the launcher knows about, with the description shown in the interface.
-const KNOWN_FILES: [(&str, &str); 4] = [
+const KNOWN_FILES: [(&str, &str); 5] = [
     ("servers.json", "Registered report servers"),
     ("notebooks.json", "Saved notebook connections"),
+    ("remotes.json", "Remote execution connections, shared with qibocal-widgets"),
     ("auth.json", "Users, invitations and signing keys"),
     ("launcher.json", "Launcher preferences"),
 ];
@@ -21,8 +22,8 @@ const KNOWN_FILES: [(&str, &str); 4] = [
 /// The format of each file this version of the launcher reads and writes.
 ///
 /// Every file is an object carrying a `version`; `servers.json` keeps its
-/// entries under `servers`, `notebooks.json` under `connections`, the other
-/// two next to the version. A file without a version is the one written
+/// entries under `servers`, `notebooks.json` and `remotes.json` under
+/// `connections`, the other two next to the version. A file without a version is the one written
 /// before versions were — read as the current format. A file with another
 /// version is ignored, listed in Configuration as it is, for a migration by
 /// hand: there is no automatic one.
@@ -280,9 +281,10 @@ pub fn save_servers(servers: Vec<Value>) -> Result<Vec<Value>, String> {
     Ok(servers)
 }
 
-#[tauri::command]
-pub fn list_notebooks() -> Result<Map<String, Value>, String> {
-    let path = config_file("notebooks.json")?;
+/// The named connections of a file that keeps them under `connections`:
+/// `notebooks.json`, and `remotes.json`, which qibocal-widgets reads.
+fn list_connections(file: &str) -> Result<Map<String, Value>, String> {
+    let path = config_file(file)?;
     match read_compatible(&path)?.map(|value| entries_of(value, "connections")) {
         Some(Value::Object(connections)) => Ok(connections),
         Some(_) => Err(format!(
@@ -293,34 +295,63 @@ pub fn list_notebooks() -> Result<Map<String, Value>, String> {
     }
 }
 
-fn write_notebooks(connections: &Map<String, Value>) -> Result<(), String> {
-    let path = config_file("notebooks.json")?;
-    guard_write("notebooks.json", &path)?;
+fn write_connections(file: &str, connections: &Map<String, Value>) -> Result<(), String> {
+    let path = config_file(file)?;
+    guard_write(file, &path)?;
     write_json(&path, &versioned("connections", Value::Object(connections.clone())))
 }
 
-#[tauri::command]
-pub fn save_notebook(name: String, options: Value) -> Result<Map<String, Value>, String> {
+fn save_connection(file: &str, name: String, options: Value) -> Result<Map<String, Value>, String> {
     if name.trim().is_empty() {
         return Err("Connection name must not be empty.".to_string());
     }
     if !options.is_object() {
-        return Err("Notebook options must be an object.".to_string());
+        return Err("Connection options must be an object.".to_string());
     }
-    let mut connections = list_notebooks()?;
+    let mut connections = list_connections(file)?;
     connections.insert(name, options);
-    write_notebooks(&connections)?;
+    write_connections(file, &connections)?;
+    Ok(connections)
+}
+
+fn remove_connection(file: &str, name: String) -> Result<Map<String, Value>, String> {
+    let mut connections = list_connections(file)?;
+    if connections.remove(&name).is_none() {
+        return Err(format!("Connection '{name}' is not registered in {file}."));
+    }
+    write_connections(file, &connections)?;
     Ok(connections)
 }
 
 #[tauri::command]
+pub fn list_notebooks() -> Result<Map<String, Value>, String> {
+    list_connections("notebooks.json")
+}
+
+#[tauri::command]
+pub fn save_notebook(name: String, options: Value) -> Result<Map<String, Value>, String> {
+    save_connection("notebooks.json", name, options)
+}
+
+#[tauri::command]
 pub fn remove_notebook(name: String) -> Result<Map<String, Value>, String> {
-    let mut connections = list_notebooks()?;
-    if connections.remove(&name).is_none() {
-        return Err(format!("Notebook connection '{name}' is not registered."));
-    }
-    write_notebooks(&connections)?;
-    Ok(connections)
+    remove_connection("notebooks.json", name)
+}
+
+/// The remote execution connections of qibocal-widgets' `Remote` plugin.
+#[tauri::command]
+pub fn list_remotes() -> Result<Map<String, Value>, String> {
+    list_connections("remotes.json")
+}
+
+#[tauri::command]
+pub fn save_remote(name: String, options: Value) -> Result<Map<String, Value>, String> {
+    save_connection("remotes.json", name, options)
+}
+
+#[tauri::command]
+pub fn remove_remote(name: String) -> Result<Map<String, Value>, String> {
+    remove_connection("remotes.json", name)
 }
 
 /// The preferences, the version they were written under left out.

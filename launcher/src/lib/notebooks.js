@@ -108,16 +108,17 @@ export const NOTEBOOK_FIELDS = [
   }
 ]
 
-export function defaultNotebookOptions() {
+/** The editor values of every field at its default; remote connections pass their own fields. */
+export function defaultNotebookOptions(fields = NOTEBOOK_FIELDS) {
   return Object.fromEntries(
-    NOTEBOOK_FIELDS.map(field => [field.name, field.default ?? (field.type === 'number' ? null : '')])
+    fields.map(field => [field.name, field.default ?? (field.type === 'number' ? null : '')])
   )
 }
 
 /** Fill the editor with a stored connection, keeping unset options at their default. */
-export function toEditorValues(connection = {}) {
-  const values = defaultNotebookOptions()
-  for (const field of NOTEBOOK_FIELDS) {
+export function toEditorValues(connection = {}, fields = NOTEBOOK_FIELDS) {
+  const values = defaultNotebookOptions(fields)
+  for (const field of fields) {
     const stored = connection?.[field.name]
     if (stored === undefined || stored === null) continue
     values[field.name] = field.type === 'choice' ? Boolean(stored) : stored
@@ -144,11 +145,11 @@ function validSubnet(value) {
  * Keep only the options that differ from the defaults, validating the ones
  * the command line would otherwise reject with a cryptic message.
  */
-export function normalizeNotebookOptions(values = {}) {
+export function normalizeNotebookOptions(values = {}, fields = NOTEBOOK_FIELDS) {
   const options = {}
   const errors = {}
 
-  for (const field of NOTEBOOK_FIELDS) {
+  for (const field of fields) {
     const raw = values[field.name]
     if (field.type === 'choice') {
       if (Boolean(raw) !== Boolean(field.default)) options[field.name] = Boolean(raw)

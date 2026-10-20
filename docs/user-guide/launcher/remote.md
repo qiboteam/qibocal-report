@@ -1,0 +1,13 @@
+# Desktop Launcher: Remote Execution
+
+**Remote execution** configures where [qibocal-widgets](https://github.com/qiboteam/qibocal-widgets)' `Remote` plugin runs the acquisitions of a notebook: on an access node over SSH, through a SLURM partition from there, or on this machine. Only the acquisitions go away: fits and reports stay with the notebook, and the platform state travels with each job. The connections are kept in `remotes.json`, next to the other files of the configuration, which the plugin reads — a notebook picks one by name, `Remote(connection="lab")`, or through the `QIBOCAL_WIDGETS_CONNECTION` environment variable, so the notebook itself needs no change to move between tiers.
+
+The page is laid out as **Notebooks** is: the **Registered connections**, with their count and **Refresh**, and **New connection** for the form. The options mean what they mean for a notebook session — the **SSH destination**, the **SLURM partition** and the **Extra srun options**, the **Working directory** the jobs start from, the **Environment** under `~/.cache/qibocal/envs` and its **Kernel requirements** — plus the **Platform** the jobs create, by name, and the **Python** of the environment, an interpreter or a version uv provides. Registering runs nothing: notebooks use the connection from their next acquisition.
+
+Each connection is a card:
+
+- **Reports** starts a report server on the same channel — the same SSH destination, its own connection — serving the connection's **Reports folder**, relative to its working directory, and opens it in the dashboard; while it runs, the button opens it again. Like a notebook's, it is started for a look, and nothing is registered.
+- **Regenerate env** deletes the connection's environment entirely and creates it again from `qibocal` and its requirements alone, after asking. Environments are shared with notebook sessions — the same place, the same installer, the same record of the requirements — so it is the same `qibocal notebook rebuild`, with the connection's options, and its output is in **Running**.
+- **Edit**, its name included, **Duplicate**, and the bin.
+
+`remotes.json` is a versioned file like the others, `{"version": 1, "connections": {"lab": {"ssh": "me@login", "queue": "qpu"}}}`, editable in **Configuration** as well.

@@ -12,7 +12,7 @@
         class="sm:col-span-2"
         label="Name"
         :required="nameRequired"
-        help="What the session is saved as, in notebooks.json."
+        :help="nameHelp"
         :error="nameError"
       >
         <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
@@ -101,13 +101,14 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { ChevronRight } from 'lucide-vue-next'
 import FormField from './FormField.vue'
 import PathPicker from './PathPicker.vue'
 import SegmentedControl from './SegmentedControl.vue'
 import { NOTEBOOK_FIELDS } from '../lib/notebooks.js'
 
-defineProps({
+const props = defineProps({
   /** The editor values: every option, and `name` when `named`. */
   values: { type: Object, required: true },
   errors: { type: Object, default: () => ({}) },
@@ -115,9 +116,12 @@ defineProps({
   /** Show the name field. */
   named: { type: Boolean, default: false },
   nameRequired: { type: Boolean, default: false },
-  nameError: { type: String, default: '' }
+  nameError: { type: String, default: '' },
+  /** The options to show: a notebook session's, or another set described the same way. */
+  fields: { type: Array, default: () => NOTEBOOK_FIELDS },
+  nameHelp: { type: String, default: 'What the session is saved as, in notebooks.json.' }
 })
 
-const primaryFields = NOTEBOOK_FIELDS.filter(field => !field.advanced)
-const advancedFields = NOTEBOOK_FIELDS.filter(field => field.advanced)
+const primaryFields = computed(() => props.fields.filter(field => !field.advanced))
+const advancedFields = computed(() => props.fields.filter(field => field.advanced))
 </script>

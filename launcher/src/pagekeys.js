@@ -67,6 +67,16 @@ export const PAGE_KEYS = {
       d: 'Duplicate it: the form for a new session, with its options'
     }
   },
+  remotes: {
+    title: 'Remote execution',
+    keys: {
+      j: 'Next connection',
+      k: 'Previous connection',
+      Enter: 'Open its reports in the dashboard, starting their server first',
+      e: 'Edit it',
+      d: 'Duplicate it: the form for a new connection, with its options'
+    }
+  },
   notifications: {
     title: 'Notifications',
     keys: {

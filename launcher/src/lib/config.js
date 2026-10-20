@@ -11,6 +11,7 @@
  * Everything here is pure, and covered by `tests/config.test.js`.
  */
 import { NOTEBOOK_FIELDS, describeConnection } from './notebooks.js'
+import { REMOTE_FIELDS, describeRemote } from './remotes.js'
 
 /**
  * The format of the configuration files this launcher reads and writes.
@@ -51,6 +52,18 @@ export const CONFIG_SHAPES = {
     entry: 'connection',
     envelope: 'connections',
     known: NOTEBOOK_FIELDS.map(field => ({
+      name: field.name,
+      label: field.label,
+      help: field.help,
+      type: field.type === 'choice' ? 'boolean' : field.type
+    })),
+    template: () => ({ ssh: '' })
+  },
+  'remotes.json': {
+    kind: 'map',
+    entry: 'connection',
+    envelope: 'connections',
+    known: REMOTE_FIELDS.map(field => ({
       name: field.name,
       label: field.label,
       help: field.help,
@@ -180,6 +193,7 @@ function firstString(...candidates) {
 /** One-line summary of an entry, so the list reads without unfolding it. */
 function summarize(file, key, entry) {
   if (file === 'notebooks.json' && entry && typeof entry === 'object') return describeConnection(entry)
+  if (file === 'remotes.json' && entry && typeof entry === 'object') return describeRemote(entry)
   if (file === 'servers.json') return firstString(entry?.url, entry?.description)
   if (entry === null || entry === undefined) return 'empty'
   if (Array.isArray(entry)) return `${entry.length} item${entry.length === 1 ? '' : 's'}`

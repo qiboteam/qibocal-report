@@ -179,7 +179,7 @@ import { timeAgo } from '../lib/time.js'
 const router = useRouter()
 
 /** The cards, in the order of use: what runs, then what to start. */
-const ORDER = ['processes', 'servers', 'notebooks', 'settings', 'help']
+const ORDER = ['processes', 'servers', 'notebooks', 'remotes', 'settings', 'help']
 const others = ORDER.map(name => sections.find(section => section.name === name)).filter(Boolean)
 /** How many cards there are: the dashboard, then the sections. */
 const cards = others.length + 1

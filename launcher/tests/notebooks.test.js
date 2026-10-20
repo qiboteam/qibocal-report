@@ -124,3 +124,19 @@ test('a notebook report server serves the reports folder, relative to where the 
   assert.equal(reportServerOptions({ reports: 'out' }, { home: '/Users/me' }).directory, '/Users/me/out')
   assert.equal(reportServerOptions({ ssh: 'login', workdir: '/w' }).directory, '/w', 'no reports folder: where the session starts')
 })
+
+test('remote execution connections share the notebook fields and keep their own', async () => {
+  const { REMOTE_FIELDS, defaultRemoteOptions, describeRemote, normalizeRemoteOptions, rebuildOptions } = await import('../src/lib/remotes.js')
+  const names = REMOTE_FIELDS.map(field => field.name)
+  for (const name of ['ssh', 'queue', 'slurm', 'workdir', 'venv', 'requirements', 'rebuild_on_compute', 'platform', 'python', 'timeout', 'reports']) {
+    assert.ok(names.includes(name), `${name}, as remotes.json has it`)
+  }
+  assert.equal(names.includes('marimo'), false, 'nothing a notebook alone has')
+  assert.equal(defaultRemoteOptions().venv, 'qibocal')
+  const { options, valid } = normalizeRemoteOptions({ ...defaultRemoteOptions(), ssh: 'me@login', queue: 'qpu', platform: 'qw11q', timeout: '600' })
+  assert.equal(valid, true)
+  assert.deepEqual(options, { ssh: 'me@login', queue: 'qpu', platform: 'qw11q', timeout: 600 }, 'only what differs from the defaults is stored')
+  assert.equal(describeRemote({ ssh: 'me@login', queue: 'qpu', platform: 'qw11q' }), 'ssh me@login · partition qpu · platform qw11q · qibocal')
+  assert.deepEqual(rebuildOptions({ ssh: 'me@login', queue: 'qpu', platform: 'qw11q', python: '3.12', venv: 'lab', reports: 'out' }),
+    { ssh: 'me@login', queue: 'qpu', venv: 'lab' }, 'what qibocal notebook rebuild takes, and nothing else')
+})
