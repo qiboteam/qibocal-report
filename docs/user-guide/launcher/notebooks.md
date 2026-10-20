@@ -2,7 +2,7 @@
 
 ## 📓 Notebook sessions
 
-**Notebooks** is the graphical face of `qibocal notebook`, laid out as **Servers** is: the page opens on the **Registered sessions**, with their count and **Refresh**, and **New session**, in the top-right corner, opens the form for a new one. Every option of the command line is a control, and none is required — empty, the session is a local one:
+**Notebooks** is the graphical face of `qibocal notebook`, laid out as **Servers** is: the page opens on the **Registered sessions**, with their count and **Refresh**, and **New session**, in the top-right corner, opens the form for a new one. **Where it runs** comes first, as for a server: **This machine**, for a direct connection to the instruments; the **Access node** SSH reaches, for offline processing or setups without queues; or a **Computing node** of a SLURM partition, reached from there. Every place keeps the same features — the kernel environment and its requirements, **Regenerate env**, **Reports** — and the form shows only the fields that make sense there: the SSH destination from the access node on, required there, and the partition, srun options, subnet and where to regenerate for a computing node only, the partition required. Every option of the command line is a control:
 
 - **SSH destination** — empty for a local session.
 - **SLURM partition**, and **Interface**: JupyterLab or Marimo.
@@ -29,6 +29,8 @@ Environments are made and filled with [uv](https://docs.astral.sh/uv/), far fast
 ---
 
 ## 🧵 SLURM queues
+
+**Queues**, at the top right of **Running** — where **New server** sits on **Servers**, in the quieter tint of the home page's section icons — leads to the page of the queues, as `g q` does.
 
 A notebook session dispatched to a SLURM partition waits in its queue before it runs, and the one looking at it wants to know why: who is ahead, which nodes are busy, whether the partition is up at all. In **Running**, the card of such a session shows its **queue** under the actions — the partition's nodes by state in one line, the jobs in a table with this session's own job marked and first, and, while it waits, where it stands in line. Filters narrow the table to one's own jobs, to a state, or to a text; **Refresh** asks the controller now; **Full view** opens the queue on the **Queues** page (`g q`), where every queue the launcher knows — of the sessions it runs, and of the saved connections — is one click away, with links back to the sessions on it. From a card, `q` goes there.
 

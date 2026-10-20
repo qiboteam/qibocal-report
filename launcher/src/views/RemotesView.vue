@@ -155,19 +155,19 @@ import {
 import { usePageKeys } from '../composables/pageKeys.js'
 import {
   REMOTE_FIELDS,
-  defaultRemoteOptions,
   describeRemote,
   normalizeRemoteOptions,
   rebuildOptions,
   toRemoteEditorValues
 } from '../lib/remotes.js'
+import { blankEditor } from '../lib/notebooks.js'
 
 const router = useRouter()
 
 const creating = ref(false)
 const saving = ref(false)
-const form = reactive({ ...defaultRemoteOptions(), name: '' })
-const editing = reactive({ name: null, form: { ...defaultRemoteOptions(), name: '' }, busy: false })
+const form = reactive(blankEditor(REMOTE_FIELDS))
+const editing = reactive({ name: null, form: blankEditor(REMOTE_FIELDS), busy: false })
 const rebuilding = ref(null)
 const startingReports = ref(null)
 
@@ -207,7 +207,7 @@ async function register() {
   if (saved === undefined) return
   state.remotes = saved
   creating.value = false
-  Object.assign(form, defaultRemoteOptions(), { name: '' })
+  Object.assign(form, blankEditor(REMOTE_FIELDS))
 }
 
 function toggleEdit(name) {

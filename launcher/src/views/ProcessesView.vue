@@ -1,11 +1,21 @@
 <template>
   <div class="max-w-5xl mx-auto px-5 py-8">
-    <div class="mb-5">
-      <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Running</h1>
-      <p class="mt-1 text-xs text-gray-500">
-        Everything the launcher started, one card per server or session, with every run since the
-        application was opened. Stopping is graceful: sessions get the chance to close their tunnels first.
-      </p>
+    <div class="mb-5 flex items-start gap-4">
+      <div class="min-w-0">
+        <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Running</h1>
+        <p class="mt-1 text-xs text-gray-500">
+          Everything the launcher started, one card per server or session, with every run since the
+          application was opened. Stopping is graceful: sessions get the chance to close their tunnels first.
+        </p>
+      </div>
+      <!-- Where New server sits on Servers, quieter: the tint of the home page's section icons. -->
+      <router-link
+        :to="{ name: 'queues' }"
+        class="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#ebe0ff] text-[#3b107e] text-xs font-semibold hover:bg-[#dfd0ff] transition"
+        title="The SLURM queues of the sessions (g q)"
+      >
+        <ListOrdered class="w-3.5 h-3.5" /> Queues
+      </router-link>
     </div>
 
     <div v-if="!groups.length" class="bm-card p-6 text-center">
@@ -157,7 +167,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bookmark, ChevronRight, ExternalLink, LayoutDashboard, Play, Square, Trash2 } from 'lucide-vue-next'
+import { Bookmark, ChevronRight, ExternalLink, LayoutDashboard, ListOrdered, Play, Square, Trash2 } from 'lucide-vue-next'
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
 import QueuePanel from '../components/QueuePanel.vue'
 import { jobIdFromLog, jobNameFromLog, queueOf } from '../lib/slurm.js'

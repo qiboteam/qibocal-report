@@ -7,6 +7,7 @@
 export const NOTEBOOK_FIELDS = [
   {
     name: 'ssh',
+    places: ['access', 'compute'],
     label: 'SSH destination',
     type: 'text',
     placeholder: 'user@host',
@@ -15,6 +16,7 @@ export const NOTEBOOK_FIELDS = [
   },
   {
     name: 'queue',
+    places: ['compute'],
     label: 'SLURM partition',
     type: 'text',
     help: 'Empty: no SLURM, the session runs on the access node.',
@@ -32,6 +34,7 @@ export const NOTEBOOK_FIELDS = [
   },
   {
     name: 'slurm',
+    places: ['compute'],
     label: 'Extra srun options',
     type: 'text',
     advanced: true,
@@ -58,6 +61,7 @@ export const NOTEBOOK_FIELDS = [
   },
   {
     name: 'subnet',
+    places: ['compute'],
     label: 'Computing node subnet',
     type: 'text',
     advanced: true,
@@ -85,6 +89,7 @@ export const NOTEBOOK_FIELDS = [
   },
   {
     name: 'rebuild_on_compute',
+    places: ['compute'],
     label: 'Regenerate env on',
     type: 'choice',
     advanced: true,
@@ -108,11 +113,39 @@ export const NOTEBOOK_FIELDS = [
   }
 ]
 
-/** The editor values of every field at its default; remote connections pass their own fields. */
+/**
+ * Where a session runs, as servers say where they run: here, on the access
+ * node SSH reaches, or on a computing node through a SLURM partition from
+ * there. Every place keeps the same features — the environment, its
+ * requirements, Regenerate env and Reports — and only the fields that make
+ * sense there are shown (`places` on a field) and kept.
+ */
+export const NOTEBOOK_PLACES = [
+  { value: 'local', label: 'This machine', help: 'A session here, in an environment of its own: for a direct connection to the instruments.' },
+  { value: 'access', label: 'Access node', help: 'A session on the machine SSH reaches, tunnelled back: for offline processing, or setups without queues.' },
+  { value: 'compute', label: 'Computing node', help: 'A session on a node of a SLURM partition, reached from the access node.' }
+]
+
+/** The place stored options describe: a partition is a computing node, a destination the access node. */
+export function placeOf(options = {}) {
+  if (String(options?.queue || '').trim()) return 'compute'
+  if (String(options?.ssh || '').trim()) return 'access'
+  return 'local'
+}
+
+/** Whether a field makes sense in a place. */
+export function fieldApplies(field, place) {
+  return !place || !Array.isArray(field.places) || field.places.includes(place)
+}
+
+/** Every field at its default; remote connections pass their own fields. */
 export function defaultNotebookOptions(fields = NOTEBOOK_FIELDS) {
-  return Object.fromEntries(
-    fields.map(field => [field.name, field.default ?? (field.type === 'number' ? null : '')])
-  )
+  return Object.fromEntries(fields.map(field => [field.name, field.default ?? (field.type === 'number' ? null : '')]))
+}
+
+/** A blank editor: every field at its default, here, and no name. */
+export function blankEditor(fields = NOTEBOOK_FIELDS) {
+  return { ...defaultNotebookOptions(fields), where: 'local', name: '' }
 }
 
 /** Fill the editor with a stored connection, keeping unset options at their default. */
@@ -123,6 +156,7 @@ export function toEditorValues(connection = {}, fields = NOTEBOOK_FIELDS) {
     if (stored === undefined || stored === null) continue
     values[field.name] = field.type === 'choice' ? Boolean(stored) : stored
   }
+  values.where = placeOf(connection)
   return values
 }
 
@@ -148,8 +182,11 @@ function validSubnet(value) {
 export function normalizeNotebookOptions(values = {}, fields = NOTEBOOK_FIELDS) {
   const options = {}
   const errors = {}
+  // The editor's place, when it has one: what does not apply there is left out.
+  const place = values.where || null
 
   for (const field of fields) {
+    if (!fieldApplies(field, place)) continue
     const raw = values[field.name]
     if (field.type === 'choice') {
       if (Boolean(raw) !== Boolean(field.default)) options[field.name] = Boolean(raw)
@@ -174,6 +211,9 @@ export function normalizeNotebookOptions(values = {}, fields = NOTEBOOK_FIELDS) 
     }
     options[field.name] = text
   }
+
+  if (place && place !== 'local' && !options.ssh) errors.ssh = 'Enter the SSH destination of the access node.'
+  if (place === 'compute' && !options.queue) errors.queue = 'Enter the SLURM partition the session runs on.'
 
   const warnings = {}
   if (options.queue === undefined && options.slurm) {

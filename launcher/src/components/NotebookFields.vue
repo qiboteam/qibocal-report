@@ -6,6 +6,10 @@
 <template>
   <div>
     <div class="grid gap-4 sm:grid-cols-2">
+      <!-- Where it runs, as for a server: it decides which fields make sense. -->
+      <form-field v-if="'where' in values" class="sm:col-span-2" label="Where it runs" :help="placeHelp">
+        <segmented-control v-model="values.where" :options="places" />
+      </form-field>
       <form-field
         v-if="named"
         v-slot="{ id }"
@@ -106,7 +110,7 @@ import { ChevronRight } from 'lucide-vue-next'
 import FormField from './FormField.vue'
 import PathPicker from './PathPicker.vue'
 import SegmentedControl from './SegmentedControl.vue'
-import { NOTEBOOK_FIELDS } from '../lib/notebooks.js'
+import { NOTEBOOK_FIELDS, NOTEBOOK_PLACES, fieldApplies } from '../lib/notebooks.js'
 
 const props = defineProps({
   /** The editor values: every option, and `name` when `named`. */
@@ -119,9 +123,13 @@ const props = defineProps({
   nameError: { type: String, default: '' },
   /** The options to show: a notebook session's, or another set described the same way. */
   fields: { type: Array, default: () => NOTEBOOK_FIELDS },
-  nameHelp: { type: String, default: 'What the session is saved as, in notebooks.json.' }
+  nameHelp: { type: String, default: 'What the session is saved as, in notebooks.json.' },
+  /** The places to choose from, when the values carry one. */
+  places: { type: Array, default: () => NOTEBOOK_PLACES }
 })
 
-const primaryFields = computed(() => props.fields.filter(field => !field.advanced))
-const advancedFields = computed(() => props.fields.filter(field => field.advanced))
+const applies = field => fieldApplies(field, props.values.where)
+const primaryFields = computed(() => props.fields.filter(field => !field.advanced && applies(field)))
+const advancedFields = computed(() => props.fields.filter(field => field.advanced && applies(field)))
+const placeHelp = computed(() => props.places.find(place => place.value === props.values.where)?.help || '')
 </script>

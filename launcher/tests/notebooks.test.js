@@ -4,10 +4,13 @@ import { test } from 'node:test'
 import {
   NOTEBOOK_FIELDS,
   REPORTS_ENVIRONMENT,
+  blankEditor,
   defaultNotebookOptions,
   describeConnection,
+  fieldApplies,
   normalizeNotebookOptions,
   notebookKey,
+  placeOf,
   reportServerOptions,
   requirementCount,
   toEditorValues
@@ -139,4 +142,23 @@ test('remote execution connections share the notebook fields and keep their own'
   assert.equal(describeRemote({ ssh: 'me@login', queue: 'qpu', platform: 'qw11q' }), 'ssh me@login · partition qpu · platform qw11q · qibocal')
   assert.deepEqual(rebuildOptions({ ssh: 'me@login', queue: 'qpu', platform: 'qw11q', python: '3.12', venv: 'lab', reports: 'out' }),
     { ssh: 'me@login', queue: 'qpu', venv: 'lab' }, 'what qibocal notebook rebuild takes, and nothing else')
+})
+
+test('a session runs here, on the access node, or on a computing node, with the fields that make sense there', () => {
+  assert.equal(placeOf({}), 'local')
+  assert.equal(placeOf({ ssh: 'login' }), 'access')
+  assert.equal(placeOf({ ssh: 'login', queue: 'chip' }), 'compute')
+  assert.equal(toEditorValues({ ssh: 'login' }).where, 'access', 'a stored connection reopens where it runs')
+
+  const filled = { ...blankEditor(), ssh: 'login', queue: 'chip', slurm: '--time 1:00:00', venv: 'calib', requirements: 'numpy' }
+  assert.deepEqual(normalizeNotebookOptions({ ...filled, where: 'local' }).options, { venv: 'calib', requirements: 'numpy' },
+    'here: no destination, no partition — the environment and its requirements stay')
+  assert.deepEqual(normalizeNotebookOptions({ ...filled, where: 'access' }).options, { ssh: 'login', venv: 'calib', requirements: 'numpy' })
+  assert.deepEqual(normalizeNotebookOptions({ ...filled, where: 'compute' }).options,
+    { ssh: 'login', queue: 'chip', slurm: '--time 1:00:00', venv: 'calib', requirements: 'numpy' })
+
+  assert.match(normalizeNotebookOptions({ ...blankEditor(), where: 'access' }).errors.ssh, /SSH destination/)
+  assert.match(normalizeNotebookOptions({ ...blankEditor(), where: 'compute', ssh: 'login' }).errors.queue, /partition/)
+  assert.equal(normalizeNotebookOptions(blankEditor()).valid, true, 'here, nothing is required')
+  assert.equal(fieldApplies(NOTEBOOK_FIELDS.find(field => field.name === 'subnet'), 'access'), false)
 })

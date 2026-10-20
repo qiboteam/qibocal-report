@@ -195,14 +195,14 @@ import {
   startNotebook
 } from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
-import { defaultNotebookOptions, describeConnection, normalizeNotebookOptions, toEditorValues } from '../lib/notebooks.js'
+import { blankEditor, describeConnection, normalizeNotebookOptions, toEditorValues } from '../lib/notebooks.js'
 
 const router = useRouter()
 
 const creating = ref(false)
-const form = reactive({ ...defaultNotebookOptions(), name: '' })
+const form = reactive(blankEditor())
 /** The session being edited, with the form opened on it. */
-const editing = reactive({ name: null, form: { ...defaultNotebookOptions(), name: '' }, busy: false })
+const editing = reactive({ name: null, form: blankEditor(), busy: false })
 const starting = ref(false)
 /** The session whose environment is being rebuilt, by name. */
 const rebuilding = ref(null)
@@ -290,7 +290,7 @@ async function openNew(register) {
     state.notebooks = saved
     const name = form.name
     creating.value = false
-    Object.assign(form, defaultNotebookOptions(), { name: '' })
+    Object.assign(form, blankEditor())
     return launch(registered(name), `Opening ${name}; its address appears in Running.`)
   }
   return launch({ ...options }, 'Opening the notebook session; its address appears in Running.')
