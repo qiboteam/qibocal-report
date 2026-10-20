@@ -349,6 +349,25 @@ class UserModel(BaseModel):
     created_at: str
 
 
+class UploadPolicy(BaseModel):
+    """Who may upload reports to an authenticated server, beyond its administrators."""
+
+    policy: Literal["admins", "editors", "viewers"] = "admins"
+    users: list[str] = []
+
+
+class UploadCapability(BaseModel):
+    """Whether this caller may upload reports here: what a sender asks first."""
+
+    accepted: bool
+    auth_enabled: bool
+
+
+class UploadResult(BaseModel):
+    id: str
+    name: str
+
+
 class UserRoleUpdate(BaseModel):
     role: str
 

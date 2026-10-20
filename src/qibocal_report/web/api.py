@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 import logging
 import os
+import tempfile
 import threading
 from collections import deque
 from contextlib import asynccontextmanager
@@ -32,6 +33,7 @@ from pydantic import BaseModel
 
 from qibocal_report import auth, config, qibocal_environment
 from qibocal_report.reports.actions import execute_bulk_action, find_report_dirs, infer_targets
+from qibocal_report.reports.upload import UploadError, receive_report, upload_limit
 from qibocal_report.reports.archive import (
     create_archive,
     delete_archive,
@@ -59,6 +61,9 @@ from qibocal_report.logger import (
 )
 from qibocal_report.models import (
     FolderListing,
+    UploadCapability,
+    UploadPolicy,
+    UploadResult,
     FolderEntry,
     AdminConfigResponse,
     ArchiveCreateRequest,
@@ -857,6 +862,78 @@ def admin_get_config() -> AdminConfigResponse:
         users_count=len(users),
         invites_count=len(invites),
     )
+
+
+# --- Uploads: reports sent here from another server, through the dashboard ---
+
+
+@app.get("/api/uploads", response_model=UploadCapability, tags=["Reports"])
+def upload_capability(
+    response: Response, user: Annotated[dict | None, Depends(get_current_user)]
+) -> UploadCapability:
+    """Whether the caller may upload reports here: a server without
+    authentication accepts anyone; one with it, whom its policy names."""
+    response.headers["Cache-Control"] = "no-store"
+    return UploadCapability(accepted=auth.may_upload(user), auth_enabled=auth.is_auth_enabled())
+
+
+@app.post("/api/uploads", response_model=UploadResult, tags=["Reports"])
+async def upload_report(
+    request: Request, user: Annotated[dict | None, Depends(get_current_user)]
+) -> UploadResult:
+    """Receive a report: the zip of one report folder, as a download gives it.
+
+    It lands at the top of the reports directory under its folder's name; a
+    report of that name already here is a 409, and nothing is overwritten.
+    """
+    if not auth.may_upload(user):
+        if user is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Sign in to upload reports to this server.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        raise HTTPException(status_code=403, detail="You may not upload reports to this server.")
+    limit = upload_limit()
+    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as received:
+        path = Path(received.name)
+        size = 0
+        try:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > limit:
+                    raise HTTPException(status_code=413, detail="The report is larger than this server accepts.")
+                received.write(chunk)
+        except BaseException:
+            received.close()
+            path.unlink(missing_ok=True)
+            raise
+    try:
+        destination = await asyncio.to_thread(receive_report, path, REPORT_ROOT_DIR)
+    except UploadError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
+    finally:
+        path.unlink(missing_ok=True)
+    invalidate_report_cache()
+    log_info(f"Received report {destination.name} from {user.get('username') if user else 'anonymous'}")
+    return UploadResult(id=destination.relative_to(REPORT_ROOT_DIR).as_posix(), name=destination.name)
+
+
+@app.get("/api/admin/uploads", response_model=UploadPolicy, tags=["Reports"])
+def get_upload_policy(_user: Annotated[dict, Depends(require_admin)]) -> UploadPolicy:
+    """Who may upload here, beyond the administrators."""
+    return UploadPolicy(**auth.get_upload_policy())
+
+
+@app.put("/api/admin/uploads", response_model=UploadPolicy, tags=["Reports"])
+def put_upload_policy(
+    policy: UploadPolicy, _user: Annotated[dict, Depends(require_admin)]
+) -> UploadPolicy:
+    """Change who may upload here: administrators always may."""
+    try:
+        return UploadPolicy(**auth.set_upload_policy(policy.policy, policy.users))
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 class InferTargetsResponse(BaseModel):

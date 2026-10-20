@@ -451,6 +451,50 @@
           </div>
         </div>
 
+        <!--
+          Uploads: who may send reports here from another server, through the
+          dashboard. Administrators always may; without authentication, anyone
+          who reaches the server may, as they may change anything else.
+        -->
+        <div class="bg-white rounded-2xl p-5 shadow-2xs border border-gray-100">
+          <h2 class="text-sm font-bold text-gray-900 mb-1">Uploads</h2>
+          <p v-if="!state.auth?.enabled" class="text-xs text-gray-500">
+            Authentication is off: this server accepts reports uploaded from any other, by anyone who reaches it.
+          </p>
+          <template v-else>
+            <p class="text-xs text-gray-500 mb-3">Who may upload reports here from another server. Administrators always may.</p>
+            <div class="flex flex-wrap gap-2 mb-3">
+              <label
+                v-for="option in uploadPolicies"
+                :key="option.value"
+                class="px-3 py-1.5 rounded-xl text-xs font-medium border cursor-pointer transition"
+                :class="uploads.policy === option.value ? 'border-purple-300 bg-purple-50 text-[#833dff]' : 'border-gray-200 text-gray-600 hover:border-purple-200'"
+              >
+                <input v-model="uploads.policy" type="radio" name="upload-policy" :value="option.value" class="sr-only" />
+                {{ option.label }}
+              </label>
+            </div>
+            <div v-if="uploadCandidates.length">
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">Also allowed</p>
+              <div class="flex flex-wrap gap-x-4 gap-y-1.5 text-xs">
+                <label v-for="user in uploadCandidates" :key="user.id" class="inline-flex items-center gap-1.5 cursor-pointer">
+                  <input v-model="uploads.users" type="checkbox" :value="user.id" class="accent-[#833dff]" />
+                  <span class="text-gray-800">{{ user.username }}</span>
+                  <span class="text-gray-400 uppercase text-[10px]">{{ user.role }}</span>
+                </label>
+              </div>
+            </div>
+            <div class="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                :disabled="savingUploads"
+                class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 hover:border-purple-300 text-gray-700 shadow-2xs cursor-pointer disabled:opacity-50"
+                @click="saveUploads"
+              >{{ savingUploads ? 'Saving…' : 'Save' }}</button>
+            </div>
+          </template>
+        </div>
+
         <!-- Section 4: Server Configuration & Details -->
         <div class="bg-white rounded-2xl p-5 shadow-2xs border border-gray-100">
           <h2 class="text-sm font-bold text-gray-900 mb-3">Server Configuration</h2>
@@ -516,6 +560,8 @@ import {
   apiDeleteInvite,
   apiGetAdminConfig,
   apiInferTargets,
+  apiGetUploadPolicy,
+  apiPutUploadPolicy,
   apiGetAdminPasswordResets,
   apiCreatePasswordReset,
   apiDeletePasswordReset
@@ -538,6 +584,41 @@ const invites = ref([])
 const passwordResets = ref([])
 const serverConfig = ref(null)
 const inferring = ref(false)
+
+/** Who may upload here: the policy, and the individuals allowed beyond it. */
+const uploadPolicies = [
+  { value: 'admins', label: 'Administrators only' },
+  { value: 'editors', label: 'Editors too' },
+  { value: 'viewers', label: 'Every signed-in user' }
+]
+const uploads = reactive({ policy: 'admins', users: [] })
+const savingUploads = ref(false)
+/** The users the policy does not already cover: administrators always may. */
+const uploadCandidates = computed(() => users.value.filter(user =>
+  user.role !== 'admin' && !(uploads.policy === 'viewers') && !(uploads.policy === 'editors' && user.role === 'editor')))
+
+async function loadUploads() {
+  if (!state.auth?.enabled) return
+  const response = await apiGetUploadPolicy()
+  if (response.ok) Object.assign(uploads, await response.json())
+}
+
+async function saveUploads() {
+  savingUploads.value = true
+  try {
+    const response = await apiPutUploadPolicy({ policy: uploads.policy, users: uploads.users })
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      throw new Error(body.detail || `The server answered ${response.status}.`)
+    }
+    Object.assign(uploads, await response.json())
+    toast('Upload permissions saved.')
+  } catch (err) {
+    errorMessage.value = err.message || 'The upload permissions could not be saved.'
+  } finally {
+    savingUploads.value = false
+  }
+}
 const inferResult = ref('')
 
 /** Gather the reports' targets from their protocols; the list shows them at its next load. */
@@ -688,6 +769,7 @@ async function loadAll() {
     if (cRes.ok) {
       serverConfig.value = await cRes.json()
     }
+    await loadUploads().catch(() => {})
 
     // Fetch password resets separately as it may not be available on older servers
     try {

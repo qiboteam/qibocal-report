@@ -78,6 +78,18 @@
         Change Author
       </button>
 
+      <!-- Upload to another server: it only reads here, so every role may. -->
+      <button
+        @click="$emit('open-upload')"
+        class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-50/70 text-[#833dff] transition flex items-center gap-1.5 border border-purple-200 shadow-2xs hover:bg-purple-100 cursor-pointer"
+        title="Upload selected reports to another server"
+      >
+        <svg class="w-3.5 h-3.5 text-[#833dff]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+        Upload
+      </button>
+
       <!-- Archive button (Issue #2) -->
       <button
         @click="!isViewer && $emit('open-archive')"
@@ -134,6 +146,7 @@ const emit = defineEmits([
   'open-unlabel',
   'open-author',
   'open-archive',
+  'open-upload',
   'open-delete',
   'clear-selection'
 ])

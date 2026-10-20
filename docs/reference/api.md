@@ -36,6 +36,15 @@ Returns system status, active server identifier, report count, and scanned root 
 
 ---
 
+### `GET /api/uploads`
+Whether the caller may upload reports here: `{"accepted", "auth_enabled"}`. A server without authentication accepts anyone; one with it, its administrators and whom its upload policy names. What a sender asks before uploading.
+
+### `POST /api/uploads`
+Receive a report: the body is the zip of one report folder, as `/api/reports/{id}/download/full` gives it (`Content-Type: application/zip`). It is checked — one top-level folder holding a `meta.json`, no absolute path, no `..`, no link, at most `QIBOCAL_REPORT_UPLOAD_LIMIT` bytes unpacked (4 GiB) — and unpacked at the top of the reports directory under its folder's name. Answers `{"id", "name"}`; `401` to sign in, `403` for an account the policy leaves out, `409` when a report of that name is already there, which is never overwritten, `413` when too large.
+
+### `GET /api/admin/uploads`, `PUT /api/admin/uploads`
+Who may upload, beyond the administrators, who always may: `{"policy": "admins" | "editors" | "viewers", "users": [user ids]}` — editors too, every signed-in user, and chosen individuals. Kept in `auth.json`. Administrators only.
+
 ### `POST /api/admin/reports/infer-targets`
 Read every protocol's `action.yml` under the reports for the qubits, or pairs, it was run on, and write their union into each report's `meta.json` as `targets-inferred`, next to the session's own `targets`, which is kept; the list shows the inferred targets first. Answers `{"reports", "updated", "without_targets"}`. Reads every report, so it runs on request — here, from **Server Administration**, or with `qibocal report targets` — rather than at every scan. Administrators only.
 

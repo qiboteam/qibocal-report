@@ -210,6 +210,33 @@ export async function apiGetAdminConfig() {
   return apiFetch('/api/admin/config')
 }
 
+/** Whether this caller may upload reports to `server`: `{ accepted, auth_enabled }`. */
+export async function apiUploadCapability(server) {
+  return apiFetch('/api/uploads', { cache: 'no-store' }, server)
+}
+
+/** Send a report — the zip of its folder, as a full download gives it — to `server`. */
+export async function apiUploadReport(archive, server) {
+  return apiFetch('/api/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/zip' },
+    body: archive
+  }, server)
+}
+
+/** Who may upload to the active server, beyond its administrators. Administrators. */
+export async function apiGetUploadPolicy(server = state.activeServer) {
+  return apiFetch('/api/admin/uploads', { cache: 'no-store' }, server)
+}
+
+export async function apiPutUploadPolicy(policy, server = state.activeServer) {
+  return apiFetch('/api/admin/uploads', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(policy)
+  }, server)
+}
+
 /** Gather every report's targets from its protocols, into its meta. Administrators. */
 export async function apiInferTargets(server = state.activeServer) {
   return apiFetch('/api/admin/reports/infer-targets', { method: 'POST' }, server)

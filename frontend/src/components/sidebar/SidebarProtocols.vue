@@ -54,6 +54,20 @@
           </svg>
         </api-file-button>
 
+        <!-- Upload to another server -->
+        <button
+          type="button"
+          :disabled="!reportId"
+          class="flex-1 max-w-[52px] h-7 rounded-lg bg-white hover:bg-purple-50 text-gray-700 hover:text-[#833dff] border border-gray-200 hover:border-purple-300 shadow-2xs flex items-center justify-center transition cursor-pointer shrink-0 disabled:opacity-50"
+          title="Upload to another server"
+          aria-label="Upload to another server"
+          @click="showUpload = true"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+        </button>
+
         <!-- View meta.json (plain JSON in new browser tab) -->
         <api-file-button
           :path="metaJsonPath"
@@ -253,10 +267,12 @@
         :class="p.status === 'error' ? 'bg-amber-500' : 'bg-emerald-500'"
       ></span>
     </a>
+    <upload-modal :show="showUpload" :report-ids="reportId ? [reportId] : []" @close="showUpload = false" />
   </div>
 </template>
 
 <script setup>
+import UploadModal from '../modals/UploadModal.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Check, Copy, LayoutDashboard } from 'lucide-vue-next'
 import { state, isViewer, getActiveAuthToken } from '../../store.js'
@@ -324,6 +340,9 @@ async function copyReportPath() {
 function getDocLink(p) {
   return getProtocolDocUrl(p?.id, p?.name, state.activeServer)
 }
+
+/** The upload dialog, on this report. */
+const showUpload = ref(false)
 
 const encodedId = computed(() => (props.reportId ? encodeURIComponent(props.reportId) : ''))
 

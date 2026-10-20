@@ -632,3 +632,46 @@ def create_initial_admin_invite_if_needed() -> str | None:
         created_by="system",
     )
     return invite["token"]
+
+
+# --- Uploads: who may send reports to this server -------------------------------
+# Kept with the users, in auth.json. Administrators may always; beyond them,
+# the policy opens it to editors, or to every signed-in user, and `users`
+# names further individuals. A server without authentication accepts every
+# upload: whoever reaches it may write to it anyway.
+UPLOAD_POLICIES = ("admins", "editors", "viewers")
+
+
+def get_upload_policy() -> dict:
+    """The upload policy: `policy` among UPLOAD_POLICIES, and the ids of `users` allowed beyond it."""
+    stored = load_auth_data().get("uploads") or {}
+    policy = stored.get("policy") if stored.get("policy") in UPLOAD_POLICIES else "admins"
+    users = [user for user in stored.get("users") or [] if isinstance(user, str)]
+    return {"policy": policy, "users": users}
+
+
+def set_upload_policy(policy: str, users: list[str]) -> dict:
+    """Change who may upload; unknown users are left out."""
+    if policy not in UPLOAD_POLICIES:
+        raise ValueError(f"Invalid upload policy '{policy}'. Must be one of {UPLOAD_POLICIES}")
+    data = load_auth_data()
+    known = {user["id"] for user in data.get("users", [])}
+    data["uploads"] = {"policy": policy, "users": [user for user in dict.fromkeys(users) if user in known]}
+    save_auth_data(data)
+    return get_upload_policy()
+
+
+def may_upload(user: dict | None) -> bool:
+    """Whether this caller may send reports here."""
+    if not is_auth_enabled():
+        return True
+    if not user:
+        return False
+    if user.get("role") == UserRole.ADMIN.value:
+        return True
+    upload = get_upload_policy()
+    if user.get("id") in upload["users"]:
+        return True
+    if upload["policy"] == "viewers":
+        return True
+    return upload["policy"] == "editors" and user.get("role") == UserRole.EDITOR.value

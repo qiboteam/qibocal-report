@@ -317,6 +317,7 @@
       @open-unlabel="openUnlabelModal"
       @open-author="() => openAuthorModal()"
       @open-archive="openArchiveModal"
+      @open-upload="showUploadModal = true"
       @open-delete="openDeleteModal"
       @clear-selection="clearSelection"
     />
@@ -361,6 +362,13 @@
       :error="bulkError"
       @close="showDeleteModal = false"
       @confirm="() => applyBulkDelete(onBulkActionSuccess)"
+    />
+
+    <upload-modal
+      :show="showUploadModal"
+      :report-ids="selectedReports"
+      @close="showUploadModal = false"
+      @uploaded="onUploaded"
     />
 
     <archive-modal
@@ -416,6 +424,7 @@ import ReportCards from '../components/ReportCards.vue'
 import FilteredRecap from '../components/FilteredRecap.vue'
 import { computeStatsFromReports } from '../utils/stats.js'
 import PaginationBar from '../components/PaginationBar.vue'
+import UploadModal from '../components/modals/UploadModal.vue'
 import BulkActionsBar from '../components/BulkActionsBar.vue'
 import LabelModal from '../components/modals/LabelModal.vue'
 import UnlabelModal from '../components/modals/UnlabelModal.vue'
@@ -550,6 +559,12 @@ const {
   state.searchState?.pageSize || 10,
   state.searchState?.currentPage || 1
 )
+
+/** The upload dialog, on the reports selected. */
+const showUploadModal = ref(false)
+function onUploaded({ count, server }) {
+  bulkSuccessMessage.value = `${count} report${count === 1 ? '' : 's'} uploaded to ${server.name || server.url}.`
+}
 
 const {
   selectedReports,

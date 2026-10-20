@@ -96,6 +96,10 @@ The Server Administration dashboard provides three main panels:
 
 ---
 
+## 📤 Uploads from other servers
+
+Reports can be uploaded to a server from another one, through the dashboard. With authentication on, the **Uploads** card of Server Administration says who may: administrators always, and, as chosen, editors too, every signed-in user, or selected individuals. The choice is kept in `auth.json`, next to the users. Without authentication, the server accepts uploads from anyone who reaches it.
+
 ## 💾 Storage & Cryptography Architecture
 
 - **Password Hashing**: Passwords are encrypted using **PBKDF2-HMAC-SHA256** with 100,000 iterations and unique 16-byte random salts per user. Raw passwords are never stored.
