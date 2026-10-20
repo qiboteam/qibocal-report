@@ -200,3 +200,14 @@ def test_explicit_requirements_override_the_defaults_and_the_dependencies(tmp_pa
     monkeypatch.setitem(worker._UV, "path", None)
     plain, _ = worker.requirement_arguments(MagicMock(), tmp_path, "pip", wanted, defaults=("qibocal",))
     assert "--override" not in plain, "pip has no overrides"
+
+
+def test_the_reports_folder_is_a_connection_option_exported_to_the_session(tmp_path, monkeypatch):
+    options = notebook.load_options(None, {"reports": "reports"})
+    assert options.model_dump()["reports"] == "reports", "it reaches the worker"
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
+    (tmp_path / "config").mkdir()
+    result = CliRunner().invoke(main, ["notebook", "add", "lab", "--ssh", "lab", "--reports", "calibration"])
+    assert result.exit_code == 0, result.output
+    assert notebook.load_connections()["lab"]["reports"] == "calibration"
+    assert worker.REPORTS_VARIABLE == "QIBOCAL_REPORTS_DIR"

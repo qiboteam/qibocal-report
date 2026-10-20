@@ -51,7 +51,7 @@
               v-if="current.latest.url && current.latest.kind === 'server' && current.latest.status === 'running'"
               type="button"
               class="lx-action"
-              title="Open it in the dashboard, registering it if it is not yet"
+              title="Open it in the dashboard; it is registered only with Register"
               @click="openDashboard(current.latest.url, { newWindow: wantsNewWindow($event) })"
               @auxclick.prevent="$event.button === 1 && openDashboard(current.latest.url, { newWindow: true })"
             >

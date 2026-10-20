@@ -66,6 +66,15 @@ export const NOTEBOOK_FIELDS = [
     info: 'A network, in CIDR notation, that the address of the SLURM computing node must belong to. Left empty, the node picks the interface it routes through to reach the access node, leaving out any address the two share, such as a container bridge; set this when the notebook is reported ready but the access node cannot reach it.'
   },
   {
+    name: 'reports',
+    label: 'Reports folder',
+    type: 'text',
+    advanced: true,
+    placeholder: 'reports',
+    help: 'Empty: the working directory. Relative to it.',
+    info: 'Where the session\'s calibrations keep their reports. It is created when the session starts, and exported to the notebook and its kernels as QIBOCAL_REPORTS_DIR, for the code there to write to — the working directory, and the files the notebook sees, stay as they are. Reports serves this folder.'
+  },
+  {
     name: 'requirements',
     label: 'Kernel requirements',
     type: 'textarea',
@@ -189,21 +198,26 @@ export function notebookKey(options = {}, name = null) {
 
 /**
  * The report server of a notebook session: on the same channel — the same
- * SSH destination, its own connection — serving the session's working
- * directory, where the reports of its calibrations are written; without
- * one, the home folder the session starts in (`home`, here). Registered as
- * "<session> reports", so it is browsable from the dashboard.
+ * SSH destination, its own connection — serving the session's reports
+ * folder, relative to where it starts; without one, where it starts: the
+ * working directory, or the home folder (`home`, here). Started for a
+ * look, as "<session> reports": nothing is registered.
  */
 export function reportServerOptions(options = {}, { name = null, home = null, port = 8000 } = {}) {
   const text = value => String(value || '').trim() || null
   const ssh = text(options.ssh)
   const workdir = text(options.workdir)
   const label = name || (ssh ? ssh.split(/\s+/).pop() : 'notebook')
+  // Where the session starts, and its reports folder, relative to it.
+  const start = workdir || (ssh ? '~' : home)
+  const reports = text(options.reports)
+  const absolute = reports && (reports.startsWith('/') || reports.startsWith('~'))
   return {
     mode: 'server',
     name: `${label} reports`,
-    register: true,
-    directory: workdir || (ssh ? '~' : home),
+    // For a look: nothing written to servers.json.
+    register: false,
+    directory: reports ? (absolute ? reports : `${start.replace(/\/+$/, '')}/${reports}`) : start,
     host: 'localhost',
     port,
     auth: false,

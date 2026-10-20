@@ -103,6 +103,14 @@ def notebook_options(*, hidden: bool = False):
                     "access node (default).",
                 ),
                 click.option(
+                    "--reports",
+                    hidden=hidden,
+                    metavar="DIR",
+                    help="Where the session's reports are kept, exported to the notebook "
+                    "and its kernels as QIBOCAL_REPORTS_DIR; relative to the working "
+                    "directory.",
+                ),
+                click.option(
                     "--requirements",
                     hidden=hidden,
                     metavar="TEXT|@FILE",

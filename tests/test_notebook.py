@@ -379,12 +379,16 @@ def test_add_interactive_selected_options():
     )
 
 
+# As many as `qibocal notebook connect` has: the prompt numbers them all.
+OPTIONS = len(NotebookOptions.model_fields)
+
+
 def test_add_interactive_invalid_selection_reprompts():
     result = CliRunner().invoke(
-        main, ["notebook", "add"], input="chip\n0,12\nbad\n2,2\nchip\n"
+        main, ["notebook", "add"], input=f"chip\n0,{OPTIONS + 1}\nbad\n2,2\nchip\n"
     )
     assert result.exit_code == 0, result.output
-    assert "Choose numbers between 1 and 11" in result.output
+    assert f"Choose numbers between 1 and {OPTIONS}" in result.output
     assert stored_connections() == {"chip": {"queue": "chip"}}
 
 

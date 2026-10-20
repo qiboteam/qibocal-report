@@ -17,7 +17,8 @@ import {
   launchKeys,
   suggestServerName,
   syncDashboardServers,
-  toDashboardServer
+  toDashboardServer,
+  withoutTransient
 } from '../src/lib/servers.js'
 
 function createStorage(initial = {}) {
@@ -241,4 +242,18 @@ test('what is wrong with a form is said by field', () => {
   assert.deepEqual(formProblems('reachable', { ...blankForm(), url: 'not an address' }), { url: 'Enter the address of the report server.' })
   assert.deepEqual(formProblems('local', { ...blankForm() }, { entry: true }), { url: 'Enter the address of the report server.' }, 'a registered entry needs one')
   assert.deepEqual(formProblems('local', { ...blankForm(), url: 'localhost:8000' }, { entry: true }), {})
+})
+
+test('servers shown for a look are in the dashboard, and out of what it saves', () => {
+  const storage = new Map()
+  const store = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) }
+  const shown = syncDashboardServers([{ name: 'QRC', url: 'http://127.0.0.1:8000' }], {
+    storage: store,
+    transient: [{ name: 'chip reports', url: 'http://127.0.0.1:9000' }]
+  })
+  assert.deepEqual(shown.map(server => server.url), ['http://127.0.0.1:8000', 'http://127.0.0.1:9000'])
+  const saved = withoutTransient(shown, store)
+  assert.deepEqual(saved.map(server => server.url), ['http://127.0.0.1:8000'], 'never written to servers.json')
+  syncDashboardServers([{ name: 'QRC', url: 'http://127.0.0.1:8000' }], { storage: store })
+  assert.equal(withoutTransient(shown, store).length, 2, 'gone from the list once it stops: nothing left to hold back')
 })

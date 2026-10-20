@@ -100,7 +100,7 @@ test('a notebook report server runs on the same channel and serves the working d
   assert.equal(remote.workdir, '/scratch/runs')
   assert.equal(remote.venv, REPORTS_ENVIRONMENT, 'not the kernel environment, whose qibocal command is not ours')
   assert.equal(remote.name, 'chip reports')
-  assert.equal(remote.register, true)
+  assert.equal(remote.register, false, 'for a look: nothing is registered')
   assert.equal(remote.queue, undefined, 'the server runs on the access node, never through SLURM')
 
   assert.equal(reportServerOptions({ ssh: 'user@login' }).directory, '~', 'where the login lands, without a working directory')
@@ -114,4 +114,13 @@ test('a notebook report server runs on the same channel and serves the working d
   assert.equal(notebookKey({ ssh: 'a' }, 'chip'), 'chip')
   assert.equal(notebookKey({ ssh: 'a', workdir: '/w' }), 'a|/w')
   assert.equal(notebookKey({}), 'local|~')
+})
+
+test('a notebook report server serves the reports folder, relative to where the session starts', () => {
+  assert.equal(reportServerOptions({ ssh: 'login', workdir: '/scratch/runs', reports: 'reports' }).directory, '/scratch/runs/reports')
+  assert.equal(reportServerOptions({ ssh: 'login', reports: 'reports' }).directory, '~/reports', 'the login home without a working directory')
+  assert.equal(reportServerOptions({ ssh: 'login', workdir: '/w', reports: '/data/reports' }).directory, '/data/reports')
+  assert.equal(reportServerOptions({ ssh: 'login', reports: '~/calibration' }).directory, '~/calibration')
+  assert.equal(reportServerOptions({ reports: 'out' }, { home: '/Users/me' }).directory, '/Users/me/out')
+  assert.equal(reportServerOptions({ ssh: 'login', workdir: '/w' }).directory, '/w', 'no reports folder: where the session starts')
 })

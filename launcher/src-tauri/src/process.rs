@@ -741,6 +741,8 @@ pub struct NotebookOptions {
     pub subnet: Option<String>,
     /// What the kernel environment must hold, in requirements.txt format.
     pub requirements: Option<String>,
+    /// Where the session keeps its reports, exported as QIBOCAL_REPORTS_DIR.
+    pub reports: Option<String>,
     /// Regenerate a SLURM connection's environment on a computing node, not the access node.
     #[serde(alias = "rebuild_on_compute")]
     pub rebuild_on_compute: Option<bool>,
@@ -785,6 +787,7 @@ fn notebook_arguments(subcommand: &str, options: &NotebookOptions) -> (Vec<Strin
     push_text(&mut arguments, "--venv", options.venv.clone());
     push_text(&mut arguments, "--subnet", options.subnet.clone());
     push_text(&mut arguments, "--requirements", options.requirements.clone());
+    push_text(&mut arguments, "--reports", options.reports.clone());
     if options.rebuild_on_compute == Some(true) {
         arguments.push("--rebuild-on-compute".to_string());
     }

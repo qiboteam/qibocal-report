@@ -12,7 +12,7 @@ import { router } from '@dashboard/router.js'
 import LauncherOverlay from './components/LauncherOverlay.vue'
 import NotificationBell from './components/NotificationBell.vue'
 import { desktop } from './bridge.js'
-import { launchKeys, serverUrl } from './lib/servers.js'
+import { launchKeys, serverUrl, withoutTransient } from './lib/servers.js'
 import { installMenu } from './menu.js'
 import { sections } from './router.js'
 import { installShortcuts } from './shortcuts.js'
@@ -32,7 +32,8 @@ import './styles.js'
  * run right now, to show the managed ones only while they are up.
  */
 window.qibocalDesktop = {
-  saveServers: servers => desktop.saveServers(Array.isArray(servers) ? servers : []),
+  // What is shown for a look stays out of the file, whatever the dashboard saves.
+  saveServers: servers => desktop.saveServers(withoutTransient(servers)),
   managedServers: async () => {
     const [processes, preferences] = await Promise.all([
       desktop.processes().catch(() => []),

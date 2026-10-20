@@ -402,9 +402,8 @@ export function notebookReportsServer(key) {
 
 /**
  * Show the reports a notebook session produces: a report server on the same
- * channel, serving its working directory — or, when one runs already, the
- * dashboard on it. A registered "<session> reports" is started again at its
- * entry, which takes the new tunnel address rather than gaining a twin.
+ * channel, serving its reports folder — or, when one runs already, the
+ * dashboard on it. Started for a look: nothing is registered.
  */
 export async function startNotebookReports(options, name = null) {
   const key = notebookKey(options, name)
@@ -417,8 +416,7 @@ export async function startNotebookReports(options, name = null) {
   const home = ssh || String(options.workdir || '').trim() ? null : (await desktop.platform())?.home
   const port = ssh ? 8000 : await desktop.freePort()
   const server = reportServerOptions(options, { name, home, port })
-  const existing = state.servers.find(entry => entry.name === server.name)
-  const info = await startServer(server, { url: existing?.url || null })
+  const info = await startServer(server)
   state.launches[info.id].notebook = key
   return info
 }
@@ -581,8 +579,8 @@ export async function initialize() {
  * running server that is not registered yet registers it first: the
  * dashboard only knows registered servers.
  */
-export async function openDashboard(preferredUrl = null, { newWindow = false } = {}) {
-  if (preferredUrl) {
+export async function openDashboard(preferredUrl = null, { newWindow = false, register = false } = {}) {
+  if (preferredUrl && register) {
     const keys = new Set(launchKeys(preferredUrl))
     const registered = state.servers.some(server => launchKeys(server.url).some(key => keys.has(key)))
     if (!registered) {
@@ -599,7 +597,14 @@ export async function openDashboard(preferredUrl = null, { newWindow = false } =
       }
     }
   }
-  syncDashboardServers(state.servers, { preferredUrl })
+  // The servers started for a look are in the dashboard while they run,
+  // and never in servers.json: opening one registers nothing.
+  const transient = unregisteredServers().map(process => ({
+    name: process.label,
+    url: process.url,
+    description: `Started by the launcher, not registered: ${process.detail}`
+  }))
+  syncDashboardServers(state.servers, { preferredUrl, transient })
   const target = new URL('dashboard.html', window.location.href)
   if (preferredUrl) target.hash = '#/dashboard'
   // In a new window when asked — a modifier held, the middle button, Shift+Enter.

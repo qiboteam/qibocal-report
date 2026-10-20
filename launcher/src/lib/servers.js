@@ -4,6 +4,14 @@ import { ADJECTIVES, SCIENTISTS, generateServerName } from '../../../frontend/sr
 export { ADJECTIVES, SCIENTISTS }
 
 export const DASHBOARD_SERVERS_KEY = 'qibocal_report_servers'
+/** The servers shown in the dashboard without being registered: running, for a look. */
+export const TRANSIENT_SERVERS_KEY = 'qibocal_launcher_transient_servers'
+
+/** Leave the servers shown for a look out of a list the dashboard saves. */
+export function withoutTransient(servers, storage = typeof localStorage === 'undefined' ? null : localStorage) {
+  const transient = new Set(storage ? readStored(storage, TRANSIENT_SERVERS_KEY) : [])
+  return (Array.isArray(servers) ? servers : []).filter(server => !transient.has(serverUrl(server?.url)))
+}
 export const DASHBOARD_ACTIVE_KEY = 'qibocal_active_server_id'
 
 export { normalizeUrl }
@@ -333,12 +341,17 @@ function readStored(storage, key) {
  * Both pages share a single origin inside the application window, so the
  * dashboard simply finds the instances the launcher started.
  */
-export function syncDashboardServers(configured, { storage, preferredUrl = null } = {}) {
+export function syncDashboardServers(configured, { storage, preferredUrl = null, transient = [] } = {}) {
   const store = storage ?? (typeof localStorage === 'undefined' ? null : localStorage)
-  const servers = mergeDashboardServers(configured, store ? readStored(store, DASHBOARD_SERVERS_KEY) : [])
+  const servers = mergeDashboardServers(
+    [...(Array.isArray(configured) ? configured : []), ...transient],
+    store ? readStored(store, DASHBOARD_SERVERS_KEY) : []
+  )
   if (!store) return servers
 
   store.setItem(DASHBOARD_SERVERS_KEY, JSON.stringify(servers))
+  // Shown, not registered: what the dashboard saves, these are left out of.
+  store.setItem(TRANSIENT_SERVERS_KEY, JSON.stringify(transient.map(server => serverUrl(server.url)).filter(Boolean)))
   const target = preferredUrl ? serverUrl(preferredUrl) : null
   const selected = (target && servers.find(server => server.url === target)) ||
     servers.find(server => server.id === store.getItem(DASHBOARD_ACTIVE_KEY)) ||

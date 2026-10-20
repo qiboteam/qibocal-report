@@ -572,6 +572,9 @@ def ensure_environment(runtime, path, server=False, packages=()):
     return str(python)
 
 
+# The folder a session keeps its reports in, as the notebook and its kernels see it.
+REPORTS_VARIABLE = "QIBOCAL_REPORTS_DIR"
+
 # The requirements last installed in an environment, kept inside it: a session
 # whose connection asks for others installs them on top, and only then.
 REQUIREMENTS_MARKER = "qibocal-requirements.txt"
@@ -1118,6 +1121,13 @@ def run(options):
                 sites = server_sites(runtime, server)
             port, token = free_port(listen_host), secrets.token_urlsafe(32)
             env = os.environ.copy()
+            if options.get("reports"):
+                # The reports folder, for the code in the notebook to write to.
+                reports = Path(options["reports"]).expanduser()
+                reports = reports if reports.is_absolute() else Path.cwd() / reports
+                reports.mkdir(parents=True, exist_ok=True)
+                env[REPORTS_VARIABLE] = str(reports)
+                event("status", message=f"Reports folder: {reports} (as {REPORTS_VARIABLE})")
             if marimo:
                 path = "/"
                 command = [

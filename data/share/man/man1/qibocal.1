@@ -106,6 +106,11 @@ longest network prefix in common with an access-node IP.
 Startup fails if no usable computing-node IP matches.
 Local and unscheduled SSH sessions still bind only to loopback.
 .TP
+.BI \-\-reports " DIR"
+Where the session keeps its reports, relative to the working directory:
+created when the session starts, and exported to the notebook and its
+kernels as QIBOCAL_REPORTS_DIR. The working directory is unchanged.
+.TP
 .BI \-\-requirements " TEXT|@FILE"
 What the kernel environment must hold, in requirements.txt format: the text
 itself, or @FILE to read it from a local file. Stored with a named connection

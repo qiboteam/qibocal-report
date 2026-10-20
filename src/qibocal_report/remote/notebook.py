@@ -122,6 +122,10 @@ class NotebookOptions(BaseModel):
     # in when the environment is created, and installed on top of it at the
     # next session whenever it changes. Nothing is uninstalled.
     requirements: str | None = Field(default=None, min_length=1)
+    # Where the session's calibrations keep their reports: exported to the
+    # notebook and its kernels as QIBOCAL_REPORTS_DIR, and served by the
+    # launcher's Reports. Relative to where the session starts.
+    reports: str | None = Field(default=None, min_length=1)
     # Where `rebuild` regenerates the environment of a SLURM connection: on
     # the access node — the nodes share the home it lives in — unless this
     # asks for a computing node, through srun like a session.

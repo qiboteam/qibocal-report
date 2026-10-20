@@ -77,7 +77,7 @@
           <button
             type="button"
             class="lx-action"
-            title="Open it in the dashboard, which registers it"
+            title="Open it in the dashboard, without registering it"
             @click="openDashboard(process.url, { newWindow: wantsNewWindow($event) })"
             @auxclick.prevent="$event.button === 1 && openDashboard(process.url, { newWindow: true })"
           >
