@@ -173,6 +173,48 @@ export function normalizeNotebookOptions(values = {}) {
   return { options, errors, warnings, valid: Object.keys(errors).length === 0 }
 }
 
+/**
+ * The environment a notebook's report server runs in, on the session's
+ * machine: one of its own. The kernel environment holds qibocal, whose
+ * `qibocal` command is not qibocal-report's, and would be found first.
+ */
+export const REPORTS_ENVIRONMENT = 'qibocal-report'
+
+/** The key a notebook's report server is known by: its connection, or where it runs. */
+export function notebookKey(options = {}, name = null) {
+  if (name) return name
+  const text = value => String(value || '').trim()
+  return `${text(options.ssh) || 'local'}|${text(options.workdir) || '~'}`
+}
+
+/**
+ * The report server of a notebook session: on the same channel — the same
+ * SSH destination, its own connection — serving the session's working
+ * directory, where the reports of its calibrations are written; without
+ * one, the home folder the session starts in (`home`, here). Registered as
+ * "<session> reports", so it is browsable from the dashboard.
+ */
+export function reportServerOptions(options = {}, { name = null, home = null, port = 8000 } = {}) {
+  const text = value => String(value || '').trim() || null
+  const ssh = text(options.ssh)
+  const workdir = text(options.workdir)
+  const label = name || (ssh ? ssh.split(/\s+/).pop() : 'notebook')
+  return {
+    mode: 'server',
+    name: `${label} reports`,
+    register: true,
+    directory: workdir || (ssh ? '~' : home),
+    host: 'localhost',
+    port,
+    auth: false,
+    frontendPort: null,
+    ssh,
+    venv: ssh ? REPORTS_ENVIRONMENT : null,
+    workdir: ssh ? workdir : null,
+    install: null
+  }
+}
+
 /** How many requirements a requirements.txt text names: blank lines and comments do not count. */
 export function requirementCount(text) {
   return String(text || '').split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#')).length

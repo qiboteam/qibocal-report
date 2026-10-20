@@ -3,9 +3,12 @@ import { test } from 'node:test'
 
 import {
   NOTEBOOK_FIELDS,
+  REPORTS_ENVIRONMENT,
   defaultNotebookOptions,
   describeConnection,
   normalizeNotebookOptions,
+  notebookKey,
+  reportServerOptions,
   requirementCount,
   toEditorValues
 } from '../src/lib/notebooks.js'
@@ -88,4 +91,27 @@ test('requirements keep their lines, are optional, and are counted in the summar
   assert.equal(requirementCount(text), 2, 'comments and blank lines do not count')
   assert.match(describeConnection({ ssh: 'lab', requirements: 'numpy\nscipy' }), /2 requirements$/)
   assert.doesNotMatch(describeConnection({ ssh: 'lab' }), /requirement/)
+})
+
+test('a notebook report server runs on the same channel and serves the working directory', () => {
+  const remote = reportServerOptions({ ssh: '-p 2222 user@login', queue: 'chip', workdir: '/scratch/runs', venv: 'calib' }, { name: 'chip' })
+  assert.equal(remote.ssh, '-p 2222 user@login', 'the same destination, options and all')
+  assert.equal(remote.directory, '/scratch/runs')
+  assert.equal(remote.workdir, '/scratch/runs')
+  assert.equal(remote.venv, REPORTS_ENVIRONMENT, 'not the kernel environment, whose qibocal command is not ours')
+  assert.equal(remote.name, 'chip reports')
+  assert.equal(remote.register, true)
+  assert.equal(remote.queue, undefined, 'the server runs on the access node, never through SLURM')
+
+  assert.equal(reportServerOptions({ ssh: 'user@login' }).directory, '~', 'where the login lands, without a working directory')
+  assert.equal(reportServerOptions({ ssh: 'user@login' }).name, 'user@login reports')
+  const local = reportServerOptions({}, { home: '/Users/me', port: 54321 })
+  assert.equal(local.directory, '/Users/me')
+  assert.equal(local.ssh, null)
+  assert.equal(local.venv, null, 'here, the launcher\'s own installation')
+  assert.equal(local.port, 54321)
+
+  assert.equal(notebookKey({ ssh: 'a' }, 'chip'), 'chip')
+  assert.equal(notebookKey({ ssh: 'a', workdir: '/w' }), 'a|/w')
+  assert.equal(notebookKey({}), 'local|~')
 })

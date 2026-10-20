@@ -115,6 +115,18 @@
             >
               <Play class="w-3.5 h-3.5" /> Start
             </button>
+            <!-- The reports its calibrations write: a server on the same channel, read in the dashboard. -->
+            <button
+              type="button"
+              class="lx-action"
+              :disabled="startingReports === name"
+              :title="notebookReportsServer(name)
+                ? 'Open its reports in the dashboard'
+                : 'Start a report server on the same machine, serving the session\'s working directory, to read in the dashboard the reports its calibrations write'"
+              @click="reports(name)"
+            >
+              <LayoutDashboard class="w-3.5 h-3.5" /> {{ startingReports === name ? 'Starting…' : 'Reports' }}
+            </button>
             <button
               type="button"
               class="lx-action"
@@ -167,7 +179,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bookmark, ExternalLink, Files, Pencil, Play, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
+import { Bookmark, ExternalLink, Files, LayoutDashboard, Pencil, Play, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
 import NotebookFields from '../components/NotebookFields.vue'
 import { confirmAction, desktop, openExternal } from '../bridge.js'
 import {
@@ -175,7 +187,9 @@ import {
   attempt,
   fail,
   notify,
+  notebookReportsServer,
   rebuildNotebook,
+  startNotebookReports,
   refreshNotebooks,
   sessionsOf,
   startNotebook
@@ -192,6 +206,8 @@ const editing = reactive({ name: null, form: { ...defaultNotebookOptions(), name
 const starting = ref(false)
 /** The session whose environment is being rebuilt, by name. */
 const rebuilding = ref(null)
+/** The session whose report server is being started, by name. */
+const startingReports = ref(null)
 
 const names = computed(() => Object.keys(state.notebooks || {}))
 const created = computed(() => normalizeNotebookOptions(form))
@@ -325,6 +341,19 @@ async function rebuild(name) {
   )
   rebuilding.value = null
   if (started) router.push({ name: 'processes' })
+}
+
+/** Its report server: started on the same channel, or opened in the dashboard while it runs. */
+async function reports(name) {
+  const running = notebookReportsServer(name)
+  startingReports.value = name
+  const started = await attempt(
+    () => startNotebookReports(registered(name), name),
+    running ? null : `Starting the report server of ${name}; it appears in the dashboard once it answers.`,
+    'processes'
+  )
+  startingReports.value = null
+  if (started && !running) router.push({ name: 'processes' })
 }
 
 async function remove(name) {

@@ -5,6 +5,7 @@ import { installationBehind } from './lib/versions.js'
 import { processNews, unattended } from './lib/alerts.js'
 import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
 import { queueKey, queueOf } from './lib/slurm.js'
+import { notebookKey, reportServerOptions } from './lib/notebooks.js'
 
 export const LOG_EVENT = 'launcher://log'
 export const PROCESS_EVENT = 'launcher://process'
@@ -389,6 +390,36 @@ export async function startNotebook(options) {
   // the panel that follows, which asks again only when this one has aged.
   const queue = queueOf(options)
   if (queue) refreshQueue(queue).catch(() => {})
+  return info
+}
+
+/** The report server started for a notebook session, while it runs. */
+export function notebookReportsServer(key) {
+  return state.processes.find(process =>
+    process.kind === 'server' && (process.status === 'running' || process.status === 'stopping') &&
+    state.launches[process.id]?.notebook === key) || null
+}
+
+/**
+ * Show the reports a notebook session produces: a report server on the same
+ * channel, serving its working directory — or, when one runs already, the
+ * dashboard on it. A registered "<session> reports" is started again at its
+ * entry, which takes the new tunnel address rather than gaining a twin.
+ */
+export async function startNotebookReports(options, name = null) {
+  const key = notebookKey(options, name)
+  const running = notebookReportsServer(key)
+  if (running) {
+    if (running.url) await openDashboard(running.url)
+    return running
+  }
+  const ssh = String(options.ssh || '').trim()
+  const home = ssh || String(options.workdir || '').trim() ? null : (await desktop.platform())?.home
+  const port = ssh ? 8000 : await desktop.freePort()
+  const server = reportServerOptions(options, { name, home, port })
+  const existing = state.servers.find(entry => entry.name === server.name)
+  const info = await startServer(server, { url: existing?.url || null })
+  state.launches[info.id].notebook = key
   return info
 }
 

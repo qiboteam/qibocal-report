@@ -75,6 +75,16 @@
             >
               <ExternalLink class="w-3.5 h-3.5" /> Browser
             </button>
+            <!-- The reports a session writes: a server on the same channel, read in the dashboard. -->
+            <button
+              v-if="current.latest.kind === 'notebook' && state.launches[current.latest.id]?.options"
+              type="button"
+              class="lx-action"
+              title="Start a report server on the same machine, serving the session's working directory; open it in the dashboard while it runs"
+              @click="sessionReports(current.latest)"
+            >
+              <LayoutDashboard class="w-3.5 h-3.5" /> Reports
+            </button>
             <button
               v-if="current.latest.status === 'running' || current.latest.status === 'stopping'"
               type="button"
@@ -152,7 +162,17 @@ import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
 import QueuePanel from '../components/QueuePanel.vue'
 import { jobIdFromLog, jobNameFromLog, queueOf } from '../lib/slurm.js'
 import { desktop, openExternal, wantsNewWindow } from '../bridge.js'
-import { state, attempt, loadLog, openDashboard, refreshProcesses, registerServer, restartProcess, unregisteredServers } from '../state.js'
+import {
+  state,
+  attempt,
+  loadLog,
+  openDashboard,
+  refreshProcesses,
+  registerServer,
+  restartProcess,
+  unregisteredServers,
+  startNotebookReports
+} from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
 
 const route = useRoute()
@@ -242,6 +262,18 @@ async function register(process) {
     `${process.label} registered.`,
     'servers'
   )
+}
+
+/** A session's reports: its report server started, or opened in the dashboard while it runs. */
+async function sessionReports(process) {
+  const options = state.launches[process.id]?.options || {}
+  const started = await attempt(
+    () => startNotebookReports(options, options.connection || null),
+    'Starting the report server of the session; it appears in the dashboard once it answers.',
+    'processes'
+  )
+  // A new server: its card, where its address appears.
+  if (started?.id && started.id !== process.id) router.replace({ query: { process: started.id } })
 }
 
 /** Open what a card stands for: the dashboard for a server, the browser for a notebook. */
