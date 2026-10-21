@@ -13,7 +13,7 @@ Access the server registry via the **Servers** tab (`/#/servers`) in the top nav
 - **Customization**: Use the three-dots menu on any server card to update its name, description, avatar, or target address.
 - **Authentication Status**: Auth-enabled servers display a lock to the left of their name: closed when signed out, open when signed in. Open/no-auth servers have no lock and no **Administer** entry in their three-dots menu.
 - **Default Server**: Set any server as the default active instance so the dashboard automatically opens to it.
-- **Browser-Local Registry**: Registration, customization, deletion, and card ordering are saved automatically in this browser, whether the client is hosted by a report server or deployed standalone. They do not modify a report server's `servers.json`. Deleting a card does not delete reports or stop the server.
+- **Browser-Local Registry**: Registration, customization, deletion, and card ordering are saved automatically in this browser, and do not modify a report server's `servers.json`; inside the desktop application, the list is `servers.json` itself. Deleting a card does not delete reports or stop the server.
 - **Save Client State**: Download a JSON backup of the server list and ordering, active server, report history, search filters and pagination, sidebar preferences, and remembered table/sidebar dimensions.
 - **Load Client State**: Select a previously saved JSON file and confirm replacement of this browser's settings. Invalid files are rejected without changing settings. Loading clears current sign-in sessions; passwords and authentication tokens are never included in backups. Authenticated servers require signing in again. Live report data, connection status, and open dialogs are not backed up.
 
@@ -27,7 +27,7 @@ The dashboard provides rich search and faceted filtering:
 - **Author Filtering**: Filter runs by specific calibration scientists.
 - **Frequency-Ranked Protocols**: Select protocols from a list ranked in descending order of execution count.
 - **Interactive Date Histogram**: A timeline bar chart visualizing calibration activity across time. Click any bucket or drag a date range to filter.
-- **Tag / Label Filtering**: Filter reports by custom tags assigned to them.
+- **Tag Filtering**: Filter reports by custom tags assigned to them.
 - **Active Filter Summary**: A clear banner summarizing all applied filters with one-click clear options.
 - **Back in a moment**: the list is kept for ten seconds after it is shown, so opening a report and coming back — same server, same filters, same page — shows it at once, with no request; a change of server or filters asks the server again.
 - **View menu**: One control in the top-right corner for the three ways of looking at the list — the statistics summary on or off, the order (newest or oldest first), and the layout (table or cards).
@@ -69,6 +69,6 @@ Manage multiple reports simultaneously directly from the dashboard:
 
 1. Use the row checkboxes in Table View to select reports.
 2. An action bar appears at the bottom of the screen:
-   - **Tag Selected**: Add tags or labels to all selected runs at once.
+   - **Tag Selected**: Add tags to all selected runs at once.
    - **Assign Author**: Batch update the author field for selected reports.
    - **Delete Selected**: Safely remove unwanted calibration runs from the server disk with confirmation.

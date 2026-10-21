@@ -216,8 +216,8 @@ initially. A branch installation is pinned to the commit verified by GitHub.
 The current server version is shown in the tab. Git installations also show
 the installed branch as a link to its GitHub page, opening in a new tab.
 The branch name is preserved for installations made through the branch picker.
-Older installations whose metadata only records a commit show **branch unknown**;
-reinstall the desired branch to retain its name.
+Git installations made otherwise, whose metadata only records a commit, show
+**branch unknown**; reinstall the desired branch from here to retain its name.
 If PyPI is unavailable, the
 error is displayed and the Git option remains available. Select a version using
 the highlighted buttons (PyPI versions show their logo), then use **Install**

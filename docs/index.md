@@ -47,7 +47,7 @@ Explore the documentation organized across the following sections:
 
 ### 🚀 [User Guide](#/docs/user-guide/quickstart)
 
-- **[Quickstart](#/docs/user-guide/quickstart)**: Installation, CLI commands (`server`, `client`, `dev`), and report folder layout.
+- **[Quickstart](#/docs/user-guide/quickstart)**: Installation, CLI commands (`server`, `dev`), and report folder layout.
 - **[Dashboard & Server Management](#/docs/user-guide/dashboard)**: Managing remote servers, smart filters, dual views, statistics, and bulk actions.
 - **[Reports, Protocols & Exports](#/docs/user-guide/reports)**: Interactive graphics, platform inspection, on-the-fly downloads, and PDF printing.
 

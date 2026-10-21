@@ -6,18 +6,18 @@
 
 ## ⚡ Installation
 
-Install `qibocal-report` in your Python environment (Python 3.10+):
+Install `qibocal-report` in your Python environment (Python 3.10+). The package is not on PyPI yet: install it from GitHub.
 
 ### Using `pip`
 
 ```bash
-pip install qibocal-report
+pip install git+https://github.com/qiboteam/qibocal-report
 ```
 
 ### Using `uv`
 
 ```bash
-uv pip install qibocal-report
+uv pip install git+https://github.com/qiboteam/qibocal-report
 ```
 
 ### From Source
@@ -39,7 +39,7 @@ The command-line tool `qibocal report` runs the server in two ways:
 Start the server on any directory containing Qibocal calibration folders:
 
 ```bash
-# Serve reports from current directory
+# Serve the shared reports directory, ~/.local/share/qibocal/reports
 qibocal report server
 
 # Or specify a directory and custom port

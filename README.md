@@ -34,10 +34,10 @@ sessions to exploring results and organizing runs across report servers.
 
 ### 1. Installation
 
-Install using `pip`:
+The package is not on PyPI yet: install it from GitHub, using `pip`:
 
 ```bash
-pip install qibocal-report
+pip install git+https://github.com/qiboteam/qibocal-report
 ```
 
 ### 2. Serving Reports (CLI)
@@ -64,7 +64,8 @@ qibocal report server /shared/calibration --ssh myuser@login --venv mychip
 
 The remote host only needs an OpenSSH server and Python 3.10+; the environment
 is created and `qibocal-report` installed into it on first use, exactly as for
-notebook sessions.
+notebook sessions. Until the package is on PyPI, say where it comes from with
+`--install git+https://github.com/qiboteam/qibocal-report`.
 
 ### Interactive Notebooks
 
@@ -117,7 +118,7 @@ Navigation uses hash URLs so that refreshing or sharing a page works on static
 hosts without server-side routing. The deployment path is preserved: for example,
 the hosted documentation is at
 [`https://qibo.science/qibocal-report/#/docs`](https://qibo.science/qibocal-report/#/docs).
-Static exports also work at other subpaths without configuring the router.
+Static builds also work at other subpaths without configuring the router.
 
 ### 5. Desktop Launcher
 
@@ -143,10 +144,11 @@ pnpm run app     # or `pnpm run app:build` for the installers
 
 The documentation covers report and server management, calibration results and
 exports, development and architecture, and CLI and API references.
-Select **Documentation** in the application's navigation, or open **`/#/docs`**
-on your running instance.
+Select **Documentation** in the dashboard's navigation, or open
+[qibo.science/qibocal-report/#/docs](https://qibo.science/qibocal-report/#/docs).
 
-Interactive OpenAPI / Swagger documentation is also accessible at **`/api/docs/swagger`**.
+Interactive OpenAPI / Swagger documentation is served by every report server at
+**`/api/docs/swagger`**.
 
 ## 📄 License
 

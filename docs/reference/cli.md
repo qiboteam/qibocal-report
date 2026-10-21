@@ -19,10 +19,6 @@ as a single plain-text line with no labels or formatting.
 `QIBOCAL_REPORT_CONFIG_DIR` overrides this location. The command does not create
 the directory.
 
-Existing configurations under `qibocal-report/` are not moved automatically.
-Move their files into `qibocal/` to retain registered servers, authentication data,
-and notebook connections, or set `QIBOCAL_REPORT_CONFIG_DIR` to the old directory.
-
 ```bash
 qibocal config path
 qibocal config path | xargs -I{} ls '{}'
@@ -77,7 +73,7 @@ With `--ssh`, the server runs on another machine and its address is tunnelled ba
 - `--ssh TEXT`: SSH options followed by a host or `user@host` destination, as in `qibocal notebook connect`. The destination must be the last argument; do not include a remote command.
 - `-w, --workdir DIRECTORY`: Working directory on the remote host. Default: a fresh temporary directory, since the server writes nothing where it starts.
 - `--venv NAME_OR_PATH`: Environment on the remote host. Default: `qibocal-report`, apart from the notebooks' `qibocal`, whose packages an update would otherwise move. Names resolve under `$XDG_CACHE_HOME/qibocal/envs/` (fallback `~/.cache/qibocal/envs/`), the same place the notebook sessions use; a missing environment is created, and an existing one without Qibocal has it installed.
-- `--install TEXT`: Packages installed in that environment when it has no `qibocal`. Default: `qibocal-report`.
+- `--install TEXT`: Packages installed in that environment when it has no `qibocal`. Default: `qibocal-report`. Until the package is on PyPI, give `git+https://github.com/qiboteam/qibocal-report`.
 - `--timeout SECONDS`: Startup timeout, environment preparation included. Default: `300`.
 
 The remote host needs an OpenSSH server and `python3` 3.10 or later; Qibocal itself is installed by the environment step. The other remote options are refused without `--ssh`.

@@ -20,17 +20,17 @@ To enable authentication on your report server, pass the `--auth` flag when star
 
 ```bash
 # Production server mode with authentication enabled
-qibocal-report server --auth --host 0.0.0.0 --port 8000 /path/to/reports
+qibocal report server /path/to/reports --auth --host 0.0.0.0 --port 8000
 
 # Development mode with authentication enabled
-qibocal-report dev --auth --port 8000 /path/to/reports
+qibocal report dev /path/to/reports --auth --port 8000
 ```
 
 Alternatively, you can set the environment variable:
 
 ```bash
 export QIBOCAL_AUTH_ENABLED=1
-qibocal-report server /path/to/reports
+qibocal report server /path/to/reports
 ```
 
 When started with `--auth`, the server:
@@ -58,18 +58,21 @@ server only. Click the server again to sign in as a different user.
 When a server starts with `--auth` for the first time and no users exist in the database, `qibocal-report` **automatically generates a secure initial Admin Invitation**:
 
 ```text
-╭─ Qibocal Report Server ────────────────────────────────────────────────────────╮
-│                                                                                │
-│  Host:         http://0.0.0.0:8000                                             │
-│  Reports Dir:  /path/to/reports                                                │
-│  Auth Mode:    ENABLED (RBAC Active)                                           │
-│                                                                                │
-│  Initial Admin Setup Link:                                                     │
-│  http://127.0.0.1:8000/#/invite?token=adm_a8f10b89e...                         │
-│                                                                                │
-│  Open this link in your browser to create the primary administrator account.   │
-╰────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────── ⚛️  Qibocal Report Server ────────────────────────╮
+│ 📁 Reports Directory : /path/to/reports                                   │
+│ ⚙️  FastAPI Server   : http://0.0.0.0:8000                                │
+│ 📖 REST API Docs     : http://0.0.0.0:8000/api/docs/swagger               │
+│ 🖥️  Dashboard        : https://qibo.science/qibocal-report                │
+│ 🔒 Auth & Roles       : Enabled                                           │
+│ 🔑 Admin Invite Link  : https://qibo.science/qibocal-report/#/invite?     │
+│    token=adm_a8f10b89e...&server=http%3A%2F%2F0.0.0.0%3A8000             │
+│                                                                           │
+│ The server has no page of its own: add its address in the dashboard,      │
+│ or in the Qibocal desktop application. Press Ctrl+C to stop the server.   │
+╰───────────────────────────────────────────────────────────────────────────╯
 ```
+
+The link opens the deployed dashboard — `QIBOCAL_DASHBOARD_URL` names another one — and tells it the server's address. A server bound to `0.0.0.0` is announced as such: regenerate the link with `qibocal report admin invite --server-url` and the address the browser reaches it at, if that one does not work from there.
 
 ### Steps to Bootstrap:
 1. Copy the setup link printed in the terminal.
@@ -78,7 +81,7 @@ When a server starts with `--auth` for the first time and no users exist in the 
 4. Click **Complete Registration**. You are immediately authenticated as the primary **Admin**.
 
 > [!NOTE]
-> The initial setup token is single-use and valid for 48 hours. Once used to register the initial administrator, it is automatically revoked.
+> The initial setup token is single-use and valid for 30 days. Once used to register the initial administrator, it is automatically revoked.
 
 ---
 
@@ -98,7 +101,7 @@ The Server Administration dashboard provides three main panels:
 
 ## 📤 Uploads from other servers
 
-Reports can be uploaded to a server from another one, through the dashboard. With authentication on, the **Uploads** card of Server Administration says who may: administrators always, and, as chosen, editors too, every signed-in user, or selected individuals. The choice is kept in `auth.json`, next to the users. Without authentication, the server accepts uploads from anyone who reaches it.
+Reports can be uploaded to a server from another one, through the dashboard. With authentication on, the **Uploads** card of Server Administration says who may: administrators always, and, as chosen, editors too, every signed-in user, or selected individuals. The choice is kept in `auth.json`, next to the users. Without authentication, the server accepts uploads from anyone who reaches it. From a browser, either way, only the pages of the dashboard, the desktop application and this machine may change anything — further origins are listed in `QIBOCAL_ALLOWED_ORIGINS`; any other page is answered `403`.
 
 ## 💾 Storage & Cryptography Architecture
 

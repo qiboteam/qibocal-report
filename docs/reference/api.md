@@ -374,10 +374,10 @@ Executes batch operations across multiple reports.
 ```
 
 ### `POST /api/reports/{report_id}/label`
-Add a label/tag to a single report.
+Add a tag to a single report: the body is `{"label": "verified"}`, written to the report's `tag` in `meta.json`.
 
 ### `DELETE /api/reports/{report_id}/label/{label_name}`
-Remove a label/tag from a single report.
+Remove a tag from a single report.
 
 ### `PUT /api/reports/{report_id}/author`
 Update the author handle for a single report.
@@ -420,8 +420,9 @@ revocation and deleted reports do.
 
 Incremental outputs are atomically merged into `report/protocols.json`. Input
 fingerprints in `report/.live-inputs.json` allow subsequent subscriptions to
-detect changes and share cached results. Legacy caches without fingerprints
-use existing cached tasks as their initial baseline. Full regeneration still
+detect changes and share cached results. A cache without fingerprints — one
+written by Qibocal itself, say — takes its existing cached tasks as the initial
+baseline. Full regeneration still
 discards all cached outputs.
 
 ---

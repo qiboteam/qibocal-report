@@ -1,4 +1,4 @@
-.TH QIBOCAL 1 "October 2, 2026" "qibocal-report" "User Commands"
+.TH QIBOCAL 1 "October 21, 2026" "qibocal-report" "User Commands"
 .SH NAME
 qibocal \- serve calibration reports and dispatch interactive notebooks
 .SH SYNOPSIS
@@ -9,7 +9,10 @@ qibocal \- serve calibration reports and dispatch interactive notebooks
 .RI [ OPTIONS ]
 .SH DESCRIPTION
 qibocal-report provides the qibocal command for report servers, local
-configuration management, and notebook sessions. Use
+configuration management, notebook sessions, and agent configurations.
+Every configuration file is a JSON object carrying its format version,
+{"version": 1, ...}; a file without a version, or with another one, is not
+read and never overwritten. Use
 .B qibocal COMMAND \-\-help
 for the available command options.
 .SH NOTEBOOK
@@ -114,6 +117,22 @@ Where the session keeps its reports, relative to the working directory:
 created when the session starts, and exported to the notebook and its
 kernels as QIBOCAL_REPORTS_DIR. The working directory is unchanged.
 .TP
+.BI \-\-remote " NAME"
+A remote execution connection of remotes.json, for qibocal-widgets: exported
+to the notebook as QIBOCAL_WIDGETS_CONNECTION, and written to remotes.json
+where the notebook runs. Unless it names one, the connection has an environment
+of its own, named after it as a notebook connection is, under
+.BR _remote/ .
+.TP
+.B \-\-rebuild\-on\-compute
+Make
+.B qibocal notebook rebuild
+regenerate the environment of a SLURM connection on a computing node, through
+srun.
+.TP
+.B \-\-rebuild\-on\-access
+Regenerate it on the access node (default).
+.TP
 .BI \-\-requirements " TEXT|@FILE"
 What the kernel environment must hold, in requirements.txt format: the text
 itself, or @FILE to read it from a local file. Stored with a named connection
@@ -159,7 +178,11 @@ kernel environments. Existing Jupyter server environments are reused as-is.
 If first-time installation fails, repair that server environment explicitly
 using the command reported by the launcher; it is never implicitly overwritten.
 Jupyter exposes all managed kernel environments and environments previously selected
-for Jupyter with \-\-venv on the computing node.
+for Jupyter with \-\-venv on the computing node. A named connection defaults
+to an environment of its own, named after it (see \-\-venv). The environments
+of remote execution connections, kept under
+.BR $XDG_CACHE_HOME/qibocal/envs/_remote/ ,
+are not offered as kernels.
 The selected environment is the default kernel. The managed qibocal environment is
 named Qibocal; other managed kernels are named Qibocal (NAME).
 Path-based kernels also include their path in the label, with the home directory
@@ -172,19 +195,23 @@ ipykernel dependencies as a fallback.
 This keeps an existing Jupyter calibration environment unchanged; server dependencies
 may still appear in the notebook's import path.
 .SS Named connections
-Create a JSON object whose keys are connection names and values are options:
+Create a JSON object with the format version and, under connections, an
+object whose keys are connection names and values are options:
 .PP
 .nf
 {
-  "mychip": {
-    "ssh": "myuser@login",
-    "queue": "mychip",
-    "workdir": "/shared/calibration",
-    "venv": "qibocal",
-    "slurm": "--time=02:00:00",
-    "marimo": false,
-    "no_interactive": false,
-    "timeout": 900
+  "version": 1,
+  "connections": {
+    "mychip": {
+      "ssh": "myuser@login",
+      "queue": "mychip",
+      "workdir": "/shared/calibration",
+      "venv": "qibocal",
+      "slurm": "--time=02:00:00",
+      "marimo": false,
+      "no_interactive": false,
+      "timeout": 900
+    }
   }
 }
 .fi
@@ -198,6 +225,8 @@ Invoke
 .BR "qibocal notebook connect mychip" .
 Explicit command-line options override the connection's values.
 Unknown options, invalid types, missing names, and malformed files are errors.
+A file without a version, or with another one, is not read: it holds no
+connections, and it is never overwritten.
 The connect command does not create or modify the connection file.
 .SS Adding connections
 .B qibocal notebook add
@@ -243,7 +272,7 @@ Updating a connection does not start or stop a notebook session.
 .PP
 Remove the named connection immediately, without confirmation.
 The name must exist. Other connections, environments, and running sessions
-are unchanged. Removing the last connection leaves an empty JSON object.
+are unchanged. Removing the last connection leaves an empty connections object.
 .SS Rebuilding an environment
 .B qibocal notebook rebuild
 .RI [ CONNECTION ]
@@ -255,6 +284,27 @@ connection is regenerated on the access node, which shares the home the
 environment lives in, unless \-\-rebuild\-on\-compute asks for a computing
 node, through srun. No notebook is started. Only a directory holding
 pyvenv.cfg is removed; the notebook server environment is never touched.
+.SS Looking at a queue
+.B qibocal notebook queue
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+What a SLURM queue is doing, asked once: squeue, sinfo and whoami run in a
+single round trip, over SSH when a destination is given, and the answer is
+printed as a table. The host and the partition come from a saved connection,
+or from the options. Ask sparingly: every call costs the controller something.
+Options:
+.BI \-\-ssh " TEXT" ,
+.BR \-q ", " \-\-queue " " \fIPARTITION\fR
+(without it, every partition),
+.BR \-u ", " \-\-user " " \fIUSER\fR
+(only the jobs of this user),
+.BR \-t ", " \-\-state " " \fISTATE\fR
+(only jobs in this state, repeatable: PENDING, RUNNING, ...),
+.B \-\-json
+(the answer as JSON),
+.BI \-\-timeout " SECONDS"
+(seconds to wait for the controller; default: 30).
 .SS Examples
 .nf
 qibocal notebook connect
@@ -271,18 +321,24 @@ qibocal notebook update mychip --subnet 192.168.0.0/24
 qibocal notebook update mychip --requirements @requirements.txt
 qibocal notebook rebuild mychip
 qibocal notebook remove mychip
+qibocal notebook queue mychip --user myuser
 .fi
 .SH REPORT COMMANDS
 .TP
 .BR "qibocal report server" " [DIRECTORY]"
-Serve reports and the embedded web app, here or on another machine.
+Serve reports, here or on another machine. The server is headless: it
+serves the API the dashboard reads, and the dashboard, deployed at
+.B https://qibo.science/qibocal-report
+and embedded in the desktop application, is given the server's address.
 Without a directory, the shared reports directory is served:
 .BR $QIBOCAL_REPORT_DATA_DIR/reports ,
 .B $XDG_DATA_HOME/qibocal/reports
 or
 .BR ~/.local/share/qibocal/reports ,
 created when missing. A named directory has to exist.
-Options: \-\-host (localhost), \-\-port (8000), \-\-auth/\-\-no-auth,
+Options: \-\-host (localhost), \-\-port (8000), \-\-auth/\-\-no-auth
+(default: no auth; with \-\-auth the initial administrator invitation
+is printed),
 .BI \-\-name " TEXT"
 (the name the server is registered under),
 \-\-register/\-\-no-register (whether it goes into servers.json at all;
@@ -314,32 +370,59 @@ bounds the startup, environment preparation included (default: 300).
 These options are refused without \-\-ssh.
 .RE
 .TP
-.B qibocal report client
-Serve the standalone report client. Options: \-\-host (127.0.0.1),
-\-\-port (8000), \-\-reload.
+.B qibocal report server upgrade
+Bring a remote server's qibocal-report up to date, without starting it: the
+\-\-install packages are put back by force in the \-\-venv environment on the
+\-\-ssh host, the packages themselves first, then their dependencies. That
+environment otherwise keeps what it holds, since it is only filled when it has
+no qibocal. Nothing is served; start the server as usual afterwards.
+Options:
+.BI \-\-ssh " TEXT"
+(required), \-w/\-\-workdir, \-\-venv (qibocal-report),
+\-\-install (qibocal-report), \-\-timeout (300), as for
+.BR "qibocal report server" .
+.TP
+.BR "qibocal report targets" " [DIRECTORY]"
+Gather each report's targets from its protocols: every protocol's action.yml
+under the directory (default: the shared reports directory) names the qubits,
+or pairs, it was run on, and their union goes into the report's meta.json as
+targets-inferred, next to the session's own targets. The dashboard shows the
+inferred targets first.
 .TP
 .BR "qibocal report dev" " [DIRECTORY]"
 Run backend and Vite development servers. The directory defaults to the
 shared reports directory, as for
 .BR "qibocal report server" .
 Options: \-\-host (localhost),
-\-\-port (8000), \-\-frontend-port (5173), \-\-reload/\-\-no-reload,
-\-\-auth/\-\-no-auth, \-\-name, \-\-register/\-\-no-register.
+\-\-port (8000), \-\-frontend-port (5173), \-\-reload/\-\-no-reload
+(default: reload), \-\-auth/\-\-no-auth, \-\-name, \-\-register/\-\-no-register.
 Requires the frontend sources and Node.js.
 .TP
-.BR "qibocal report export" " [OUTPUT_DIR]"
-Export the static report client (default: ./dist).
-Options: \-\-build/\-\-no-build and \-\-base-path.
-.TP
 .B qibocal report admin list
-List administrators. Options: \-\-all (include all users), \-\-json.
+List administrators. Options: \-\-all (include all users), \-\-json,
+and \-\-ssh, \-\-venv (qibocal-report) for a server on another machine:
+its administrators are listed there.
 .TP
 .BR "qibocal report admin invite" " [USERNAME]"
-Generate an administrator invitation. Options: \-u/\-\-username,
-\-\-server-url, \-\-host, \-\-port, \-e/\-\-expires-in-hours,
-\-\-interactive/\-\-no-interactive, \-\-json.
+Generate an administrator invitation. The link opens the dashboard,
+.BR $QIBOCAL_DASHBOARD_URL/#/invite?token=...&server=... .
+Options: \-u/\-\-username,
+\-\-server-url, \-\-host, \-\-port, \-e/\-\-expires-in-hours (168, 0 for
+never), \-\-interactive/\-\-no-interactive, \-\-json, and \-\-ssh,
+\-\-venv (qibocal-report) for a server on another machine: an invitation is
+valid only in the users of the server's own machine, so it is made there.
 .BR "qibocal report invite"
-is an equivalent shortcut.
+is a shortcut, without \-\-ssh and \-\-venv.
+.SH AGENTS COMMANDS
+.TP
+.BR "qibocal agents push" " SSH"
+Write qibocal-agent configurations into agents.json on the SSH destination.
+.BI \-\-agents " JSON"
+gives the entries to write, as an object of agents.NAME entries, merged into
+the remote agents;
+.BI \-\-remove " NAME" ,
+repeatable, drops one there. Nothing else in the remote file changes, and
+nothing but the configuration travels, never environments or keys.
 .SH CONFIG COMMANDS
 .TP
 .B qibocal config path
@@ -371,13 +454,32 @@ directory. A missing directory is reported in the startup diagnostics.
 Override the local report and notebook connection configuration directory.
 .TP
 .B QIBOCAL_AUTH_FILE
-Override the report authentication database.
+Override the report authentication database; also removed by
+.BR "qibocal config clean" .
 .TP
 .B QIBOCAL_REPORT_DIR
 Report directory used by the report server.
 .TP
-.B QIBOCAL_FRONTEND_URL
-Frontend development-server URL.
+.B QIBOCAL_REPORT_DATA_DIR
+Override the data directory, whose reports/ subfolder is served when no
+directory is named. Default:
+.B $XDG_DATA_HOME/qibocal/
+(fallback:
+.BR ~/.local/share/qibocal/ ).
+.TP
+.B XDG_DATA_HOME
+Data root for the shared reports directory.
+.TP
+.B QIBOCAL_DASHBOARD_URL
+The dashboard that invitation links open, told the server's address.
+Default:
+.BR https://qibo.science/qibocal-report .
+.TP
+.B QIBOCAL_ALLOWED_ORIGINS
+Further origins whose pages may call the server from a browser,
+comma-separated. The dashboard of QIBOCAL_DASHBOARD_URL, the desktop launcher
+and pages of this machine (localhost) always may; any other page is refused,
+and a change it asks for, an upload included, is answered 403.
 .SH EXIT STATUS
 Zero on normal completion or an orderly notebook Ctrl+C shutdown.
 Nonzero on invalid configuration, startup failure, timeout, or session failure.

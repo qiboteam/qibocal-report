@@ -26,7 +26,7 @@
 - **Target Audience**: Laboratory physicists, hardware calibration engineers, and active experimenters.
 - **Capabilities**:
   - Includes all Viewer capabilities.
-  - **Report Modifications**: Add and remove tags/labels from individual or bulk reports.
+  - **Report Modifications**: Add and remove tags from individual or bulk reports.
   - **Author Mapping**: Edit and normalize author metadata.
   - **Report Deletion**: Delete corrupted or superseded calibration runs.
   - **Plot Regeneration**: Trigger background plot re-evaluation and cache invalidation.

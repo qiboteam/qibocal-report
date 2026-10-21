@@ -39,14 +39,15 @@ Administrators can create invitations directly from the **Server Administration*
 
 ## 🔗 The Invitation Link Format
 
-The invitation link takes the form:
+The server is headless, so the link opens the deployed dashboard and tells it the server's address:
 ```text
-http://<server-host>:<port>/#/invite?token=<token>
+https://qibo.science/qibocal-report/#/invite?token=<token>&server=<server-url>
 ```
 For example:
 ```text
-http://192.168.1.100:8000/#/invite?token=inv_6e84d72b94f0...
+https://qibo.science/qibocal-report/#/invite?token=inv_6e84d72b94f0...&server=http%3A%2F%2F192.168.1.100%3A8000
 ```
+A password-reset link has the same form, with `reset_token=` in place of `token=`. `QIBOCAL_DASHBOARD_URL`, set where the link is made, points it at another deployment of the dashboard.
 
 ---
 
@@ -63,12 +64,12 @@ New users can join using either of two frictionless methods:
 4. Clicking **Complete Registration** creates the account and directs the user to the active calibration dashboard.
 
 ### Method 2: Paste Box in Server Management
-Users who already have the `qibocal-report` client open or manage multiple lab servers can paste the invite link directly:
+Users who already have the dashboard open or manage multiple lab servers can paste the invite link directly:
 
 1. Open the **Server Management** page (`#/servers`).
 2. Paste the invite URL into the top search/connect box:
    ```text
-   http://192.168.1.100:8000/#/invite?token=inv_6e84d72b...
+   https://qibo.science/qibocal-report/#/invite?token=inv_6e84d72b...&server=http%3A%2F%2F192.168.1.100%3A8000
    ```
 3. Press **Enter** or click **Connect**.
 4. The client automatically:
@@ -118,5 +119,5 @@ qibocal report invite <username>
 ### Reclaiming Access
 
 Once the link is generated:
-1. **Direct browser access**: Open the link (`http://<host>:<port>/#/invite?token=...`). The username will be pre-filled and designated for that administrator. Enter your password to update credentials and immediately log in.
-2. **Server Management paste box**: If you use the standalone client (`#/servers`), paste the entire invite link into the search bar. The client will automatically re-add the deleted server to your local list, prompt for credentials, and sign you in as administrator.
+1. **Direct browser access**: Open the link (`https://qibo.science/qibocal-report/#/invite?token=...&server=...`). The username will be pre-filled and designated for that administrator. Enter your password to update credentials and immediately log in.
+2. **Server Management paste box**: In the dashboard's Server Management (`#/servers`), paste the entire invite link into the search bar. The client will automatically re-add the deleted server to your local list, prompt for credentials, and sign you in as administrator.
