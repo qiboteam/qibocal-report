@@ -264,7 +264,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { AVATAR_KEYS, renderAvatar } from './Avatars.js'
 import DirectoryBrowserModal from './modals/DirectoryBrowserModal.vue'
-import { state, normalizeUrl, notifyServerDataChanged } from '../store.js'
+import { state, getAuthHeader, normalizeUrl, notifyServerDataChanged } from '../store.js'
 
 const props = defineProps({
   server: { type: Object, default: null }
@@ -314,7 +314,8 @@ async function fetchDirectoryInfo() {
   try {
     const base = normalizeUrl(url)
     const targetUrl = `${base}/api/server/directory`
-    const res = await fetch(targetUrl, { signal: AbortSignal.timeout(4000) })
+    // Signed in as on that server: the directory is for readers only.
+    const res = await fetch(targetUrl, { headers: getAuthHeader(props.server || { url }), signal: AbortSignal.timeout(4000) })
     if (res.ok) {
       dirInfo.value = await res.json()
       isServerOffline.value = false

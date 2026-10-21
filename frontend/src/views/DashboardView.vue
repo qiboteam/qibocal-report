@@ -597,7 +597,7 @@ const {
 
 const activeFiltersForArchive = computed(() => {
   const res = {}
-  if (filters.query) res.search = filters.query
+  if (filters.q?.trim()) res.search = filters.q.trim()
   if (filters.folder) res.subfolder = filters.folder
   if (filters.labels?.length) res.tags = [...filters.labels]
   if (filters.protocols?.length) res.protocols = [...filters.protocols]

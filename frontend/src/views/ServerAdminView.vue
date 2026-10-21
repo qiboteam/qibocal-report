@@ -502,7 +502,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div class="p-3 bg-gray-50 rounded-xl">
               <span class="text-gray-400 block mb-1">Reports Directory</span>
-              <span class="font-mono text-gray-800 font-medium break-all">{{ serverConfig?.base_dir || 'N/A' }}</span>
+              <span class="font-mono text-gray-800 font-medium break-all">{{ serverConfig?.root_dir || 'N/A' }}</span>
             </div>
             <div class="p-3 bg-gray-50 rounded-xl">
               <span class="text-gray-400 block mb-1">Authentication</span>

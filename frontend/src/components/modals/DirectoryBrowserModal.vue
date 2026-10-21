@@ -229,7 +229,7 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
-import { normalizeUrl } from '../../store.js'
+import { getAuthHeader, normalizeUrl, state } from '../../store.js'
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -237,6 +237,13 @@ const props = defineProps({
   initialPath: { type: String, default: '' },
   filterMode: { type: Boolean, default: false }
 })
+
+/** Signed in as on the server browsed: a registered one by its address, else none. */
+function authHeader() {
+  const base = normalizeUrl(props.serverUrl)
+  const server = (state.servers || []).find(entry => normalizeUrl(entry.url) === base) || state.activeServer
+  return getAuthHeader(base ? server : state.activeServer)
+}
 
 const emit = defineEmits(['close', 'select'])
 
@@ -276,7 +283,7 @@ async function browseTo(subpath = '') {
     if (props.filterMode) {
       url.searchParams.set('scope', 'root')
     }
-    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(6000) })
+    const res = await fetch(url.toString(), { headers: authHeader(), signal: AbortSignal.timeout(6000) })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       throw new Error(err.detail || `Failed to browse directory (${res.status})`)
@@ -313,7 +320,7 @@ async function applyChange() {
     const targetUrl = `${base || ''}/api/server/directory`
     const res = await fetch(targetUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ path: selectedPath.value })
     })
     if (!res.ok) {
