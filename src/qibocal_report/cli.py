@@ -786,40 +786,6 @@ def dev(
                 vite_proc.kill()
 
 
-@report.command(name="develop", hidden=True)
-@click.argument("directory", required=False, type=click.Path(file_okay=False))
-@click.option("--host", default="localhost", help="Host address to bind to.")
-@click.option("--port", default=8000, type=int, help="Backend port to listen on.")
-@click.option(
-    "--frontend-port", default=5173, type=int, help="Frontend Vite dev server port."
-)
-@click.option(
-    "--reload/--no-reload",
-    default=True,
-    help="Enable auto-reload for backend server.",
-)
-@click.option(
-    "--auth/--no-auth",
-    default=False,
-    help="Enable user authentication and role management.",
-)
-@registration_options
-@click.pass_context
-def develop_alias(
-    ctx,
-    directory: str | None,
-    host: str,
-    port: int,
-    frontend_port: int,
-    reload: bool,
-    auth: bool,
-    name: str | None,
-    register: bool,
-):
-    """Backward-compatible alias for 'dev'."""
-    ctx.forward(dev)
-
-
 # --- Administrator and Invite Link Management ---
 @report.group(name="admin")
 def admin_group():
@@ -1195,22 +1161,3 @@ def invite_shortcut(
     ctx.forward(admin_invite)
 
 
-@report.command(name="admin-list", hidden=True)
-@click.option(
-    "--all",
-    "show_all",
-    is_flag=True,
-    default=False,
-    help="List all registered users, including non-administrators.",
-)
-@click.option(
-    "--json",
-    "output_json",
-    is_flag=True,
-    default=False,
-    help="Output administrators in JSON format.",
-)
-@click.pass_context
-def admin_list_shortcut(ctx, show_all: bool, output_json: bool):
-    """Backward-compatible alias for 'admin list'."""
-    ctx.forward(admin_list)

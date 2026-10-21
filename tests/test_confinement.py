@@ -107,3 +107,22 @@ def test_a_report_in_a_subfolder_is_tagged_untagged_and_kept(client, tmp_path):
     for tag in (".", "..", "a/b"):
         refused = client.post("/api/reports/bulk-action", json={"action": "label", "report_ids": [REPORT], "label": tag})
         assert refused.status_code == 400
+
+
+@pytest.mark.parametrize("name", ["..%2F..%2FREADME", "%2E%2E%2Fpyproject", ".hidden", "user-guide%2F..%2F..%2FREADME"])
+def test_the_documentation_serves_its_own_pages_only(client, name):
+    assert client.get(f"/api/docs-content/{name}").status_code == 404
+
+
+def test_a_documentation_page_is_served(client):
+    assert client.get("/api/docs-content/user-guide/quickstart").status_code == 200
+
+
+def test_a_folder_of_any_name_downloads(client, tmp_path):
+    import shutil
+
+    shutil.copytree(tmp_path / "reports" / REPORT, tmp_path / "reports" / 'calibração "α"')
+    scanner.invalidate_report_cache()
+    response = client.get("/api/reports/calibra%C3%A7%C3%A3o%20%22%CE%B1%22/download")
+    assert response.status_code == 200
+    assert "filename*=utf-8''calibra%C3%A7%C3%A3o%20%22%CE%B1%22.zip" in response.headers["content-disposition"]

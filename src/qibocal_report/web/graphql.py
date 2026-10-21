@@ -6,8 +6,7 @@ statistics of what is filtered; a report, then its protocols; whether a
 server authenticates, then who the caller is. This schema answers them
 together, at ``/api/graphql``, with the very shapes the REST endpoints
 answer with: field names are kept in ``snake_case`` on purpose, so a client
-reads a GraphQL result exactly as it reads the REST one, and a server that
-predates the endpoint is one HTTP 404 away from the REST fallback.
+reads a GraphQL result exactly as it reads the REST one.
 
 Nothing is written through here yet: queries only. Mutations stay with the
 REST endpoints until there is a reason to move them.
@@ -15,6 +14,7 @@ REST endpoints until there is a reason to move them.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -36,6 +36,7 @@ from qibocal_report.models import (
     ReportSummary,
 )
 from qibocal_report.reports.scanner import (
+    cached_report_count,
     compute_filter_stats,
     filter_reports,
     get_report_detail,
@@ -409,11 +410,15 @@ class Query:
 
     @strawberry.field
     def health(self, info: Info) -> Health:
+        # As `/api/health` answers it: the reports and where they are, to a reader only.
+        name = os.environ.get("QIBOCAL_SERVER_NAME", "local-instance")
+        if auth.is_auth_enabled() and info.context.user is None:
+            return Health(status="ok", server_name=name, reports_count=0, root_dir="")
         root = info.context.report_root()
         return Health(
             status="ok",
-            server_name=root.name or "Qibocal Report Server",
-            reports_count=len(scan_reports(root)),
+            server_name=name,
+            reports_count=cached_report_count(root),
             root_dir=str(root),
         )
 

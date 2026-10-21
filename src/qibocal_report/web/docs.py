@@ -201,10 +201,16 @@ DOCS_NAVIGATION = [
 
 
 def resolve_docs_content(doc_name: str) -> str:
-    """Serve plain markdown documentation content (sections/subpages or legacy)."""
+    """Serve plain markdown documentation content: a section, or one of its pages.
+
+    Only a page of the documentation: a name climbing out of it, or hidden,
+    names nothing.
+    """
     clean_name = doc_name.strip("/").removesuffix(".md")
     if not clean_name:
         clean_name = "index"
+    if any(part in ("", ".", "..") or part.startswith(".") for part in clean_name.split("/")):
+        raise HTTPException(status_code=404, detail=f"Documentation '{doc_name}' not found")
 
     roots = [
         Path(__file__).resolve().parents[2] / "docs",
@@ -222,8 +228,8 @@ def resolve_docs_content(doc_name: str) -> str:
 
     for root in roots:
         for target in targets:
-            p = root / target
-            if p.is_file():
+            p = (root / target).resolve()
+            if p.is_file() and p.is_relative_to(root.resolve()):
                 return p.read_text(encoding="utf-8")
 
     # Fallback: if doc_name matches a section path, generate minimal Table of Contents

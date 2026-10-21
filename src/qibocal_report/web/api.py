@@ -32,7 +32,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from qibocal_report import auth, config, qibocal_environment
-from qibocal_report.reports.actions import execute_bulk_action, find_report_dirs, infer_targets
+from qibocal_report.reports.actions import execute_bulk_action, infer_targets
 from qibocal_report.reports.upload import UploadError, receive_report, upload_limit
 from qibocal_report.reports.archive import (
     create_archive,
@@ -130,8 +130,6 @@ from qibocal_report.reports.scanner import (
 from qibocal_report.web.websocket import handle_report_websocket
 
 # Backward-compatible internal aliases
-_find_report_dirs = find_report_dirs
-_zip_directory = zip_directory
 
 _INSTALL_TASKS: set[asyncio.Task[QibocalStatus]] = set()
 _INSTALL_LOGGER = logging.getLogger(__name__)
@@ -378,6 +376,19 @@ ORIGINAL_ROOT_DIR = Path(
     os.environ.get("QIBOCAL_ORIGINAL_REPORT_DIR", REPORT_ROOT_DIR)
 ).resolve()
 SERVER_NAME = os.environ.get("QIBOCAL_SERVER_NAME", "local-instance")
+
+
+def attachment(filename: str) -> str:
+    """A `Content-Disposition` downloading as `filename`, whatever its characters.
+
+    Folder names come from anywhere — an upload, say — while a header is
+    Latin-1, and a `"` would end the plain name: an ASCII approximation for
+    old clients, and the name itself, encoded, as RFC 6266 has it.
+    """
+    from urllib.parse import quote
+
+    plain = "".join(c if c.isascii() and c.isprintable() and c not in '"\\' else "_" for c in filename)
+    return f"attachment; filename=\"{plain}\"; filename*=utf-8''{quote(filename, safe='')}"
 
 
 def set_report_root(path: Path, is_original: bool = False) -> None:
@@ -1598,9 +1609,7 @@ def get_protocol_action(
     headers = {"Cache-Control": "private, no-cache"}
     if download:
         report_name = Path(path).parents[2].name.replace(":", "-")
-        headers["Content-Disposition"] = (
-            f'attachment; filename="{report_name}_{path.parent.name}_{path.name}"'
-        )
+        headers["Content-Disposition"] = attachment(f"{report_name}_{path.parent.name}_{path.name}")
     return PlainTextResponse(text, media_type="application/yaml; charset=utf-8", headers=headers)
 
 
@@ -1706,7 +1715,7 @@ def download_full_report_zip(report_id: str) -> StreamingResponse:
     return StreamingResponse(
         buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{safe_name}.zip"'},
+        headers={"Content-Disposition": attachment(f"{safe_name}.zip")},
     )
 
 
@@ -1731,9 +1740,7 @@ def download_new_platform_zip(report_id: str) -> StreamingResponse:
         buffer,
         media_type="application/zip",
         headers={
-            "Content-Disposition": (
-                f'attachment; filename="{safe_name}_new_platform.zip"'
-            )
+            "Content-Disposition": attachment(f"{safe_name}_new_platform.zip")
         },
     )
 
@@ -1764,9 +1771,7 @@ def download_old_platform_zip(report_id: str) -> StreamingResponse:
         buffer,
         media_type="application/zip",
         headers={
-            "Content-Disposition": (
-                f'attachment; filename="{safe_name}_old_platform.zip"'
-            )
+            "Content-Disposition": attachment(f"{safe_name}_old_platform.zip")
         },
     )
 
@@ -1805,7 +1810,7 @@ def download_protocol_data_zip(report_id: str, protocol_id: str) -> StreamingRes
         buffer,
         media_type="application/zip",
         headers={
-            "Content-Disposition": f'attachment; filename="{safe_rep}_{safe_proto}.zip"'
+            "Content-Disposition": attachment(f"{safe_rep}_{safe_proto}.zip")
         },
     )
 
@@ -1848,31 +1853,24 @@ def _read_platform_json_or_yaml(file_prefix: Path) -> Any | None:
     return None
 
 
-@app.get(
-    "/api/reports/{report_id:path}/platform-data",
-    response_model=PlatformDataResponse,
-    tags=["Reports"],
-    dependencies=[Depends(require_viewer)],
-)
+def platform_directory(target_dir: Path, platform_type: str) -> Path:
+    """The platform of a report: `old`, as the run found it, or `new`, as it left it."""
+    if platform_type not in ("old", "new"):
+        raise HTTPException(status_code=404, detail=f"No platform '{platform_type}': old or new")
+    return target_dir / ("platform" if platform_type == "old" else "new_platform")
+
+
 @app.get(
     "/api/reports/{report_id:path}/platform/{platform_type}",
     response_model=PlatformDataResponse,
     tags=["Reports"],
     dependencies=[Depends(require_viewer)],
 )
-def get_report_platform_data(
-    report_id: str,
-    platform_type: str = "new",
-) -> PlatformDataResponse:
+def get_report_platform_data(report_id: str, platform_type: str) -> PlatformDataResponse:
     """Get parameters.json and calibration.json trees for old or new platform."""
     log_info(f"HTTP GET platform data ({platform_type}) for '{report_id}'")
     target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
-    norm_type = (
-        "old"
-        if str(platform_type).lower() in ("old", "platform", "old-platform", "old_platform")
-        else "new"
-    )
-    plat_dir = target_dir / ("platform" if norm_type == "old" else "new_platform")
+    plat_dir = platform_directory(target_dir, platform_type)
 
     has_old = (target_dir / "platform").is_dir()
     has_new = (target_dir / "new_platform").is_dir()
@@ -1886,7 +1884,7 @@ def get_report_platform_data(
     return PlatformDataResponse(
         report_id=report_id,
         platform_name=platform_name,
-        platform_type=norm_type,
+        platform_type=platform_type,
         has_old_platform=has_old,
         has_new_platform=has_new,
         parameters=params_data,
@@ -1904,17 +1902,13 @@ def get_report_platform_raw_file(
 ) -> Response:
     """Access raw parameters.json or calibration.json inline."""
     target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
-    norm_type = (
-        "old"
-        if str(platform_type).lower() in ("old", "platform", "old-platform", "old_platform")
-        else "new"
-    )
-    plat_dir = target_dir / ("platform" if norm_type == "old" else "new_platform")
+    plat_dir = platform_directory(target_dir, platform_type)
+    stem, _, suffix = file_name.partition(".")
     target_file = plat_dir / file_name
-    if not target_file.is_file():
+    if stem not in ("parameters", "calibration") or suffix not in ("json", "yml", "yaml") or not target_file.is_file():
         raise HTTPException(
             status_code=404,
-            detail=f"{file_name} not found in {norm_type} platform for report {report_id}",
+            detail=f"{file_name} not found in {platform_type} platform for report {report_id}",
         )
     return Response(
         content=target_file.read_bytes(),

@@ -1,11 +1,11 @@
 """The GraphQL endpoint answers what the REST endpoints answer, together."""
 
-import json
 
 import pytest
 from fastapi.testclient import TestClient
 
 from conftest import sample_reports
+from qibocal_report import auth
 from qibocal_report.web.api import app, set_report_root
 
 
@@ -151,13 +151,14 @@ def test_without_a_token_the_reports_answer_as_the_rest_api_does(client, monkeyp
     assert codes == ["UNAUTHENTICATED"]
 
 
-def test_a_server_without_graphql_answers_404_to_the_client(client):
-    # The client reads a 404 or a 405 as "an older server": the REST fallback.
-    # An older server's page catch-all answered a POST with 405; this one has
-    # no page, and an endpoint it does not have is a 404.
-    response = client.post("/api/no-such-endpoint", json={})
-    assert response.status_code == 404
-    assert json.loads(client.post("/api/graphql", json={"query": "{ health { status } }"}).text)["data"]
+def test_health_tells_a_stranger_nothing_of_the_reports(client, monkeypatch):
+    monkeypatch.setenv("QIBOCAL_AUTH_ENABLED", "1")
+    auth.set_auth_enabled(True)
+    try:
+        health = graphql(client, "{ health { reports_count root_dir } }")["data"]["health"]
+    finally:
+        auth.set_auth_enabled(None)
+    assert health == {"reports_count": 0, "root_dir": ""}
 
 
 def test_outputs_come_one_protocol_at_a_time(client):

@@ -37,7 +37,7 @@ def test_the_action_is_read_inline_and_downloaded(client):
     download = client.get(base, params={"download": "true"})
     assert download.status_code == 200
     assert download.text == ACTION
-    assert download.headers["content-disposition"] == 'attachment; filename="21-00-00_run_rabi-0_action.yml"'
+    assert download.headers["content-disposition"].startswith('attachment; filename="21-00-00_run_rabi-0_action.yml";')
 
 
 def test_missing_actions_and_protocols_are_404(client):

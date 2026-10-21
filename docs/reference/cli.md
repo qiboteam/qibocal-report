@@ -124,9 +124,6 @@ qibocal report dev [DIRECTORY] [OPTIONS]
 - `--name TEXT`, `--register / --no-register`: As for `qibocal report server`.
 - `--help`: Show help message and exit.
 
-#### Aliases
-- `qibocal report develop` (backward-compatible alias).
-
 ---
 
 ### `qibocal report admin list`
@@ -141,9 +138,6 @@ qibocal report admin list [OPTIONS]
 - `--all`: List all registered accounts (including Editors and Viewers). Default: `False`.
 - `--json`: Output user details in machine-readable JSON format. Default: `False`.
 - `--help`: Show help message and exit.
-
-#### Aliases
-- `qibocal report admin-list` (backward-compatible alias).
 
 ---
 

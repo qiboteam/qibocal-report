@@ -358,11 +358,6 @@ def test_admin_list_with_users(tmp_path, monkeypatch):
     assert len(admins_data) == 1
     assert admins_data[0]["username"] == "alice_admin"
 
-    # Backward compatible alias
-    res_alias = runner.invoke(main, ["report", "admin-list"])
-    assert res_alias.exit_code == 0
-    assert "alice_admin" in res_alias.output
-
 
 def test_admin_invite_non_interactive(tmp_path, monkeypatch):
     import json
