@@ -43,16 +43,17 @@ Start the server on any directory containing Qibocal calibration folders:
 qibocal report server
 
 # Or specify a directory and custom port
-qibocal report server ./sample_data --port 8000
+qibocal report server ./runs --port 8000
 ```
 
 The server is headless: it answers its API at `http://localhost:8000`, and no page. Open the dashboard at [qibo.science/qibocal-report](https://qibo.science/qibocal-report) — or the Qibocal desktop application — and add the server's address under **Servers**. The dashboard reads any number of servers from one browser, on lab computers, measurement rigs and clusters alike.
 
 ### 2. Developer Mode (Live HMR)
 
-For frontend and backend developers wanting live Hot Module Replacement:
+For frontend and backend developers wanting live Hot Module Replacement, on the sample reports of a checkout, which travel zipped:
 
 ```bash
+unzip -q sample_data/test-data.zip -d sample_data
 qibocal report dev ./sample_data
 ```
 

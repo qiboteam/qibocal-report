@@ -27,6 +27,8 @@ The shell provides:
 To develop both frontend and backend concurrently:
 
 ```bash
+# The sample reports travel zipped: unpack them once
+unzip -q sample_data/test-data.zip -d sample_data
 # Start backend on :8000 and Vite dev server on :5173 with HMR
 qibocal report dev ./sample_data
 ```

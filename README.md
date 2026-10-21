@@ -5,150 +5,102 @@
   <img src="docs/assets/qibocal_logo_dark.svg" alt="Qibocal" width="300" style="margin: 1.2rem 0;" />
 </picture>
 
-**Modern, lightweight web application and high-throughput server to explore, analyze, and manage [Qibocal](https://github.com/qiboteam/qibocal) calibration reports interactively.**
+**The desktop application for [Qibocal](https://github.com/qiboteam/qibocal) calibrations: notebooks, report servers, remote execution and agents, wherever they run, and their reports, in one place.**
 
 [![Python](https://img.shields.io/badge/python-3.10+-purple.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
-[![Vue 3](https://img.shields.io/badge/frontend-Vue_3-42b883.svg)](https://vuejs.org/)
+[![Tauri](https://img.shields.io/badge/app-Tauri_2-24c8db.svg)](https://tauri.app/)
+[![Vue 3](https://img.shields.io/badge/dashboard-Vue_3-42b883.svg)](https://vuejs.org/)
+[![FastAPI](https://img.shields.io/badge/server-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Website](https://img.shields.io/badge/website-qibo.science-833dff.svg)](https://qibo.science)
 
 </div>
 
-`qibocal-report` provides a user interface around the
-[Qibocal](https://github.com/qiboteam/qibocal) calibration library.
-It helps users manage the calibration workflow, from interactive notebook
-sessions to exploring results and organizing runs across report servers.
+**Qibocal**, the application, gathers the whole calibration workflow around the
+[Qibocal](https://github.com/qiboteam/qibocal) library: it opens notebook
+sessions, starts and updates report servers, dispatches acquisitions and
+calibration agents — on this machine, over SSH, or through SLURM — and reads
+the reports they produce in the dashboard it embeds. Two of its components
+stand on their own as well: the **dashboard**, deployed as a web page, and the
+**report servers**, deployed wherever the reports are.
 
-## ⚡ Key Features
+## ⚡ The application
 
-- **Interactive Visualizations**: Explore calibration reports with interactive 2D and 3D plots, inspect protocol results, and download data and platform configurations.
-- **Live Reports**: Follow running calibrations with automatic updates that regenerate only new or changed protocol plots.
-- **Multi-Server Dashboard**: Connect to and manage local or remote report servers from one place.
-- **Search & Filters**: Find calibration runs by title, platform, author, protocol, tag, or date.
-- **Statistics Dashboard**: Follow calibration activity over time and explore trends across protocols, authors, and platforms.
-- **Batch Actions**: Organize multiple runs at once by updating tags and authors, or deleting reports.
-- **Desktop Launcher**: Start servers and notebook sessions, here or on another machine over SSH, edit the local configuration, and browse reports from a single cross-platform application.
+- **Notebooks**: JupyterLab or Marimo sessions, here, on an access node or on a computing node through SLURM, each with a kernel environment of its own, its requirements kept and regenerated on demand.
+- **Remote execution**: the connections qibocal-widgets' `Remote` plugin dispatches a notebook's acquisitions with, managed alongside the sessions.
+- **Servers**: report servers started here or on another machine, tunnelled back, updated in place; their users and invitations administered from the application.
+- **Agents**: the configurations of [qibocal-agent](https://github.com/qiboteam/qibocal-mcp-servers), for an assistant over MCP or for autonomous runs, here or pushed to an access node.
+- **Running**: every process it started, its output, and the SLURM queues it waits in.
+- **Reports**: the dashboard, embedded, connected to every server at once.
+- **Configuration**: the files it shares with the command line, edited in place; a tray icon and keyboard shortcuts throughout.
 
-## 🚀 Quick Start
+Installers for macOS, Linux and Windows are attached to every
+[release](https://github.com/qiboteam/qibocal-report/releases). They are not
+signed yet: see [Installation](docs/user-guide/launcher/installation.md) for
+opening them the first time. The application installs the `qibocal` command
+line it drives by itself, the first time it is needed; a Python 3.10 or newer
+is all it asks of the machine.
 
-### 1. Installation
+## 📊 The dashboard
 
-The package is not on PyPI yet: install it from GitHub, using `pip`:
+A static single-page application, from [`frontend/`](frontend/), deployed at
+[qibo.science/qibocal-report](https://qibo.science/qibocal-report) and embedded
+in the application. It connects to any number of report servers from the
+browser:
+
+- **Interactive reports**: protocol plots and fit tables, platform parameters before and after, the parameters each protocol ran with, notes, and downloads.
+- **Live reports**: a running calibration followed as it goes, only new or changed protocols regenerated.
+- **Search, filters and statistics**: runs by title, platform, author, protocol, target, tag or date, and the activity behind them.
+- **Batch actions, archives and uploads**: tags, authors and deletion across runs; archives; reports sent from one server to another.
+- **Administration**: users, roles and invitations of a server with authentication.
+
+Any static host serves it: `cd frontend && pnpm run build`, and a server lets
+it call with `QIBOCAL_ALLOWED_ORIGINS`.
+
+## 🖥️ The report servers
+
+A headless server reads a folder of Qibocal runs and answers the dashboard's
+REST and GraphQL API. Install it from GitHub — it is not on PyPI yet — and point
+it at the runs:
 
 ```bash
 pip install git+https://github.com/qiboteam/qibocal-report
+qibocal report server ./runs --port 8000 --auth
 ```
 
-### 2. Serving Reports (CLI)
-
-Point `qibocal report server` to any directory containing Qibocal calibration runs:
+With `--auth` it prints the invitation of its first administrator. Without a
+folder, the shared `~/.local/share/qibocal/reports` is served. When the runs
+live on another machine, `--ssh` starts the server there, in an environment of
+its own with this very qibocal-report installed, and tunnels it back:
 
 ```bash
-qibocal report server ./sample_data --port 8000
+qibocal report server /shared/calibration --ssh myuser@login
 ```
 
-The server is headless: it answers its API at `http://localhost:8000`, and no
-page. It is read by the dashboard — deployed at
-[qibo.science/qibocal-report](https://qibo.science/qibocal-report), where the
-server's address is added under **Servers** — or by the desktop application
-below. Without a directory, the shared one under
-`~/.local/share/qibocal/reports` is served, and created if it is not there yet.
+The same command line opens notebooks — `qibocal notebook connect --ssh
+myuser@login -q mychip` — and manages everything the application does: see
+**`man qibocal`** ([source](data/share/man/man1/qibocal.1)) and the
+[CLI reference](docs/reference/cli.md). Every server documents its API at
+`/api/docs/swagger`, and says what it is at `/api/version`.
 
-The runs often live on another machine. Add `--ssh` and the server starts there
-instead, in a managed environment, and is tunnelled back to a local address:
+## 🛠️ Development
 
 ```bash
-qibocal report server /shared/calibration --ssh myuser@login --venv mychip
+unzip -q sample_data/test-data.zip -d sample_data   # the sample reports travel zipped
+qibocal report dev ./sample_data   # server with auto-reload, dashboard with HMR on :5173
+cd launcher && pnpm install && pnpm run icons && pnpm run app
 ```
 
-The remote host only needs an OpenSSH server and Python 3.10+; the environment
-is created and `qibocal-report` installed into it on first use, exactly as for
-notebook sessions. Until the package is on PyPI, say where it comes from with
-`--install git+https://github.com/qiboteam/qibocal-report`.
-
-### Interactive Notebooks
-
-Start JupyterLab locally, over SSH, or on a SLURM partition:
-
-```bash
-qibocal notebook connect
-qibocal notebook connect --ssh myuser@login -q mychip -w /shared/calibration
-qibocal notebook connect --marimo --venv ./calibration-env -n
-```
-
-The command opens an authenticated local URL and stays attached until Ctrl+C.
-Use `--marimo` for Marimo instead of JupyterLab, or `-n` to print the URL without
-opening a browser. Save reusable connections with `qibocal notebook add`.
-
-Use `--venv NAME_OR_PATH` to select the default kernel environment. JupyterLab
-also lists all managed kernel environments and environments previously selected
-for Jupyter with `--venv` on the computing node, with distinct labels.
-
-See **`man qibocal`** ([source](data/share/man/man1/qibocal.1)) for connection
-management, environment setup, networking requirements, and configuration
-examples, or `qibocal notebook connect --help` for command options.
-
-### 3. Developer Mode (Live HMR)
-
-For developers modifying the frontend or backend:
-
-```bash
-qibocal report dev ./sample_data
-```
-
-Starts the FastAPI backend with auto-reload and the Vite frontend dev server at `http://localhost:5173` with instant Hot Module Replacement.
-
-### 4. The Dashboard
-
-The dashboard is a static single-page application, built from
-[`frontend/`](frontend/) and deployed to GitHub Pages at
-[qibo.science/qibocal-report](https://qibo.science/qibocal-report) by
-[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to
-`main`. The report servers do not serve it — they stay headless — and the Python
-package does not carry it: it connects to any number of servers from the
-browser, and the desktop launcher embeds the very same pages. To build it by
-hand:
-
-```bash
-cd frontend && pnpm run build
-```
-
-Navigation uses hash URLs so that refreshing or sharing a page works on static
-hosts without server-side routing. The deployment path is preserved: for example,
-the hosted documentation is at
-[`https://qibo.science/qibocal-report/#/docs`](https://qibo.science/qibocal-report/#/docs).
-Static builds also work at other subpaths without configuring the router.
-
-### 5. Desktop Launcher
-
-The [launcher](launcher/) is a desktop application that does what the web page cannot: it
-reaches the machine it runs on. It starts report servers and notebook sessions,
-manages the configuration shared with the CLI, re-issues administrator
-invitations, and embeds the very same dashboard, so launching an instance and
-browsing its reports happen in one application.
-
-Installers for macOS, Linux and Windows are attached to every
-[release](https://github.com/qiboteam/qibocal-report/releases), and
-[`.github/workflows/launcher.yml`](.github/workflows/launcher.yml) also builds
-them on demand. To run it from the sources:
-
-```bash
-cd launcher
-pnpm install
-pnpm run icons   # generates the application icons from icon.svg
-pnpm run app     # or `pnpm run app:build` for the installers
-```
+Tests: `pytest` for the server, `node --test` in `frontend/` and `launcher/`.
+Releases are tagged with the version in `pyproject.toml` (`v0.1.0a1`); the
+workflows build the installers and deploy the dashboard. See the
+[development workflow](docs/developer/workflow.md).
 
 ## 📖 Documentation
 
-The documentation covers report and server management, calibration results and
-exports, development and architecture, and CLI and API references.
-Select **Documentation** in the dashboard's navigation, or open
+The [user guide](docs/user-guide/index.md), the
+[administrator's guide](docs/admin-guide/index.md) and the references, also
+under **Documentation** in the dashboard, or at
 [qibo.science/qibocal-report/#/docs](https://qibo.science/qibocal-report/#/docs).
-
-Interactive OpenAPI / Swagger documentation is served by every report server at
-**`/api/docs/swagger`**.
 
 ## 📄 License
 
