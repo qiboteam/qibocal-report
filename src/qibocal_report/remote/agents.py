@@ -1,11 +1,10 @@
 """Agent configurations kept here for another machine, written there.
 
-qibocal-agent and qibocal-mcp-remote read `agent.json` on the machine they
-run on. A configuration meant for an access node — an assistant running
-there — is kept by the launcher on this machine and pushed to that one: the
-named entries it owns are merged into the remote `agents`, everything else
-in the remote file is left as it is. Only the configuration travels, never
-environments or keys.
+qibocal-agent reads `agents.json` on the machine it runs on. A configuration
+meant for an access node — an assistant running there — is kept by the
+launcher on this machine and pushed to that one: the entries it owns are
+merged into the remote `agents`, every other one is left as it is. Only the
+configuration travels, never environments or keys.
 """
 
 import json
@@ -23,10 +22,10 @@ import json, os, sys, tempfile
 from pathlib import Path
 
 request = json.loads(sys.argv[1])
-custom = os.environ.get("QIBOCAL_MCP_CONFIG_DIR")
+custom = os.environ.get("QIBOCAL_AGENTS_CONFIG_DIR")
 xdg = os.environ.get("XDG_CONFIG_HOME")
 directory = Path(custom) if custom else (Path(xdg) / "qibocal" if xdg else Path.home() / ".config" / "qibocal")
-path = directory / "agent.json"
+path = directory / "agents.json"
 try:
     document = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 except ValueError as error:
@@ -42,7 +41,7 @@ if agents:
 else:
     document.pop("agents", None)
 directory.mkdir(parents=True, exist_ok=True)
-handle, temporary = tempfile.mkstemp(dir=directory, prefix=".agent.json.")
+handle, temporary = tempfile.mkstemp(dir=directory, prefix=".agents.json.")
 with os.fdopen(handle, "w", encoding="utf-8") as file:
     json.dump(document, file, indent=2)
     file.write("\n")
@@ -51,13 +50,15 @@ print(json.dumps({"path": str(path), "agents": sorted(agents)}))
 """
 
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
+# Names qibocal-agent reserves.
+RESERVED = {"agent", "agents"}
 
 
 def push(ssh: str, agents: dict, remove: list[str] | None = None, timeout: float = 60.0) -> dict:
-    """Merge `agents` into the remote agent.json, dropping the names in `remove`."""
+    """Merge `agents` into the remote agents.json, dropping the names in `remove`."""
     remove = list(remove or [])
     for name in [*agents, *remove]:
-        if not NAME.fullmatch(name):
+        if not NAME.fullmatch(name) or name in RESERVED:
             raise click.ClickException(f"Invalid agent name: {name!r}.")
     if not all(isinstance(entry, dict) for entry in agents.values()):
         raise click.ClickException("Every agent configuration must be a JSON object.")

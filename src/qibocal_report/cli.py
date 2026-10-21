@@ -371,7 +371,7 @@ def notebook_remove(connection: str):
 
 @main.group(name="agents")
 def agents():
-    """Agent configurations of qibocal-agent and qibocal-mcp-remote."""
+    """Agent configurations of qibocal-agent."""
 
 
 @agents.command(name="push")
@@ -380,11 +380,11 @@ def agents():
     "--agents",
     "entries",
     default="{}",
-    help="The named configurations to write, as a JSON object of agents.NAME entries.",
+    help="The configurations to write, as a JSON object of agents.NAME entries.",
 )
-@click.option("--remove", multiple=True, help="A named configuration to remove there; repeatable.")
+@click.option("--remove", multiple=True, help="A configuration to remove there; repeatable.")
 def agents_push(ssh: str, entries: str, remove: tuple[str, ...]):
-    """Write agent configurations into agent.json on the SSH destination.
+    """Write agent configurations into agents.json on the SSH destination.
 
     The entries given are merged into its `agents`, the names removed are
     dropped, and nothing else in the file changes: configurations kept here

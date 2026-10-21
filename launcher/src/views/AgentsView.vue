@@ -5,7 +5,7 @@
         <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Agents</h1>
         <p class="mt-1 text-xs text-gray-500">
           The configurations of the <a href="https://github.com/qiboteam/qibocal-mcp-servers" class="text-[#833dff] hover:text-[#3b107e]" @click.prevent="openExternal('https://github.com/qiboteam/qibocal-mcp-servers')">Qibocal MCP servers</a>:
-          for an assistant on this machine, in <code class="lx-mono">{{ state.agents.path || 'agent.json' }}</code>, or for one on an
+          for an assistant on this machine, in <code class="lx-mono">{{ state.agents.path || 'agents.json' }}</code>, or for one on an
           access node, kept here and pushed there. A configuration also dispatches autonomous agents.
         </p>
       </div>
@@ -36,7 +36,7 @@
         <button type="button" class="lx-primary" :disabled="!formValid(form) || saving" @click="create">
           <Bookmark class="w-3.5 h-3.5" /> {{ form.host === 'local' ? 'Save' : 'Save and push' }}
         </button>
-        <span class="lx-help !mt-0">{{ form.host === 'local' ? 'Written to agent.json, which the tools read.' : `Kept here, and written to agent.json on ${form.hostName || 'that machine'}.` }}</span>
+        <span class="lx-help !mt-0">{{ form.host === 'local' ? 'Written to agents.json, which qibocal-agent reads.' : `Kept here, and written to agents.json on ${form.hostName || 'that machine'}.` }}</span>
       </div>
     </section>
 
@@ -78,7 +78,7 @@
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div class="min-w-0">
             <p class="text-sm font-medium text-gray-900 truncate">
-              {{ item.name || 'Default' }}
+              {{ item.name }}
               <span class="ml-1.5 text-[10px] uppercase tracking-wide font-semibold" :class="item.host === 'local' ? 'text-gray-400' : 'text-[#833dff]'">{{ item.host === 'local' ? 'this machine' : item.host }}</span>
             </p>
             <p class="lx-mono text-gray-500 truncate">{{ describeAgent(item.entry) }}</p>
@@ -93,13 +93,13 @@
             <button v-if="item.host === 'local'" type="button" class="lx-primary !py-1" title="Dispatch an autonomous agent with this configuration" @click="openRun(item)">
               <Play class="w-3.5 h-3.5" /> Run
             </button>
-            <button v-else type="button" class="lx-primary !py-1" :disabled="pushing === item.key" :title="`Write it to agent.json on ${item.host}: the configuration only, not environments`" @click="push(item)">
+            <button v-else type="button" class="lx-primary !py-1" :disabled="pushing === item.key" :title="`Write it to agents.json on ${item.host}: the configuration only, not environments`" @click="push(item)">
               <Upload class="w-3.5 h-3.5" /> {{ pushing === item.key ? 'Pushing…' : 'Push' }}
             </button>
             <button type="button" class="lx-action" :disabled="startingReports === item.key" title="Start a report server on the execution host, serving its output, and open it in the dashboard" @click="reports(item)">
               <LayoutDashboard class="w-3.5 h-3.5" /> Reports
             </button>
-            <button v-if="item.host === 'local'" type="button" class="lx-action" title="The registration of qibocal-mcp-remote for an assistant, to copy" @click="toggleSnippet(item)">
+            <button v-if="item.host === 'local'" type="button" class="lx-action" title="The registration of qibocal-agent mcp for an assistant, to copy" @click="toggleSnippet(item)">
               <Braces class="w-3.5 h-3.5" /> MCP
             </button>
             <button type="button" class="lx-action" title="Edit it" @click="toggleEdit(item)">
@@ -149,7 +149,7 @@
     <!-- An autonomous run: the configuration, and the prompt. -->
     <div v-if="run.item" class="lx-veil" @pointerdown.self="run.item = null">
       <form class="lx-dialog lx-dialog-sheet" @submit.prevent="dispatch">
-        <h2 class="text-sm font-semibold text-gray-900 shrink-0">Run an agent: {{ run.item.name || 'default' }}</h2>
+        <h2 class="text-sm font-semibold text-gray-900 shrink-0">Run an agent: {{ run.item.name }}</h2>
         <div class="lx-dialog-scroll mt-3 space-y-3">
           <p class="text-xs text-gray-500">
             <code class="lx-mono">qibocal-agent</code> plans, runs one protocol at a time, inspects the plots and accepts or rejects
@@ -190,10 +190,10 @@ import { chooseDirectory, desktop, openExternal } from '../bridge.js'
 import { state, attempt, fail, notebookReportsServer, notify, refreshAgents, startAgent, startNotebookReports } from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
 import {
-  AGENT_NAME,
   agentConfigurations,
   agentEditorValues,
   agentEntry,
+  agentNameError,
   agentReports,
   describeAgent,
   mcpSnippet,
@@ -236,11 +236,10 @@ function takenNames(host, own = null) {
 
 function formValid(values, own = null) {
   if (values.host !== 'local' && !values.hostName.trim()) return false
-  if (values.host !== 'local' && !values.name) return false
-  if (values.name && !AGENT_NAME.test(values.name)) return false
+  if (agentNameError(values.name)) return false
   const host = values.host === 'local' ? 'local' : values.hostName.trim()
-  const clash = configurations.value.some(item => item !== own && item.host === host && (item.name || null) === (values.name || null))
-  return !clash && agentEntry(values, { named: Boolean(values.name) }).valid
+  const clash = configurations.value.some(item => item !== own && item.host === host && item.name === values.name)
+  return !clash && agentEntry(values).valid
 }
 
 const { focused } = usePageKeys({
@@ -256,8 +255,8 @@ const { focused } = usePageKeys({
 /** Write a configuration where it is kept — and push it, when that is another machine. */
 async function store(values, previous = null) {
   const host = values.host === 'local' ? 'local' : values.hostName.trim()
-  const name = values.name || null
-  const { entry } = agentEntry(values, { named: Boolean(name), previous: previous?.entry || {} })
+  const name = values.name
+  const { entry } = agentEntry(values, { previous: previous?.entry || {} })
   // Moved or renamed: the old one goes first.
   if (previous && (previous.host !== host || previous.name !== name)) await drop(previous)
   if (host === 'local') {
@@ -281,7 +280,7 @@ async function drop(item) {
 async function pushOne(host, name, entry) {
   try {
     await desktop.pushAgents(host, { [name]: entry }, [])
-    notify(`${name} written to agent.json on ${host}.`, 'agents')
+    notify(`${name} written to agents.json on ${host}.`, 'agents')
   } catch (error) {
     fail(`${name} is kept here, but not pushed to ${host}: ${error?.message || error}. Push it again when the host is reachable.`, 'agents')
   }
@@ -305,7 +304,7 @@ function toggleEdit(item) {
   Object.assign(editing.form, blank(), agentEditorValues(item.entry), {
     host: item.host === 'local' ? 'local' : 'remote',
     hostName: item.host === 'local' ? '' : item.host,
-    name: item.name || ''
+    name: item.name
   })
   Object.assign(editing, { key: item.key, busy: false })
 }
@@ -322,14 +321,14 @@ function duplicate(item) {
   Object.assign(form, blank(), agentEditorValues(item.entry), {
     host: item.host === 'local' ? 'local' : 'remote',
     hostName: item.host === 'local' ? '' : item.host,
-    name: `${item.name || 'default'}-copy`
+    name: `${item.name}-copy`
   })
   creating.value = true
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 async function remove(item) {
-  await attempt(() => drop(item), `${item.name || 'The default configuration'} removed.`, 'agents')
+  await attempt(() => drop(item), `${item.name} removed.`, 'agents')
   if (editing.key === item.key) editing.key = null
 }
 
@@ -347,7 +346,7 @@ async function reports(item) {
   const key = `agent:${item.key}`
   const running = notebookReportsServer(key)
   const started = await attempt(
-    () => startNotebookReports(options, `${item.name || 'default'} agent`, { key }),
+    () => startNotebookReports(options, `${item.name} agent`, { key }),
     running ? null : 'Starting the report server of the agent; it appears in the dashboard once it answers.',
     'processes'
   )
@@ -372,7 +371,7 @@ async function copy(text) {
 function runningOf(item) {
   return state.processes.find(process =>
     process.kind === 'agent' && (process.status === 'running' || process.status === 'stopping') &&
-    (state.launches[process.id]?.options?.name || null) === (item.name || null) && item.host === 'local') || null
+    state.launches[process.id]?.options?.name === item.name && item.host === 'local') || null
 }
 
 function openRun(item) {
@@ -388,7 +387,7 @@ async function dispatch() {
   }
   const started = await attempt(
     () => startAgent({ name: run.item.name, objective: objective || null }),
-    `Agent ${run.item.name || 'default'} dispatched; its output is in Running.`,
+    `Agent ${run.item.name} dispatched; its output is in Running.`,
     'processes'
   )
   run.busy = false

@@ -605,7 +605,7 @@ pub struct InviteRequest {
     pub venv: Option<String>,
 }
 
-/// Write agent configurations into agent.json on another machine:
+/// Write agent configurations into agents.json on another machine:
 /// `qibocal agents push`, which merges them there and leaves the rest.
 #[tauri::command]
 pub async fn push_agents(ssh: String, agents: Value, remove: Vec<String>) -> Result<Value, String> {
@@ -661,23 +661,25 @@ pub fn agent_executable() -> Result<PathBuf, String> {
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRun {
-    /// The named configuration; none for the unnamed defaults.
+    /// The configuration; `default` when none is given.
     pub name: Option<String>,
     pub objective: Option<String>,
 }
 
-/// Dispatch an autonomous agent: `qibocal-agent [NAME] [OBJECTIVE]`, through
+/// Dispatch an autonomous agent: `qibocal-agent run NAME [OBJECTIVE]`, through
 /// the login shell, so the model's credentials set in the shell profile reach
 /// it — an application opened from the Dock gets none of them otherwise.
 #[tauri::command]
 pub async fn start_agent(app: AppHandle, request: AgentRun) -> Result<ProcessInfo, String> {
     off_main(move || {
         let program = agent_executable()?;
-        let mut words = vec![program.display().to_string()];
-        let name = request.name.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
-        if let Some(name) = name.clone() {
-            words.push(name);
-        }
+        // Always named: a lone argument would otherwise be read as an objective for default.
+        let name = request
+            .name
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "default".to_string());
+        let mut words = vec![program.display().to_string(), "run".to_string(), name.clone()];
         if let Some(objective) = request.objective.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
             words.push(objective);
         }
@@ -690,7 +692,7 @@ pub async fn start_agent(app: AppHandle, request: AgentRun) -> Result<ProcessInf
             (Command::new(shell), arguments)
         };
         configure(&mut command);
-        let label = format!("Agent {}", name.clone().unwrap_or_else(|| "default".to_string()));
+        let label = format!("Agent {name}");
         let supervisor = app.state::<Supervisor>();
         supervisor.spawn_command(&app, "agent", label, "qibocal-agent".to_string(), command, arguments, words, None, None)
     })

@@ -25,7 +25,7 @@ export const state = reactive({
   notebooks: {},
   /** Remote execution connections, from remotes.json: qibocal-widgets reads them. */
   remotes: {},
-  /** qibocal-agent's agent.json, `{ path, document }`, and the configurations kept for other machines. */
+  /** qibocal-agent's agents.json, `{ path, document }`, and the configurations kept for other machines. */
   agents: { path: '', document: {} },
   agentHosts: {},
   processes: [],

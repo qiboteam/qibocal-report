@@ -1,13 +1,13 @@
 <!--
   The settings of an agent configuration: where it is kept — this machine's
-  agent.json, or an access node it is pushed to — its name, and the settings
+  agents.json, or an access node it is pushed to — its name, and the settings
   qibocal-agent reads, the few that matter first and the rest behind
   "More options". The same form for a new configuration and for editing one.
 -->
 <template>
   <div class="space-y-4">
     <div class="grid gap-4 sm:grid-cols-2">
-      <form-field class="sm:col-span-2" label="Kept for" :help="form.host === 'local' ? 'An assistant, or autonomous runs, on this machine.' : 'An assistant on that machine: kept here, and pushed to its agent.json.'">
+      <form-field class="sm:col-span-2" label="Kept for" :help="form.host === 'local' ? 'An assistant, or autonomous runs, on this machine.' : 'An assistant on that machine: kept here, and pushed to its agents.json.'">
         <segmented-control v-model="form.host" :options="places" />
       </form-field>
       <form-field v-if="form.host !== 'local'" v-slot="{ id }" label="SSH destination of that machine" required>
@@ -16,8 +16,8 @@
       <form-field
         v-slot="{ id }"
         label="Name"
-        :required="form.host !== 'local'"
-        :help="form.host === 'local' ? 'Empty: the unnamed defaults.' : 'What the assistant there selects.'"
+        required
+        help="What runs and assistants select; default is the one used without a name."
         :error="nameError"
       >
         <input :id="id" v-model.trim="form.name" type="text" class="lx-input lx-mono" placeholder="tuna" spellcheck="false" autocomplete="off" autocapitalize="off" />
@@ -32,7 +32,7 @@ import { computed } from 'vue'
 import FormField from './FormField.vue'
 import NotebookFields from './NotebookFields.vue'
 import SegmentedControl from './SegmentedControl.vue'
-import { AGENT_FIELDS, AGENT_NAME, agentEntry } from '../lib/agents.js'
+import { AGENT_FIELDS, agentEntry, agentNameError } from '../lib/agents.js'
 
 const props = defineProps({
   form: { type: Object, required: true },
@@ -45,16 +45,12 @@ const places = [
   { value: 'remote', label: 'Another machine' }
 ]
 
-/** The fields, lists shown as text areas; the objective only on a named configuration. */
-const fields = computed(() => AGENT_FIELDS
-  .filter(field => !field.named || props.form.name)
-  .map(field => (field.type === 'list' ? { ...field, type: 'textarea' } : field)))
-const errors = computed(() => agentEntry(props.form, { named: Boolean(props.form.name) }).errors)
+/** The fields, lists shown as text areas. */
+const fields = AGENT_FIELDS.map(field => (field.type === 'list' ? { ...field, type: 'textarea' } : field))
+const errors = computed(() => agentEntry(props.form).errors)
 const nameError = computed(() => {
   const name = props.form.name
-  if (!name) return props.form.host !== 'local' ? 'A configuration for another machine needs a name.' : ''
-  if (!AGENT_NAME.test(name)) return 'A letter or digit, then letters, digits, underscores or hyphens.'
   if (props.names.includes(name)) return `${name} is used already there.`
-  return ''
+  return agentNameError(name)
 })
 </script>

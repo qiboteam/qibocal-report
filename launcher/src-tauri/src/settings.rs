@@ -339,19 +339,19 @@ pub fn remove_notebook(name: String) -> Result<Map<String, Value>, String> {
     remove_connection("notebooks.json", name)
 }
 
-/// qibocal-agent's own `agent.json`: the file it and qibocal-mcp-remote read,
-/// found as they find it. It is theirs — strictly validated, unknown keys an
-/// error — so it is read and written as it is, without the version the
-/// launcher's own files carry, and listed apart from them.
+/// qibocal-agent's own `agents.json`, found as it finds it. It is its own —
+/// strictly validated, unknown keys an error — so it is read and written as
+/// it is, without the version the launcher's own files carry, and listed
+/// apart from them.
 pub fn agent_config_path() -> PathBuf {
-    if let Some(custom) = non_empty_env("QIBOCAL_MCP_CONFIG_DIR") {
-        return PathBuf::from(custom).join("agent.json");
+    if let Some(custom) = non_empty_env("QIBOCAL_AGENTS_CONFIG_DIR") {
+        return PathBuf::from(custom).join("agents.json");
     }
     let root = non_empty_env("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| dirs::home_dir().map(|home| home.join(".config")))
         .unwrap_or_else(|| PathBuf::from(".config"));
-    root.join("qibocal").join("agent.json")
+    root.join("qibocal").join("agents.json")
 }
 
 #[derive(Serialize)]

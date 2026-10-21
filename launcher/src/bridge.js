@@ -42,7 +42,7 @@ export const desktop = {
   saveNotebook: (name, options) => call('save_notebook', { name, options }),
   removeNotebook: name => call('remove_notebook', { name }),
 
-  /** qibocal-agent's agent.json, as it is, and the configurations kept here for other machines. */
+  /** qibocal-agent's agents.json, as it is, and the configurations kept here for other machines. */
   readAgents: () => call('read_agents'),
   writeAgents: document => call('write_agents', { document }),
   listAgentHosts: () => call('list_agent_hosts'),

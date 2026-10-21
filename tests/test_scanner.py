@@ -40,7 +40,7 @@ def make_report():
 
 @pytest.mark.parametrize(
     "root_path",
-    [".cache/qibocal/agent/runs/platinum", ".cache", ".hidden/runs", "build"],
+    [".local/share/qibocal/agents/runs/platinum", ".cache", ".hidden/runs", "build"],
 )
 @pytest.mark.parametrize("report_format", ["standard", "cached", "raw"])
 def test_discovery_boundary(tmp_path, make_report, root_path, report_format):
