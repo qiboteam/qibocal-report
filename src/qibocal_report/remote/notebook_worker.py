@@ -574,6 +574,45 @@ def ensure_environment(runtime, path, server=False, packages=()):
 
 # The folder a session keeps its reports in, as the notebook and its kernels see it.
 REPORTS_VARIABLE = "QIBOCAL_REPORTS_DIR"
+# The remote execution connection qibocal-widgets' Remote plugin selects, by name.
+REMOTE_VARIABLE = "QIBOCAL_WIDGETS_CONNECTION"
+
+
+def remotes_file():
+    """remotes.json where the plugin reads it: next to qibocal-report's files, on this host."""
+    custom = os.environ.get("QIBOCAL_REPORT_CONFIG_DIR")
+    if custom:
+        return Path(custom) / "remotes.json"
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    return (Path(xdg) if xdg else Path.home() / ".config") / "qibocal" / "remotes.json"
+
+
+def install_remote_connection(connections):
+    """Make the session's remote execution connection readable on this host.
+
+    The entry is merged into remotes.json here — versioned as the launcher
+    writes it, every other connection left as it is — and written only when
+    it differs, so the launcher's own file, on its own machine, is untouched.
+    Answers the name to export.
+    """
+    (name, entry), = connections.items()
+    path = remotes_file()
+    try:
+        document = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    except ValueError as error:
+        raise WorkerError(f"{path} is not valid JSON ({error}); the remote connection cannot be added")
+    if not isinstance(document, dict):
+        raise WorkerError(f"{path} does not hold a JSON object")
+    if document.get("version", 1) != 1:
+        raise WorkerError(f"{path} is of another format (version {document.get('version')}); left as it is")
+    present = document.get("connections") if isinstance(document.get("connections"), dict) else {}
+    if present.get(name) != entry:
+        present[name] = entry
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        temporary.write_text(json.dumps({"version": 1, "connections": present}, indent=2) + "\n", encoding="utf-8")
+        temporary.replace(path)
+    return name
 
 # The requirements last installed in an environment, kept inside it: a session
 # whose connection asks for others installs them on top, and only then.
@@ -1128,6 +1167,10 @@ def run(options):
                 reports.mkdir(parents=True, exist_ok=True)
                 env[REPORTS_VARIABLE] = str(reports)
                 event("status", message=f"Reports folder: {reports} (as {REPORTS_VARIABLE})")
+            if options.get("_remote_connection"):
+                name = install_remote_connection(options["_remote_connection"])
+                env[REMOTE_VARIABLE] = name
+                event("status", message=f"Remote execution: {name} (as {REMOTE_VARIABLE})")
             if marimo:
                 path = "/"
                 command = [

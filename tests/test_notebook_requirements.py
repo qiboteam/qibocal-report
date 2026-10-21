@@ -1,7 +1,10 @@
 """The requirements of a notebook connection, enforced in its kernel environment."""
 
+import json
+import shlex
 from unittest.mock import MagicMock
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -211,3 +214,30 @@ def test_the_reports_folder_is_a_connection_option_exported_to_the_session(tmp_p
     assert result.exit_code == 0, result.output
     assert notebook.load_connections()["lab"]["reports"] == "calibration"
     assert worker.REPORTS_VARIABLE == "QIBOCAL_REPORTS_DIR"
+
+
+def test_a_remote_execution_connection_travels_with_the_session(tmp_path, monkeypatch):
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "remotes.json").write_text(json.dumps({"version": 1, "connections": {"lab": {"ssh": "me@login", "queue": "qpu"}}}))
+    options = notebook.load_options(None, {"ssh": "login", "remote": "lab"})
+    command, _, _ = notebook._worker_command(options)
+    shipped = json.loads(shlex.split(command[-1])[-1])
+    assert shipped["_remote_connection"] == {"lab": {"ssh": "me@login", "queue": "qpu"}}, "the entry itself, not just its name"
+    with pytest.raises(click.ClickException, match="No remote execution connection 'nope'"):
+        notebook._worker_command(notebook.load_options(None, {"remote": "nope"}))
+
+
+def test_the_worker_writes_the_connection_where_the_notebook_runs_and_only_when_it_differs(tmp_path, monkeypatch):
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path))
+    remotes = tmp_path / "remotes.json"
+    remotes.write_text(json.dumps({"version": 1, "connections": {"other": {"ssh": "x"}}}))
+    assert worker.install_remote_connection({"lab": {"queue": "qpu"}}) == "lab"
+    assert json.loads(remotes.read_text()) == {"version": 1, "connections": {"other": {"ssh": "x"}, "lab": {"queue": "qpu"}}}
+    stamp = remotes.stat().st_mtime_ns
+    worker.install_remote_connection({"lab": {"queue": "qpu"}})
+    assert remotes.stat().st_mtime_ns == stamp, "the same entry: the file is left untouched"
+    remotes.write_text(json.dumps({"version": 2}))
+    with pytest.raises(worker.WorkerError, match="another format"):
+        worker.install_remote_connection({"lab": {}})
+    assert worker.REMOTE_VARIABLE == "QIBOCAL_WIDGETS_CONNECTION"

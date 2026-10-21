@@ -62,16 +62,6 @@ export const sections = [
     summary: 'Open a JupyterLab or Marimo session here, over SSH or through a SLURM partition.'
   },
   {
-    name: 'remotes',
-    path: '/remotes',
-    component: RemotesView,
-    title: 'Remote execution',
-    icon: 'Cpu',
-    accelerator: 'CmdOrCtrl+Shift+E',
-    key: 'e',
-    summary: 'Where qibocal-widgets runs the acquisitions of a notebook: over SSH, through SLURM.'
-  },
-  {
     name: 'agents',
     path: '/agents',
     component: AgentsView,
@@ -111,6 +101,8 @@ export const router = createRouter({
     { name: 'notifications', path: '/notifications', component: NotificationsView },
     // One page of the Help, past its overview.
     { name: 'help-page', path: '/help/:page', component: HelpView },
+    // A tab of Notebooks: the connections a session hands its acquisitions to.
+    { name: 'remotes', path: '/notebooks/remote', component: RemotesView },
     // Reached from Running, where a session waits in its queue.
     { name: 'queues', path: '/queues', component: QueuesView },
     { path: '/:pathMatch(.*)*', redirect: '/' }

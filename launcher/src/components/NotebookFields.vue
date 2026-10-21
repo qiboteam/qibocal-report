@@ -42,6 +42,11 @@
           v-model="values[field.name]"
           :options="field.options"
         />
+        <select v-else-if="field.type === 'select'" :id="id" v-model="values[field.name]" class="lx-select w-full">
+          <option value="">None</option>
+          <option v-for="choice in choices[field.name] || []" :key="choice" :value="choice">{{ choice }}</option>
+          <option v-if="values[field.name] && !(choices[field.name] || []).includes(values[field.name])" :value="values[field.name]">{{ values[field.name] }} (not offered here)</option>
+        </select>
         <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
           v-else
           :id="id"
@@ -124,6 +129,8 @@ const props = defineProps({
   /** The options to show: a notebook session's, or another set described the same way. */
   fields: { type: Array, default: () => NOTEBOOK_FIELDS },
   nameHelp: { type: String, default: 'What the session is saved as, in notebooks.json.' },
+  /** The options of `select` fields, by field name. */
+  choices: { type: Object, default: () => ({}) },
   /** The places to choose from, when the values carry one. */
   places: { type: Array, default: () => NOTEBOOK_PLACES }
 })

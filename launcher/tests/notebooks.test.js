@@ -11,6 +11,7 @@ import {
   normalizeNotebookOptions,
   notebookKey,
   placeOf,
+  remoteChoices,
   reportServerOptions,
   requirementCount,
   toEditorValues
@@ -161,4 +162,14 @@ test('a session runs here, on the access node, or on a computing node, with the 
   assert.match(normalizeNotebookOptions({ ...blankEditor(), where: 'compute', ssh: 'login' }).errors.queue, /partition/)
   assert.equal(normalizeNotebookOptions(blankEditor()).valid, true, 'here, nothing is required')
   assert.equal(fieldApplies(NOTEBOOK_FIELDS.find(field => field.name === 'subnet'), 'access'), false)
+})
+
+test('a session is offered the remote connections that make sense from where it runs', () => {
+  const remotes = { lab: { ssh: 'login', queue: 'qpu' }, onsite: { queue: 'qpu' }, other: { ssh: 'elsewhere' } }
+  assert.deepEqual(remoteChoices(remotes, { where: 'local' }), ['lab', 'onsite', 'other'], 'from this machine, any')
+  assert.deepEqual(remoteChoices(remotes, { where: 'access', ssh: 'login' }), ['onsite', 'other'],
+    'from the access node, not the one that would reach it over SSH')
+  assert.deepEqual(remoteChoices(remotes, { ssh: 'login', queue: 'chip' }), ['onsite', 'other'], 'the place read from the options')
+  assert.match(describeConnection({ ssh: 'login', remote: 'onsite' }), /remote onsite$/)
+  assert.equal(NOTEBOOK_FIELDS.find(field => field.name === 'remote').type, 'select')
 })

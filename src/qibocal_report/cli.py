@@ -103,6 +103,14 @@ def notebook_options(*, hidden: bool = False):
                     "access node (default).",
                 ),
                 click.option(
+                    "--remote",
+                    hidden=hidden,
+                    metavar="NAME",
+                    help="A remote execution connection of remotes.json, for qibocal-widgets: "
+                    "exported to the notebook as QIBOCAL_WIDGETS_CONNECTION, and written "
+                    "to remotes.json where the notebook runs.",
+                ),
+                click.option(
                     "--reports",
                     hidden=hidden,
                     metavar="DIR",

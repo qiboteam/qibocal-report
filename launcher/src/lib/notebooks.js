@@ -70,6 +70,13 @@ export const NOTEBOOK_FIELDS = [
     info: 'A network, in CIDR notation, that the address of the SLURM computing node must belong to. Left empty, the node picks the interface it routes through to reach the access node, leaving out any address the two share, such as a container bridge; set this when the notebook is reported ready but the access node cannot reach it.'
   },
   {
+    name: 'remote',
+    label: 'Remote execution',
+    type: 'select',
+    help: 'None: the acquisitions run in the notebook.',
+    info: 'A connection of Remote execution, where qibocal-widgets\' Remote plugin runs the notebook\'s acquisitions. The session exports its name as QIBOCAL_WIDGETS_CONNECTION, and writes the connection to remotes.json where the notebook runs, so Remote() finds it with no change to the notebook. Only the connections that make sense from where the session runs are offered.'
+  },
+  {
     name: 'reports',
     label: 'Reports folder',
     type: 'text',
@@ -270,6 +277,19 @@ export function reportServerOptions(options = {}, { name = null, home = null, po
   }
 }
 
+/**
+ * The remote execution connections a session can use, by name: from this
+ * machine, any; from another machine, any but those that would reach that
+ * very machine over SSH — from there, the one without a destination does.
+ */
+export function remoteChoices(remotes = {}, values = {}) {
+  const place = values.where || placeOf(values)
+  const here = String(values.ssh || '').trim()
+  return Object.entries(remotes || {})
+    .filter(([, entry]) => place === 'local' || !here || String(entry?.ssh || '').trim() !== here)
+    .map(([name]) => name)
+}
+
 /** How many requirements a requirements.txt text names: blank lines and comments do not count. */
 export function requirementCount(text) {
   return String(text || '').split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#')).length
@@ -285,5 +305,6 @@ export function describeConnection(connection = {}) {
   parts.push(connection.marimo ? 'Marimo' : 'JupyterLab')
   const requirements = requirementCount(connection.requirements)
   if (requirements) parts.push(`${requirements} requirement${requirements === 1 ? '' : 's'}`)
+  if (connection.remote) parts.push(`remote ${connection.remote}`)
   return parts.join(' · ')
 }

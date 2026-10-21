@@ -126,6 +126,10 @@ class NotebookOptions(BaseModel):
     # notebook and its kernels as QIBOCAL_REPORTS_DIR, and served by the
     # launcher's Reports. Relative to where the session starts.
     reports: str | None = Field(default=None, min_length=1)
+    # The remote execution connection the notebook's acquisitions go to, by
+    # name in remotes.json: qibocal-widgets' Remote plugin reads it from
+    # QIBOCAL_WIDGETS_CONNECTION, which the session exports. None by default.
+    remote: str | None = Field(default=None, min_length=1)
     # Where `rebuild` regenerates the environment of a SLURM connection: on
     # the access node — the nodes share the home it lives in — unless this
     # asks for a computing node, through srun like a session.
@@ -177,6 +181,22 @@ def registered_connection(connections: dict, name: str) -> dict:
             f"Notebook connection '{name}' not found in '{connection_file()}'."
         )
     return connections[name]
+
+
+def remote_connection(name: str) -> dict:
+    """A remote execution connection of remotes.json, by name."""
+    path = config.get_config_dir(create=False) / "remotes.json"
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise click.ClickException(f"No remote execution connection '{name}': '{path}' does not exist.") from exc
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"Could not read '{path}': {exc}") from exc
+    connections = document.get("connections", document) if isinstance(document, dict) else {}
+    entry = connections.get(name) if isinstance(connections, dict) else None
+    if not isinstance(entry, dict):
+        raise click.ClickException(f"No remote execution connection '{name}' in '{path}'.")
+    return entry
 
 
 def load_options(name: str | None, overrides: dict) -> NotebookOptions:
@@ -482,6 +502,10 @@ def _worker_command(options: NotebookOptions, **extra) -> tuple[list[str], list[
     worker = Path(__file__).with_name("notebook_worker.py").read_text(encoding="utf-8")
     source = f"WORKER_SOURCE = {worker!r}\n{worker}"
     worker_options = {**options.model_dump(exclude={"ssh", "no_interactive"}), **extra}
+    if options.remote:
+        # The connection itself travels: on another machine there is no
+        # remotes.json of this one for the plugin to read it from.
+        worker_options["_remote_connection"] = {options.remote: remote_connection(options.remote)}
     command = [
         "python3" if options.ssh else sys.executable,
         "-u",

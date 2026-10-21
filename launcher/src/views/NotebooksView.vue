@@ -21,11 +21,14 @@
       </button>
     </div>
 
+    <notebook-tabs />
+
     <!-- One form for every new session; nothing is required, and empty it is a local one. -->
     <section v-if="creating" class="bm-card p-5">
       <h2 class="text-sm font-semibold text-gray-900 mb-4">New session</h2>
       <notebook-fields
         :values="form"
+        :choices="{ remote: remoteChoices(state.remotes, form) }"
         :errors="created.errors"
         :warnings="created.warnings"
         named
@@ -159,6 +162,7 @@
         <form v-if="editing.name === name" class="mt-3.5 pt-3.5 border-t border-gray-100" @submit.prevent="saveEdit(name)">
           <notebook-fields
             :values="editing.form"
+            :choices="{ remote: remoteChoices(state.remotes, editing.form) }"
             :errors="edited.errors"
             :warnings="edited.warnings"
             named
@@ -195,7 +199,8 @@ import {
   startNotebook
 } from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
-import { blankEditor, describeConnection, normalizeNotebookOptions, toEditorValues } from '../lib/notebooks.js'
+import { blankEditor, describeConnection, normalizeNotebookOptions, remoteChoices, toEditorValues } from '../lib/notebooks.js'
+import NotebookTabs from '../components/NotebookTabs.vue'
 
 const router = useRouter()
 

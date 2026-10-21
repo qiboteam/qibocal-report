@@ -2,12 +2,12 @@
   <div class="max-w-4xl mx-auto px-5 py-8 space-y-5">
     <div class="flex items-start gap-4">
       <div class="min-w-0">
-        <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Remote execution</h1>
+        <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Notebooks</h1>
         <p class="mt-1 text-xs text-gray-500">
           Where qibocal-widgets' <code class="lx-mono">Remote</code> plugin runs the acquisitions of a notebook — over SSH,
-          through SLURM — while fits and reports stay with the notebook. A notebook picks one with
-          <code class="lx-mono">Remote(connection="name")</code>, or through <code class="lx-mono">QIBOCAL_WIDGETS_CONNECTION</code>.
-          Kept in <code class="lx-mono">remotes.json</code>, which the plugin reads.
+          through SLURM — while fits and reports stay with the notebook. A session picks one with its
+          <em>Remote execution</em>, which it exports as <code class="lx-mono">QIBOCAL_WIDGETS_CONNECTION</code>; a notebook can also
+          name one, <code class="lx-mono">Remote(connection="name")</code>. Kept in <code class="lx-mono">remotes.json</code>, which the plugin reads.
         </p>
       </div>
       <button
@@ -21,6 +21,8 @@
         <component :is="creating ? X : Plus" class="w-3.5 h-3.5" /> {{ creating ? 'Close' : 'New connection' }}
       </button>
     </div>
+
+    <notebook-tabs />
 
     <section v-if="creating" class="bm-card p-5">
       <h2 class="text-sm font-semibold text-gray-900 mb-4">New connection</h2>
@@ -143,6 +145,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bookmark, Files, LayoutDashboard, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
 import NotebookFields from '../components/NotebookFields.vue'
+import NotebookTabs from '../components/NotebookTabs.vue'
 import { confirmAction, desktop } from '../bridge.js'
 import {
   state,
