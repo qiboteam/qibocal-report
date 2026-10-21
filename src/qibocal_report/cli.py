@@ -18,6 +18,14 @@ from qibocal_report.web.api import set_report_root
 from qibocal_report.logger import get_uvicorn_log_config
 
 
+
+def name_server(name: str) -> None:
+    """The name the server answers with, the one it is registered under."""
+    from qibocal_report.web import api
+
+    os.environ["QIBOCAL_SERVER_NAME"] = name
+    api.SERVER_NAME = name
+
 @click.group(name="qibocal")
 @click.version_option(version="0.1.0", prog_name="qibocal")
 def main():
@@ -542,6 +550,7 @@ def server(
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
     set_report_root(dir_path, is_original=True)
+    name_server(name or f"local-{dir_path.name}")
 
     if auth:
         os.environ["QIBOCAL_AUTH_ENABLED"] = "1"
@@ -556,7 +565,7 @@ def server(
     if register:
         config.add_server(
             url=url,
-            name=name or f"local-{dir_path.name}",
+            name=os.environ["QIBOCAL_SERVER_NAME"],
             description=f"Serving reports from {dir_path}",
             avatar="quantum-ring",
         )
@@ -684,6 +693,7 @@ def dev(
     os.environ["QIBOCAL_ORIGINAL_REPORT_DIR"] = str(dir_path)
     os.environ["QIBOCAL_REPORT_DIR"] = str(dir_path)
     set_report_root(dir_path, is_original=True)
+    name_server(name or f"local-{dir_path.name}-dev")
 
     if auth:
         os.environ["QIBOCAL_AUTH_ENABLED"] = "1"
@@ -733,7 +743,7 @@ def dev(
     if register:
         config.add_server(
             url=backend_url,
-            name=name or f"local-{dir_path.name}-dev",
+            name=os.environ["QIBOCAL_SERVER_NAME"],
             description=f"Serving reports (dev mode) from {dir_path}",
             avatar="quantum-ring",
         )
