@@ -214,6 +214,8 @@ def test_dev_command(tmp_path):
             "qibocal_report.cli.subprocess.Popen", return_value=mock_proc
         ) as mock_popen,
         patch("qibocal_report.cli.uvicorn.run") as mock_uvicorn,
+        # Whatever the machine has: the frontend server itself is mocked.
+        patch("qibocal_report.cli.shutil.which", return_value="/usr/bin/pnpm"),
     ):
         result = runner.invoke(
             main,

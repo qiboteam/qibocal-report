@@ -1,4 +1,20 @@
+import zipfile
+from pathlib import Path
+
 import pytest
+
+SAMPLE_ARCHIVE = Path(__file__).parent.parent / "sample_data" / "test-data.zip"
+
+
+def sample_reports(destination: Path) -> Path:
+    """The sample reports, unpacked from their archive into `destination`.
+
+    Always from the archive, the one copy under version control: whatever is
+    unpacked next to it by hand plays no part.
+    """
+    with zipfile.ZipFile(SAMPLE_ARCHIVE) as bundle:
+        bundle.extractall(destination)
+    return destination
 
 
 @pytest.fixture(autouse=True)

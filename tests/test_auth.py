@@ -2,12 +2,12 @@
 
 import io
 import json
-from pathlib import Path
 from urllib.parse import quote
 import zipfile
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import sample_reports
 from qibocal_report import auth
 from qibocal_report.web.api import app, set_report_root
 from qibocal_report.models import UserRole
@@ -23,11 +23,7 @@ def auth_env(tmp_path, monkeypatch):
     auth.set_auth_enabled(True)
 
     # Setup sample reports dir
-    sample_src = Path(__file__).parent.parent / "sample_data"
-    test_reports = tmp_path / "sample_data"
-    import shutil
-
-    shutil.copytree(sample_src, test_reports, ignore=shutil.ignore_patterns("*.zip"))
+    test_reports = sample_reports(tmp_path / "sample_data")
     set_report_root(test_reports, is_original=True)
 
     yield test_reports
@@ -523,11 +519,7 @@ def test_auth_disabled_backward_compatibility(tmp_path, monkeypatch):
     monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
     auth.set_auth_enabled(False)
 
-    sample_src = Path(__file__).parent.parent / "sample_data"
-    test_reports = tmp_path / "sample_data_noauth"
-    import shutil
-
-    shutil.copytree(sample_src, test_reports, ignore=shutil.ignore_patterns("*.zip"))
+    test_reports = sample_reports(tmp_path / "sample_data_noauth")
     set_report_root(test_reports, is_original=True)
 
     client = TestClient(app)

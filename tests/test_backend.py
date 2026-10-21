@@ -1,12 +1,12 @@
 import io
 import json
-import shutil
 import zipfile
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import sample_reports
 from qibocal_report import config
 from qibocal_report.web.api import app, get_report_root, set_report_root
 from qibocal_report.reports.generator import (
@@ -20,9 +20,7 @@ from qibocal_report.reports.scanner import compute_filter_stats, filter_reports,
 @pytest.fixture(autouse=True)
 def setup_env(tmp_path, monkeypatch):
     monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
-    sample_src = Path(__file__).parent.parent / "sample_data"
-    test_reports = tmp_path / "sample_data"
-    shutil.copytree(sample_src, test_reports, ignore=shutil.ignore_patterns("*.zip"))
+    test_reports = sample_reports(tmp_path / "sample_data")
     target_meta = test_reports / "10:50:56_[0]_resonator_punchout" / "meta.json"
     if target_meta.exists():
         m_data = json.loads(target_meta.read_text(encoding="utf-8"))
@@ -101,10 +99,10 @@ def test_scanner_and_filters():
     assert len(plat_reports) == stats.platforms[0].count
     assert all(r.platform == top_platform for r in plat_reports)
 
-    # Filter by tag / label
+    # Filter by tag / label: the pi-pulse report comes tagged, the punchout is tagged above
     broken_reports = filter_reports(reports, labels=["broken"])
-    assert len(broken_reports) == 1
-    assert "broken" in broken_reports[0].tags
+    assert len(broken_reports) == 2
+    assert all("broken" in report.tags for report in broken_reports)
 
     # Filter by qubit
     q3_reports = filter_reports(reports, qubits=["3"])
@@ -149,14 +147,6 @@ def test_generator_modes():
     assert "rabi" in cached_protos[0].id
     assert len(cached_protos[0].figures) > 0
 
-    # Test regeneration on-the-fly with Qibocal
-    rep2 = test_reports / "21:39:54_[3]_single_shot_classification"
-    regenerated = regenerate_report(rep2)
-    assert len(regenerated) > 0
-    assert regenerated[0].status == "success"
-    assert len(regenerated[0].figures) > 0
-    assert has_cached_report(rep2) is True
-
     # Test error reporting when Qibocal is not available / cannot generate
     from unittest.mock import patch
 
@@ -172,6 +162,16 @@ def test_generator_modes():
         assert len(err_protos) > 0
         assert err_protos[0].status == "error"
         assert "Qibocal is not installed" in (err_protos[0].error or "")
+
+
+def test_regeneration_with_qibocal():
+    pytest.importorskip("qibocal")
+    report = get_report_root() / "21:39:54_[3]_single_shot_classification"
+    regenerated = regenerate_report(report)
+    assert len(regenerated) > 0
+    assert regenerated[0].status == "success"
+    assert len(regenerated[0].figures) > 0
+    assert has_cached_report(report) is True
 
 
 def test_api_endpoints():
@@ -214,14 +214,18 @@ def test_api_endpoints():
     # Filter by tag
     r_tag = client.get("/api/reports?tag=broken")
     assert r_tag.status_code == 200
-    assert len(r_tag.json()) == 1
-    assert "broken" in r_tag.json()[0]["tags"]
+    assert len(r_tag.json()) == 2
+    assert all("broken" in report["tags"] for report in r_tag.json())
 
     # Filter by qubit via API
     r_qubit = client.get("/api/reports?qubit=3")
     assert r_qubit.status_code == 200
     assert len(r_qubit.json()) >= 1
-    assert all(3 in r["targets"] or "3" in [str(t) for t in r["targets"]] for r in r_qubit.json())
+    # A report on a pair involving qubit 3 counts too
+    def qubits(target):
+        return [str(qubit) for qubit in target] if isinstance(target, list) else [str(target)]
+
+    assert all(any("3" in qubits(target) for target in r["targets"]) for r in r_qubit.json())
 
     # Stats
     r = client.get("/api/reports/stats")
@@ -684,7 +688,9 @@ def test_author_identities_and_search_index():
     assert len(filtered_alias) == 3
 
 
-def test_pagination_and_cache_invalidation():
+def test_pagination_and_cache_invalidation(monkeypatch):
+    # Every scan checks the tree, rather than trusting the last walk for a while.
+    monkeypatch.setenv("QIBOCAL_REPORT_SCAN_INTERVAL", "0")
     client = TestClient(app)
     test_reports = get_report_root()
 
@@ -1069,7 +1075,7 @@ def test_protocol_execution_order_sorting(tmp_path: Path):
     from qibocal_report.models import ProtocolDetail
 
     # 1. Test real sample data with 9 routines
-    sample_dir = Path("sample_data/21:47:29_[3]_pi-pulse")
+    sample_dir = tmp_path / "sample_data" / "21:47:29_[3]_pi-pulse"
     assert sample_dir.is_dir()
 
     expected_order = [
@@ -1099,7 +1105,7 @@ def test_protocol_execution_order_sorting(tmp_path: Path):
     assert [p.id for p in rep_protos] == expected_order
 
     # Verify get_report_detail protocols_summary
-    detail = get_report_detail(Path("sample_data"), "21:47:29_[3]_pi-pulse")
+    detail = get_report_detail(tmp_path / "sample_data", "21:47:29_[3]_pi-pulse")
     assert detail is not None
     assert [p.id for p in detail.protocols_summary] == expected_order
 

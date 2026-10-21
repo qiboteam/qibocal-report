@@ -1,12 +1,10 @@
 """What goes over the wire, and what does not."""
 
-import shutil
-import zipfile
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from conftest import sample_reports
 from qibocal_report.reports import scanner
 from qibocal_report.web.api import app, set_report_root
 
@@ -15,13 +13,7 @@ from qibocal_report.web.api import app, set_report_root
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
     monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
-    sample = Path(__file__).parent.parent / "sample_data"
-    reports = tmp_path / "sample_data"
-    shutil.copytree(sample, reports, ignore=shutil.ignore_patterns("*.zip"))
-    archive = sample / "test-data.zip"
-    if archive.is_file() and not any(p.is_dir() for p in reports.iterdir()):
-        with zipfile.ZipFile(archive) as bundle:
-            bundle.extractall(reports)
+    reports = sample_reports(tmp_path / "sample_data")
     set_report_root(reports, is_original=True)
     scanner.invalidate_report_cache()
     return TestClient(app)

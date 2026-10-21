@@ -9,11 +9,10 @@ qibocal installed, the plots are generated again from the data.
 
 import importlib.util
 import shutil
-import zipfile
-from pathlib import Path
 
 import pytest
 
+from conftest import sample_reports
 from qibocal_report.reports import generator
 
 from qibocal_report.reports import scanner
@@ -24,10 +23,7 @@ JAZZ = "12:07:17_[(2, 3)]_jazz"
 
 @pytest.fixture
 def reports(tmp_path):
-    archive = Path(__file__).parent.parent / "sample_data" / "test-data.zip"
-    root = tmp_path / "reports"
-    with zipfile.ZipFile(archive) as bundle:
-        bundle.extractall(root)
+    root = sample_reports(tmp_path / "reports")
     scanner.invalidate_report_cache()
     return root
 
