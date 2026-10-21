@@ -613,7 +613,7 @@ const tagsOnSelectedReports = computed(() => {
   const sel = selectedReports.value
   for (const r of reports.value) {
     if (sel.includes(r.id)) {
-      for (const t of (r.tags || r.labels || [])) {
+      for (const t of (r.tags || [])) {
         if (t) tags.add(t)
       }
     }
@@ -689,7 +689,7 @@ function prefetchAccessiblePages() {
   idle(next)
 }
 
-/** One page over GraphQL, in the shape the REST endpoint answers; null without GraphQL. */
+/** One page over GraphQL, in the shape the REST endpoint answers. */
 const PAGE_QUERY = `
   query Page($where: ReportFilter, $page: Int!, $page_size: Int!) {
     reports(where: $where, page: $page, page_size: $page_size) {
@@ -698,10 +698,12 @@ const PAGE_QUERY = `
     }
   }
 `
-async function pageViaGraphQL(page) {
-  const data = await apiGraphQL(PAGE_QUERY, { where: filterInput(), page, page_size: pageSize.value })
-  return data?.reports || null
-}
+/** The statistics of everything, or of what is filtered. */
+const STATS_QUERY = `
+  query Stats($where: ReportFilter) {
+    stats(where: $where) { ${STATS_FIELDS} }
+  }
+`
 
 function goToPage(p) {
   if (p < 1 || p > totalPages.value || p === currentPage.value) return
@@ -713,10 +715,8 @@ async function applyFilterChange(changeFn) {
   currentPage.value = 1
   clearCache()
   loading.value = true
-  // The new page and its statistics, in one request where the server allows.
-  if (await loadViaGraphQL(1)) return
-  fetchReports(1, false)
-  fetchFilteredStats()
+  // The new page and its statistics, in one request.
+  await loadDashboard(1)
 }
 
 function onPageSizeChange(newSize) {
@@ -769,7 +769,7 @@ async function selectAllFilteredReports() {
     if (start) params.set('start_date', start)
     if (end) params.set('end_date', end)
     filters.protocols.forEach(p => params.append('protocol', p))
-    filters.labels.forEach(l => params.append('label', l))
+    filters.labels.forEach(l => params.append('tag', l))
     filters.qubits?.forEach(q => params.append('qubit', q))
 
     const res = await apiFetch(`/api/reports?${params.toString()}`)
@@ -911,17 +911,13 @@ async function refreshData(preservePage = false) {
   filterStats.value = null
   filteredStats.value = null
   clearCache()
-  // One request where there were three, on a server that answers GraphQL.
-  if (await loadViaGraphQL(targetPage, { everything: true })) return
-  await Promise.all([fetchStats(), fetchReports(targetPage, false)])
-  await fetchFilteredStats()
+  // The page and both statistics, in one request.
+  await loadDashboard(targetPage, { everything: true })
 }
 
 /**
  * The page, the statistics of everything and the statistics of what is
- * filtered, in one GraphQL request. Answers false when the server has no
- * GraphQL, or the request failed in a way the REST path should retry: the
- * caller then asks over REST, as before.
+ * filtered, in one GraphQL request.
  */
 const DASHBOARD_QUERY = `
   query Dashboard($where: ReportFilter, $page: Int!, $page_size: Int!, $everything: Boolean!, $filtered: Boolean!) {
@@ -944,7 +940,7 @@ function filterInput() {
     authors: filters.author ? [filters.author] : null,
     platforms: filters.platform ? [filters.platform] : null,
     protocols: filters.protocols.length ? [...filters.protocols] : null,
-    labels: filters.labels.length ? [...filters.labels] : null,
+    tags: filters.labels.length ? [...filters.labels] : null,
     qubits: filters.qubits?.length ? [...filters.qubits] : null,
     start_date: start || null,
     end_date: end || null,
@@ -952,8 +948,24 @@ function filterInput() {
   }
 }
 
-async function loadViaGraphQL(page, { everything = false } = {}) {
-  if (!activeServer.value && (!state.servers || state.servers.length === 0)) return false
+function showConnectionError(err) {
+  if (!activeServer.value && (!state.servers || state.servers.length === 0)) {
+    connectionError.value = null
+  } else {
+    connectionError.value = `Could not connect to ${activeServer.value?.name || 'server'} (${activeServer.value?.url || ''}): ${err.message || 'Network error'}`
+  }
+  reports.value = []
+  loading.value = false
+}
+
+async function loadDashboard(page, { everything = false } = {}) {
+  if (!activeServer.value && (!state.servers || state.servers.length === 0)) {
+    reports.value = []
+    totalReports.value = 0
+    loading.value = false
+    connectionError.value = null
+    return
+  }
   let data = null
   try {
     data = await apiGraphQL(DASHBOARD_QUERY, {
@@ -964,10 +976,10 @@ async function loadViaGraphQL(page, { everything = false } = {}) {
       filtered: hasActiveFilters.value
     })
   } catch (err) {
-    console.warn('GraphQL request failed, asking over REST instead', err)
-    return false
+    console.error('Failed to fetch reports', err)
+    showConnectionError(err)
+    return
   }
-  if (!data?.reports) return false
   const pageData = data.reports
   reports.value = pageData.items
   totalReports.value = pageData.total
@@ -991,18 +1003,12 @@ async function loadViaGraphQL(page, { everything = false } = {}) {
   loading.value = false
   connectionError.value = null
   prefetchAccessiblePages()
-  return true
 }
 
 async function fetchStats() {
   try {
-    const res = await apiFetch('/api/reports/stats')
-    if (res.ok) {
-      filterStats.value = await res.json()
-      holdReportStats(filterStats.value)
-    } else {
-      filterStats.value = null
-    }
+    filterStats.value = (await apiGraphQL(STATS_QUERY, { where: null }))?.stats || null
+    holdReportStats(filterStats.value)
   } catch (err) {
     console.error('Failed to fetch stats', err)
     filterStats.value = null
@@ -1015,26 +1021,7 @@ async function fetchFilteredStats() {
     return
   }
   try {
-    const params = new URLSearchParams()
-    if (filters.q.trim()) params.set('q', filters.q.trim())
-    if (filters.sort_by) params.set('sort_by', filters.sort_by)
-    if (filters.author) params.set('author', filters.author)
-    if (filters.platform) params.set('platform', filters.platform)
-    if (filters.folder) params.set('folder', filters.folder)
-    const start = filters.startDate || filters.date
-    const end = filters.endDate || filters.date
-    if (start) params.set('start_date', start)
-    if (end) params.set('end_date', end)
-    filters.protocols.forEach(p => params.append('protocol', p))
-    filters.labels.forEach(l => params.append('label', l))
-    filters.qubits?.forEach(q => params.append('qubit', q))
-
-    // The server's statistics of what is filtered. Every server this
-    // client speaks to honours the filters here; the old doubt about it
-    // used to be settled by downloading every matching report and counting
-    // client-side — the largest transfer the page could make, on a guess.
-    const res = await apiFetch(`/api/reports/stats?${params.toString()}`)
-    filteredStats.value = res.ok ? await res.json() : null
+    filteredStats.value = (await apiGraphQL(STATS_QUERY, { where: filterInput() }))?.stats || null
   } catch (err) {
     console.error('Failed to fetch filtered stats', err)
     filteredStats.value = null
@@ -1072,73 +1059,28 @@ async function fetchReports(page = currentPage.value, isPrefetch = false) {
   }
 
   try {
-    // A server with GraphQL answers the page in the REST shape; the REST
-    // request below is for the others.
-    let data = null
-    try {
-      data = await pageViaGraphQL(page)
-    } catch (err) {
-      console.warn('GraphQL page request failed, asking over REST instead', err)
-    }
-    const params = new URLSearchParams()
-    params.set('page', String(page))
-    params.set('page_size', String(pageSize.value))
-    if (filters.q.trim()) params.set('q', filters.q.trim())
-    if (filters.sort_by) params.set('sort_by', filters.sort_by)
-    if (filters.author) params.set('author', filters.author)
-    if (filters.platform) params.set('platform', filters.platform)
-    if (filters.folder) params.set('folder', filters.folder)
-    const start = filters.startDate || filters.date
-    const end = filters.endDate || filters.date
-    if (start) params.set('start_date', start)
-    if (end) params.set('end_date', end)
-    filters.protocols.forEach(p => params.append('protocol', p))
-    filters.labels.forEach(l => params.append('label', l))
-    filters.qubits?.forEach(q => params.append('qubit', q))
-
-    const res = data ? null : await apiFetch(`/api/reports?${params.toString()}`)
-    if (data || res.ok) {
-      if (!data) data = await res.json()
-      const items = Array.isArray(data) ? data : (data.items || [])
-      const total = Array.isArray(data) ? data.length : (data.total ?? items.length)
-      const total_pages = Array.isArray(data) ? 1 : (data.total_pages ?? 1)
-      const page_num = Array.isArray(data) ? 1 : (data.page ?? page)
-
-      const payload = {
-        items,
-        total,
-        total_pages,
-        page: page_num,
-        page_size: pageSize.value,
-        stats: filterStats.value,
-        filtered: filteredStats.value
-      }
-
-      setCache(cacheKey, payload)
-
-      if (!isPrefetch) {
-        reports.value = items
-        totalReports.value = total
-        totalPages.value = total_pages
-        currentPage.value = page_num
-        loading.value = false
-        prefetchAccessiblePages()
-      }
-    } else if (!isPrefetch) {
-      connectionError.value = `Server responded with status ${res.status}`
-      reports.value = []
+    const data = (await apiGraphQL(PAGE_QUERY, { where: filterInput(), page, page_size: pageSize.value })).reports
+    setCache(cacheKey, {
+      items: data.items,
+      total: data.total,
+      total_pages: data.total_pages,
+      page: data.page,
+      page_size: pageSize.value,
+      stats: filterStats.value,
+      filtered: filteredStats.value
+    })
+    if (!isPrefetch) {
+      reports.value = data.items
+      totalReports.value = data.total
+      totalPages.value = data.total_pages
+      currentPage.value = data.page
       loading.value = false
+      prefetchAccessiblePages()
     }
   } catch (err) {
     if (!isPrefetch) {
       console.error('Failed to fetch reports', err)
-      if (!activeServer.value && (!state.servers || state.servers.length === 0)) {
-        connectionError.value = null
-      } else {
-        connectionError.value = `Could not connect to ${activeServer.value?.name || 'server'} (${activeServer.value?.url || ''}): ${err.message || 'Network error'}`
-      }
-      reports.value = []
-      loading.value = false
+      showConnectionError(err)
     }
   }
 }

@@ -124,6 +124,7 @@ import { computed } from 'vue'
 import { marked } from 'marked'
 import { getActiveServerUrl, canAccessDashboard } from '../store.js'
 import { useDocs } from '../composables/useDocs.js'
+import { sanitizeHtml } from '../utils/sanitize.js'
 import DocsSidebar from '../components/docs/DocsSidebar.vue'
 import DocsBreadcrumb from '../components/docs/DocsBreadcrumb.vue'
 
@@ -145,8 +146,9 @@ const swaggerUrl = computed(() => {
   return base ? `${base}/api/docs/swagger` : '/api/docs/swagger'
 })
 
+// The page comes from the active server: cleaned, its relative links kept for the click handler.
 const renderedContent = computed(() => {
-  return marked(rawMarkdown.value)
+  return sanitizeHtml(marked(rawMarkdown.value), { relative: true })
 })
 
 function onArticleClick(e) {

@@ -28,11 +28,11 @@ def graphql(client, query, variables=None, token=None):
 
 
 REPORT_FIELDS = (
-    "id path title date time author platform targets protocols tags labels "
+    "id path title date time author platform targets protocols tags "
     "total_execution_time has_cached_report has_old_platform has_new_platform"
 )
 STATS_FIELDS = (
-    "authors tags labels protocols { name count } date_histogram { date count } "
+    "authors tags protocols { name count } date_histogram { date count } "
     "platforms { name count } author_frequencies { name count } "
     "tag_frequencies { name count } total_reports"
 )

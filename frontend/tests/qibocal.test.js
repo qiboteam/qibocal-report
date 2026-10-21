@@ -590,10 +590,12 @@ test('Qibocal administration and plot-generation feedback', async t => {
       store.state.servers = [first]
       let controller
       const installed = mock.fn()
-      mock.method(globalThis, 'fetch', async url => {
-        if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-        if (url.endsWith('/api/auth/status')) return Response.json({ auth_enabled: true })
-        if (url.endsWith('/api/auth/me')) return Response.json({ id: 'admin', username: 'admin', role: 'admin' })
+      mock.method(globalThis, 'fetch', async (url, options) => {
+        if (url.endsWith('/api/graphql')) {
+          const signedIn = Boolean(new Headers(options?.headers).get('Authorization'))
+          const user = signedIn ? { id: 'admin', username: 'admin', role: 'admin' } : null
+          return Response.json({ data: { session: { auth_enabled: true, user } } })
+        }
         if (url.endsWith('/api/qibocal')) return Response.json({ installed: false })
         if (url.endsWith('/options')) return Response.json(choices)
         return new Response(new ReadableStream({ start(value) { controller = value } }))
@@ -726,11 +728,13 @@ test('Qibocal administration and plot-generation feedback', async t => {
       // The view listens to the page's keys when mounted: a document to listen to.
       const previousDocument = globalThis.document
       globalThis.document = { addEventListener() {}, removeEventListener() {} }
-      // The report is asked for over GraphQL first; a server without it is
-      // streamed over the socket, which is the path under test.
+      // The report is asked for over GraphQL first; one without cached plots
+      // is streamed over the socket, which is the path under test.
       const regenerations = []
       mock.method(globalThis, 'fetch', async url => {
-        if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
+        if (url.endsWith('/api/graphql')) {
+          return Response.json({ data: { report: { id: 'run', targets: [0], platform: 'test', has_cached_report: false, protocols_detail: [] } } })
+        }
         assert.equal(url, `${first.url}/api/reports/run/regenerate`)
         regenerations.push(url)
         return Response.json([missing])

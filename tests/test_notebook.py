@@ -41,6 +41,18 @@ def stored_connections() -> dict:
     return document["connections"]
 
 
+def registry(connections) -> str:
+    """notebooks.json holding these connections — given as an object, or as its JSON text — as written."""
+    if isinstance(connections, str):
+        try:
+            connections = json.loads(connections)
+        except ValueError:
+            return connections
+    if not isinstance(connections, dict):
+        return json.dumps(connections)
+    return json.dumps({"version": config.CONFIG_VERSION, "connections": connections})
+
+
 @pytest.mark.parametrize("color", [False, True])
 def test_rich_node_output(color):
     stream = io.StringIO()
@@ -152,7 +164,7 @@ def test_cli_defaults():
 
 def test_named_connection_cli_overrides():
     connection_file().write_text(
-        json.dumps(
+        registry(json.dumps(
             {
                 "chip": {
                     "ssh": "user@login",
@@ -163,7 +175,7 @@ def test_named_connection_cli_overrides():
                     "subnet": "192.0.2.0/24",
                 }
             }
-        ),
+        )),
         encoding="utf-8",
     )
     with patch("qibocal_report.remote.notebook.launch") as mock:
@@ -229,7 +241,7 @@ def test_cli_short_options():
     "contents, error",
     [
         ("{", "Could not read"),
-        ("[]", "connection-name object"),
+        ("[]", "not found"),
         ('{"chip": []}', "must be an object"),
         ('{"other": {}}', "not found"),
         ('{"chip": {"typo": true}}', "Invalid notebook options"),
@@ -240,7 +252,7 @@ def test_cli_short_options():
     ],
 )
 def test_invalid_connection(contents, error):
-    connection_file().write_text(contents, encoding="utf-8")
+    connection_file().write_text(registry(contents), encoding="utf-8")
     with patch("qibocal_report.remote.notebook.launch") as mock:
         result = CliRunner().invoke(main, ["notebook", "connect", "chip"])
     assert result.exit_code == 1
@@ -336,7 +348,7 @@ def test_add_options_round_trip(tmp_path, monkeypatch):
 
 
 def test_add_preserves_connections_and_explicit_defaults():
-    connection_file().write_text('{"old": {"marimo": true}}\n', encoding="utf-8")
+    connection_file().write_text(registry('{"old": {"marimo": true}}\n'), encoding="utf-8")
     result = CliRunner().invoke(
         main,
         ["notebook", "add", "new", "--jupyter", "--interactive", "--venv", "qibocal"],
@@ -408,7 +420,7 @@ def test_add_name_only_prompts_for_options():
 
 
 def test_add_duplicate_does_not_overwrite():
-    text = '{"chip": {"queue": "old"}}\n'
+    text = registry('{"chip": {"queue": "old"}}\n')
     connection_file().write_text(text, encoding="utf-8")
     result = CliRunner().invoke(main, ["notebook", "add", "chip", "-q", "new"])
     assert result.exit_code == 1
@@ -419,19 +431,21 @@ def test_add_duplicate_does_not_overwrite():
 @pytest.mark.parametrize("contents", ["{", "[]", '{"chip": []}'])
 @pytest.mark.parametrize("command", ["add", "list"])
 def test_invalid_registry_is_not_overwritten(contents, command):
+    contents = registry(contents)
     connection_file().write_text(contents, encoding="utf-8")
     result = CliRunner().invoke(
         main, ["notebook", command, *(["new", "--marimo"] if command == "add" else [])]
     )
-    assert result.exit_code == 1
+    # A file not of this format holds nothing to list, and is never written over.
+    assert result.exit_code == (0 if (command, contents) == ("list", "[]") else 1)
     assert connection_file().read_text() == contents
 
 
 def test_add_write_failure_preserves_registry():
-    text = '{"old": {}}\n'
+    text = registry('{"old": {}}\n')
     path = connection_file()
     path.write_text(text, encoding="utf-8")
-    with patch("qibocal_report.remote.notebook.Path.replace", side_effect=OSError("denied")):
+    with patch("qibocal_report.config.os.replace", side_effect=OSError("denied")):
         result = CliRunner().invoke(main, ["notebook", "add", "new", "--marimo"])
     assert result.exit_code == 1
     assert "Could not write" in result.output
@@ -462,7 +476,7 @@ def test_update_preserves_unspecified_settings():
         "subnet": "192.0.2.0/24",
     }
     connection_file().write_text(
-        json.dumps({"chip": values, "other": {"venv": "custom"}}),
+        registry(json.dumps({"chip": values, "other": {"venv": "custom"}})),
         encoding="utf-8",
     )
     with patch("qibocal_report.remote.notebook.launch") as launch:
@@ -497,7 +511,7 @@ def test_update_preserves_unspecified_settings():
 @pytest.mark.parametrize("named", [False, True])
 def test_update_interactive_current_values(named):
     connection_file().write_text(
-        '{"chip": {"queue": "old", "marimo": true, "timeout": 900}}',
+        registry('{"chip": {"queue": "old", "marimo": true, "timeout": 900}}'),
         encoding="utf-8",
     )
     result = CliRunner().invoke(
@@ -515,7 +529,7 @@ def test_update_interactive_current_values(named):
 
 
 def test_update_options_without_name():
-    connection_file().write_text('{"chip": {"queue": "old"}}', encoding="utf-8")
+    connection_file().write_text(registry('{"chip": {"queue": "old"}}'), encoding="utf-8")
     result = CliRunner().invoke(
         main, ["notebook", "update", "--marimo"], input="chip\n"
     )
@@ -528,7 +542,7 @@ def test_update_options_without_name():
 
 @pytest.mark.parametrize("input", ["", "2\n"])
 def test_update_aborted_prompt_preserves_registry(input):
-    text = '{"chip": {"queue": "old"}}\n'
+    text = registry('{"chip": {"queue": "old"}}\n')
     connection_file().write_text(text, encoding="utf-8")
     result = CliRunner().invoke(main, ["notebook", "update", "chip"], input=input)
     assert result.exit_code != 0
@@ -536,7 +550,7 @@ def test_update_aborted_prompt_preserves_registry(input):
 
 
 def test_update_interactive_no_changes():
-    connection_file().write_text('{"chip": {"queue": "old"}}', encoding="utf-8")
+    connection_file().write_text(registry('{"chip": {"queue": "old"}}'), encoding="utf-8")
     result = CliRunner().invoke(main, ["notebook", "update", "chip"], input="\n")
     assert result.exit_code == 0, result.output
     assert stored_connections() == {"chip": {"queue": "old"}}
@@ -553,7 +567,7 @@ def test_update_interactive_no_changes():
     ],
 )
 def test_update_invalid_options_preserves_registry(arguments):
-    text = '{"chip": {"queue": "old"}}\n'
+    text = registry('{"chip": {"queue": "old"}}\n')
     connection_file().write_text(text, encoding="utf-8")
     result = CliRunner().invoke(main, ["notebook", "update", "chip", *arguments])
     assert result.exit_code != 0
@@ -565,7 +579,7 @@ def test_remove_immediately_preserves_other_connections(other):
     connections = {"chip": {"queue": "old"}}
     if other:
         connections["other"] = {"venv": "custom"}
-    connection_file().write_text(json.dumps(connections), encoding="utf-8")
+    connection_file().write_text(registry(json.dumps(connections)), encoding="utf-8")
     with patch("qibocal_report.remote.notebook.launch") as launch:
         result = CliRunner().invoke(main, ["notebook", "remove", "chip"])
     assert result.exit_code == 0, result.output
@@ -581,7 +595,7 @@ def test_remove_immediately_preserves_other_connections(other):
 )
 @pytest.mark.parametrize("exists", [False, True])
 def test_connection_mutation_requires_existing_name(arguments, exists):
-    text = '{"chip": {}}\n'
+    text = registry('{"chip": {}}\n')
     if exists:
         connection_file().write_text(text, encoding="utf-8")
     result = CliRunner().invoke(main, ["notebook", *arguments])
@@ -596,6 +610,7 @@ def test_connection_mutation_requires_existing_name(arguments, exists):
 @pytest.mark.parametrize("command", ["update", "remove"])
 @pytest.mark.parametrize("contents", ["{", "[]", '{"chip": []}'])
 def test_mutation_invalid_registry_is_not_overwritten(command, contents):
+    contents = registry(contents)
     connection_file().write_text(contents, encoding="utf-8")
     result = CliRunner().invoke(
         main,
@@ -607,10 +622,10 @@ def test_mutation_invalid_registry_is_not_overwritten(command, contents):
 
 @pytest.mark.parametrize("command", ["update", "remove"])
 def test_mutation_write_failure_preserves_registry(command):
-    text = '{"chip": {}}\n'
+    text = registry('{"chip": {}}\n')
     path = connection_file()
     path.write_text(text, encoding="utf-8")
-    with patch("qibocal_report.remote.notebook.Path.replace", side_effect=OSError("denied")):
+    with patch("qibocal_report.config.os.replace", side_effect=OSError("denied")):
         result = CliRunner().invoke(
             main,
             [
@@ -628,7 +643,7 @@ def test_mutation_write_failure_preserves_registry(command):
 
 def test_list_rich_literal_values():
     connection_file().write_text(
-        json.dumps({"[red]chip[/red]": {"workdir": "/[blue]data[/blue]"}, "local": {}}),
+        registry(json.dumps({"[red]chip[/red]": {"workdir": "/[blue]data[/blue]"}, "local": {}})),
         encoding="utf-8",
     )
     result = CliRunner().invoke(main, ["notebook", "list"], env={"COLUMNS": "120"})
@@ -679,7 +694,7 @@ def test_ssh_arguments():
 
 def test_config_not_modified():
     path = connection_file()
-    text = '{"chip": {"venv": "/custom/env"}}\n'
+    text = registry('{"chip": {"venv": "/custom/env"}}\n')
     path.write_text(text, encoding="utf-8")
     assert load_options("chip", {}).venv == "/custom/env"
     assert path.read_text(encoding="utf-8") == text

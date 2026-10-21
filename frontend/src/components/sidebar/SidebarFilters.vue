@@ -251,7 +251,7 @@ const displayedAuthors = computed(() => {
 })
 
 const displayedLabels = computed(() => {
-  return props.fullStats?.labels?.length ? props.fullStats.labels : (props.filterStats?.labels || [])
+  return props.fullStats?.tags?.length ? props.fullStats.tags : (props.filterStats?.tags || [])
 })
 
 const filteredLabels = computed(() => {

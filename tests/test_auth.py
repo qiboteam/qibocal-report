@@ -568,10 +568,8 @@ def test_unauthenticated_restrictions_and_public_docs(auth_env):
     assert res_invites.status_code == 200
     assert "Invitation" in res_invites.text
 
-    # 2. Server list returns empty when unauthenticated on auth-enabled instance
-    res_srv = client.get("/api/servers")
-    assert res_srv.status_code == 200
-    assert res_srv.json() == []
+    # 2. The server's own servers.json is nobody's business over HTTP
+    assert client.get("/api/servers").status_code in (404, 405)
 
     # 3. Health check hides internal path details and reports count
     res_health = client.get("/api/health")
@@ -596,11 +594,6 @@ def test_unauthenticated_restrictions_and_public_docs(auth_env):
     assert reg_res.status_code == 200
     token = reg_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-
-    # Authenticated user sees servers
-    res_srv_auth = client.get("/api/servers", headers=headers)
-    assert res_srv_auth.status_code == 200
-    assert len(res_srv_auth.json()) > 0
 
     # Authenticated user sees reports count in health
     res_health_auth = client.get("/api/health", headers=headers)
@@ -740,6 +733,11 @@ def test_password_reset_endpoint(auth_env):
     assert data["expires_at"] is not None
 
     # Invalid token should return invalid response
+    # The role is the user's own, not an administrator's for everyone
+    auth.create_user("bob", "password123", UserRole.VIEWER.value)
+    bob = auth.create_password_reset(auth.get_user_by_username("bob")["id"], created_by="admin")
+    assert client.get(f"/api/auth/password-reset/{bob['token']}").json()["role"] == "viewer"
+
     res_invalid = client.get("/api/auth/password-reset/invalid-token")
     assert res_invalid.status_code == 200
     data_invalid = res_invalid.json()

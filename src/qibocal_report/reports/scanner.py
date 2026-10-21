@@ -270,7 +270,6 @@ def parse_report_directory(
         targets=targets,
         protocols=protocols,
         tags=tags,
-        labels=tags,
         total_execution_time=exec_time,
         has_cached_report=cached,
         has_old_platform=has_old,
@@ -466,7 +465,7 @@ def filter_reports(
     query: str | None = None,
     authors: list[str] | None = None,
     platforms: list[str] | None = None,
-    labels: list[str] | None = None,
+    tags: list[str] | None = None,
     protocols: list[str] | None = None,
     qubits: list[str] | None = None,
     start_date: str | None = None,
@@ -500,7 +499,7 @@ def filter_reports(
             or q_lower in r.id.lower()
             or q_lower in (r.author or "").lower()
             or q_lower in (r.platform or "").lower()
-            or any(q_lower in tag.lower() for tag in (r.tags or r.labels))
+            or any(q_lower in tag.lower() for tag in r.tags)
             or any(q_lower in p.lower() for p in r.protocols)
         ]
 
@@ -531,10 +530,8 @@ def filter_reports(
     if platforms:
         filtered = [r for r in filtered if r.platform in platforms]
 
-    if labels:
-        filtered = [
-            r for r in filtered if any(lab in (r.tags or r.labels) for lab in labels)
-        ]
+    if tags:
+        filtered = [r for r in filtered if any(tag in r.tags for tag in tags)]
 
     if protocols:
         filtered = [r for r in filtered if any(p in r.protocols for p in protocols)]
@@ -610,7 +607,7 @@ def compute_filter_stats(
             if r.author
         }
     )
-    labels = sorted({lab for r in reports for lab in (r.tags or r.labels)})
+    tags = sorted({tag for r in reports for tag in r.tags})
 
     proto_counter = Counter()
     for r in reports:
@@ -639,7 +636,7 @@ def compute_filter_stats(
         for name, count in author_counter.most_common()
     ]
 
-    tag_counter = Counter(lab for r in reports for lab in (r.tags or r.labels))
+    tag_counter = Counter(tag for r in reports for tag in r.tags)
     tag_freqs = [
         TagFrequency(name=name, count=count)
         for name, count in tag_counter.most_common()
@@ -652,8 +649,7 @@ def compute_filter_stats(
 
     return FilterStats(
         authors=authors,
-        tags=labels,
-        labels=labels,
+        tags=tags,
         protocols=proto_freqs,
         date_histogram=date_histogram,
         platforms=platform_freqs,

@@ -30,8 +30,7 @@ def setup_env(tmp_path, monkeypatch):
 
 
 def test_config_servers(tmp_path):
-    servers = config.load_servers()
-    assert len(servers) >= 1
+    assert config.load_servers() == [], "no file, no server: none is made up"
     new_srv = config.add_server("http://example.com:9000", name="test-qpu")
     assert new_srv["name"] == "test-qpu"
     assert new_srv["url"] == "http://example.com:9000"
@@ -88,7 +87,7 @@ def test_scanner_and_filters():
     counts = [p.count for p in stats.protocols]
     assert counts == sorted(counts, reverse=True)
     assert "broken" in stats.tags
-    assert "broken" in stats.labels
+    assert "broken" in stats.tags
     assert len(stats.platforms) > 0
     assert len(stats.author_frequencies) > 0
     assert stats.total_reports == len(reports)
@@ -100,7 +99,7 @@ def test_scanner_and_filters():
     assert all(r.platform == top_platform for r in plat_reports)
 
     # Filter by tag / label: the pi-pulse report comes tagged, the punchout is tagged above
-    broken_reports = filter_reports(reports, labels=["broken"])
+    broken_reports = filter_reports(reports, tags=["broken"])
     assert len(broken_reports) == 2
     assert all("broken" in report.tags for report in broken_reports)
 
@@ -183,27 +182,6 @@ def test_api_endpoints():
     data = r.json()
     assert data["status"] == "ok"
     assert data["reports_count"] >= 3
-
-    # Servers
-    r = client.get("/api/servers")
-    assert r.status_code == 200
-    assert isinstance(r.json(), list)
-
-    # Add server
-    r = client.post("/api/servers", json={"url": "http://192.168.1.50:8000"})
-    assert r.status_code == 200
-    srv_data = r.json()
-    assert "url" in srv_data
-    srv_id = srv_data["id"]
-
-    # Save servers
-    r = client.post("/api/servers/save")
-    assert r.status_code == 200
-    assert r.json()["saved"] is True
-
-    # Delete server
-    r = client.delete(f"/api/servers/{srv_id}")
-    assert r.status_code == 200
 
     # Reports list
     r = client.get("/api/reports")

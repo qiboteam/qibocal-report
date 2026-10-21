@@ -3,7 +3,9 @@
 import json
 import os
 import random
+import tempfile
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -90,41 +92,26 @@ def get_config_file(*, create: bool = True) -> Path:
     return get_config_dir(create=create) / "servers.json"
 
 
-def get_default_servers() -> list[dict[str, Any]]:
-    """Return default initial server list."""
-    return [
-        {
-            "id": "srv-local",
-            "name": "local-instance",
-            "url": "http://127.0.0.1:8000",
-            "description": "Local Qibocal Report Server",
-            "avatar": "quantum-ring",
-            "is_default": True,
-            "created_at": "2024-12-20T10:00:00Z",
-        }
-    ]
-
-
 # The format of the configuration files this version reads and writes.
 #
 # Every file is an object carrying a ``version``: ``servers.json`` keeps its
 # entries under ``servers``, ``notebooks.json`` under ``connections``,
 # ``auth.json`` and the launcher's preferences next to the version itself. A
-# file without a version is one written before versions were, and is read as
-# the current format. A file with another version is ignored — read as
-# empty, never overwritten — so that an application of one version does not
-# destroy what another wrote; the launcher lists such files for a migration
-# by hand. There is no automatic migration, on purpose.
+# file without a version, or with another one, is not ours: it is ignored —
+# read as empty, never overwritten — so that an application of one version
+# does not destroy what another wrote; the launcher lists such files for a
+# migration by hand. There is no automatic migration, on purpose.
 CONFIG_VERSION = 1
 
 
 class IncompatibleConfig(OSError):
     """A configuration file of another version, which must not be replaced."""
 
-    def __init__(self, path: Path, found: int):
+    def __init__(self, path: Path, found: int | None):
+        declared = f"format {found}" if found is not None else "no format version"
         super().__init__(
             f"'{path}' was written by another version of qibocal-report "
-            f"(format {found}; this one reads {CONFIG_VERSION}). "
+            f"({declared}; this one reads {CONFIG_VERSION}). "
             "It is left as it is until migrated by hand."
         )
         self.path = path
@@ -141,9 +128,8 @@ def declared_version(data: Any) -> int | None:
 
 
 def is_compatible(data: Any) -> bool:
-    """Whether a document is of this version, or of none."""
-    version = declared_version(data)
-    return version is None or version == CONFIG_VERSION
+    """Whether a document is of this version."""
+    return declared_version(data) == CONFIG_VERSION
 
 
 def _read_document(path: Path) -> Any:
@@ -157,49 +143,49 @@ def _read_document(path: Path) -> Any:
 
 
 def guard_write(path: Path) -> None:
-    """Refuse to replace a file of another version."""
+    """Refuse to replace a file of another version, or of none."""
     try:
         with open(path, encoding="utf-8") as stream:
             data = json.load(stream)
     except (json.JSONDecodeError, OSError):
         return
-    version = declared_version(data)
-    if version is not None and version != CONFIG_VERSION:
-        raise IncompatibleConfig(path, version)
+    if not is_compatible(data):
+        raise IncompatibleConfig(path, declared_version(data))
+
+
+def write_document(path: Path, document: Any, *, private: bool = False) -> None:
+    """Replace a configuration file in one step, never leaving it half written.
+
+    `private` keeps it to its owner — 0600, in a folder made 0700 — for the
+    signing keys of `auth.json`.
+    """
+    path.parent.mkdir(mode=0o700 if private else 0o777, parents=True, exist_ok=True)
+    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        if private:
+            os.chmod(temporary, 0o600)
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            json.dump(document, stream, indent=2)
+            stream.write("\n")
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def load_servers() -> list[dict[str, Any]]:
-    """Load registered servers from config file."""
-    config_file = get_config_file()
-    if not config_file.exists():
-        defaults = get_default_servers()
-        save_servers(defaults)
-        return defaults
-    data = _read_document(config_file)
-    if isinstance(data, list):
-        return data
+    """The registered servers; none when there is no file of ours."""
+    data = _read_document(get_config_file())
     if isinstance(data, dict) and isinstance(data.get("servers"), list):
         return data["servers"]
-    if data is None and not is_compatible(_read_raw(config_file)):
-        # Another version's file: there is nothing of ours in it.
-        return []
-    return get_default_servers()
-
-
-def _read_raw(path: Path) -> Any:
-    try:
-        with open(path, encoding="utf-8") as stream:
-            return json.load(stream)
-    except (json.JSONDecodeError, OSError):
-        return None
+    return []
 
 
 def save_servers(servers: list[dict[str, Any]]) -> None:
     """Save servers to config file, in the versioned format."""
     config_file = get_config_file()
     guard_write(config_file)
-    with open(config_file, "w", encoding="utf-8") as f:
-        json.dump({"version": CONFIG_VERSION, "servers": servers}, f, indent=2)
+    write_document(config_file, {"version": CONFIG_VERSION, "servers": servers})
 
 
 def add_server(
@@ -243,7 +229,7 @@ def add_server(
         "description": description.strip() if description else f"Server at {clean_url}",
         "avatar": avatar or "quantum-ring",
         "is_default": len(servers) == 0,
-        "created_at": "now",
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "author_identities": author_identities or {},
         "protocol_docs": protocol_docs or {},
     }

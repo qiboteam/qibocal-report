@@ -262,6 +262,9 @@ def execute_bulk_action(root_dir: Path, req: BulkActionRequest) -> BulkActionRes
         if not req.label or not req.label.strip():
             raise HTTPException(status_code=400, detail="Label cannot be empty")
         new_tag = req.label.strip()
+        # A tag that is a path segment would be one in a URL too: `..` is collapsed there.
+        if new_tag in (".", "..") or "/" in new_tag:
+            raise HTTPException(status_code=400, detail="A tag cannot be '.', '..' or contain '/'")
         labeled = _label_reports(matched_dirs, new_tag)
         invalidate_report_cache()
         return BulkActionResponse(
@@ -271,7 +274,7 @@ def execute_bulk_action(root_dir: Path, req: BulkActionRequest) -> BulkActionRes
             message=f"Added label '{new_tag}' to {len(labeled)} report(s)",
         )
 
-    if req.action in ("unlabel", "remove_label", "delete_label"):
+    if req.action == "unlabel":
         if not req.label or not req.label.strip():
             raise HTTPException(status_code=400, detail="Label cannot be empty")
         target_tag = req.label.strip()
@@ -284,8 +287,8 @@ def execute_bulk_action(root_dir: Path, req: BulkActionRequest) -> BulkActionRes
             message=f"Removed label '{target_tag}' from {len(unlabeled)} report(s)",
         )
 
-    if req.action in ("author", "set_author"):
-        new_author = (req.author if req.author is not None else req.label or "").strip()
+    if req.action == "author":
+        new_author = (req.author or "").strip()
         updated = _update_authors(matched_dirs, new_author)
         invalidate_report_cache()
         return BulkActionResponse(

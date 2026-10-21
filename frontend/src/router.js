@@ -32,7 +32,7 @@ const routes = [
   },
   { path: '/servers', name: 'servers', component: ServersView },
   { path: '/admin/:serverId?', name: 'admin', component: ServerAdminView },
-  { path: '/invite/:token?', name: 'invite', component: InviteRegisterView },
+  { path: '/invite', name: 'invite', component: InviteRegisterView },
   { path: '/dashboard', name: 'dashboard', component: DashboardView },
   { path: '/archives', name: 'archives', component: ArchivesView },
   { path: '/statistics', name: 'statistics', component: StatisticsView },

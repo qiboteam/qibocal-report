@@ -134,12 +134,12 @@
 
     <!-- Tags -->
     <div
-      v-if="(report.tags || report.labels)?.length"
+      v-if="report.tags?.length"
       class="mt-3 pt-2.5 border-t border-gray-50 flex items-center gap-1.5 flex-wrap text-xs text-gray-500"
     >
       <span class="text-gray-500 font-semibold">Tags:</span>
       <span
-        v-for="l in (report.tags || report.labels || [])"
+        v-for="l in (report.tags || [])"
         :key="l"
         @click.stop="onTagClick(l)"
         class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono cursor-pointer transition select-none"

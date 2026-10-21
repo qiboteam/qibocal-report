@@ -14,7 +14,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, watch, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { state, fetchServers } from './store.js'
+import { state, fetchServers, getAuthHeader } from './store.js'
 import { alert, announce, inDesktop } from './utils/desktop.js'
 import { createArrivals, describeArrivals } from './utils/arrivals.js'
 import { getActiveServerUrl } from './utils/url.js'
@@ -139,7 +139,8 @@ async function countArrivals() {
     const base = getActiveServerUrl(server)
     if (!base) continue
     try {
-      const response = await fetch(`${base}/api/health`, { cache: 'no-store', signal: AbortSignal.timeout(5000) })
+      // With the token: an authenticated server counts nothing for a stranger.
+      const response = await fetch(`${base}/api/health`, { headers: getAuthHeader(server), cache: 'no-store', signal: AbortSignal.timeout(5000) })
       if (!response.ok) continue
       const health = await response.json()
       const fresh = arrivals(base, Number(health?.reports_count))

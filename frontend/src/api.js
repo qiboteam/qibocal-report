@@ -1,67 +1,17 @@
-import { state, getActiveAuthToken, getServerAuthKey, setServerAuth } from './store.js'
-import { getApiUrl, getActiveServerUrl } from './utils/url.js'
+import { state, getActiveAuthToken, apiFetch, noteUnauthorized } from './store.js'
+import { getActiveServerUrl } from './utils/url.js'
 
-/**
- * Dispatches a fetch request against the selected or currently active server,
- * automatically including Authorization headers when a token is present.
- */
-export async function apiFetch(path, options = {}, server = state.activeServer) {
-  const url = getApiUrl(path, server)
-  const headers = new Headers(options.headers || {})
-  const token = getActiveAuthToken(server)
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
-  const res = await fetch(url, { ...options, headers })
-  if (res.status === 401) noteUnauthorized(server, token)
-  return res
-}
-
-/**
- * A request was refused for want of a session: forget the token it carried,
- * and — when it concerned the active server — say so and go to the servers
- * page, where one signs in.
- */
-function noteUnauthorized(server, token) {
-  const serverUrl = getActiveServerUrl(server)
-  const sessionIsCurrent = token === getActiveAuthToken(server)
-  if (token && sessionIsCurrent) {
-    setServerAuth(server, null, null)
-  }
-  if (sessionIsCurrent && state.auth?.enabled &&
-      getServerAuthKey(server) === getServerAuthKey(state.activeServer) &&
-      serverUrl === getActiveServerUrl(state.activeServer)) {
-    setServerAuth(server, null, null)
-    state.auth.errorMessage = 'Authentication required. Please sign in to access this instance.'
-    if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite') && !window.location.hash.startsWith('#/admin')) {
-      window.location.hash = '#/servers'
-    }
-  }
-}
-
-/**
- * Which servers answer GraphQL: learnt at the first request, per server.
- * A server from before the endpoint answers the POST with a 404 or a 405,
- * and is asked over REST from then on.
- */
-const graphqlSupport = new Map()
-
-function graphqlKey(server) {
-  return getActiveServerUrl(server) || 'local'
-}
+export { apiFetch }
 
 /**
  * Ask several questions in one request, at `/api/graphql`.
  *
- * Answers the `data` of the response; `null` when the server has no such
- * endpoint, which is the caller's cue to ask over REST instead. Errors in
- * the response are thrown, with the first error's code on the exception —
- * `UNAUTHENTICATED` is handled like a 401 before that. The field names are
- * the REST ones, so what comes back is read exactly like a REST response.
+ * Answers the `data` of the response. Errors in the response are thrown,
+ * with the first error's code on the exception — `UNAUTHENTICATED` is
+ * handled like a 401 before that. The field names are the REST ones, so
+ * what comes back is read exactly like a REST response.
  */
 export async function apiGraphQL(query, variables = {}, server = state.activeServer, options = {}) {
-  const key = graphqlKey(server)
-  if (graphqlSupport.get(key) === false) return null
   const token = getActiveAuthToken(server)
   const res = await apiFetch('/api/graphql', {
     method: 'POST',
@@ -69,13 +19,8 @@ export async function apiGraphQL(query, variables = {}, server = state.activeSer
     body: JSON.stringify({ query, variables }),
     ...options
   }, server)
-  if (res.status === 404 || res.status === 405) {
-    graphqlSupport.set(key, false)
-    return null
-  }
   if (!res.ok) throw new Error(`GraphQL request failed (${res.status})`)
   const body = await res.json()
-  graphqlSupport.set(key, true)
   if (Array.isArray(body.errors) && body.errors.length) {
     const code = body.errors[0]?.extensions?.code || null
     if (body.errors.some(error => error?.extensions?.code === 'UNAUTHENTICATED')) noteUnauthorized(server, token)
@@ -88,12 +33,12 @@ export async function apiGraphQL(query, variables = {}, server = state.activeSer
 
 /** The fields of a report as the list shows it, for GraphQL selections. */
 export const REPORT_FIELDS =
-  'id path title date time author platform targets protocols tags labels ' +
+  'id path title date time author platform targets protocols tags ' +
   'total_execution_time has_cached_report has_old_platform has_new_platform'
 
 /** The fields of the filter statistics, for GraphQL selections. */
 export const STATS_FIELDS =
-  'authors tags labels protocols { name count } date_histogram { date count } ' +
+  'authors tags protocols { name count } date_histogram { date count } ' +
   'platforms { name count } author_frequencies { name count } tag_frequencies { name count } total_reports'
 
 /**
@@ -317,12 +262,9 @@ export async function apiUpdateReportAuthor(reportId, author) {
   })
 }
 
+/** Remove one tag from a report: in the body, as a tag in the path could be `..`. */
 export async function apiDeleteReportTag(reportId, tag) {
-  const encodedId = encodeURIComponent(reportId)
-  const encodedTag = encodeURIComponent(tag)
-  return apiFetch(`/api/reports/${encodedId}/label/${encodedTag}`, {
-    method: 'DELETE'
-  })
+  return apiBulkAction({ action: 'unlabel', report_ids: [reportId], label: tag })
 }
 
 export async function apiBulkAction(payload) {

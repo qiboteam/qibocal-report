@@ -83,12 +83,8 @@ export function inviteLink(serverUrl, token, { reset = false, base = dashboardBa
 }
 
 /**
- * Parses user input to extract server base URL and any invite token.
- * Supports:
- * - http://127.0.0.1:8000/#/invite?token=xyz
- * - http://127.0.0.1:8000/?invite=xyz
- * - http://127.0.0.1:8000/invite/xyz
- * - Plain server URLs
+ * The server, and any invitation or password-reset token, of what was
+ * pasted: a link `inviteLink` makes, or a plain server URL.
  */
 export function parseServerAndInvite(input) {
   if (!input) return { url: '', inviteToken: null, resetToken: null }
@@ -96,30 +92,6 @@ export function parseServerAndInvite(input) {
   let inviteToken = null
   let resetToken = null
   let serverUrl = str
-
-  // Try parsing as new token format: server=<url>&invite_token=<token> or server=<url>&reset_token=<token>
-  // Don't use URLSearchParams for this since server URL is not encoded
-  // Not a link to a dashboard, whose query is read below, decoded.
-  if (!str.includes('#/') && str.includes('server=') && (str.includes('invite_token=') || str.includes('reset_token='))) {
-    try {
-      const serverMatch = str.match(/server=([^&]+)/)
-      const inviteMatch = str.match(/invite_token=([^&]+)/)
-      const resetMatch = str.match(/reset_token=([^&]+)/)
-      
-      if (serverMatch && serverMatch[1]) {
-        serverUrl = serverMatch[1]
-        inviteToken = inviteMatch ? inviteMatch[1] : null
-        resetToken = resetMatch ? resetMatch[1] : null
-      }
-      return {
-        url: normalizeUrl(serverUrl),
-        inviteToken,
-        resetToken
-      }
-    } catch {
-      // Fall through to legacy parsing
-    }
-  }
 
   try {
     let urlObj = null
@@ -130,46 +102,19 @@ export function parseServerAndInvite(input) {
     }
 
     if (urlObj) {
-      // 1. Search in query params
-      if (urlObj.searchParams.get('token')) {
-        inviteToken = urlObj.searchParams.get('token')
-      } else if (urlObj.searchParams.get('invite')) {
-        inviteToken = urlObj.searchParams.get('invite')
-      } else if (urlObj.searchParams.get('invite_token')) {
-        inviteToken = urlObj.searchParams.get('invite_token')
-      } else if (urlObj.searchParams.get('reset_token')) {
-        resetToken = urlObj.searchParams.get('reset_token')
+      // #/invite?token=…&server=… or #/invite?reset_token=…&server=…
+      if (urlObj.hash.startsWith('#/invite?')) {
+        const hashParams = new URLSearchParams(urlObj.hash.split('?')[1])
+        inviteToken = hashParams.get('token')
+        resetToken = inviteToken ? null : hashParams.get('reset_token')
+        // A link to a dashboard names the server it is for: that, not the dashboard's own host.
+        const named = hashParams.get('server')
+        if (named) return { url: normalizeUrl(named), inviteToken, resetToken }
       }
-
-      // 2. Search in hash query params (#/invite?token=...)
-      let named = urlObj.searchParams.get('server')
-      if (urlObj.hash && urlObj.hash.includes('?')) {
-        const hashQuery = urlObj.hash.split('?')[1]
-        const hashParams = new URLSearchParams(hashQuery)
-        if (!inviteToken && !resetToken) {
-          inviteToken = hashParams.get('token') || hashParams.get('invite') || hashParams.get('invite_token')
-          resetToken = resetToken || hashParams.get('reset_token')
-        }
-        named = named || hashParams.get('server')
-      }
-      // A link to a dashboard names the server it is for: that, not the dashboard's own host.
-      if (named) {
-        return { url: normalizeUrl(named), inviteToken, resetToken }
-      }
-
-      // 3. Search in path (/invite/<token>)
-      if (!inviteToken && !resetToken && urlObj.pathname) {
-        const parts = urlObj.pathname.split('/').filter(Boolean)
-        const invIdx = parts.findIndex(p => p.toLowerCase() === 'invite')
-        if (invIdx >= 0 && parts[invIdx + 1]) {
-          inviteToken = parts[invIdx + 1]
-        }
-      }
-
       serverUrl = `${urlObj.protocol}//${urlObj.host}`
     }
   } catch {
-    // If not a standard URL, fallback
+    // Not a URL: taken as it is.
   }
 
   return {
@@ -178,4 +123,3 @@ export function parseServerAndInvite(input) {
     resetToken
   }
 }
-

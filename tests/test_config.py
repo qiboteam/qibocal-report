@@ -13,16 +13,20 @@ def config_dir(tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_servers_are_written_versioned_and_read_either_way(config_dir):
+def test_servers_are_written_versioned_and_read_only_so(config_dir):
     config.save_servers([{"id": "a", "name": "one", "url": "http://localhost:8000"}])
     written = json.loads((config_dir / "servers.json").read_text())
     assert written["version"] == config.CONFIG_VERSION
     assert [s["id"] for s in written["servers"]] == ["a"]
     assert [s["id"] for s in config.load_servers()] == ["a"]
 
-    # The file written before versions were: a bare list, still read.
-    (config_dir / "servers.json").write_text(json.dumps([{"id": "b", "url": "http://x"}]))
-    assert [s["id"] for s in config.load_servers()] == ["b"]
+    # A file without a version is not ours: not read, never replaced.
+    bare = json.dumps([{"id": "b", "url": "http://x"}])
+    (config_dir / "servers.json").write_text(bare)
+    assert config.load_servers() == []
+    with pytest.raises(config.IncompatibleConfig, match="no format version"):
+        config.save_servers([])
+    assert (config_dir / "servers.json").read_text() == bare
 
 
 def test_a_file_of_another_version_is_ignored_and_never_replaced(config_dir):
@@ -59,6 +63,7 @@ def test_the_version_is_declared_or_absent():
     assert config.declared_version({"version": 3}) == 3
     assert config.declared_version({"version": True}) is None
     assert config.declared_version([]) is None
-    assert config.is_compatible([]) is True
+    assert config.is_compatible([]) is False
+    assert config.is_compatible({}) is False
     assert config.is_compatible({"version": config.CONFIG_VERSION}) is True
     assert config.is_compatible({"version": config.CONFIG_VERSION + 1}) is False

@@ -26,6 +26,9 @@ const second = { id: 'second', name: 'Second', url: 'http://second.example' }
 const user = { id: 'user', username: 'user', role: 'admin' }
 const initialSearch = JSON.parse(JSON.stringify(state.searchState))
 
+/** A server without authentication, as its GraphQL session says. */
+const openSession = () => Response.json({ data: { session: { auth_enabled: false, user: null } } })
+
 beforeEach(() => {
   setActiveServer(null)
   setServerAuth(first, null, null)
@@ -38,9 +41,8 @@ beforeEach(() => {
   state.sidebarCollapsed = false
   saveStoredServers(state.servers)
   mock.method(globalThis, 'fetch', async url => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-    assert.ok(url.endsWith('/api/auth/status'), `Unexpected backend request: ${url}`)
-    return Response.json({ auth_enabled: false })
+    assert.ok(url.endsWith('/api/graphql'), `Unexpected backend request: ${url}`)
+    return openSession()
   })
 })
 
@@ -80,7 +82,7 @@ test('a pending status refresh cannot resurrect a deleted server', async () => {
   const loading = fetchServers()
   await deleteServer(second.id)
   await deleteServer(first.id)
-  resolveStatus(Response.json({ auth_enabled: false }))
+  resolveStatus(openSession())
   await loading
   assert.deepEqual(state.servers, [])
   assert.equal(state.activeServer, null)
@@ -224,7 +226,7 @@ test('import invalidates pending authentication checks and preserves signed-out 
   // The question reaches the server a tick later: the import must find it pending.
   await new Promise(resolve => setImmediate(resolve))
   importClientState(exportClientState())
-  resolveStatus(Response.json({ auth_enabled: false }))
+  resolveStatus(openSession())
   await checking
   assert.equal(state.auth.checked, false)
   assert.equal(state.auth.user, null)
@@ -245,4 +247,18 @@ test('import prevents pending sign-in and invitation responses from restoring cr
     assert.equal(getActiveAuthToken(first), null)
     assert.equal(state.auth.user, null)
   }
+})
+
+test('a server only an invitation link named is registered once the invitation is accepted', async () => {
+  const invited = { url: 'http://invited.example' }
+  mock.method(globalThis, 'fetch', async url => {
+    if (url.endsWith('/api/graphql')) return openSession()
+    assert.equal(url, `${invited.url}/api/auth/register`)
+    return Response.json({ access_token: 'invited-session', user })
+  })
+  assert.equal(state.servers.some(server => server.url === invited.url), false)
+  const { server } = await registerWithInvite('invite', 'user', 'password', invited)
+  assert.ok(server.id)
+  assert.deepEqual(state.servers.find(entry => entry.url === invited.url), server)
+  assert.equal(getActiveAuthToken(server), 'invited-session')
 })

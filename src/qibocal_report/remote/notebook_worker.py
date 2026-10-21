@@ -608,7 +608,7 @@ def install_remote_connection(connections):
         raise WorkerError(f"{path} is not valid JSON ({error}); the remote connection cannot be added")
     if not isinstance(document, dict):
         raise WorkerError(f"{path} does not hold a JSON object")
-    if document.get("version", 1) != 1:
+    if document and document.get("version") != 1:
         raise WorkerError(f"{path} is of another format (version {document.get('version')}); left as it is")
     present = document.get("connections") if isinstance(document.get("connections"), dict) else {}
     if present.get(name) != entry:

@@ -39,22 +39,22 @@ beforeEach(() => {
 
 afterEach(() => mock.restoreAll())
 
-// The store asks a server for its session over GraphQL first, and falls back
-// to the REST questions when the endpoint is not there: the stubs below are
-// such older servers, so that each REST answer stays the one under test.
+/** The session a server answers over GraphQL: the user only for a token it knows. */
+function session(enabled, options, user = viewer) {
+  const signedIn = Boolean(new Headers(options?.headers).get('Authorization'))
+  return json({ data: { session: { auth_enabled: enabled, user: enabled && signedIn ? user : null } } })
+}
 
 test('a registered server can switch between open and authenticated modes', async () => {
   let enabled = false
   mock.method(globalThis, 'fetch', async (url, options) => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-    if (url.endsWith('/api/auth/status')) {
+    if (url.endsWith('/api/graphql')) {
       assert.equal(options.cache, 'no-store')
-      return json({ auth_enabled: enabled })
+      return session(enabled, options)
     }
     if (url.endsWith('/api/auth/login')) {
       return json({ access_token: 'viewer-session', user: viewer })
     }
-    if (url.endsWith('/api/auth/me')) return json(viewer)
     assert.fail(`Unexpected request: ${url}`)
   })
 
@@ -90,9 +90,7 @@ test('a registered server can switch between open and authenticated modes', asyn
 
 test('sessions are isolated per server and logout allows a different account', async () => {
   mock.method(globalThis, 'fetch', async (url, options) => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-    if (url.endsWith('/api/auth/status')) return json({ auth_enabled: true })
-    if (url.endsWith('/api/auth/me')) return json(viewer)
+    if (url.endsWith('/api/graphql')) return session(true, options)
     if (url.endsWith('/api/auth/login')) {
       const { username } = JSON.parse(options.body)
       return json({ access_token: `${username}-session`, user: username === 'viewer' ? viewer : editor })
@@ -130,10 +128,8 @@ test('sessions are isolated per server and logout allows a different account', a
 
 test('selecting a server rejects expired tokens and refreshes user roles', async () => {
   let valid = false
-  mock.method(globalThis, 'fetch', async url => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-    if (url.endsWith('/api/auth/status')) return json({ auth_enabled: true })
-    if (url.endsWith('/api/auth/me')) return valid ? json(viewer) : json({ detail: 'Expired' }, 401)
+  mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/api/graphql')) return session(true, valid ? options : {})
     assert.fail(`Unexpected request: ${url}`)
   })
   setServerAuth(server, 'expired-session', editor)
@@ -159,22 +155,21 @@ test('unavailable authentication status never grants open-mode permissions', asy
 })
 
 test('overlapping auth checks share a request and cannot restore a logged-out session', async () => {
-  let resolveMe
-  let markMeStarted
-  const meStarted = new Promise(resolve => { markMeStarted = resolve })
+  let resolveSession
+  let markStarted
+  const started = new Promise(resolve => { markStarted = resolve })
   const fetchMock = mock.method(globalThis, 'fetch', async url => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-    if (url.endsWith('/api/auth/status')) return json({ auth_enabled: true })
-    markMeStarted()
-    return new Promise(resolve => { resolveMe = resolve })
+    assert.ok(url.endsWith('/api/graphql'), `Unexpected request: ${url}`)
+    markStarted()
+    return new Promise(resolve => { resolveSession = resolve })
   })
   setServerAuth(server, 'viewer-session', viewer)
   const checking = setActiveServer(server)
   const repeated = checkActiveServerAuth(server)
-  await meStarted
-  assert.equal(fetchMock.mock.callCount(), 2)
+  await started
+  assert.equal(fetchMock.mock.callCount(), 1)
   logoutActiveServer()
-  resolveMe(json(viewer))
+  resolveSession(session(true, { headers: { Authorization: 'Bearer viewer-session' } }))
   assert.equal(await checking, false)
   assert.equal(await repeated, false)
   assert.equal(getActiveAuthToken(server), null)
@@ -183,16 +178,15 @@ test('overlapping auth checks share a request and cannot restore a logged-out se
 
 test('a response from the previously active server cannot overwrite current permissions', async () => {
   let resolveFirst
-  mock.method(globalThis, 'fetch', async url => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
+  mock.method(globalThis, 'fetch', async (url, options) => {
     if (url.startsWith(server.url)) {
       return new Promise(resolve => { resolveFirst = resolve })
     }
-    return json({ auth_enabled: true })
+    return session(true, options)
   })
   const firstCheck = setActiveServer(server)
   assert.equal(await setActiveServer(otherServer), true)
-  resolveFirst(json({ auth_enabled: false }))
+  resolveFirst(session(false))
   assert.equal(await firstCheck, false)
   assert.equal(state.activeServer.id, otherServer.id)
   assert.equal(state.auth.enabled, true)
@@ -200,9 +194,8 @@ test('a response from the previously active server cannot overwrite current perm
 })
 
 test('API rejection removes the persisted session as well as the active session', async () => {
-  mock.method(globalThis, 'fetch', async url => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-    if (url.endsWith('/api/auth/status')) return json({ auth_enabled: true })
+  mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/api/graphql')) return session(true, options)
     return json({ detail: 'Unauthorized' }, 401)
   })
   await setActiveServer(server)
@@ -212,12 +205,10 @@ test('API rejection removes the persisted session as well as the active session'
   assert.equal(state.auth.user, null)
 })
 
-test('an old server API rejection clears only that server session', async () => {
+test('a previously active server API rejection clears only that server session', async () => {
   let finishRequest
-  mock.method(globalThis, 'fetch', async url => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-    if (url.endsWith('/api/auth/status')) return json({ auth_enabled: true })
-    if (url.endsWith('/api/auth/me')) return json(viewer)
+  mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/api/graphql')) return session(true, options)
     return new Promise(resolve => { finishRequest = resolve })
   })
   await setActiveServer(server)
@@ -235,9 +226,8 @@ test('an old server API rejection clears only that server session', async () => 
 
 test('a stale API rejection cannot clear a newly signed-in session', async () => {
   let finishRequest
-  mock.method(globalThis, 'fetch', async url => {
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
-    if (url.endsWith('/api/auth/status')) return json({ auth_enabled: true })
+  mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/api/graphql')) return session(true, options)
     return new Promise(resolve => { finishRequest = resolve })
   })
   await setActiveServer(server)

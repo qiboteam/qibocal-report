@@ -87,7 +87,7 @@
     <div
       v-if="proto.html"
       class="protocol-html-container my-4 overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-2xs"
-      v-html="proto.html"
+      v-html="safeHtml"
       @click="handleTableClick"
     ></div>
 
@@ -157,6 +157,7 @@ import { state, apiFetch } from '../../store.js'
 import { useNearViewport } from '../../composables/useNearViewport.js'
 import { getProtocolDocUrl, hasSpecificDoc } from '../../utils/protocolDocs.js'
 import { copyToClipboard } from '../../utils/clipboard.js'
+import { sanitizeHtml } from '../../utils/sanitize.js'
 import { getReportDownloadFilename } from '../../utils/apiFiles.js'
 import ApiFileButton from '../ApiFileButton.vue'
 import PlotlyViewer from '../PlotlyViewer.vue'
@@ -183,6 +184,9 @@ const pendingOutputs = computed(() => ['pending', 'loading', 'failed'].includes(
 useNearViewport(root, () => {
   if (props.proto?.outputs === 'pending' && requestOutputs) requestOutputs(props.proto.id)
 })
+
+/** The protocol's HTML, as a report from any server may carry it: cleaned. */
+const safeHtml = computed(() => sanitizeHtml(props.proto?.html))
 
 const docUrl = computed(() => {
   return getProtocolDocUrl(props.proto?.id, props.proto?.name, state.activeServer)

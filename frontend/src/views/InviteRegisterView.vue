@@ -7,10 +7,10 @@
         </svg>
       </div>
       <h1 class="text-2xl font-bold text-gray-900 tracking-tight">
-        {{ inviteInfo?.target_username ? 'Restore Administrator Access' : 'Join Qibocal Report Server' }}
+        {{ resetting ? 'Restore Access' : 'Join Qibocal Report Server' }}
       </h1>
       <p class="mt-1.5 text-xs sm:text-sm text-gray-500">
-        {{ inviteInfo?.target_username ? `Re-authenticate and restore access for ${inviteInfo.target_username}` : "You've been invited to access this report instance." }}
+        {{ resetting && inviteInfo?.target_username ? `Re-authenticate and restore access for ${inviteInfo.target_username}` : (resetting ? 'Choose a new password for your account.' : "You've been invited to access this report instance.") }}
       </p>
     </div>
 
@@ -59,7 +59,7 @@
             </div>
             <div class="flex items-center justify-between">
               <div>
-                <span class="text-gray-500 text-[11px] font-medium uppercase tracking-wider block mb-0.5">Role Assigned</span>
+                <span class="text-gray-500 text-[11px] font-medium uppercase tracking-wider block mb-0.5">{{ resetting ? 'Role' : 'Role Assigned' }}</span>
                 <span
                   class="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider inline-block"
                   :class="roleBadgeClass(inviteInfo?.role)"
@@ -88,7 +88,7 @@
           <form @submit.prevent="handleRegister" class="space-y-4">
             <div>
               <label class="block text-[11px] font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                {{ inviteInfo?.target_username ? 'Administrator Username' : 'Choose Username' }}
+                {{ inviteInfo?.target_username ? 'Username' : 'Choose Username' }}
               </label>
               <input
                 v-model="username"
@@ -101,7 +101,8 @@
                 :class="inviteInfo?.target_username ? 'bg-gray-200/80 text-gray-700 cursor-not-allowed' : 'bg-gray-100/70 focus:bg-white'"
               />
               <p v-if="inviteInfo?.target_username" class="mt-1 text-[11px] text-purple-700">
-                This invitation link restores access for administrator <strong>{{ inviteInfo.target_username }}</strong>.
+                <template v-if="resetting">This link restores access for <strong>{{ inviteInfo.target_username }}</strong> ({{ inviteInfo.role || 'viewer' }}).</template>
+                <template v-else>This invitation is for <strong>{{ inviteInfo.target_username }}</strong>.</template>
               </p>
             </div>
 
@@ -139,7 +140,7 @@
               class="w-full mt-2 px-4 py-3 rounded-xl text-xs sm:text-sm font-semibold bg-[#833dff] text-white hover:bg-[#722ce6] active:scale-[0.98] transition shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 border-0"
             >
               <span v-if="submitting" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              <span>{{ submitting ? 'Updating Account...' : (inviteInfo?.target_username ? 'Restore Access & Sign In' : 'Complete Registration') }}</span>
+              <span>{{ submitting ? 'Updating Account...' : (resetting ? 'Restore Access & Sign In' : 'Complete Registration') }}</span>
             </button>
           </form>
 
@@ -160,7 +161,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { state, registerWithInvite, addServer, setActiveServer } from '../store.js'
+import { state, registerWithInvite, setActiveServer } from '../store.js'
 import { apiGetInvite, apiGetPasswordReset } from '../api.js'
 import { normalizeUrl } from '../utils/url.js'
 
@@ -209,7 +210,7 @@ async function resolveAndValidate() {
 
   // An invitation, or a password reset: the same page, the same registration.
   resetting.value = !route.query.token && Boolean(route.query.reset_token)
-  token.value = (route.query.token || route.query.reset_token || route.params.token || '').toString().trim()
+  token.value = (route.query.token || route.query.reset_token || '').toString().trim()
   if (!token.value) {
     tokenError.value = 'No invitation token found in link URL.'
     validating.value = false
@@ -225,21 +226,9 @@ async function resolveAndValidate() {
     return
   }
 
-  let serverObj = state.activeServer
-  if (serverParam) {
-    const norm = normalizeUrl(serverParam)
-    const existing = state.servers.find(s => normalizeUrl(s.url) === norm)
-    if (existing) {
-      serverObj = existing
-    } else {
-      serverObj = await addServer(norm)
-    }
-  }
-
-  if (serverObj) {
-    setActiveServer(serverObj)
-    targetServer.value = serverObj
-  }
+  // Asked at its address until the invitation is accepted, and only then registered.
+  const norm = normalizeUrl(serverParam)
+  targetServer.value = state.servers.find(s => normalizeUrl(s.url) === norm) || { url: norm }
 
   try {
     const res = resetting.value
@@ -280,12 +269,13 @@ async function handleRegister() {
   submitError.value = ''
 
   try {
-    await registerWithInvite(
+    const { server } = await registerWithInvite(
       token.value,
       username.value.trim(),
       password.value,
-      targetServer.value || state.activeServer
+      targetServer.value
     )
+    await setActiveServer(server)
     router.push('/dashboard')
   } catch (err) {
     submitError.value = err.message || 'Registration failed.'

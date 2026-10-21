@@ -353,22 +353,13 @@ export function useReportDetail(reportId) {
   /**
    * The report over GraphQL, its protocols named but not yet fetched.
    * Answers 'ready' when the outputs can be fetched one by one — a report
-   * with pre-cached outputs — 'generate' when they have to be generated
-   * first, which the WebSocket does with progress, and false when the
-   * server has no GraphQL or could not be asked that way. A missing report
-   * is thrown, as over REST.
+   * with pre-cached outputs — and 'generate' when they have to be generated
+   * first, which the WebSocket does with progress. A missing report is
+   * thrown.
    */
   async function loadViaGraphQL(id) {
-    let data = null
-    try {
-      data = await apiGraphQL(REPORT_QUERY, { id })
-    } catch (err) {
-      if (err?.code === 'UNAUTHENTICATED') throw err
-      console.warn('GraphQL request failed, asking otherwise', err)
-      return false
-    }
-    if (!data) return false
-    if (!data.report) {
+    const data = await apiGraphQL(REPORT_QUERY, { id })
+    if (!data?.report) {
       removeFromHistory(id)
       throw new Error('Report not found (404)')
     }
@@ -389,30 +380,13 @@ export function useReportDetail(reportId) {
     return 'ready'
   }
 
-  async function loadViaHttp(id) {
+  /** The protocols generated in one request, where the WebSocket could not be opened. */
+  async function loadProtocolsViaHttp(id) {
     try {
-      loadingStatus.value = 'Fetching report metadata...'
-      const encodedId = encodeURIComponent(id)
-      const res = await apiFetch(`/api/reports/${encodedId}`)
-      if (!res.ok) {
-        if (res.status === 404) {
-          removeFromHistory(id)
-        }
-        throw new Error(`Report not found (${res.status})`)
-      }
-      const data = await res.json()
-      report.value = data
-      state.currentReportId = data.id
-      addToHistory(data)
-
       loadingStatus.value = 'Retrieving report protocols...'
-      const protoRes = await apiFetch(`/api/reports/${encodedId}/protocols`)
-      if (protoRes.ok) {
-        const protoData = await protoRes.json()
-        protocols.value = sortProtocolsByExecutionOrder(protoData, report.value)
-      } else {
-        throw new Error(`Failed to load protocols (${protoRes.status})`)
-      }
+      const protoRes = await apiFetch(`/api/reports/${encodeURIComponent(id)}/protocols`)
+      if (!protoRes.ok) throw new Error(`Failed to load protocols (${protoRes.status})`)
+      protocols.value = sortProtocolsByExecutionOrder(await protoRes.json(), report.value)
     } catch (err) {
       error.value = err.message
     } finally {
@@ -463,7 +437,7 @@ export function useReportDetail(reportId) {
       console.warn('WebSocket streaming unavailable, falling back to HTTP:', err)
     }
 
-    await loadViaHttp(id)
+    await loadProtocolsViaHttp(id)
   }
 
   async function handleRegenerate() {
@@ -529,17 +503,15 @@ export function useReportDetail(reportId) {
   async function handleRemoveTag(tag) {
     if (!report.value || !tag) return
     try {
-      const encodedId = encodeURIComponent(report.value.id)
-      const encodedTag = encodeURIComponent(tag)
-      const res = await apiFetch(`/api/reports/${encodedId}/label/${encodedTag}`, {
-        method: 'DELETE'
+      // In the body: a tag in the path could be `..`, which the browser collapses.
+      const res = await apiFetch('/api/reports/bulk-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unlabel', report_ids: [report.value.id], label: tag })
       })
       if (res.ok) {
         if (Array.isArray(report.value.tags)) {
           report.value.tags = report.value.tags.filter(t => t !== tag)
-        }
-        if (Array.isArray(report.value.labels)) {
-          report.value.labels = report.value.labels.filter(t => t !== tag)
         }
         showBanner(`Removed tag '${tag}'`)
       } else {

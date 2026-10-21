@@ -88,7 +88,7 @@
     <td class="py-3.5 px-4 overflow-hidden">
       <div class="flex flex-wrap gap-1 max-w-full">
         <span
-          v-for="tag in (report.tags || report.labels || []).slice(0, 3)"
+          v-for="tag in (report.tags || []).slice(0, 3)"
           :key="tag"
           @click.stop="$emit('filter-tag', tag)"
           class="group/tag inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono truncate cursor-pointer transition select-none"
@@ -106,13 +106,13 @@
           </button>
         </span>
         <span
-          v-if="(report.tags || report.labels || []).length > 3"
+          v-if="(report.tags || []).length > 3"
           class="text-[11px] text-gray-400 font-medium px-1 shrink-0"
         >
-          +{{ (report.tags || report.labels || []).length - 3 }}
+          +{{ (report.tags || []).length - 3 }}
         </span>
         <span
-          v-if="!(report.tags || report.labels || []).length"
+          v-if="!(report.tags || []).length"
           class="text-gray-300 text-xs"
         >
           —

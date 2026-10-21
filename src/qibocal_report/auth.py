@@ -1,11 +1,13 @@
 """Authentication, user roles, and invitation token management for qibocal-report."""
 
 from datetime import datetime, timedelta, timezone
+import functools
 import hashlib
 import json
 import os
 from pathlib import Path
 import secrets
+import threading
 import uuid
 
 import jwt
@@ -42,8 +44,40 @@ def get_auth_file(*, create: bool = True) -> Path:
     return config.get_config_dir(create=create) / "auth.json"
 
 
+class AuthStoreError(RuntimeError):
+    """auth.json cannot be read as ours: answered as an error, never replaced."""
+
+
+# One writer at a time, and a reader never sees a write half done: every
+# read-modify-write of the store holds this lock, so an invitation used twice
+# at once registers one account.
+_LOCK = threading.RLock()
+
+
+def store_lock() -> threading.RLock:
+    """The lock of the store, for a sequence of reads and writes that must not interleave."""
+    return _LOCK
+
+
+def locked(function):
+    """Run a read-modify-write of the store under the lock."""
+
+    @functools.wraps(function)
+    def run(*args, **kwargs):
+        with _LOCK:
+            return function(*args, **kwargs)
+
+    return run
+
+
+@locked
 def load_auth_data() -> dict:
-    """Load users and invitations from auth file."""
+    """Load users and invitations from auth file.
+
+    A missing file is a new store; one that is not valid JSON, or of another
+    format, is an error rather than an empty store, which the next write
+    would put in its place — every account, and the signing key, gone.
+    """
     fpath = get_auth_file()
     if not fpath.exists():
         initial = {
@@ -55,43 +89,26 @@ def load_auth_data() -> dict:
         save_auth_data(initial)
         return initial
     try:
-        with open(fpath, encoding="utf-8") as f:
-            data = json.load(f)
-            if isinstance(data, dict) and not config.is_compatible(data):
-                # Another version's file: read as empty, never written over.
-                return {
-                    "version": config.CONFIG_VERSION,
-                    "secret_key": secrets.token_hex(32),
-                    "users": [],
-                    "invites": [],
-                }
-            if isinstance(data, dict):
-                data.setdefault("version", config.CONFIG_VERSION)
-                data.setdefault("users", [])
-                data.setdefault("invites", [])
-                if not data.get("secret_key"):
-                    data["secret_key"] = secrets.token_hex(32)
-                    save_auth_data(data)
-                return data
-    except (json.JSONDecodeError, OSError):
-        pass
-    fallback = {
-        "version": config.CONFIG_VERSION,
-        "secret_key": secrets.token_hex(32),
-        "users": [],
-        "invites": [],
-    }
-    return fallback
+        data = json.loads(fpath.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as error:
+        raise AuthStoreError(f"'{fpath}' cannot be read ({error}); it is left as it is.") from error
+    if not isinstance(data, dict) or not config.is_compatible(data):
+        raise AuthStoreError(str(config.IncompatibleConfig(fpath, config.declared_version(data))))
+    data.setdefault("users", [])
+    data.setdefault("invites", [])
+    if not data.get("secret_key"):
+        data["secret_key"] = secrets.token_hex(32)
+        save_auth_data(data)
+    return data
 
 
+@locked
 def save_auth_data(data: dict) -> None:
-    """Persist users and invitations to auth file."""
+    """Persist users and invitations to auth file, for its owner's eyes only."""
     fpath = get_auth_file()
     config.guard_write(fpath)
     data.setdefault("version", config.CONFIG_VERSION)
-    fpath.parent.mkdir(parents=True, exist_ok=True)
-    with open(fpath, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    config.write_document(fpath, data, private=True)
 
 
 # --- Password Hashing & Verification ---
@@ -183,6 +200,7 @@ def get_user_by_username(username: str) -> dict | None:
     return None
 
 
+@locked
 def create_user(username: str, password: str, role: str) -> dict:
     """Create and persist a new user."""
     clean_username = username.strip()
@@ -218,6 +236,7 @@ def create_user(username: str, password: str, role: str) -> dict:
     }
 
 
+@locked
 def update_user_role(user_id: str, new_role: str) -> dict:
     """Update role for an existing user."""
     valid_roles = {UserRole.VIEWER.value, UserRole.EDITOR.value, UserRole.ADMIN.value}
@@ -252,6 +271,7 @@ def update_user_role(user_id: str, new_role: str) -> dict:
     }
 
 
+@locked
 def delete_user(user_id: str) -> bool:
     """Delete a user account."""
     data = load_auth_data()
@@ -361,6 +381,7 @@ def list_admins() -> list[dict]:
     return result
 
 
+@locked
 def reset_user_password(username: str, new_password: str) -> dict:
     """Reset the password for an existing user."""
     clean_username = username.strip()
@@ -387,6 +408,7 @@ def reset_user_password(username: str, new_password: str) -> dict:
     }
 
 
+@locked
 def create_password_reset(user_id: str, created_by: str = "admin") -> dict:
     """Generate a password reset token for a user."""
     data = load_auth_data()
@@ -467,6 +489,7 @@ def validate_password_reset(token: str) -> tuple[bool, dict | None]:
     return True, reset
 
 
+@locked
 def delete_password_reset(token: str) -> bool:
     """Revoke/delete a password reset token."""
     data = load_auth_data()
@@ -479,6 +502,7 @@ def delete_password_reset(token: str) -> bool:
     return False
 
 
+@locked
 def create_invite(
     role: str = "viewer",
     expires_in_hours: int | None = 168,
@@ -517,6 +541,7 @@ def create_invite(
     return invite
 
 
+@locked
 def regenerate_admin_invite(
     username: str | None = None,
     expires_in_hours: int | None = 168,
@@ -576,6 +601,7 @@ def regenerate_admin_invite(
     )
 
 
+@locked
 def use_invite(token: str) -> dict | None:
     """Record usage of an invitation token."""
     data = load_auth_data()
@@ -599,6 +625,7 @@ def use_invite(token: str) -> dict | None:
     return target
 
 
+@locked
 def delete_invite(token: str) -> bool:
     """Revoke/delete an invitation token."""
     data = load_auth_data()
@@ -650,6 +677,7 @@ def get_upload_policy() -> dict:
     return {"policy": policy, "users": users}
 
 
+@locked
 def set_upload_policy(policy: str, users: list[str]) -> dict:
     """Change who may upload; unknown users are left out."""
     if policy not in UPLOAD_POLICIES:

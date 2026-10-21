@@ -90,7 +90,7 @@ class ReportFilter:
     authors: list[str] | None = None
     platforms: list[str] | None = None
     protocols: list[str] | None = None
-    labels: list[str] | None = None
+    tags: list[str] | None = None
     qubits: list[str] | None = None
     start_date: str | None = None
     end_date: str | None = None
@@ -109,7 +109,6 @@ class Report:
     targets: JSON
     protocols: list[str]
     tags: list[str]
-    labels: list[str]
     total_execution_time: str | None
     has_cached_report: bool
     has_old_platform: bool
@@ -128,7 +127,6 @@ class Report:
             targets=summary.targets,
             protocols=summary.protocols,
             tags=summary.tags,
-            labels=summary.labels,
             total_execution_time=summary.total_execution_time,
             has_cached_report=summary.has_cached_report,
             has_old_platform=summary.has_old_platform,
@@ -161,7 +159,6 @@ class HistogramBin:
 class Stats:
     authors: list[str]
     tags: list[str]
-    labels: list[str]
     protocols: list[Frequency]
     date_histogram: list[HistogramBin]
     platforms: list[Frequency]
@@ -175,7 +172,6 @@ class Stats:
         return Stats(
             authors=stats.authors,
             tags=stats.tags,
-            labels=stats.labels,
             protocols=frequencies(stats.protocols),
             date_histogram=[
                 HistogramBin(date=b.date, count=b.count) for b in stats.date_histogram
@@ -328,7 +324,7 @@ def _filtered(info: Info, where: ReportFilter | None) -> list[ReportSummary]:
         folder=where.folder,
         authors=where.authors,
         platforms=where.platforms,
-        labels=where.labels,
+        tags=where.tags,
         protocols=where.protocols,
         qubits=where.qubits,
         start_date=where.start_date,

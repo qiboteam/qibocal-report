@@ -5,7 +5,6 @@ export function computeStatsFromReports(reports, server = state.activeServer) {
     return {
       authors: [],
       tags: [],
-      labels: [],
       protocols: [],
       date_histogram: [],
       platforms: [],
@@ -16,7 +15,7 @@ export function computeStatsFromReports(reports, server = state.activeServer) {
   }
 
   const authorsSet = new Set()
-  const labelsSet = new Set()
+  const tagsSet = new Set()
   const protoMap = new Map()
   const platformMap = new Map()
   const authorMap = new Map()
@@ -35,8 +34,8 @@ export function computeStatsFromReports(reports, server = state.activeServer) {
     for (const p of (r.protocols || [])) {
       protoMap.set(p, (protoMap.get(p) || 0) + 1)
     }
-    for (const t of (r.tags || r.labels || [])) {
-      labelsSet.add(t)
+    for (const t of (r.tags || [])) {
+      tagsSet.add(t)
       tagMap.set(t, (tagMap.get(t) || 0) + 1)
     }
     if (r.date) {
@@ -66,8 +65,7 @@ export function computeStatsFromReports(reports, server = state.activeServer) {
 
   return {
     authors: Array.from(authorsSet).sort(),
-    tags: Array.from(labelsSet).sort(),
-    labels: Array.from(labelsSet).sort(),
+    tags: Array.from(tagsSet).sort(),
     protocols,
     platforms,
     author_frequencies,

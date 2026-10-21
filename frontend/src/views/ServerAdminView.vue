@@ -252,13 +252,14 @@
 
               <div>
                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                  Max Uses
+                  Max Uses <span class="normal-case font-normal">(blank: unlimited)</span>
                 </label>
                 <input
                   v-model.number="newInvite.maxUses"
                   type="number"
                   min="1"
-                  placeholder="1 (Single-use)"
+                  placeholder="Unlimited"
+                  title="Leave blank for unlimited uses"
                   class="w-full px-3.5 py-2.5 bg-gray-100/70 focus:bg-white rounded-xl text-xs text-gray-900 border-0 focus:outline-none focus:ring-2 focus:ring-[#833dff]/25 shadow-2xs"
                 />
               </div>
@@ -345,7 +346,7 @@
                     </span>
                   </td>
                   <td class="py-3.5 px-4 text-gray-600 font-mono text-[11px]">
-                    {{ inv.uses_count }} / {{ inv.max_uses ? inv.max_uses : '∞' }}
+                    {{ inv.used_count }} / {{ inv.max_uses ? inv.max_uses : '∞' }}
                   </td>
                   <td class="py-3.5 px-4 text-[11px]">
                     <span v-if="isInviteExpired(inv)" class="text-red-600 font-semibold">
@@ -750,10 +751,11 @@ async function loadAll() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [uRes, iRes, cRes] = await Promise.all([
+    const [uRes, iRes, cRes, pRes] = await Promise.all([
       apiGetAdminUsers(),
       apiGetAdminInvites(),
-      apiGetAdminConfig()
+      apiGetAdminConfig(),
+      apiGetAdminPasswordResets()
     ])
 
     if (uRes.ok) {
@@ -769,18 +771,11 @@ async function loadAll() {
     if (cRes.ok) {
       serverConfig.value = await cRes.json()
     }
-    await loadUploads().catch(() => {})
 
-    // Fetch password resets separately as it may not be available on older servers
-    try {
-      const pRes = await apiGetAdminPasswordResets()
-      if (pRes.ok) {
-        passwordResets.value = await pRes.json()
-      }
-    } catch (err) {
-      console.debug('Password resets endpoint not available', err)
-      passwordResets.value = []
+    if (pRes.ok) {
+      passwordResets.value = await pRes.json()
     }
+    await loadUploads().catch(() => {})
   } catch (err) {
     errorMessage.value = err.message || 'Failed to load administration data.'
   } finally {
@@ -851,7 +846,8 @@ async function handleCreateInvite() {
   try {
     const payload = {
       role: newInvite.role,
-      expires_hours: newInvite.expiresHours,
+      // null: never expires.
+      expires_in_hours: newInvite.expiresHours,
       max_uses: newInvite.maxUses || null
     }
     const res = await apiCreateInvite(payload)

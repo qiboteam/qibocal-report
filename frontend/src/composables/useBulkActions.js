@@ -253,17 +253,15 @@ export function useBulkActions() {
   async function removeTagFromReport({ report, tag }, onSuccess) {
     if (!report?.id || !tag) return
     try {
-      const encodedId = encodeURIComponent(report.id)
-      const encodedTag = encodeURIComponent(tag)
-      const res = await apiFetch(`/api/reports/${encodedId}/label/${encodedTag}`, {
-        method: 'DELETE'
+      // In the body: a tag in the path could be `..`, which the browser collapses.
+      const res = await apiFetch('/api/reports/bulk-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unlabel', report_ids: [report.id], label: tag })
       })
       if (res.ok) {
         if (Array.isArray(report.tags)) {
           report.tags = report.tags.filter(t => t !== tag)
-        }
-        if (Array.isArray(report.labels)) {
-          report.labels = report.labels.filter(t => t !== tag)
         }
         showSuccess(`Removed tag '${tag}' from report`, 3000)
         if (onSuccess) await onSuccess()

@@ -18,7 +18,10 @@ test('an invitation link names the token and the server, and reads back', () => 
   assert.deepEqual(parseServerAndInvite(reset), { url: 'http://lab:8000', inviteToken: null, resetToken: 'xyz' })
 })
 
-test('older forms still read', () => {
-  assert.deepEqual(parseServerAndInvite('server=http://lab:8000&invite_token=abc'), { url: 'http://lab:8000', inviteToken: 'abc', resetToken: null })
-  assert.equal(parseServerAndInvite('http://lab:8000/#/invite?token=abc').url, 'http://lab:8000')
+test('a plain server address has no token, and nor do other link forms', () => {
+  assert.deepEqual(parseServerAndInvite('lab:8000/'), { url: 'http://lab:8000', inviteToken: null, resetToken: null })
+  assert.deepEqual(parseServerAndInvite('https://lab.example/reports'), { url: 'https://lab.example', inviteToken: null, resetToken: null })
+  for (const link of ['http://lab:8000/?invite=abc', 'http://lab:8000/invite/abc', 'http://lab:8000/#/invite?invite_token=abc']) {
+    assert.deepEqual(parseServerAndInvite(link), { url: 'http://lab:8000', inviteToken: null, resetToken: null }, link)
+  }
 })

@@ -90,3 +90,20 @@ def test_another_deployment_of_the_dashboard_can_be_allowed(client, monkeypatch)
         "/api/reports/upload", headers={"origin": "https://lab.example.org"}, files={"file": ("r.zip", b"PK", "application/zip")}
     )
     assert upload.status_code != 403
+
+
+def test_a_report_in_a_subfolder_is_tagged_untagged_and_kept(client, tmp_path):
+    import shutil
+
+    root = tmp_path / "reports"
+    shutil.copytree(root / REPORT, root / "runs" / "chip" / REPORT)
+    scanner.invalidate_report_cache()
+    nested = f"runs/chip/{REPORT}".replace("/", "%2F")
+    assert client.post(f"/api/reports/{nested}/label", json={"label": "fresh"}).status_code == 200
+    assert client.put(f"/api/reports/{nested}/author", json={"author": "someone"}).status_code == 200
+    assert client.delete(f"/api/reports/{nested}/label/fresh").status_code == 200
+    assert (root / "runs" / "chip" / REPORT / "meta.json").is_file()
+    # A URL collapses `..`: such a tag would be removed by deleting the report.
+    for tag in (".", "..", "a/b"):
+        refused = client.post("/api/reports/bulk-action", json={"action": "label", "report_ids": [REPORT], "label": tag})
+        assert refused.status_code == 400

@@ -11,7 +11,7 @@
       <div v-if="['pending', 'loading'].includes(proto.outputs)" class="h-40 flex items-center justify-center text-xs text-gray-400">Fetching…</div>
       <plotly-viewer v-else-if="proto.figures?.length" :figure="proto.figures[0]" thumbnail />
       <div v-else-if="proto.html" class="h-40 overflow-hidden my-2" inert>
-        <div class="thumbnail-table" v-html="proto.html"></div>
+        <div class="thumbnail-table" v-html="safeHtml"></div>
       </div>
       <div v-else class="h-40 flex flex-col items-center justify-center gap-2 text-xs text-gray-500">
         <TriangleAlert v-if="proto.error" class="w-8 h-8 text-amber-500" />
@@ -29,16 +29,19 @@
 </template>
 
 <script setup>
-import { inject, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { TriangleAlert } from 'lucide-vue-next'
 import PlotlyViewer from '../PlotlyViewer.vue'
 import { useNearViewport } from '../../composables/useNearViewport.js'
+import { sanitizeHtml } from '../../utils/sanitize.js'
 
 const props = defineProps({
   proto: { type: Object, required: true },
   index: { type: Number, required: true }
 })
 defineEmits(['select'])
+
+const safeHtml = computed(() => sanitizeHtml(props.proto?.html))
 
 // The first figure is the thumbnail: fetched, like the card's, when near.
 const root = ref(null)

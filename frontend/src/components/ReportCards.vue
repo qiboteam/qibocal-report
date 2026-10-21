@@ -92,10 +92,10 @@
               </svg>
             </button>
           </div>
-          <div v-if="(report.tags || report.labels || []).length > 0" class="flex items-center gap-1.5 flex-wrap">
+          <div v-if="(report.tags || []).length > 0" class="flex items-center gap-1.5 flex-wrap">
             <strong class="text-gray-900">Tags:</strong>
             <span
-              v-for="l in (report.tags || report.labels || [])"
+              v-for="l in (report.tags || [])"
               :key="l"
               @click.stop="$emit('filter-tag', l)"
               class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-mono cursor-pointer transition select-none"

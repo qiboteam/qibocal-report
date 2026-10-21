@@ -28,12 +28,19 @@ function createTestServer() {
   })
 }
 
+/** The session a server answers over GraphQL: the user only for a token it carries. */
+function session(enabled, options) {
+  const signedIn = Boolean(new Headers(options?.headers).get('Authorization'))
+  const user = enabled && signedIn ? { id: 'user', username: 'user', role: 'viewer' } : null
+  return Response.json({ data: { session: { auth_enabled: enabled, user } } })
+}
+
 test('clicking a cached online card prompts login after enabling auth and browses after disabling it', async () => {
   const storage = setupStorage()
   let enabled = false
-  mock.method(globalThis, 'fetch', async url => {
+  mock.method(globalThis, 'fetch', async (url, options) => {
     if (url.endsWith('/api/health')) return new Response('{}')
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
+    if (url.endsWith('/api/graphql')) return session(enabled, options)
     if (url.endsWith('/api/auth/status')) {
       return Response.json({ auth_enabled: enabled })
     }
@@ -94,9 +101,13 @@ test('clicking a cached online card prompts login after enabling auth and browse
 test('server cards show auth-only administration and the appropriate lock beside the name', async t => {
   setupStorage()
   let enabled = false
-  mock.method(globalThis, 'fetch', async url => {
-    if (url.endsWith('/api/health')) return Response.json({ reports_count: 1 })
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
+  let healthAuthorization = null
+  mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url.endsWith('/api/health')) {
+      healthAuthorization = new Headers(options?.headers).get('Authorization')
+      return Response.json({ reports_count: 1 })
+    }
+    if (url.endsWith('/api/graphql')) return session(enabled, options)
     if (url.endsWith('/api/auth/status')) return Response.json({ auth_enabled: enabled })
     assert.fail(`Unexpected request: ${url}`)
   })
@@ -130,6 +141,8 @@ test('server cards show auth-only administration and the appropriate lock beside
         }, { server, isActive }))
 
         assert.equal(html.includes('Administer'), authEnabled)
+        // The count an authenticated server gives only to whom it knows.
+        assert.equal(healthAuthorization, signedIn ? 'Bearer session' : null)
         if (authEnabled) {
           const label = signedIn ? 'Signed in' : 'Authentication required'
           assert.ok(html.includes(`aria-label="${label}"`))
@@ -153,7 +166,7 @@ test('clicking a card during its initial status refresh queues selection', async
   let resolveHealth
   mock.method(globalThis, 'fetch', async url => {
     if (url.endsWith('/api/health')) return new Promise(resolve => { resolveHealth = resolve })
-    if (url.endsWith('/api/graphql')) return new Response(null, { status: 404 })
+    if (url.endsWith('/api/graphql')) return session(true)
     if (url.endsWith('/api/auth/status')) return Response.json({ auth_enabled: true })
     assert.fail(`Unexpected request: ${url}`)
   })

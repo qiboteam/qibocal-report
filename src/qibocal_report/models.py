@@ -37,37 +37,6 @@ class Note(BaseModel):
         return value.astimezone(timezone.utc)
 
 
-class ServerModel(BaseModel):
-    id: str
-    name: str
-    url: str
-    description: str | None = ""
-    avatar: str | None = "quantum-ring"
-    is_default: bool = False
-    created_at: str | None = None
-    author_identities: dict[str, list[str]] = Field(default_factory=dict)
-    protocol_docs: dict[str, str] = Field(default_factory=dict)
-
-
-class ServerCreate(BaseModel):
-    url: str
-    name: str | None = None
-    description: str | None = None
-    avatar: str | None = None
-    author_identities: dict[str, list[str]] | None = None
-    protocol_docs: dict[str, str] | None = None
-
-
-class ServerUpdate(BaseModel):
-    url: str | None = None
-    name: str | None = None
-    description: str | None = None
-    avatar: str | None = None
-    is_default: bool | None = None
-    author_identities: dict[str, list[str]] | None = None
-    protocol_docs: dict[str, str] | None = None
-
-
 class ProtocolFigure(BaseModel):
     id: str
     title: str
@@ -152,7 +121,6 @@ class ReportSummary(BaseModel):
     targets: list[Any] = Field(default_factory=list)
     protocols: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
-    labels: list[str] = Field(default_factory=list)
     total_execution_time: str | None = None
     has_cached_report: bool = False
     has_old_platform: bool = False
@@ -219,7 +187,6 @@ class DateHistogramBin(BaseModel):
 class FilterStats(BaseModel):
     authors: list[str]
     tags: list[str] = Field(default_factory=list)
-    labels: list[str] = Field(default_factory=list)
     protocols: list[ProtocolFrequency]
     date_histogram: list[DateHistogramBin]
     platforms: list[PlatformFrequency] = Field(default_factory=list)

@@ -174,7 +174,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { renderAvatar } from './Avatars.js'
-import { state, normalizeUrl, getActiveAuthToken, getActiveUser } from '../store.js'
+import { state, normalizeUrl, getActiveAuthToken, getActiveUser, getAuthHeader } from '../store.js'
 
 const props = defineProps({
   server: { type: Object, required: true },
@@ -301,7 +301,7 @@ async function checkHealth() {
     const statusUrl = normalized ? `${normalized}/api/auth/status` : '/api/auth/status'
 
     const [hRes, aRes] = await Promise.all([
-      fetch(targetUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null),
+      fetch(targetUrl, { headers: getAuthHeader(props.server), signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null),
       fetch(statusUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null)
     ])
     const data = hRes?.ok ? await hRes.json() : null

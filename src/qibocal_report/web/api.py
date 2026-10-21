@@ -100,10 +100,7 @@ from qibocal_report.models import (
     ReportDetail,
     ReportPathResponse,
     ReportSummary,
-    ServerCreate,
     ServerDirectoryInfo,
-    ServerModel,
-    ServerUpdate,
     SingleLabelRequest,
     UpdateAuthorRequest,
     UserModel,
@@ -334,6 +331,13 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(auth.AuthStoreError)
+async def auth_store_error_handler(_request: Request, error: auth.AuthStoreError) -> JSONResponse:
+    # Nobody can sign in until it is mended by hand: said as it is, never papered over.
+    log_error(str(error))
+    return JSONResponse(status_code=503, content={"detail": str(error)})
 
 
 @app.exception_handler(NotesError)
@@ -656,10 +660,11 @@ def check_password_reset(token: str) -> InviteValidateResponse:
             detail="Password reset token not found or has expired",
             server_name=SERVER_NAME,
         )
+    user = auth.get_user_by_username(reset.get("username") or "")
     return InviteValidateResponse(
         valid=True,
         token=token,
-        role="admin",
+        role=(user or {}).get("role", UserRole.VIEWER.value),
         target_username=reset.get("username"),
         expires_at=reset.get("expires_at"),
         server_name=SERVER_NAME,
@@ -669,6 +674,12 @@ def check_password_reset(token: str) -> InviteValidateResponse:
 @app.post("/api/auth/register", response_model=LoginResponse, tags=["Authentication"])
 def register_user(req: RegisterRequest) -> LoginResponse:
     """Self-register or reclaim access using a valid invitation or password reset token."""
+    # Checked and used in one step: a single-use token registers one account.
+    with auth.store_lock():
+        return _register_user(req)
+
+
+def _register_user(req: RegisterRequest) -> LoginResponse:
     # Try to validate as a password reset token first
     valid_reset, reset = auth.validate_password_reset(req.invite_token)
     if valid_reset and reset:
@@ -977,81 +988,6 @@ async def admin_infer_targets(
     return InferTargetsResponse(**counts)
 
 
-# --- Server Management Endpoints ---
-@app.get("/api/servers", response_model=list[ServerModel], tags=["Servers"])
-def list_servers(
-    user: dict | None = Depends(get_current_user_optional),
-) -> list[ServerModel]:
-    """List all registered servers."""
-    if auth.is_auth_enabled() and not user:
-        return []
-    servers = config.load_servers()
-    return [ServerModel(**s) for s in servers]
-
-
-@app.post(
-    "/api/servers",
-    response_model=ServerModel,
-    tags=["Servers"],
-    dependencies=[Depends(require_admin)],
-)
-def create_server(data: ServerCreate) -> ServerModel:
-    """Register a new server URL. Name and avatar auto-generated if omitted."""
-    new_server = config.add_server(
-        url=data.url,
-        name=data.name,
-        description=data.description,
-        avatar=data.avatar,
-        author_identities=data.author_identities,
-    )
-    return ServerModel(**new_server)
-
-
-@app.put(
-    "/api/servers/{server_id}",
-    response_model=ServerModel,
-    tags=["Servers"],
-    dependencies=[Depends(require_admin)],
-)
-def update_server_endpoint(server_id: str, data: ServerUpdate) -> ServerModel:
-    """Update a registered server's properties."""
-    updated = config.update_server(server_id, data.model_dump(exclude_unset=True))
-    if not updated:
-        raise HTTPException(status_code=404, detail="Server not found")
-    invalidate_report_cache()
-    return ServerModel(**updated)
-
-
-@app.delete(
-    "/api/servers/{server_id}",
-    tags=["Servers"],
-    dependencies=[Depends(require_admin)],
-)
-def delete_server_endpoint(server_id: str) -> dict[str, bool]:
-    """Delete a registered server."""
-    success = config.delete_server(server_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Server not found")
-    return {"deleted": True}
-
-
-@app.post(
-    "/api/servers/save",
-    tags=["Servers"],
-    dependencies=[Depends(require_admin)],
-)
-def save_servers_endpoint() -> dict[str, Any]:
-    """Explicitly persist current servers to the configuration file."""
-    servers = config.load_servers()
-    config.save_servers(servers)
-    return {
-        "saved": True,
-        "count": len(servers),
-        "path": str(config.get_config_file()),
-    }
-
-
-
 # --- Server Directory Management Endpoints ---
 def _get_relative_current() -> str:
     """Return relative path of REPORT_ROOT_DIR compared to ORIGINAL_ROOT_DIR."""
@@ -1271,34 +1207,27 @@ def get_reports(
     author: Annotated[list[str] | None, Query()] = None,
     platform: Annotated[list[str] | None, Query()] = None,
     protocol: Annotated[list[str] | None, Query()] = None,
-    label: Annotated[list[str] | None, Query()] = None,
     tag: Annotated[list[str] | None, Query()] = None,
     qubit: Annotated[list[str] | None, Query()] = None,
-    target: Annotated[list[str] | None, Query()] = None,
     start_date: str | None = None,
     end_date: str | None = None,
     sort_by: str = "date_desc",
     page: int | None = Query(None, ge=1, description="Page number (1-indexed)"),
     page_size: int | None = Query(None, ge=1, le=500, description="Items per page"),
-    per_page: int | None = Query(
-        None, ge=1, le=500, description="Items per page (alias)"
-    ),
 ) -> PaginatedReportsResponse | list[ReportSummary]:
     """List and filter Qibocal reports, optionally paginated."""
     all_reports = scan_reports(REPORT_ROOT_DIR)
     if (unchanged := unchanged_since(request, response)) is not None:
         return unchanged
-    combined_tags = list(set((label or []) + (tag or []))) or None
-    combined_qubits = list(set((qubit or []) + (target or []))) or None
     filtered = filter_reports(
         all_reports,
         query=q,
         folder=folder,
         authors=author,
         platforms=platform,
-        labels=combined_tags,
+        tags=tag,
         protocols=protocol,
-        qubits=combined_qubits,
+        qubits=qubit,
         start_date=start_date,
         end_date=end_date,
         sort_by=sort_by,
@@ -1307,9 +1236,9 @@ def get_reports(
     total = len(filtered)
     response.headers["X-Total-Count"] = str(total)
 
-    if page is not None or page_size is not None or per_page is not None:
+    if page is not None or page_size is not None:
         page_num = page or 1
-        effective_page_size = page_size or per_page or 20
+        effective_page_size = page_size or 20
         total_pages = (
             max(1, (total + effective_page_size - 1) // effective_page_size)
             if total > 0
@@ -1348,10 +1277,8 @@ def get_filter_statistics(
     author: Annotated[list[str] | None, Query()] = None,
     platform: Annotated[list[str] | None, Query()] = None,
     protocol: Annotated[list[str] | None, Query()] = None,
-    label: Annotated[list[str] | None, Query()] = None,
     tag: Annotated[list[str] | None, Query()] = None,
     qubit: Annotated[list[str] | None, Query()] = None,
-    target: Annotated[list[str] | None, Query()] = None,
     start_date: str | None = None,
     end_date: str | None = None,
     sort_by: str = "date_desc",
@@ -1360,17 +1287,15 @@ def get_filter_statistics(
     all_reports = scan_reports(REPORT_ROOT_DIR)
     if (unchanged := unchanged_since(request, response)) is not None:
         return unchanged
-    combined_tags = list(set((label or []) + (tag or []))) or None
-    combined_qubits = list(set((qubit or []) + (target or []))) or None
     filtered = filter_reports(
         all_reports,
         query=q,
         folder=folder,
         authors=author,
         platforms=platform,
-        labels=combined_tags,
+        tags=tag,
         protocols=protocol,
-        qubits=combined_qubits,
+        qubits=qubit,
         start_date=start_date,
         end_date=end_date,
         sort_by=sort_by,
@@ -1493,14 +1418,10 @@ def bulk_report_action(req: BulkActionRequest) -> BulkActionResponse:
     return execute_bulk_action(REPORT_ROOT_DIR, req)
 
 
+# Report ids are relative paths, which may hold a `/`: every route of one
+# report takes it as a path, ahead of the catch-all DELETE below.
 @app.delete(
-    "/api/reports/{report_id}/label/{label_name:path}",
-    response_model=BulkActionResponse,
-    tags=["Reports"],
-    dependencies=[Depends(require_editor)],
-)
-@app.delete(
-    "/api/reports/{report_id}/tag/{label_name:path}",
+    "/api/reports/{report_id:path}/label/{label_name:path}",
     response_model=BulkActionResponse,
     tags=["Reports"],
     dependencies=[Depends(require_editor)],
@@ -1514,13 +1435,7 @@ def remove_single_report_label(report_id: str, label_name: str) -> BulkActionRes
 
 
 @app.put(
-    "/api/reports/{report_id}/author",
-    response_model=BulkActionResponse,
-    tags=["Reports"],
-    dependencies=[Depends(require_editor)],
-)
-@app.patch(
-    "/api/reports/{report_id}/author",
+    "/api/reports/{report_id:path}/author",
     response_model=BulkActionResponse,
     tags=["Reports"],
     dependencies=[Depends(require_editor)],
@@ -1536,27 +1451,16 @@ def update_single_report_author(
 
 
 @app.post(
-    "/api/reports/{report_id}/label",
+    "/api/reports/{report_id:path}/label",
     response_model=BulkActionResponse,
     tags=["Reports"],
     dependencies=[Depends(require_editor)],
 )
-@app.post(
-    "/api/reports/{report_id}/tag",
-    response_model=BulkActionResponse,
-    tags=["Reports"],
-    dependencies=[Depends(require_editor)],
-)
-def label_single_report(
-    report_id: str,
-    body: SingleLabelRequest | None = None,
-    label: str | None = None,
-) -> BulkActionResponse:
+def label_single_report(report_id: str, body: SingleLabelRequest) -> BulkActionResponse:
     """Add a label or tag to a single report."""
-    tag_name = (body and body.label) or label or ""
     return execute_bulk_action(
         REPORT_ROOT_DIR,
-        BulkActionRequest(action="label", report_ids=[report_id], label=tag_name),
+        BulkActionRequest(action="label", report_ids=[report_id], label=body.label),
     )
 
 

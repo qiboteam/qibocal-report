@@ -288,7 +288,7 @@ def create_archive(
                     "platform": summary.platform,
                     "protocols": summary.protocols,
                     "qubits": summary.targets,
-                    "tags": summary.tags or summary.labels or [],
+                    "tags": summary.tags,
                     "size_bytes": r_size,
                 }
             )

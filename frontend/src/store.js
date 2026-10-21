@@ -278,17 +278,8 @@ export function checkActiveServerAuth(targetServer = state.activeServer) {
   return promise
 }
 
-/**
- * Whether a server authenticates and who the caller is, in one GraphQL
- * request; null for a server from before the endpoint, which is asked the
- * two REST questions instead. Remembered per server, so an old server is
- * asked once.
- */
-const serversWithoutGraphQL = new Set()
-
-async function sessionViaGraphQL(targetServer, serverUrl) {
-  const key = serverUrl || 'local'
-  if (serversWithoutGraphQL.has(key)) return null
+/** Whether a server authenticates and who the caller is, in one GraphQL request. */
+async function fetchSession(targetServer, serverUrl) {
   const token = getActiveAuthToken(targetServer)
   const res = await fetch(serverUrl ? `${serverUrl}/api/graphql` : '/api/graphql', {
     method: 'POST',
@@ -297,10 +288,6 @@ async function sessionViaGraphQL(targetServer, serverUrl) {
     signal: AbortSignal.timeout(4000),
     cache: 'no-store'
   })
-  if (res.status === 404 || res.status === 405) {
-    serversWithoutGraphQL.add(key)
-    return null
-  }
   if (!res.ok) throw new Error(`Session request failed (${res.status})`)
   const body = await res.json()
   if (!body?.data?.session) throw new Error(body?.errors?.[0]?.message || 'Session request failed')
@@ -316,49 +303,14 @@ async function sessionViaGraphQL(targetServer, serverUrl) {
 async function verifyServerAuth(targetServer, version) {
   const isCurrent = () => version === authCheckVersion &&
     getServerAuthKey(targetServer) === getServerAuthKey(state.activeServer)
-  const serverUrl = getActiveServerUrl(targetServer)
-  const statusUrl = serverUrl ? `${serverUrl}/api/auth/status` : '/api/auth/status'
 
   try {
-    const session = await sessionViaGraphQL(targetServer, serverUrl)
-    if (session) {
-      if (!isCurrent()) return false
-      setServerAuth(targetServer, session.token, session.user)
-      state.auth.enabled = session.auth_enabled
-      state.auth.checked = true
-      state.auth.user = session.auth_enabled ? session.user : { id: 'admin', username: 'local-admin', role: 'admin' }
-      state.auth.errorMessage = ''
-      return true
-    }
-
-    const res = await fetch(statusUrl, { signal: AbortSignal.timeout(4000), cache: 'no-store' })
-    if (!res.ok) throw new Error(`Authentication status request failed (${res.status})`)
-    const data = await res.json()
-    let token = null
-    let user = null
-    if (data.auth_enabled) {
-      token = getActiveAuthToken(targetServer)
-      if (token) {
-        const meUrl = serverUrl ? `${serverUrl}/api/auth/me` : '/api/auth/me'
-        const meRes = await fetch(meUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(4000),
-          cache: 'no-store'
-        })
-        if (meRes.ok) {
-          user = await meRes.json()
-        } else if (meRes.status === 401) {
-          token = null
-        } else {
-          throw new Error(`Session validation failed (${meRes.status})`)
-        }
-      }
-    }
+    const session = await fetchSession(targetServer, getActiveServerUrl(targetServer))
     if (!isCurrent()) return false
-    setServerAuth(targetServer, token, user)
-    state.auth.enabled = Boolean(data.auth_enabled)
+    setServerAuth(targetServer, session.token, session.user)
+    state.auth.enabled = session.auth_enabled
     state.auth.checked = true
-    state.auth.user = data.auth_enabled ? user : { id: 'admin', username: 'local-admin', role: 'admin' }
+    state.auth.user = session.auth_enabled ? session.user : { id: 'admin', username: 'local-admin', role: 'admin' }
     state.auth.errorMessage = ''
     return true
   } catch (e) {
@@ -431,10 +383,12 @@ export async function registerWithInvite(inviteToken, username, password, target
 
   const data = await res.json()
   if (version !== clientStateVersion) throw new Error('Client state changed. Please sign in again.')
-  if (getServerAuthKey(targetServer) === getServerAuthKey(state.activeServer)) authCheckVersion++
-  setServerAuth(targetServer, data.access_token, data.user)
+  // A server only an invitation link named is registered once the invitation is accepted.
+  const server = targetServer && !targetServer.id ? await addServer(targetServer.url) : targetServer
+  if (getServerAuthKey(server) === getServerAuthKey(state.activeServer)) authCheckVersion++
+  setServerAuth(server, data.access_token, data.user)
   notifyServerDataChanged()
-  return data
+  return { ...data, server }
 }
 
 export function persistSearchState() {
@@ -520,24 +474,42 @@ export function getActiveWsUrl(path) {
   return utilsGetActiveWsUrl(path, state.activeServer, token)
 }
 
-export async function apiFetch(path, options = {}) {
-  const url = getApiUrl(path)
+/**
+ * Dispatches a fetch request against the selected or currently active server,
+ * automatically including Authorization headers when a token is present.
+ */
+export async function apiFetch(path, options = {}, server = state.activeServer) {
+  const url = utilsGetApiUrl(path, server)
   const headers = new Headers(options.headers || {})
-  const token = getActiveAuthToken()
+  const token = getActiveAuthToken(server)
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`)
   }
   const res = await fetch(url, { ...options, headers })
-  if (res.status === 401 && state.auth?.enabled) {
-    state.auth.token = null
-    state.auth.user = null
-    setServerAuth(state.activeServer, null, null)
+  if (res.status === 401) noteUnauthorized(server, token)
+  return res
+}
+
+/**
+ * A request was refused for want of a session: forget the token it carried,
+ * and — when it concerned the active server — say so and go to the servers
+ * page, where one signs in.
+ */
+export function noteUnauthorized(server, token) {
+  const serverUrl = getActiveServerUrl(server)
+  const sessionIsCurrent = token === getActiveAuthToken(server)
+  if (token && sessionIsCurrent) {
+    setServerAuth(server, null, null)
+  }
+  if (sessionIsCurrent && state.auth?.enabled &&
+      getServerAuthKey(server) === getServerAuthKey(state.activeServer) &&
+      serverUrl === getActiveServerUrl(state.activeServer)) {
+    setServerAuth(server, null, null)
     state.auth.errorMessage = 'Authentication required. Please sign in to access this instance.'
     if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/servers') && !window.location.hash.startsWith('#/docs') && !window.location.hash.startsWith('#/invite') && !window.location.hash.startsWith('#/admin')) {
       window.location.hash = '#/servers'
     }
   }
-  return res
 }
 
 // --- Server Management ---
@@ -786,16 +758,6 @@ export function isReportOnServer(historyItem, server = state.activeServer) {
     if (canonicalUrl(serverUrl) === canonicalUrl(itemUrl)) return true
   }
 
-  // 3. Fallback for legacy history entries without server association
-  if (!itemId && !itemUrl) {
-    if (server.is_default || serverId === 'srv-local' || canonicalUrl(serverUrl).includes('127.0.0.1:8000')) {
-      return true
-    }
-    if (state.servers.length <= 1) {
-      return true
-    }
-  }
-
   return false
 }
 
@@ -815,7 +777,7 @@ export function addToHistory(report, server = state.activeServer) {
     id: report.id,
     platform: report.platform,
     date: report.date,
-    tags: report.tags || report.labels || [],
+    tags: report.tags || [],
     opened_at: new Date().toISOString(),
     server_id: activeId,
     server_url: activeUrl

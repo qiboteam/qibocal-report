@@ -14,7 +14,7 @@
             </svg>
           </div>
           <h2 class="text-sm font-semibold text-gray-900">
-            {{ isPasswordReset ? 'Reset Password' : (inviteData?.target_username ? 'Restore Administrator Access' : 'Accept Invitation & Register') }}
+            {{ isPasswordReset ? 'Reset Password' : 'Accept Invitation & Register' }}
           </h2>
         </div>
         <button
@@ -76,7 +76,7 @@
         </div>
 
         <p class="text-xs text-gray-500 mb-3">
-          {{ inviteData?.target_username ? `Re-authenticate and restore administrator access on ` : `Create your account on ` }}<strong class="text-gray-800">{{ serverName }}</strong>.
+          {{ isPasswordReset ? `Re-authenticate and restore access on ` : `Create your account on ` }}<strong class="text-gray-800">{{ serverName }}</strong>.
         </p>
 
         <!-- Error banner -->
@@ -91,7 +91,7 @@
         <form @submit.prevent="handleRegister" class="space-y-3">
           <div>
             <label class="block text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-1">
-              {{ inviteData?.target_username ? 'Administrator Username' : 'Username' }}
+              Username
             </label>
             <input
               v-model="form.username"
@@ -104,7 +104,7 @@
               :class="inviteData?.target_username ? 'bg-gray-200/80 text-gray-700 cursor-not-allowed' : 'bg-gray-100/70 focus:bg-white'"
             />
             <p v-if="inviteData?.target_username" class="mt-1 text-[11px] text-purple-700">
-              Restoring credentials for administrator <strong>{{ inviteData.target_username }}</strong>.
+              {{ isPasswordReset ? 'Restoring credentials for' : 'This invitation is for' }} <strong>{{ inviteData.target_username }}</strong>.
             </p>
           </div>
 

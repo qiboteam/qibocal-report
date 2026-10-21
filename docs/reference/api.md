@@ -48,35 +48,6 @@ Who may upload, beyond the administrators, who always may: `{"policy": "admins" 
 ### `POST /api/admin/reports/infer-targets`
 Read every protocol's `action.yml` under the reports for the qubits, or pairs, it was run on, and write their union into each report's `meta.json` as `targets-inferred`, next to the session's own `targets`, which is kept; the list shows the inferred targets first. Answers `{"reports", "updated", "without_targets"}`. Reads every report, so it runs on request — here, from **Server Administration**, or with `qibocal report targets` — rather than at every scan. Administrators only.
 
-## 🌐 Server Registry Management
-
-These endpoints manage the backend's configuration file, independently of the
-browser-local registry displayed on `/servers`. The client does not synchronize
-its server list with these endpoints.
-
-### `GET /api/servers`
-List all registered local and remote report servers.
-
-### `POST /api/servers`
-Register a new remote server.
-- **Body**: `{"url": "http://192.168.1.50:8000", "name": "Lab-Rig-A", "description": "Dilution Fridge A"}`
-
-### `PUT /api/servers/{server_id}`
-Update an existing server's metadata, display name, avatar, or default status.
-
-### `DELETE /api/servers/{server_id}`
-Remove a server from the local registry.
-
-### `POST /api/servers/save`
-Explicitly save the backend registry to
-`$XDG_CONFIG_HOME/qibocal/servers.json` (fallback:
-`~/.config/qibocal/servers.json`; overridden by `QIBOCAL_REPORT_CONFIG_DIR`).
-Registry mutations already save this file automatically. The file is written
-as `{"version": 1, "servers": [...]}`; a bare list, the format before versions,
-is still read, and a file declaring another version is ignored and never
-replaced. Registering a server whose name is already registered moves that
-entry to the new address instead of adding a second one.
-
 ---
 
 ## 🚚 Transport
@@ -106,9 +77,9 @@ endpoints. A GET of the same address opens GraphiQL, the schema's own explorer.
 | `session` | `GET /api/auth/status` and `GET /api/auth/me`, in one: `auth_enabled`, and the `user` the token names, or `null` | anyone |
 | `health` | `GET /api/health` | anyone |
 
-`ReportFilter` names the query parameters of `/api/reports`: `query`, `folder`,
-`authors`, `platforms`, `protocols`, `labels`, `qubits`, `start_date`,
-`end_date`, `sort_by`.
+`ReportFilter` names the query parameters of `/api/reports`, in the plural
+where they repeat: `query`, `folder`, `authors`, `platforms`, `protocols`,
+`tags`, `qubits`, `start_date`, `end_date`, `sort_by`.
 
 ```graphql
 query Dashboard($where: ReportFilter, $page: Int!, $page_size: Int!) {
@@ -132,9 +103,7 @@ Authorization is the same bearer token, in the same header. A field refused
 for want of a session comes back `null`, with an error whose
 `extensions.code` is `UNAUTHENTICATED` — the 401 of the REST API — or
 `FORBIDDEN` for the 403; the response itself is a 200, as GraphQL responses
-are. A server from before this endpoint answers the POST with a 404 or a 405,
-which is what the dashboard reads as "ask over REST": it falls back by itself,
-and remembers the answer per server.
+are.
 
 ---
 
@@ -145,16 +114,17 @@ Retrieve a paginated, filtered list of calibration reports.
 
 #### Query Parameters
 - `q`: Free-text search matching title, platform, author, or tags.
-- `author`: Filter by author handle.
-- `protocol`: Filter by executed routine name.
-- `label`: Filter by custom tag/label.
+- `folder`: Only the reports under this folder of the root.
+- `author`, `platform`, `protocol`, `tag`: Filter by author handle, platform, executed routine name, or tag; each may repeat.
+- `qubit`: Filter by target qubit, a pair counting for both of its qubits; may repeat.
 - `start_date`, `end_date`: Filter by date range (`YYYY-MM-DD`).
 - `sort_by`: Sorting order (`date_desc`, `date_asc`, `title`).
+- `page`, `page_size`: Paginate, 20 to a page unless said otherwise; without either, the whole list.
 
 ### `GET /api/reports/stats`
 Returns aggregated statistical distributions across all discovered reports:
 - `authors`: Unique authors list.
-- `labels`: Unique tags list.
+- `tags`: Unique tags list.
 - `protocols`: Array of `{ name, count }` sorted by frequency descending.
 - `platforms`: Platform distribution.
 - `date_histogram`: Array of `{ date, count }` chronologically ordered.

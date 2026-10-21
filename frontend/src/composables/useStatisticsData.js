@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { state, apiFetch, heldReportStats, holdReportStats, resolveAuthor } from '../store.js'
+import { state, heldReportStats, holdReportStats, resolveAuthor } from '../store.js'
 import { STATS_FIELDS, apiGraphQL } from '../api.js'
 
 /**
@@ -66,8 +66,8 @@ export function useStatisticsData() {
     if (stats.value?.tag_frequencies?.length) {
       return stats.value.tag_frequencies
     }
-    if (stats.value?.labels?.length) {
-      return stats.value.labels.map(l => ({
+    if (stats.value?.tags?.length) {
+      return stats.value.tags.map(l => ({
         name: l,
         count: (stats.value.tag_counts && stats.value.tag_counts[l]) || 1
       }))
@@ -115,20 +115,7 @@ export function useStatisticsData() {
     loading.value = true
     connectionError.value = null
     try {
-      let data = null
-      try {
-        data = (await apiGraphQL(`{ stats { ${STATS_FIELDS} } }`))?.stats || null
-      } catch (err) {
-        console.warn('GraphQL request failed, asking over REST instead', err)
-      }
-      if (!data) {
-        const res = await apiFetch('/api/reports/stats')
-        if (!res.ok) {
-          connectionError.value = `Server responded with status ${res.status}`
-          return
-        }
-        data = await res.json()
-      }
+      const data = (await apiGraphQL(`{ stats { ${STATS_FIELDS} } }`))?.stats || null
       stats.value = data
       holdReportStats(data)
     } catch (err) {
