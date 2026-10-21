@@ -116,10 +116,10 @@ jobs:
         working-directory: launcher
 
       # The version is the Python package's, in pyproject.toml, which the tag
-      # must name: v0.1.0a1 is 0.1.0a1. The application takes it as SemVer,
-      # with the numeric pre-release the Windows MSI installer accepts —
-      # alphas from 1, betas from 101, release candidates from 201 — so
-      # 0.1.0a1 is 0.1.0-1, and the final 0.1.0 is still the greater.
+      # must name: v0.1.0a1 is 0.1.0a1. The application is X.Y.Z, which every
+      # installer format takes; a pre-release is told where each allows it:
+      # the MSI's fourth field — alphas from 1, betas from 101, candidates
+      # from 201, a final 1000 — and the RPM release, 0.a1 before a final's 1.
       - name: Take the version from the release tag
         if: github.event_name == 'release'
         shell: bash
@@ -134,16 +134,29 @@ jobs:
           if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)((a|b|rc)([0-9]+))?$ ]]; then
             app="${BASH_REMATCH[1]}"
             case "${BASH_REMATCH[3]}" in
-              a) app="$app-$((BASH_REMATCH[4]))" ;;
-              b) app="$app-$((100 + BASH_REMATCH[4]))" ;;
-              rc) app="$app-$((200 + BASH_REMATCH[4]))" ;;
+              a) build=$((BASH_REMATCH[4])); release="0.${BASH_REMATCH[2]}" ;;
+              b) build=$((100 + BASH_REMATCH[4])); release="0.${BASH_REMATCH[2]}" ;;
+              rc) build=$((200 + BASH_REMATCH[4])); release="0.${BASH_REMATCH[2]}" ;;
+              *) build=1000; release="1" ;;
             esac
           else
             echo "::error::Version $version is not X.Y.Z, nor X.Y.Z followed by aN, bN or rcN."
             exit 1
           fi
-          node -e "const fs=require('fs');const p='launcher/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p));c.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')" "$app"
-          echo "Building version $version, as the application's $app."
+          node -e "
+            const fs = require('fs')
+            const p = 'launcher/src-tauri/tauri.conf.json'
+            const c = JSON.parse(fs.readFileSync(p))
+            const [app, msi, rpm] = process.argv.slice(1)
+            c.version = app
+            c.bundle ??= {}
+            c.bundle.windows ??= {}
+            c.bundle.windows.wix = { ...(c.bundle.windows.wix || {}), version: msi }
+            c.bundle.linux ??= {}
+            c.bundle.linux.rpm = { ...(c.bundle.linux.rpm || {}), release: rpm }
+            fs.writeFileSync(p, JSON.stringify(c, null, 2) + '\n')
+          " "$app" "$app.$build" "$release"
+          echo "Building version $version: the application's $app, MSI $app.$build, RPM release $release."
 
       # Built on its own, and bounded, so that a stuck bundler is a failing
       # step with its own log rather than an hour of apparent compilation:
