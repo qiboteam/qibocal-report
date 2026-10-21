@@ -368,7 +368,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
+    expose_headers=["Content-Disposition", "X-Parameters-File"],
 )
 
 REPORT_ROOT_DIR = Path(os.environ.get("QIBOCAL_REPORT_DIR", Path.cwd())).resolve()
@@ -1569,8 +1569,17 @@ def add_protocol_note(
     return notes
 
 
-def _action_file(report_id: str, protocol_id: str) -> Path:
-    """The `action.yml` (or `.yaml`) Qibocal wrote next to a protocol's data."""
+# The file of a protocol's parameters, as Qibocal writes it, with its media
+# type: `params.json` (qibocal#1732), or the `action.yml` of the runs so far.
+PARAMETER_FILES = {
+    "params.json": "application/json",
+    "action.yml": "application/yaml; charset=utf-8",
+    "action.yaml": "application/yaml; charset=utf-8",
+}
+
+
+def _parameters_file(report_id: str, protocol_id: str) -> Path:
+    """The parameter file Qibocal wrote next to a protocol's data."""
     target_dir = resolve_report_dir(REPORT_ROOT_DIR, report_id)
     data_dir = resolve_protocol_data_dir(target_dir, protocol_id)
     if data_dir is None or not data_dir.is_dir():
@@ -1578,39 +1587,40 @@ def _action_file(report_id: str, protocol_id: str) -> Path:
             status_code=404,
             detail=f"Data directory for protocol '{protocol_id}' not found in report '{report_id}'",
         )
-    for name in ("action.yml", "action.yaml"):
+    for name in PARAMETER_FILES:
         path = data_dir / name
         if path.is_file() and not path.is_symlink():
             return path
     raise HTTPException(
-        status_code=404, detail=f"No action file for protocol '{protocol_id}'"
+        status_code=404, detail=f"No parameter file for protocol '{protocol_id}'"
     )
 
 
 @app.get(
-    "/api/reports/{report_id:path}/protocols/{protocol_id}/action",
+    "/api/reports/{report_id:path}/protocols/{protocol_id}/parameters",
     tags=["Reports"],
     dependencies=[Depends(require_viewer)],
     response_class=PlainTextResponse,
 )
-def get_protocol_action(
+def get_protocol_parameters(
     report_id: str, protocol_id: str, download: bool = False
 ) -> Response:
-    """The protocol's `action.yml`: the parameters it was run with, as Qibocal wrote them.
+    """The parameters the protocol was run with, as Qibocal wrote them.
 
-    Inline as YAML text; with `download=true`, as an attachment named after
-    the report and the protocol.
+    The file as it is — `params.json`, or `action.yml` — with its media type,
+    and its name in `X-Parameters-File`; with `download=true`, as an
+    attachment named after the report and the protocol.
     """
-    path = _action_file(report_id, protocol_id)
+    path = _parameters_file(report_id, protocol_id)
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as error:
         raise HTTPException(status_code=500, detail=f"Could not read {path.name}: {error}") from error
-    headers = {"Cache-Control": "private, no-cache"}
+    headers = {"Cache-Control": "private, no-cache", "X-Parameters-File": path.name}
     if download:
         report_name = Path(path).parents[2].name.replace(":", "-")
         headers["Content-Disposition"] = attachment(f"{report_name}_{path.parent.name}_{path.name}")
-    return PlainTextResponse(text, media_type="application/yaml; charset=utf-8", headers=headers)
+    return PlainTextResponse(text, media_type=PARAMETER_FILES[path.name], headers=headers)
 
 
 @app.get(

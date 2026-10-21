@@ -136,11 +136,13 @@ Report details include session `notes`; protocol outputs include per-execution
 `notes`. Both default to `[]` for reports without a notes file. Notes are read
 from their source files independently of cached plots.
 
-### `GET /api/reports/{report_id}/protocols/{protocol_id}/action`
-The protocol's `action.yml` — the parameters it was run with, as Qibocal
-wrote them next to its data — as YAML text (`application/yaml`). With
-`?download=true` it comes as an attachment named after the report and the
-protocol. `404` when the protocol, or its action file, is not there.
+### `GET /api/reports/{report_id}/protocols/{protocol_id}/parameters`
+The parameters the protocol was run with, as Qibocal wrote them next to its
+data: the file as it is — `params.json` (`application/json`), or the
+`action.yml` of earlier runs (`application/yaml`) — its name in the
+`X-Parameters-File` header. With `?download=true` it comes as an attachment
+named after the report and the protocol. `404` when the protocol, or its
+parameter file, is not there.
 
 ### `GET /api/reports/{report_id}/notes`
 ### `GET /api/reports/{report_id}/protocols/{protocol_id}/notes`

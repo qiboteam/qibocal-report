@@ -108,22 +108,22 @@
       No figures or tables available for this routine.
     </div>
     <!--
-      The action: the parameters the protocol was run with, as Qibocal wrote
-      them to action.yml. Folded by default, read from the server when
-      unfolded, and downloadable as the file it is.
+      The parameters the protocol was run with, as Qibocal wrote them — to
+      action.yml, or params.json. Folded by default, read from the server
+      when unfolded, and downloadable as the file it is.
     -->
     <details v-if="reportId" class="group/action mt-4" @toggle="onActionToggle($event.target.open)">
       <summary class="flex items-center gap-1.5 cursor-pointer select-none text-xs text-gray-500 hover:text-gray-800 transition py-1 list-none [&::-webkit-details-marker]:hidden">
         <svg class="w-3 h-3 transition-transform group-open/action:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
-        <span class="font-semibold">Action</span>
-        <span class="text-gray-400 font-mono">{{ action.name || 'action.yml' }}</span>
+        <span class="font-semibold">Parameters</span>
+        <span v-if="action.name" class="text-gray-400 font-mono">{{ action.name }}</span>
         <api-file-button
           :path="`${actionPath}?download=true`"
-          :filename="`${proto.id}_action.yml`"
+          :filename="`${proto.id}_${action.name || 'parameters'}`"
           class="no-print ml-auto inline-flex items-center gap-1 text-[11px] text-gray-500 hover:text-[#833dff] cursor-pointer"
-          title="Download the action file"
+          title="Download the parameter file"
           @click.stop
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -196,11 +196,11 @@ const isSpecificDoc = computed(() => {
   return hasSpecificDoc(props.proto?.id, props.proto?.name, state.activeServer)
 })
 
-/** The action file: read when its block is unfolded, once per protocol. */
+/** The parameter file: read when its block is unfolded, once per protocol. */
 const action = reactive({ text: '', name: '', loading: false, error: '', loaded: false })
 const actionPath = computed(() => {
   if (!props.reportId || !props.proto?.id) return ''
-  return `/api/reports/${encodeURIComponent(props.reportId)}/protocols/${encodeURIComponent(props.proto.id)}/action`
+  return `/api/reports/${encodeURIComponent(props.reportId)}/protocols/${encodeURIComponent(props.proto.id)}/parameters`
 })
 async function onActionToggle(open) {
   if (!open || action.loaded || action.loading || !actionPath.value) return
@@ -209,17 +209,16 @@ async function onActionToggle(open) {
   try {
     const response = await apiFetch(actionPath.value, { cache: 'no-store' })
     if (response.status === 404) {
-      action.error = 'This protocol has no action file.'
+      action.error = 'This protocol has no parameter file.'
     } else if (!response.ok) {
-      action.error = `The action file could not be read (${response.status}).`
+      action.error = `The parameter file could not be read (${response.status}).`
     } else {
       action.text = await response.text()
-      const disposition = response.headers.get('content-disposition') || ''
-      action.name = /\.yaml"?$/i.test(disposition) ? 'action.yaml' : 'action.yml'
+      action.name = response.headers.get('x-parameters-file') || ''
     }
     action.loaded = true
   } catch (error) {
-    action.error = error?.message || 'The action file could not be read.'
+    action.error = error?.message || 'The parameter file could not be read.'
   } finally {
     action.loading = false
   }

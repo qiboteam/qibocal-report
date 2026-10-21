@@ -84,11 +84,11 @@ or `qibocal report targets` — gathers their union into the report's meta as
 first; the session's own list is kept. It reads every report, so it runs on
 request rather than at every load.
 
-## The action of a protocol
+## The parameters of a protocol
 
-Each protocol card folds, under its outputs, an **Action** line: the
-`action.yml` Qibocal wrote next to the protocol's data, with the parameters it
-was run with. Closed by default, it is read from the server when opened, and
+Each protocol card folds, under its outputs, a **Parameters** line: the file
+Qibocal wrote next to the protocol's data with the parameters it was run with —
+`params.json`, or the `action.yml` of earlier runs — named on the line. Closed by default, it is read from the server when opened, and
 **Download** at the end of the line saves the file itself.
 
 ---
