@@ -53,7 +53,7 @@
           v-model.trim="values[field.name]"
           type="text"
           class="lx-input lx-mono"
-          :placeholder="field.placeholder"
+          :placeholder="field.placeholderFor ? field.placeholderFor(values) : field.placeholder"
         />
       </form-field>
     </div>
@@ -83,7 +83,7 @@
             v-model="values[field.name]"
             rows="4"
             class="lx-input lx-mono"
-            :placeholder="field.placeholder"
+            :placeholder="field.placeholderFor ? field.placeholderFor(values) : field.placeholder"
           />
           <div v-else-if="field.type === 'number'" class="flex items-center gap-2">
             <input :id="id" v-model="values[field.name]" type="number" min="1" class="lx-input lx-mono" />
@@ -101,7 +101,7 @@
             v-model.trim="values[field.name]"
             type="text"
             class="lx-input lx-mono"
-            :placeholder="field.placeholder"
+            :placeholder="field.placeholderFor ? field.placeholderFor(values) : field.placeholder"
           />
         </form-field>
       </div>

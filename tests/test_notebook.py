@@ -490,7 +490,8 @@ def test_update_preserves_unspecified_settings():
         "chip": values,
         "other": {"venv": "custom"},
     }
-    assert load_options("chip", {}) == NotebookOptions(**values)
+    # Stored as given; loaded with the environment of its own a registered connection has.
+    assert load_options("chip", {}) == NotebookOptions(**values, venv="chip")
 
 
 @pytest.mark.parametrize("named", [False, True])

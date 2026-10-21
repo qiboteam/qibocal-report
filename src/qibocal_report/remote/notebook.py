@@ -4,6 +4,7 @@ import ipaddress
 import json
 import os
 import queue
+import re
 import shlex
 import signal
 import socket
@@ -199,6 +200,16 @@ def remote_connection(name: str) -> dict:
     return entry
 
 
+def environment_name(connection: str) -> str:
+    """The kernel environment a registered connection uses by default: its name, made safe for a folder.
+
+    Distinct connections get distinct environments — two may still meet, when
+    their names differ only in characters a folder name leaves out.
+    """
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", connection).strip("-.")
+    return safe or "qibocal"
+
+
 def load_options(name: str | None, overrides: dict) -> NotebookOptions:
     values = {}
     if name is not None:
@@ -207,6 +218,9 @@ def load_options(name: str | None, overrides: dict) -> NotebookOptions:
         **values,
         **{key: value for key, value in overrides.items() if value is not None},
     }
+    if name is not None and not values.get("venv"):
+        # A registered connection has an environment of its own unless it names one.
+        values["venv"] = environment_name(name)
     try:
         options = NotebookOptions.model_validate(values)
         if options.ssh:

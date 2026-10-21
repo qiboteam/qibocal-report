@@ -199,7 +199,7 @@ import {
   startNotebook
 } from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
-import { blankEditor, describeConnection, normalizeNotebookOptions, remoteChoices, toEditorValues } from '../lib/notebooks.js'
+import { blankEditor, describeConnection, environmentName, normalizeNotebookOptions, remoteChoices, toEditorValues } from '../lib/notebooks.js'
 import NotebookTabs from '../components/NotebookTabs.vue'
 
 const router = useRouter()
@@ -331,7 +331,7 @@ function duplicate(name) {
 }
 
 async function rebuild(name) {
-  const venv = state.notebooks[name]?.venv || 'qibocal'
+  const venv = state.notebooks[name]?.venv || environmentName(name)
   const confirmed = await confirmAction(
     `The kernel environment "${venv}" of ${name} is deleted entirely, with everything installed in it, ` +
       'and created again from qibocal and the session\'s requirements alone. This cannot be undone.',

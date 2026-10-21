@@ -241,3 +241,15 @@ def test_the_worker_writes_the_connection_where_the_notebook_runs_and_only_when_
     with pytest.raises(worker.WorkerError, match="another format"):
         worker.install_remote_connection({"lab": {}})
     assert worker.REMOTE_VARIABLE == "QIBOCAL_WIDGETS_CONNECTION"
+
+
+def test_a_registered_connection_has_its_own_environment_by_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path))
+    for name, venv in (("tuna", None), ("QW5Q platinum / v2", None), ("named", "shared")):
+        CliRunner().invoke(main, ["notebook", "add", name, "--ssh", "lab", *(["--venv", venv] if venv else [])])
+    assert notebook.load_options("tuna", {}).venv == "tuna"
+    assert notebook.load_options("QW5Q platinum / v2", {}).venv == "QW5Q-platinum-v2", "safe for a folder"
+    assert notebook.load_options("named", {}).venv == "shared", "one it names is kept"
+    assert notebook.load_options("tuna", {"venv": "other"}).venv == "other", "the command line still wins"
+    assert notebook.load_options(None, {}).venv == "qibocal", "a session not saved: qibocal, as before"
+    assert notebook.environment_name("..x") == "x" and notebook.environment_name("***") == "qibocal"

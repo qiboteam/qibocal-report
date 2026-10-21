@@ -38,6 +38,10 @@ export const REMOTE_FIELDS = [
   { ...shared('workdir'), info: 'Directory the jobs start from on the access node.' },
   {
     ...shared('venv'),
+    // A connection names its environment, qibocal unless set: none is derived from its name.
+    default: 'qibocal',
+    placeholderFor: undefined,
+    help: 'Default: qibocal',
     label: 'Environment',
     info: 'An environment name, resolved under ~/.cache/qibocal/envs on the remote side, or an absolute path there — the same place notebook sessions use, so an environment prepared by one is recognised by the other.'
   },

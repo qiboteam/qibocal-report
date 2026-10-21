@@ -81,7 +81,10 @@ stays attached to supervise the notebook and tunnels.
 Open the browser, including when overriding a named non-interactive connection.
 .TP
 .BI \-\-venv " NAME_OR_PATH"
-Kernel environment on the computing node; default:
+Kernel environment on the computing node; default: for a named connection,
+its name made safe for a folder (letters, digits, dots, underscores and
+hyphens, any other run of characters becoming a hyphen), so distinct
+connections have distinct environments; otherwise
 .BR qibocal .
 Names resolve under
 .BR $XDG_CACHE_HOME/qibocal/envs/

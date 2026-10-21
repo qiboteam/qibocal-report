@@ -55,8 +55,9 @@ export const NOTEBOOK_FIELDS = [
     label: 'Kernel environment',
     type: 'text',
     advanced: true,
-    default: 'qibocal',
-    help: 'Default: qibocal',
+    placeholder: 'qibocal',
+    placeholderFor: values => (values?.name ? environmentName(values.name) : 'qibocal'),
+    help: 'Default: the connection\'s name, or qibocal for a session not saved.',
     info: 'An environment name, resolved under ~/.cache/qibocal/envs on the computing node, or an absolute path there. Created, with the notebook and a kernel, when missing.'
   },
   {
@@ -143,6 +144,15 @@ export function placeOf(options = {}) {
 /** Whether a field makes sense in a place. */
 export function fieldApplies(field, place) {
   return !place || !Array.isArray(field.places) || field.places.includes(place)
+}
+
+/**
+ * The kernel environment a registered connection uses by default: its name,
+ * made safe for a folder — as `qibocal_report.remote.notebook.environment_name`.
+ */
+export function environmentName(connection) {
+  const safe = String(connection || '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '')
+  return safe || 'qibocal'
 }
 
 /** Every field at its default; remote connections pass their own fields. */

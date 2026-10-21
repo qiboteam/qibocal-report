@@ -7,6 +7,7 @@ import {
   blankEditor,
   defaultNotebookOptions,
   describeConnection,
+  environmentName,
   fieldApplies,
   normalizeNotebookOptions,
   notebookKey,
@@ -19,7 +20,7 @@ import {
 
 test('the editor starts from the command-line defaults', () => {
   const values = defaultNotebookOptions()
-  assert.equal(values.venv, 'qibocal')
+  assert.equal(values.venv, '', 'unset: a registered connection gets its own, a session not saved qibocal')
   assert.equal(values.marimo, false)
   assert.equal(values.timeout, 300)
   assert.deepEqual(Object.keys(values).sort(), NOTEBOOK_FIELDS.map(field => field.name).sort())
@@ -39,7 +40,7 @@ test('a stored connection fills the editor back', () => {
   const values = toEditorValues({ ssh: 'user@login', marimo: true })
   assert.equal(values.ssh, 'user@login')
   assert.equal(values.marimo, true)
-  assert.equal(values.venv, 'qibocal', 'unset options keep their default')
+  assert.equal(values.venv, '', 'unset options stay unset')
 })
 
 test('subnets with host bits set are refused, like ip_network does', () => {
@@ -172,4 +173,16 @@ test('a session is offered the remote connections that make sense from where it 
   assert.deepEqual(remoteChoices(remotes, { ssh: 'login', queue: 'chip' }), ['onsite', 'other'], 'the place read from the options')
   assert.match(describeConnection({ ssh: 'login', remote: 'onsite' }), /remote onsite$/)
   assert.equal(NOTEBOOK_FIELDS.find(field => field.name === 'remote').type, 'select')
+})
+
+test('a registered connection has an environment named after it, made safe for a folder', () => {
+  assert.equal(environmentName('tuna'), 'tuna')
+  assert.equal(environmentName('QW5Q platinum / v2'), 'QW5Q-platinum-v2')
+  assert.equal(environmentName('..hidden'), 'hidden', 'never a hidden folder')
+  assert.equal(environmentName('***'), 'qibocal')
+  const venv = NOTEBOOK_FIELDS.find(field => field.name === 'venv')
+  assert.equal(venv.placeholderFor({ name: 'my chip' }), 'my-chip')
+  assert.equal(venv.placeholderFor({}), 'qibocal')
+  assert.equal(normalizeNotebookOptions({ ...defaultNotebookOptions(), venv: 'qibocal' }).options.venv, 'qibocal',
+    'naming qibocal is kept: it is a choice now, not the default')
 })
