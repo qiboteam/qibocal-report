@@ -206,8 +206,19 @@ def environment_name(connection: str) -> str:
     Distinct connections get distinct environments — two may still meet, when
     their names differ only in characters a folder name leaves out.
     """
-    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", connection).strip("-.")
+    # No leading underscore either: _remote holds the remote connections' own.
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", connection).lstrip("-._").rstrip("-.")
     return safe or "qibocal"
+
+
+def remote_environment_name(connection: str) -> str:
+    """The environment a named remote execution connection uses by default.
+
+    Its name, made safe as a notebook connection's, under `_remote/`: a
+    notebook session and a remote connection of the same name do not share
+    one unless either names it. qibocal-widgets' plugin resolves it the same.
+    """
+    return f"_remote/{environment_name(connection)}"
 
 
 def load_options(name: str | None, overrides: dict) -> NotebookOptions:

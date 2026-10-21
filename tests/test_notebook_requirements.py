@@ -253,3 +253,10 @@ def test_a_registered_connection_has_its_own_environment_by_default(tmp_path, mo
     assert notebook.load_options("tuna", {"venv": "other"}).venv == "other", "the command line still wins"
     assert notebook.load_options(None, {}).venv == "qibocal", "a session not saved: qibocal, as before"
     assert notebook.environment_name("..x") == "x" and notebook.environment_name("***") == "qibocal"
+    assert notebook.environment_name("_remote") == "remote", "never the remote connections' folder"
+
+
+def test_a_remote_connection_has_its_own_environment_apart_from_sessions():
+    assert notebook.remote_environment_name("lab") == "_remote/lab"
+    assert notebook.remote_environment_name("QW5Q lab") == "_remote/QW5Q-lab"
+    assert notebook.remote_environment_name("lab") != notebook.environment_name("lab")

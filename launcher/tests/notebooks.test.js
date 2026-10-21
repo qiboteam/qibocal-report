@@ -137,11 +137,15 @@ test('remote execution connections share the notebook fields and keep their own'
     assert.ok(names.includes(name), `${name}, as remotes.json has it`)
   }
   assert.equal(names.includes('marimo'), false, 'nothing a notebook alone has')
-  assert.equal(defaultRemoteOptions().venv, 'qibocal')
+  assert.equal(defaultRemoteOptions().venv, '', 'no environment named: the connection\'s own')
   const { options, valid } = normalizeRemoteOptions({ ...defaultRemoteOptions(), ssh: 'me@login', queue: 'qpu', platform: 'qw11q', timeout: '600' })
   assert.equal(valid, true)
   assert.deepEqual(options, { ssh: 'me@login', queue: 'qpu', platform: 'qw11q', timeout: 600 }, 'only what differs from the defaults is stored')
-  assert.equal(describeRemote({ ssh: 'me@login', queue: 'qpu', platform: 'qw11q' }), 'ssh me@login · partition qpu · platform qw11q · qibocal')
+  assert.equal(describeRemote({ ssh: 'me@login', queue: 'qpu', platform: 'qw11q' }, 'lab'), 'ssh me@login · partition qpu · platform qw11q · _remote/lab')
+  assert.equal(REMOTE_FIELDS.find(field => field.name === 'venv').placeholderFor({ name: 'QW5Q lab' }), '_remote/QW5Q-lab')
+  assert.deepEqual(rebuildOptions({ ssh: 'me@login' }, 'QW5Q lab'), { ssh: 'me@login', venv: '_remote/QW5Q-lab' },
+    'its own environment, apart from a session of the same name')
+  assert.equal(normalizeRemoteOptions({ ...defaultRemoteOptions(), venv: 'qibocal' }).options.venv, 'qibocal', 'sharing one is a choice, kept')
   assert.deepEqual(rebuildOptions({ ssh: 'me@login', queue: 'qpu', platform: 'qw11q', python: '3.12', venv: 'lab', reports: 'out' }),
     { ssh: 'me@login', queue: 'qpu', venv: 'lab' }, 'what qibocal notebook rebuild takes, and nothing else')
 })
@@ -179,6 +183,7 @@ test('a registered connection has an environment named after it, made safe for a
   assert.equal(environmentName('tuna'), 'tuna')
   assert.equal(environmentName('QW5Q platinum / v2'), 'QW5Q-platinum-v2')
   assert.equal(environmentName('..hidden'), 'hidden', 'never a hidden folder')
+  assert.equal(environmentName('_remote'), 'remote', 'never the remote connections\' folder')
   assert.equal(environmentName('***'), 'qibocal')
   const venv = NOTEBOOK_FIELDS.find(field => field.name === 'venv')
   assert.equal(venv.placeholderFor({ name: 'my chip' }), 'my-chip')

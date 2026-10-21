@@ -8,10 +8,12 @@
  *
  * The fields the two have in common mean the same as a notebook
  * connection's, so they are the very same descriptions; the environments
- * are shared too — same place, same installer, same requirements marker —
- * so Regenerate env is `qibocal notebook rebuild` with these options.
+ * are made the same way — same place, same installer, same requirements
+ * marker — so Regenerate env is `qibocal notebook rebuild` with these options.
+ * A connection's own, unless it names one, is under `_remote/`, apart from
+ * the sessions'.
  */
-import { NOTEBOOK_FIELDS, normalizeNotebookOptions, defaultNotebookOptions, requirementCount, toEditorValues } from './notebooks.js'
+import { NOTEBOOK_FIELDS, normalizeNotebookOptions, defaultNotebookOptions, remoteEnvironmentName, requirementCount, toEditorValues } from './notebooks.js'
 
 const shared = name => NOTEBOOK_FIELDS.find(field => field.name === name)
 
@@ -38,12 +40,10 @@ export const REMOTE_FIELDS = [
   { ...shared('workdir'), info: 'Directory the jobs start from on the access node.' },
   {
     ...shared('venv'),
-    // A connection names its environment, qibocal unless set: none is derived from its name.
-    default: 'qibocal',
-    placeholderFor: undefined,
-    help: 'Default: qibocal',
+    placeholderFor: values => remoteEnvironmentName(values?.name),
+    help: 'Default: the connection\'s own, _remote/ and its name.',
     label: 'Environment',
-    info: 'An environment name, resolved under ~/.cache/qibocal/envs on the remote side, or an absolute path there — the same place notebook sessions use, so an environment prepared by one is recognised by the other.'
+    info: 'An environment name, resolved under ~/.cache/qibocal/envs on the remote side, or an absolute path there — the same place notebook sessions use. Unless one is named, each connection has its own, under _remote/, shared with no session nor other connection; naming the same one shares it.'
   },
   {
     name: 'python',
@@ -78,18 +78,19 @@ export const toRemoteEditorValues = connection => toEditorValues(connection, REM
 export const normalizeRemoteOptions = values => normalizeNotebookOptions(values, REMOTE_FIELDS)
 
 /** One-line summary of a remote connection, for its card. */
-export function describeRemote(connection = {}) {
+export function describeRemote(connection = {}, name = null) {
   const parts = [connection.ssh ? `ssh ${connection.ssh}` : 'this machine']
   if (connection.queue) parts.push(`partition ${connection.queue}`)
   if (connection.platform) parts.push(`platform ${connection.platform}`)
-  parts.push(connection.venv || 'qibocal')
+  parts.push(connection.venv || remoteEnvironmentName(name))
   const requirements = requirementCount(connection.requirements)
   if (requirements) parts.push(`${requirements} requirement${requirements === 1 ? '' : 's'}`)
   return parts.join(' · ')
 }
 
 /** The options of `qibocal notebook rebuild` that regenerate a remote connection's environment. */
-export function rebuildOptions(connection = {}) {
+export function rebuildOptions(connection = {}, name = null) {
   const keep = ['ssh', 'queue', 'slurm', 'workdir', 'venv', 'requirements', 'rebuild_on_compute', 'timeout']
-  return Object.fromEntries(keep.filter(key => connection[key] !== undefined && connection[key] !== null && connection[key] !== '').map(key => [key, connection[key]]))
+  const options = Object.fromEntries(keep.filter(key => connection[key] !== undefined && connection[key] !== null && connection[key] !== '').map(key => [key, connection[key]]))
+  return { ...options, venv: options.venv || remoteEnvironmentName(name) }
 }

@@ -105,6 +105,11 @@ def test_environment_resolution(tmp_path, monkeypatch):
     )
     with pytest.raises(worker.WorkerError):
         worker.environment_path("ambiguous/path")
+    # A remote execution connection's own, kept apart; one level only.
+    assert worker.environment_path("_remote/lab") == tmp_path / "home/.cache/qibocal/envs/_remote/lab"
+    for value in ("_remote/", "_remote/a/b", "_remote/.."):
+        with pytest.raises(worker.WorkerError):
+            worker.environment_path(value)
 
 
 @pytest.mark.parametrize(

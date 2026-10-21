@@ -168,11 +168,16 @@ def slurm_arguments(value):
     return arguments
 
 
+REMOTE_ENVIRONMENTS = "_remote/"
+
+
 def environment_path(value):
     expanded = Path(value).expanduser()
     if value.startswith(("/", "./", "../", "~")):
         return expanded.resolve()
-    if not value or "/" in value or value in {".", ".."}:
+    # A remote execution connection's own environments are kept apart, under _remote/.
+    name = value[len(REMOTE_ENVIRONMENTS):] if value.startswith(REMOTE_ENVIRONMENTS) else value
+    if not name or "/" in name or name in {".", ".."}:
         raise WorkerError(
             "Use a simple environment name or an explicit environment path"
         )

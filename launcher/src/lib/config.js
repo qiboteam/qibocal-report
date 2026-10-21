@@ -193,7 +193,7 @@ function firstString(...candidates) {
 /** One-line summary of an entry, so the list reads without unfolding it. */
 function summarize(file, key, entry) {
   if (file === 'notebooks.json' && entry && typeof entry === 'object') return describeConnection(entry)
-  if (file === 'remotes.json' && entry && typeof entry === 'object') return describeRemote(entry)
+  if (file === 'remotes.json' && entry && typeof entry === 'object') return describeRemote(entry, key)
   if (file === 'servers.json') return firstString(entry?.url, entry?.description)
   if (entry === null || entry === undefined) return 'empty'
   if (Array.isArray(entry)) return `${entry.length} item${entry.length === 1 ? '' : 's'}`

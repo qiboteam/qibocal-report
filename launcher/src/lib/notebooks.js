@@ -151,8 +151,18 @@ export function fieldApplies(field, place) {
  * made safe for a folder — as `qibocal_report.remote.notebook.environment_name`.
  */
 export function environmentName(connection) {
-  const safe = String(connection || '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '')
+  // No leading underscore either: _remote holds the remote connections' own.
+  const safe = String(connection || '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-._]+|[-.]+$/g, '')
   return safe || 'qibocal'
+}
+
+/**
+ * The environment a named remote execution connection uses by default: its
+ * name, made safe as a session's, under `_remote/` — apart from the sessions'
+ * own, as qibocal-widgets' plugin resolves it.
+ */
+export function remoteEnvironmentName(connection) {
+  return `_remote/${environmentName(connection)}`
 }
 
 /** Every field at its default; remote connections pass their own fields. */

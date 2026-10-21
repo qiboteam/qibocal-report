@@ -76,7 +76,7 @@
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div class="min-w-0">
             <p class="text-sm font-medium text-gray-900 truncate">{{ name }}</p>
-            <p class="lx-mono text-gray-500 truncate">{{ describeRemote(state.remotes[name]) }}</p>
+            <p class="lx-mono text-gray-500 truncate">{{ describeRemote(state.remotes[name], name) }}</p>
           </div>
           <router-link
             v-if="reportsServer(name)"
@@ -257,7 +257,7 @@ async function reports(name) {
 }
 
 async function rebuild(name) {
-  const venv = state.remotes[name]?.venv || 'qibocal'
+  const venv = rebuildOptions(state.remotes[name] || {}, name).venv
   const confirmed = await confirmAction(
     `The environment "${venv}" of ${name} is deleted entirely, with everything installed in it, ` +
       'and created again from qibocal and the connection\'s requirements alone. This cannot be undone.',
@@ -266,7 +266,7 @@ async function rebuild(name) {
   if (!confirmed) return
   rebuilding.value = name
   const started = await attempt(
-    () => rebuildNotebook(rebuildOptions(state.remotes[name] || {})),
+    () => rebuildNotebook(rebuildOptions(state.remotes[name] || {}, name)),
     `Regenerating the environment of ${name}; its output is in Running.`,
     'processes'
   )
