@@ -507,19 +507,41 @@ pub fn free_port() -> Result<u16, String> {
         .map_err(|error| format!("Could not reserve a local port: {error}"))
 }
 
-#[tauri::command]
-pub async fn administrators() -> Result<Value, String> {
-    off_main(list_administrators).await?
+/// Where a server's users are: the machine it runs on, over SSH when it is another.
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerMachine {
+    pub ssh: Option<String>,
+    pub venv: Option<String>,
 }
 
-fn list_administrators() -> Result<Value, String> {
-    let output = run(&[
+/// `--ssh DEST --venv ENV`, when the server runs on another machine.
+fn machine_arguments(arguments: &mut Vec<String>, ssh: Option<String>, venv: Option<String>) {
+    if let Some(ssh) = ssh.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
+        arguments.push("--ssh".to_string());
+        arguments.push(ssh);
+        if let Some(venv) = venv.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
+            arguments.push("--venv".to_string());
+            arguments.push(venv);
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn administrators(machine: Option<ServerMachine>) -> Result<Value, String> {
+    off_main(move || list_administrators(machine.unwrap_or_default())).await?
+}
+
+fn list_administrators(machine: ServerMachine) -> Result<Value, String> {
+    let mut arguments = vec![
         "report".to_string(),
         "admin".to_string(),
         "list".to_string(),
         "--all".to_string(),
         "--json".to_string(),
-    ])?;
+    ];
+    machine_arguments(&mut arguments, machine.ssh, machine.venv);
+    let output = run(&arguments)?;
     serde_json::from_str(&output)
         .map_err(|error| format!("Could not read the administrator list: {error}"))
 }
@@ -578,6 +600,9 @@ pub struct InviteRequest {
     pub username: Option<String>,
     pub server_url: String,
     pub expires_in_hours: i64,
+    /// The server's machine, when it is another: the invitation is made in its users.
+    pub ssh: Option<String>,
+    pub venv: Option<String>,
 }
 
 /// Re-issue an administrator invitation for a locally managed server.
@@ -605,6 +630,7 @@ fn invite(request: InviteRequest) -> Result<Value, String> {
     arguments.push(request.expires_in_hours.to_string());
     arguments.push("--no-interactive".to_string());
     arguments.push("--json".to_string());
+    machine_arguments(&mut arguments, request.ssh, request.venv);
 
     let output = run(&arguments)?;
     let start = output

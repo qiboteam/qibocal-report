@@ -9,6 +9,7 @@ from :mod:`qibocal_report.remote.notebook` rather than written twice.
 
 import json
 import queue
+import re
 import shlex
 import signal
 import subprocess
@@ -282,3 +283,44 @@ def launch(options: RemoteServerOptions) -> None:
                 reader.join(timeout=1)
         finally:
             signal.signal(signal.SIGTERM, previous_sigterm)
+
+
+def remote_qibocal(venv: str | None) -> str:
+    """The `qibocal` of an environment on the remote host, as its shell names it.
+
+    A bare name is resolved under the cache there, as the worker resolves it;
+    a path is taken as it is, `~` being the remote home.
+    """
+    name = (venv or "qibocal").strip()
+    if "/" not in name:
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", name):
+            raise click.ClickException(f"Invalid environment name: {name!r}.")
+        return f'"${{XDG_CACHE_HOME:-$HOME/.cache}}/qibocal/envs/{name}/bin/qibocal"'
+    if name.startswith("~/"):
+        return '"$HOME"/' + shlex.quote(f"{name[2:].rstrip('/')}/bin/qibocal")
+    return shlex.quote(f"{name.rstrip('/')}/bin/qibocal")
+
+
+def run_remote_cli(ssh: str, venv: str | None, arguments: list[str], timeout: float = 60.0) -> str:
+    """Run a `qibocal` command in the environment of a server on another machine.
+
+    What concerns a server's users — its administrators, its invitations —
+    lives in the configuration of the machine it runs on, so that is where
+    the command runs. Answers its standard output; a failure is the command's.
+    """
+    ssh_options, destination = ssh_arguments(ssh)
+    remote = " ".join([remote_qibocal(venv), *(shlex.quote(argument) for argument in arguments)])
+    try:
+        completed = subprocess.run(
+            ["ssh", *ssh_options, "-T", "-o", "BatchMode=yes", destination, remote],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise click.ClickException(f"{destination} did not answer within {timeout:g} s.") from error
+    if completed.returncode:
+        detail = (completed.stderr or completed.stdout).strip() or f"status {completed.returncode}"
+        raise click.ClickException(f"On {destination}: {detail}")
+    return completed.stdout

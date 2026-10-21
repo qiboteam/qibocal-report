@@ -167,6 +167,7 @@ qibocal report admin invite [USERNAME] [OPTIONS]
 - `--interactive / --no-interactive`: Force interactive or non-interactive administrator selection.
 - `--json`: Output invite details and link in machine-readable JSON format.
 - `--help`: Show help message and exit.
+- `--ssh TEXT`, `--venv TEXT`: for a server on another machine: the invitation is made there, in the users of that machine, with the `qibocal` of the server's environment (default `qibocal`). An invitation is only valid where the server keeps its users. `qibocal report admin list` takes the same two.
 
 #### Aliases
 - `qibocal report invite [USERNAME]` (direct shortcut).

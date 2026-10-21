@@ -801,9 +801,18 @@ def admin_group():
     default=False,
     help="Output administrators in JSON format.",
 )
-def admin_list(show_all: bool, output_json: bool):
+@click.option("--ssh", help="SSH destination of the server's machine: list its administrators there.")
+@click.option("--venv", help="The server's environment on that machine (default: qibocal).")
+def admin_list(show_all: bool, output_json: bool, ssh: str | None, venv: str | None):
     """List registered server administrators."""
     from qibocal_report import auth as auth_mod
+
+    if ssh:
+        # The users are the server's, kept on its machine: asked there.
+        from qibocal_report.remote.server import run_remote_cli
+
+        click.echo(run_remote_cli(ssh, venv, ["report", "admin", "list", *(["--all"] if show_all else []), *(["--json"] if output_json else [])]), nl=False)
+        return
 
     users = auth_mod.list_users() if show_all else auth_mod.list_admins()
     if output_json:
@@ -892,6 +901,8 @@ def admin_list(show_all: bool, output_json: bool):
     default=False,
     help="Output generated invitation details in JSON format.",
 )
+@click.option("--ssh", help="SSH destination of the server's machine: the invitation is made there, in its users.")
+@click.option("--venv", help="The server's environment on that machine (default: qibocal).")
 def admin_invite(
     username: str | None,
     opt_username: str | None,
@@ -901,8 +912,31 @@ def admin_invite(
     expires_in_hours: int,
     interactive: bool | None,
     output_json: bool,
+    ssh: str | None,
+    venv: str | None,
 ):
-    """Regenerate an invitation link for a server administrator."""
+    """Regenerate an invitation link for a server administrator.
+
+    An invitation is valid only in the users of the server's own machine:
+    with --ssh, it is made there.
+    """
+    if ssh:
+        from qibocal_report.remote.server import run_remote_cli
+
+        arguments = ["report", "admin", "invite"]
+        if username or opt_username:
+            arguments.append(username or opt_username)
+        if server_url:
+            arguments += ["--server-url", server_url]
+        if host:
+            arguments += ["--host", host]
+        if port:
+            arguments += ["--port", str(port)]
+        arguments += ["--expires-in-hours", str(expires_in_hours), "--no-interactive"]
+        if output_json:
+            arguments.append("--json")
+        click.echo(run_remote_cli(ssh, venv, arguments), nl=False)
+        return
     from qibocal_report import auth as auth_mod
     from qibocal_report import config
 

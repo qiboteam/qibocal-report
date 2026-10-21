@@ -161,7 +161,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { state, registerWithInvite, addServer, setActiveServer } from '../store.js'
-import { apiGetInvite } from '../api.js'
+import { apiGetInvite, apiGetPasswordReset } from '../api.js'
 import { normalizeUrl } from '../utils/url.js'
 
 const route = useRoute()
@@ -200,11 +200,16 @@ function formatExpiry(isoString) {
   }
 }
 
+/** Whether the link is a password reset rather than an invitation. */
+const resetting = ref(false)
+
 async function resolveAndValidate() {
   validating.value = true
   tokenError.value = ''
 
-  token.value = (route.query.token || route.params.token || '').toString().trim()
+  // An invitation, or a password reset: the same page, the same registration.
+  resetting.value = !route.query.token && Boolean(route.query.reset_token)
+  token.value = (route.query.token || route.query.reset_token || route.params.token || '').toString().trim()
   if (!token.value) {
     tokenError.value = 'No invitation token found in link URL.'
     validating.value = false
@@ -237,7 +242,9 @@ async function resolveAndValidate() {
   }
 
   try {
-    const res = await apiGetInvite(token.value, targetServer.value)
+    const res = resetting.value
+      ? await apiGetPasswordReset(token.value, targetServer.value)
+      : await apiGetInvite(token.value, targetServer.value)
     if (res.ok) {
       const data = await res.json()
       if (data.valid) {

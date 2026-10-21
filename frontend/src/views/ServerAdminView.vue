@@ -544,6 +544,7 @@
 </template>
 
 <script setup>
+import { inviteLink } from '../utils/url.js'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { announce, desktopWidget } from '../utils/desktop.js'
 import {
@@ -709,13 +710,12 @@ function isPasswordResetExpired(reset) {
 }
 
 function formatInviteToken(token) {
-  const serverUrl = getActiveServerUrl(state.activeServer) || window.location.origin
-  return `server=${serverUrl}&invite_token=${token}`
+  // A link the person it is for can open: the dashboard, told the server and the token.
+  return inviteLink(getActiveServerUrl(state.activeServer), token)
 }
 
 function formatPasswordResetToken(token) {
-  const serverUrl = getActiveServerUrl(state.activeServer) || window.location.origin
-  return `server=${serverUrl}&reset_token=${token}`
+  return inviteLink(getActiveServerUrl(state.activeServer), token, { reset: true })
 }
 
 async function copyInviteLink(token) {

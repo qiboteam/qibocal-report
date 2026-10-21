@@ -58,6 +58,30 @@ export function getActiveWsUrl(path, activeServer, token = null) {
   return `${wsProto}//${host}${cleanPath}`
 }
 
+/** The deployed dashboard, where links lead when this page is not on the web: the desktop application's. */
+export const DEPLOYED_DASHBOARD = 'https://qibo.science/qibocal-report'
+
+/**
+ * The dashboard a link should open: this very page on the web, wherever it
+ * is deployed; the deployed one from the desktop application, whose pages
+ * no one else can open.
+ */
+export function dashboardBase(location = typeof window === 'undefined' ? null : window.location) {
+  if (location && /^https?:$/.test(location.protocol)) {
+    return `${location.origin}${location.pathname}`.replace(/\/(index\.html)?$/, '')
+  }
+  return DEPLOYED_DASHBOARD
+}
+
+/**
+ * The link an invitation — or a password reset — is sent as: the dashboard,
+ * told the token and the server it is for, as the command line makes it.
+ */
+export function inviteLink(serverUrl, token, { reset = false, base = dashboardBase() } = {}) {
+  const query = new URLSearchParams({ [reset ? 'reset_token' : 'token']: token, server: normalizeUrl(serverUrl) })
+  return `${base}/#/invite?${query}`
+}
+
 /**
  * Parses user input to extract server base URL and any invite token.
  * Supports:
@@ -75,7 +99,8 @@ export function parseServerAndInvite(input) {
 
   // Try parsing as new token format: server=<url>&invite_token=<token> or server=<url>&reset_token=<token>
   // Don't use URLSearchParams for this since server URL is not encoded
-  if (str.includes('server=') && (str.includes('invite_token=') || str.includes('reset_token='))) {
+  // Not a link to a dashboard, whose query is read below, decoded.
+  if (!str.includes('#/') && str.includes('server=') && (str.includes('invite_token=') || str.includes('reset_token='))) {
     try {
       const serverMatch = str.match(/server=([^&]+)/)
       const inviteMatch = str.match(/invite_token=([^&]+)/)
@@ -117,11 +142,19 @@ export function parseServerAndInvite(input) {
       }
 
       // 2. Search in hash query params (#/invite?token=...)
-      if (!inviteToken && !resetToken && urlObj.hash && urlObj.hash.includes('?')) {
+      let named = urlObj.searchParams.get('server')
+      if (urlObj.hash && urlObj.hash.includes('?')) {
         const hashQuery = urlObj.hash.split('?')[1]
         const hashParams = new URLSearchParams(hashQuery)
-        inviteToken = hashParams.get('token') || hashParams.get('invite') || hashParams.get('invite_token')
-        resetToken = resetToken || hashParams.get('reset_token')
+        if (!inviteToken && !resetToken) {
+          inviteToken = hashParams.get('token') || hashParams.get('invite') || hashParams.get('invite_token')
+          resetToken = resetToken || hashParams.get('reset_token')
+        }
+        named = named || hashParams.get('server')
+      }
+      // A link to a dashboard names the server it is for: that, not the dashboard's own host.
+      if (named) {
+        return { url: normalizeUrl(named), inviteToken, resetToken }
       }
 
       // 3. Search in path (/invite/<token>)

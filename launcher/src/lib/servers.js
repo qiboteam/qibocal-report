@@ -363,3 +363,26 @@ export function syncDashboardServers(configured, { storage, preferredUrl = null,
   }
   return servers
 }
+
+/** Where the dashboard keeps its sessions, one per server, by the server's id. */
+export const DASHBOARD_AUTH_KEY = 'qibocal_report_auth'
+
+/**
+ * Sign the dashboard in to a server: the launcher page and the dashboard
+ * share an origin, hence a storage, so a session written here is the
+ * dashboard's at its next load.
+ */
+export function storeDashboardSession(server, token, user, storage = typeof localStorage === 'undefined' ? null : localStorage) {
+  if (!storage) return
+  const key = server?.id || serverUrl(server?.url)
+  if (!key) return
+  let sessions = {}
+  try {
+    const parsed = JSON.parse(storage.getItem(DASHBOARD_AUTH_KEY) || '{}')
+    if (parsed && typeof parsed === 'object') sessions = parsed
+  } catch {
+    sessions = {}
+  }
+  sessions[key] = { token, user }
+  storage.setItem(DASHBOARD_AUTH_KEY, JSON.stringify(sessions))
+}

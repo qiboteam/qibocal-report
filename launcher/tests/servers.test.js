@@ -18,7 +18,9 @@ import {
   suggestServerName,
   syncDashboardServers,
   toDashboardServer,
-  withoutTransient
+  withoutTransient,
+  DASHBOARD_AUTH_KEY,
+  storeDashboardSession
 } from '../src/lib/servers.js'
 
 function createStorage(initial = {}) {
@@ -256,4 +258,16 @@ test('servers shown for a look are in the dashboard, and out of what it saves', 
   assert.deepEqual(saved.map(server => server.url), ['http://127.0.0.1:8000'], 'never written to servers.json')
   syncDashboardServers([{ name: 'QRC', url: 'http://127.0.0.1:8000' }], { storage: store })
   assert.equal(withoutTransient(shown, store).length, 2, 'gone from the list once it stops: nothing left to hold back')
+})
+
+test('a session written from the launcher is the dashboard\'s, by the server\'s id', () => {
+  const storage = new Map()
+  const store = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) }
+  store.setItem(DASHBOARD_AUTH_KEY, JSON.stringify({ other: { token: 'kept', user: { username: 'x' } } }))
+  storeDashboardSession({ id: 'srv-1', url: 'http://127.0.0.1:9000' }, 'session', { username: 'chief', role: 'admin' }, store)
+  const sessions = JSON.parse(storage.get(DASHBOARD_AUTH_KEY))
+  assert.deepEqual(sessions['srv-1'], { token: 'session', user: { username: 'chief', role: 'admin' } })
+  assert.equal(sessions.other.token, 'kept', 'the other servers\' sessions stay')
+  storeDashboardSession({ url: 'http://lab:8000/' }, 't', { username: 'a' }, store)
+  assert.ok(JSON.parse(storage.get(DASHBOARD_AUTH_KEY))['http://lab:8000'], 'without an id, by its address')
 })

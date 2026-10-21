@@ -164,8 +164,8 @@
             >
               <RefreshCw class="w-3.5 h-3.5" :class="{ 'lx-spin': updating === server.id }" /> {{ updating === server.id ? 'Updating…' : 'Update' }}
             </button>
-            <button type="button" class="lx-action" title="Re-issue an administrator invitation" @click="toggleInvite(server)">
-              <KeyRound class="w-3.5 h-3.5" /> Invite
+            <button type="button" class="lx-action" title="Set an administrator's password, and sign the dashboard in as them" @click="adminServer = server">
+              <KeyRound class="w-3.5 h-3.5" /> Admin access
             </button>
             <button type="button" class="lx-action" title="Edit how it is registered" @click="toggleEdit(server)">
               <Pencil class="w-3.5 h-3.5" /> Edit
@@ -197,40 +197,11 @@
           </div>
         </form>
 
-        <!-- Administrator invitation -->
-        <div v-if="invite.serverId === server.id" class="mt-3.5 pt-3.5 border-t border-gray-100 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
-          <form-field v-slot="{ id }" label="Administrator" help="Empty: the initial, unregistered administrator.">
-            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-              :id="id"
-              v-model.trim="invite.username"
-              type="text"
-              class="lx-input"
-              list="launcher-administrators"
-            />
-          </form-field>
-          <form-field v-slot="{ id }" label="Valid for" help="Hours.">
-            <input :id="id" v-model="invite.hours" type="number" min="1" class="lx-input lx-mono w-24" />
-          </form-field>
-          <button type="button" class="lx-primary py-2" :disabled="invite.busy" @click="createInvite(server)">
-            {{ invite.busy ? 'Working…' : 'Create link' }}
-          </button>
-
-          <div v-if="invite.result" class="sm:col-span-3 flex items-center gap-2 bg-[#f7f5ff] rounded-xl px-3 py-2">
-            <code class="lx-mono flex-1 truncate text-[#3b107e]">{{ invite.result.invite_url }}</code>
-            <span class="text-[11px] text-gray-500 shrink-0">
-              {{ invite.result.expires_at ? `until ${invite.result.expires_at}` : 'no expiry' }}
-            </span>
-            <button type="button" class="lx-action shrink-0" @click="copy(invite.result.invite_url)">
-              <Copy class="w-3.5 h-3.5" /> Copy
-            </button>
-          </div>
-        </div>
       </article>
 
-      <datalist id="launcher-administrators">
-        <option v-for="user in administrators" :key="user.id || user.username" :value="user.username" />
-      </datalist>
     </section>
+
+    <admin-access-dialog :server="adminServer" @close="adminServer = null" @signed-in="signedIn" />
   </div>
 </template>
 
@@ -239,7 +210,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Bookmark,
-  Copy,
   Files,
   KeyRound,
   LayoutDashboard,
@@ -250,7 +220,7 @@ import {
   Trash2,
   X
 } from 'lucide-vue-next'
-import FormField from '../components/FormField.vue'
+import AdminAccessDialog from '../components/AdminAccessDialog.vue'
 import ServerFields from '../components/ServerFields.vue'
 import { desktop, wantsNewWindow } from '../bridge.js'
 import {
@@ -282,10 +252,10 @@ const router = useRouter()
 const creating = ref(false)
 const where = ref('local')
 const form = reactive(blankForm())
-const invite = reactive({ serverId: null, username: '', hours: 24, busy: false, result: null })
+/** The server whose administrator access is being restored, in its dialog. */
+const adminServer = ref(null)
 /** The server being edited, with the form opened on it. */
 const editing = reactive({ serverId: null, where: 'local', form: blankForm(), busy: false })
-const administrators = ref([])
 const starting = ref(false)
 /** The server whose qibocal-report is being updated, by id. */
 const updating = ref(null)
@@ -364,7 +334,7 @@ const { focused } = usePageKeys({
     Enter: (index, event) => activate(state.servers[index], event),
     s: (index, event) => activate(state.servers[index], event),
     e: index => toggleEdit(state.servers[index]),
-    i: index => toggleInvite(state.servers[index]),
+    i: index => { adminServer.value = state.servers[index] },
     d: index => duplicate(state.servers[index]),
     u: index => { if (launchOptionsFor(state.servers[index])) update(state.servers[index]) }
   }
@@ -472,41 +442,9 @@ async function saveEdit(server) {
   if (saved) editing.serverId = null
 }
 
-async function toggleInvite(server) {
-  if (invite.serverId === server.id) {
-    invite.serverId = null
-    return
-  }
-  Object.assign(invite, { serverId: server.id, username: '', hours: 24, busy: false, result: null })
-  if (!administrators.value.length) {
-    administrators.value = (await attempt(() => withQibocal(() => desktop.administrators()))) || []
-  }
-}
-
-async function createInvite(server) {
-  invite.busy = true
-  invite.result = null
-  try {
-    invite.result = await withQibocal(() => desktop.reissueInvite({
-      username: invite.username || null,
-      serverUrl: server.url,
-      expiresInHours: Number(invite.hours) || 24
-    }))
-    notify('Invitation link created.', 'servers')
-  } catch (error) {
-    fail(error)
-  } finally {
-    invite.busy = false
-  }
-}
-
-async function copy(text) {
-  try {
-    await navigator.clipboard.writeText(text)
-    notify('Link copied.')
-  } catch (error) {
-    fail(error)
-  }
+/** Signed in from Administrator access: the dashboard has the session at its next load. */
+function signedIn({ server, user }) {
+  notify(`Signed in to ${server.name || server.url} as ${user?.username || 'administrator'}; the dashboard opens on it signed in.`, 'servers')
 }
 
 /**

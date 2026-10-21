@@ -64,7 +64,8 @@ export const desktop = {
   /** A system notification, for what happens while the user is not looking. */
   systemNotify: (title, body) => call('system_notify', { title, body }),
 
-  administrators: () => call('administrators'),
+  /** The users of a server: on this machine, or on its own over SSH (`{ ssh, venv }`). */
+  administrators: (machine = null) => call('administrators', { machine }),
   /** Ask a SLURM queue once: `{ ssh, partition, user, states, timeout }`. */
   slurmQueue: request => call('slurm_queue', { request }),
   reissueInvite: request => call('reissue_invite', { request })
