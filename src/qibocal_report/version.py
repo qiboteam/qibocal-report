@@ -42,6 +42,18 @@ def installed_commit() -> str | None:
     return found.group(1) if found else None
 
 
+REPOSITORY = "https://github.com/qiboteam/qibocal-report"
+
+
+def default_install() -> str:
+    """What a server on another machine installs, unless told: this very qibocal-report.
+
+    From GitHub, until the package is on PyPI: the commit this installation
+    was made from, when known, and `main` otherwise.
+    """
+    return f"git+{REPOSITORY}@{installed_commit() or 'main'}"
+
+
 def version_info() -> dict:
     return {
         "version": __version__,

@@ -172,7 +172,8 @@ def remote_server_options(command):
             click.option(
                 "--install",
                 help="Packages installed in the remote environment when it "
-                "has no qibocal (default: qibocal-report).",
+                "has no qibocal (default: this qibocal-report, from GitHub: "
+                "the commit it was installed from, or main).",
             ),
             click.option(
                 "--timeout",
@@ -637,7 +638,7 @@ def report_targets(directory: str | None):
 )
 @click.option(
     "--install",
-    help="Packages put back by force in the remote environment (default: qibocal-report).",
+    help="Packages put back by force in the remote environment (default: this qibocal-report, from GitHub: the commit it was installed from, or main).",
 )
 @click.option(
     "--timeout",

@@ -10,6 +10,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
+from qibocal_report import version
 from qibocal_report.remote import report_worker
 from qibocal_report.cli import main
 from qibocal_report.remote.server import (
@@ -26,7 +27,9 @@ from qibocal_report.remote.server import (
 def test_defaults_are_the_documented_ones():
     options = load_options({"ssh": "me@node"})
     assert options.venv == "qibocal-report"
-    assert options.install == "qibocal-report"
+    # This very qibocal-report, from GitHub, until it is on PyPI.
+    assert options.install == version.default_install()
+    assert options.install.startswith("git+https://github.com/qiboteam/qibocal-report@")
     assert options.directory is None, "the shared directory of the remote host"
     assert options.timeout == 300.0
     assert options.auth is False
@@ -107,7 +110,7 @@ def test_the_ssh_command_keeps_the_destination_last():
         "directory": "/shared/runs",
         "venv": "chip",
         "workdir": None,
-        "install": "qibocal-report",
+        "install": version.default_install(),
         "upgrade": False,
         "auth": True,
         "timeout": 300.0,

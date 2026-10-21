@@ -24,6 +24,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from qibocal_report import config
+from qibocal_report.version import default_install
 from qibocal_report.remote.notebook import (
     NotebookOutput,
     _read_stderr,
@@ -48,7 +49,7 @@ class RemoteServerOptions(BaseModel):
     # server update would move.
     venv: str = Field(default="qibocal-report", min_length=1)
     workdir: str | None = Field(default=None, min_length=1)
-    install: str = Field(default="qibocal-report", min_length=1)
+    install: str = Field(default_factory=default_install, min_length=1)
     # Put the packages back by force before starting: an update, where the
     # environment would otherwise keep what it holds for good.
     upgrade: bool = False

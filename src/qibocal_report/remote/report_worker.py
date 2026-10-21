@@ -178,7 +178,7 @@ def run(options):
             if workdir
             else tempfile.mkdtemp(prefix="qibocal-report-")
         )
-        packages = shlex.split(options.get("install") or "qibocal-report")
+        packages = shlex.split(options.get("install") or "git+https://github.com/qiboteam/qibocal-report@main")
         if not packages:
             raise WorkerError("--install must name at least one package")
         path = environment_path(options.get("venv") or "qibocal-report")
