@@ -1,0 +1,51 @@
+name: Python tests
+
+# The server, the command line and the remote workers: on every change of
+# theirs, on the oldest Python the package supports and on a recent one —
+# the workers also run on whatever python3 a remote host has.
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "sample_data/**"
+      - "docs/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "sample_data/**"
+      - "docs/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Run the tests
+        run: uv run --extra dev pytest -q
