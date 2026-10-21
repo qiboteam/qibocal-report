@@ -25,7 +25,7 @@ from qibocal_report.remote.server import (
 
 def test_defaults_are_the_documented_ones():
     options = load_options({"ssh": "me@node"})
-    assert options.venv == "qibocal"
+    assert options.venv == "qibocal-report"
     assert options.install == "qibocal-report"
     assert options.directory is None, "the shared directory of the remote host"
     assert options.timeout == 300.0
@@ -34,7 +34,7 @@ def test_defaults_are_the_documented_ones():
 
 def test_unset_options_do_not_override_the_defaults():
     options = load_options({"ssh": "me@node", "venv": None, "workdir": None})
-    assert options.venv == "qibocal"
+    assert options.venv == "qibocal-report"
     assert options.workdir is None
 
 

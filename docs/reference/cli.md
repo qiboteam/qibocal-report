@@ -76,7 +76,7 @@ With `--ssh`, the server runs on another machine and its address is tunnelled ba
 
 - `--ssh TEXT`: SSH options followed by a host or `user@host` destination, as in `qibocal notebook connect`. The destination must be the last argument; do not include a remote command.
 - `-w, --workdir DIRECTORY`: Working directory on the remote host. Default: a fresh temporary directory, since the server writes nothing where it starts.
-- `--venv NAME_OR_PATH`: Environment on the remote host. Default: `qibocal`. Names resolve under `$XDG_CACHE_HOME/qibocal/envs/` (fallback `~/.cache/qibocal/envs/`), the same place the notebook sessions use; a missing environment is created, and an existing one without Qibocal has it installed.
+- `--venv NAME_OR_PATH`: Environment on the remote host. Default: `qibocal-report`, apart from the notebooks' `qibocal`, whose packages an update would otherwise move. Names resolve under `$XDG_CACHE_HOME/qibocal/envs/` (fallback `~/.cache/qibocal/envs/`), the same place the notebook sessions use; a missing environment is created, and an existing one without Qibocal has it installed.
 - `--install TEXT`: Packages installed in that environment when it has no `qibocal`. Default: `qibocal-report`.
 - `--timeout SECONDS`: Startup timeout, environment preparation included. Default: `300`.
 
@@ -161,7 +161,7 @@ qibocal report admin invite [USERNAME] [OPTIONS]
 - `--interactive / --no-interactive`: Force interactive or non-interactive administrator selection.
 - `--json`: Output invite details and link in machine-readable JSON format.
 - `--help`: Show help message and exit.
-- `--ssh TEXT`, `--venv TEXT`: for a server on another machine: the invitation is made there, in the users of that machine, with the `qibocal` of the server's environment (default `qibocal`). An invitation is only valid where the server keeps its users. `qibocal report admin list` takes the same two.
+- `--ssh TEXT`, `--venv TEXT`: for a server on another machine: the invitation is made there, in the users of that machine, with the `qibocal` of the server's environment (default `qibocal-report`). An invitation is only valid where the server keeps its users. `qibocal report admin list` takes the same two.
 
 #### Aliases
 - `qibocal report invite [USERNAME]` (direct shortcut).

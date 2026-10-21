@@ -44,7 +44,9 @@ class RemoteServerOptions(BaseModel):
     # None is the shared reports directory of the remote host, which the
     # worker alone can locate.
     directory: str | None = Field(default=None, min_length=1)
-    venv: str = Field(default="qibocal", min_length=1)
+    # Its own: `qibocal` is the notebooks' kernel environment, whose packages a
+    # server update would move.
+    venv: str = Field(default="qibocal-report", min_length=1)
     workdir: str | None = Field(default=None, min_length=1)
     install: str = Field(default="qibocal-report", min_length=1)
     # Put the packages back by force before starting: an update, where the
@@ -291,7 +293,7 @@ def remote_qibocal(venv: str | None) -> str:
     A bare name is resolved under the cache there, as the worker resolves it;
     a path is taken as it is, `~` being the remote home.
     """
-    name = (venv or "qibocal").strip()
+    name = (venv or "qibocal-report").strip()
     if "/" not in name:
         if not re.fullmatch(r"[A-Za-z0-9._-]+", name):
             raise click.ClickException(f"Invalid environment name: {name!r}.")

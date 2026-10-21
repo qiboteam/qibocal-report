@@ -13,7 +13,7 @@ from qibocal_report.remote import server
 
 
 def test_the_remote_command_line_is_the_environment_s_on_that_machine():
-    assert server.remote_qibocal(None) == '"${XDG_CACHE_HOME:-$HOME/.cache}/qibocal/envs/qibocal/bin/qibocal"'
+    assert server.remote_qibocal(None) == '"${XDG_CACHE_HOME:-$HOME/.cache}/qibocal/envs/qibocal-report/bin/qibocal"'
     assert server.remote_qibocal("lab") == '"${XDG_CACHE_HOME:-$HOME/.cache}/qibocal/envs/lab/bin/qibocal"'
     assert server.remote_qibocal("~/envs/my env") == '"$HOME"/\'envs/my env/bin/qibocal\''
     assert server.remote_qibocal("/opt/qr/") == "/opt/qr/bin/qibocal"

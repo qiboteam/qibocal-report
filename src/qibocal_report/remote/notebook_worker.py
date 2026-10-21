@@ -793,7 +793,9 @@ def prepare_kernels(runtime, root, target_path, target, sites, env):
     default_path = (cache / "envs" / "qibocal").resolve()
     environments = {selected}
     if (cache / "envs").is_dir():
-        environments.update(path.resolve() for path in (cache / "envs").iterdir())
+        # The remote execution connections' own are in a folder of theirs, not kernels.
+        remote = REMOTE_ENVIRONMENTS.rstrip("/")
+        environments.update(path.resolve() for path in (cache / "envs").iterdir() if path.name != remote)
     if registry.is_dir():
         for registration in sorted(registry.glob("*.json")):
             value = json.loads(registration.read_text(encoding="utf-8"))

@@ -181,7 +181,7 @@ def run(options):
         packages = shlex.split(options.get("install") or "qibocal-report")
         if not packages:
             raise WorkerError("--install must name at least one package")
-        path = environment_path(options.get("venv") or "qibocal")
+        path = environment_path(options.get("venv") or "qibocal-report")
 
         if options.get("upgrade"):
             # An update, and nothing else: the packages put back, and done.

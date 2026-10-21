@@ -220,9 +220,6 @@ def get_archive_zip_path(
         zip_p = archive_dir / zip_name
         if zip_p.is_file():
             return zip_p
-    # Fallback to any .zip in folder
-    for z in archive_dir.glob("*.zip"):
-        return z
     return None
 
 

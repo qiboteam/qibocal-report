@@ -159,7 +159,7 @@ def remote_server_options(command):
             click.option(
                 "--venv",
                 help="Environment name or path on the remote host "
-                "(default: qibocal). It is created when missing.",
+                "(default: qibocal-report). It is created when missing.",
             ),
             click.option(
                 "--install",
@@ -624,7 +624,7 @@ def report_targets(directory: str | None):
 @click.option("-w", "--workdir", help="Working directory on the remote host.")
 @click.option(
     "--venv",
-    help="Environment name or path on the remote host (default: qibocal). It is created when missing.",
+    help="Environment name or path on the remote host (default: qibocal-report). It is created when missing.",
 )
 @click.option(
     "--install",
@@ -808,7 +808,7 @@ def admin_group():
     help="Output administrators in JSON format.",
 )
 @click.option("--ssh", help="SSH destination of the server's machine: list its administrators there.")
-@click.option("--venv", help="The server's environment on that machine (default: qibocal).")
+@click.option("--venv", help="The server's environment on that machine (default: qibocal-report).")
 def admin_list(show_all: bool, output_json: bool, ssh: str | None, venv: str | None):
     """List registered server administrators."""
     from qibocal_report import auth as auth_mod
@@ -908,7 +908,7 @@ def admin_list(show_all: bool, output_json: bool, ssh: str | None, venv: str | N
     help="Output generated invitation details in JSON format.",
 )
 @click.option("--ssh", help="SSH destination of the server's machine: the invitation is made there, in its users.")
-@click.option("--venv", help="The server's environment on that machine (default: qibocal).")
+@click.option("--venv", help="The server's environment on that machine (default: qibocal-report).")
 def admin_invite(
     username: str | None,
     opt_username: str | None,
