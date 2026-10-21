@@ -35,10 +35,9 @@ test('a broken document answers the parser message instead of raising', () => {
 })
 
 test('a document of the wrong shape is refused', () => {
-  assert.match(parseDocument('servers.json', '{"a": 1}').error, /list of entries/)
-  assert.match(parseDocument('launcher.json', '[]').error, /object of named entries/)
-  assert.match(parseDocument('notebooks.json', '[1, 2]').error, /object of named entries/)
-  assert.match(parseDocument('notebooks.json', '42').error, /object of named entries/)
+  assert.match(parseDocument('servers.json', '{"version": 1, "servers": {"a": 1}}').error, /list of entries/)
+  assert.match(parseDocument('notebooks.json', '{"version": 1, "connections": [1, 2]}').error, /object of named entries/)
+  assert.match(parseDocument('notebooks.json', '{"version": 1, "connections": 42}').error, /object of named entries/)
 })
 
 test('a formatted document carries the version, and ends with a newline', () => {
@@ -47,14 +46,29 @@ test('a formatted document carries the version, and ends with a newline', () => 
   assert.deepEqual(JSON.parse(formatDocument('notebooks.json', { c: { ssh: 'x' } })), { version: 1, connections: { c: { ssh: 'x' } } })
 })
 
-test('the entries come out of their envelope, versioned or not', () => {
-  assert.deepEqual(parseDocument('servers.json', '[{"url": "http://a"}]').value, [{ url: 'http://a' }], 'the file before versions')
+test('the entries come out of their envelope', () => {
   assert.deepEqual(parseDocument('servers.json', '{"version": 1, "servers": [{"url": "http://a"}]}').value, [{ url: 'http://a' }])
   assert.deepEqual(parseDocument('servers.json', '{"version": 1}').value, [], 'an envelope with nothing in it')
-  assert.deepEqual(parseDocument('notebooks.json', '{"c": {"ssh": "x"}}').value, { c: { ssh: 'x' } })
+  assert.deepEqual(parseDocument('notebooks.json', '{"version": 1}').value, {})
   assert.deepEqual(parseDocument('notebooks.json', '{"version": 1, "connections": {"c": {"ssh": "x"}}}').value, { c: { ssh: 'x' } })
   assert.deepEqual(parseDocument('launcher.json', '{"version": 1, "package": "x"}').value, { package: 'x' }, 'the version is not a preference')
   assert.equal(parseDocument('launcher.json', '{"version": 1}').version, 1)
+})
+
+test('a file without a version is not ours: refused, as one of another version', () => {
+  for (const [file, text] of [
+    ['servers.json', '[{"url": "http://a"}]'],
+    ['servers.json', '{"servers": []}'],
+    ['notebooks.json', '{"c": {"ssh": "x"}}'],
+    ['launcher.json', '{"package": "x"}'],
+    ['launcher.json', '[]'],
+    ['auth.json', '42']
+  ]) {
+    const parsed = parseDocument(file, text)
+    assert.equal(parsed.value, null, text)
+    assert.equal(parsed.version, null)
+    assert.match(parsed.error, /another version.*no format version; this one reads 1/)
+  }
 })
 
 test('a file of another version is refused, and says so', () => {

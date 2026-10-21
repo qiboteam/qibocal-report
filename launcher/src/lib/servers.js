@@ -214,7 +214,9 @@ export function launchKeys(url) {
 /**
  * How to start a registered server the launcher has never started: on this
  * machine, at the address it is registered under, serving the shared
- * directory. Nothing, when the address is not this machine's.
+ * directory, with authentication — it may have run with it, and starting it
+ * without would open its reports to anyone who reaches it. Nothing, when the
+ * address is not this machine's.
  */
 export function defaultLaunch(server) {
   const url = serverUrl(server?.url)
@@ -233,7 +235,7 @@ export function defaultLaunch(server) {
     directory: null,
     host: parsed.hostname,
     port: Number(parsed.port) || (parsed.protocol === 'https:' ? 443 : 80),
-    auth: false,
+    auth: true,
     frontendPort: null,
     ssh: null,
     venv: null,
@@ -262,14 +264,24 @@ function stringMap(value, arrays) {
 }
 
 /**
+ * The dashboard's id of a server: its own, or one made of its address — the
+ * same server always gets the same, wherever it is in the list.
+ */
+export function dashboardId(server) {
+  if (typeof server?.id === 'string' && server.id) return server.id
+  const url = serverUrl(server?.url)
+  return url ? `srv-local-${url.replace(/[^A-Za-z0-9]+/g, '-')}` : null
+}
+
+/**
  * Project a `servers.json` entry onto the schema the dashboard stores in the
  * browser, so both halves of the application describe the same instance.
  */
-export function toDashboardServer(server, fallbackIndex = 0) {
+export function toDashboardServer(server) {
   const url = serverUrl(server?.url)
   if (!url) return null
   return {
-    id: typeof server?.id === 'string' && server.id ? server.id : `srv-local-${fallbackIndex}`,
+    id: dashboardId(server),
     name: typeof server?.name === 'string' && server.name ? server.name : url,
     url,
     description: typeof server?.description === 'string' ? server.description : `Server at ${url}`,
@@ -300,8 +312,8 @@ export function mergeDashboardServers(configured, existing = []) {
   )
   const merged = []
   const seen = new Set()
-  ;(Array.isArray(configured) ? configured : []).forEach((server, index) => {
-    const candidate = toDashboardServer(server, index)
+  ;(Array.isArray(configured) ? configured : []).forEach(server => {
+    const candidate = toDashboardServer(server)
     if (!candidate || seen.has(candidate.url)) return
     seen.add(candidate.url)
     const current = cached.get(candidate.url)
@@ -370,11 +382,14 @@ export const DASHBOARD_AUTH_KEY = 'qibocal_report_auth'
 /**
  * Sign the dashboard in to a server: the launcher page and the dashboard
  * share an origin, hence a storage, so a session written here is the
- * dashboard's at its next load.
+ * dashboard's at its next load — under the id the dashboard knows it by,
+ * which its own list may have kept from before.
  */
 export function storeDashboardSession(server, token, user, storage = typeof localStorage === 'undefined' ? null : localStorage) {
   if (!storage) return
-  const key = server?.id || serverUrl(server?.url)
+  const url = serverUrl(server?.url)
+  const shown = url ? readStored(storage, DASHBOARD_SERVERS_KEY).find(entry => serverUrl(entry?.url) === url) : null
+  const key = shown?.id || dashboardId(server)
   if (!key) return
   let sessions = {}
   try {

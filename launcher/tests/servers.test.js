@@ -20,6 +20,7 @@ import {
   toDashboardServer,
   withoutTransient,
   DASHBOARD_AUTH_KEY,
+  dashboardId,
   storeDashboardSession
 } from '../src/lib/servers.js'
 
@@ -126,6 +127,8 @@ test('a registered local server can be started without a remembered launch', () 
   assert.equal(options.port, 8010)
   assert.equal(options.register, true)
   assert.equal(options.directory, null, 'the shared directory')
+  assert.equal(options.auth, true, 'it may have run with authentication: never turned off unasked')
+  assert.equal(formFrom(options, { url: 'http://localhost:8010' }).form.auth, true, 'and the form says so')
   assert.equal(defaultLaunch({ url: 'https://reports.example.org' }), null, 'not this machine')
   assert.equal(defaultLaunch({ url: '' }), null)
 })
@@ -260,6 +263,28 @@ test('servers shown for a look are in the dashboard, and out of what it saves', 
   assert.equal(withoutTransient(shown, store).length, 2, 'gone from the list once it stops: nothing left to hold back')
 })
 
+test('a server without an id gets one of its address, wherever it is in the list', () => {
+  const lab = { name: 'lab', url: 'http://127.0.0.1:9000/' }
+  const first = mergeDashboardServers([lab], [])[0].id
+  const later = mergeDashboardServers([{ url: 'http://127.0.0.1:8000' }, lab], [])[1].id
+  assert.equal(first, later)
+  assert.equal(first, 'srv-local-http-127-0-0-1-9000')
+  assert.notEqual(dashboardId({ url: 'http://127.0.0.1:8000' }), first, 'another server, another id')
+  assert.equal(dashboardId({ id: 'srv-1', url: 'http://127.0.0.1:9000' }), 'srv-1', 'its own id first')
+  assert.equal(dashboardId({ url: '' }), null)
+})
+
+test('a session is stored under the id the dashboard shows the server by', () => {
+  const store = createStorage()
+  syncDashboardServers([], { storage: store, transient: [{ name: 'look', url: 'http://127.0.0.1:9000' }] })
+  storeDashboardSession({ url: 'http://127.0.0.1:9000/' }, 't', { username: 'a' }, store)
+  const [shown] = JSON.parse(store.getItem(DASHBOARD_SERVERS_KEY))
+  assert.ok(JSON.parse(store.getItem(DASHBOARD_AUTH_KEY))[shown.id], 'the transient server\'s id')
+  store.setItem(DASHBOARD_SERVERS_KEY, JSON.stringify([{ id: 'kept', url: 'http://lab:8000' }]))
+  storeDashboardSession({ id: 'srv-lab', url: 'http://lab:8000' }, 't', { username: 'a' }, store)
+  assert.ok(JSON.parse(store.getItem(DASHBOARD_AUTH_KEY)).kept, 'the id the dashboard kept from before')
+})
+
 test('a session written from the launcher is the dashboard\'s, by the server\'s id', () => {
   const storage = new Map()
   const store = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) }
@@ -269,5 +294,5 @@ test('a session written from the launcher is the dashboard\'s, by the server\'s 
   assert.deepEqual(sessions['srv-1'], { token: 'session', user: { username: 'chief', role: 'admin' } })
   assert.equal(sessions.other.token, 'kept', 'the other servers\' sessions stay')
   storeDashboardSession({ url: 'http://lab:8000/' }, 't', { username: 'a' }, store)
-  assert.ok(JSON.parse(storage.get(DASHBOARD_AUTH_KEY))['http://lab:8000'], 'without an id, by its address')
+  assert.ok(JSON.parse(storage.get(DASHBOARD_AUTH_KEY))['srv-local-http-lab-8000'], 'without an id, by one made of its address')
 })

@@ -146,7 +146,7 @@
               class="lx-primary !py-1"
               :disabled="!launchOptionsFor(server) || starting"
               :title="launchOptionsFor(server)
-                ? (recallLaunch(server.url) ? 'Start it again with the options used last time' : 'Start it here, at this address, serving the shared directory')
+                ? (recallLaunch(server.url) ? 'Start it again with the options used last time' : 'Start it here, at this address, serving the shared directory, with authentication')
                 : 'Registered elsewhere: nothing to start on this machine'"
               @click="relaunch(server)"
             >

@@ -17,10 +17,10 @@ import { REMOTE_FIELDS, describeRemote } from './remotes.js'
  * The format of the configuration files this launcher reads and writes.
  *
  * Every file is an object carrying a `version`; `servers.json` keeps its
- * entries under `servers`, `notebooks.json` under `connections`, the other
- * two next to the version. A file without a version was written before
- * versions were, and is read as the current format; a file with another
- * version is ignored and shown as it is, for a migration by hand.
+ * entries under `servers`, `notebooks.json` and `remotes.json` under
+ * `connections`, the others next to the version. A file without a version,
+ * or with another one, is not ours: ignored and shown as it is, for a
+ * migration by hand.
  */
 export const CONFIG_VERSION = 1
 
@@ -106,33 +106,24 @@ export function declaredVersion(parsed) {
   return Number.isInteger(version) ? version : null
 }
 
-/** Whether a parsed document is of this version, or of none. */
+/** Whether a parsed document is of this version. */
 export function isCompatible(parsed) {
-  const version = declaredVersion(parsed)
-  return version === null || version === CONFIG_VERSION
+  return declaredVersion(parsed) === CONFIG_VERSION
 }
 
 /**
- * The entries of a parsed document, out of their envelope: the bare list or
- * map of a file without a version, or what sits under the envelope key —
- * or next to the version — of a versioned one.
+ * The entries of a compatible document, out of their envelope: what sits
+ * under the envelope key, or next to the version.
  */
 function unwrap(file, parsed) {
   const shape = shapeOf(file)
-  const isObject = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-  if (shape.kind === 'list') {
-    if (Array.isArray(parsed)) return parsed
-    if (isObject && (Array.isArray(parsed[shape.envelope]) || parsed[shape.envelope] === undefined) && 'version' in parsed) {
-      return parsed[shape.envelope] || []
-    }
-    if (isObject && Array.isArray(parsed[shape.envelope])) return parsed[shape.envelope]
-    return null
-  }
-  if (!isObject) return null
   if (shape.envelope) {
-    if (!('version' in parsed) && !(shape.envelope in parsed)) return parsed
     const inner = parsed[shape.envelope]
-    return inner === undefined ? {} : inner && typeof inner === 'object' && !Array.isArray(inner) ? inner : null
+    if (inner === undefined) return emptyDocument(file)
+    const valid = shape.kind === 'list'
+      ? Array.isArray(inner)
+      : inner !== null && typeof inner === 'object' && !Array.isArray(inner)
+    return valid ? inner : null
   }
   const { version: _version, ...entries } = parsed
   return entries
@@ -156,10 +147,11 @@ export function parseDocument(file, text) {
   }
   const version = declaredVersion(parsed)
   if (!isCompatible(parsed)) {
+    const declared = version === null ? 'no format version' : `format ${version}`
     return {
       value: null,
       version,
-      error: `${file} was written by another version of Qibocal (format ${version}; this one reads ${CONFIG_VERSION}).`
+      error: `${file} was written by another version of Qibocal (${declared}; this one reads ${CONFIG_VERSION}).`
     }
   }
   const value = unwrap(file, parsed)

@@ -24,10 +24,10 @@ const KNOWN_FILES: [(&str, &str); 6] = [
 ///
 /// Every file is an object carrying a `version`; `servers.json` keeps its
 /// entries under `servers`, `notebooks.json` and `remotes.json` under
-/// `connections`, the other two next to the version. A file without a version is the one written
-/// before versions were — read as the current format. A file with another
-/// version is ignored, listed in Configuration as it is, for a migration by
-/// hand: there is no automatic one.
+/// `connections`, `agent-hosts.json` under `hosts`, the other two next to the
+/// version. A file without a version, or with another one, is not ours: it is
+/// ignored, never overwritten, and listed in Configuration as it is, for a
+/// migration by hand — there is no automatic one.
 pub const CONFIG_VERSION: u64 = 1;
 
 /// What a file on disk is, as far as the version goes.
@@ -37,6 +37,7 @@ pub struct Compatibility {
     /// The version the file declares; none for a file without one, or absent.
     pub version: Option<u64>,
     pub expected: u64,
+    /// A file that is absent, empty or not JSON is compatible: nothing to keep.
     pub compatible: bool,
 }
 
@@ -50,14 +51,18 @@ fn compatibility(value: Option<&Value>) -> Compatibility {
     Compatibility {
         version,
         expected: CONFIG_VERSION,
-        compatible: version.map_or(true, |found| found == CONFIG_VERSION),
+        compatible: value.is_none() || version == Some(CONFIG_VERSION),
     }
 }
 
 /// The error a write into an incompatible file answers with.
-fn incompatible(name: &str, found: u64) -> String {
+fn incompatible(name: &str, found: Option<u64>) -> String {
+    let declared = match found {
+        Some(found) => format!("format {found}"),
+        None => "no format version".to_string(),
+    };
     format!(
-        "{name} was written by another version of Qibocal (format {found}; this one reads {CONFIG_VERSION}). \
+        "{name} was written by another version of Qibocal ({declared}; this one reads {CONFIG_VERSION}). \
          It is left as it is until migrated by hand, in Configuration."
     )
 }
@@ -74,24 +79,22 @@ fn read_compatible(path: &Path) -> Result<Option<Value>, String> {
     })
 }
 
-/// Refuse to replace a file of another version: that is a migration's job.
+/// Refuse to replace a file of another version, or of none: that is a
+/// migration's job.
 fn guard_write(name: &str, path: &Path) -> Result<(), String> {
     let found = read_json(path).ok().flatten();
     let state = compatibility(found.as_ref());
-    match (state.compatible, state.version) {
-        (false, Some(found)) => Err(incompatible(name, found)),
-        _ => Ok(()),
+    match state.compatible {
+        true => Ok(()),
+        false => Err(incompatible(name, state.version)),
     }
 }
 
-/// The entries of a document: under `key` in the versioned object, or the
-/// bare list or map of the unversioned one.
+/// The entries of a compatible document: under `key` in its object.
 fn entries_of(value: Value, key: &str) -> Value {
     match value {
-        Value::Object(mut object) if object.contains_key("version") || object.contains_key(key) => {
-            object.remove(key).unwrap_or(Value::Null)
-        }
-        other => other,
+        Value::Object(mut object) => object.remove(key).unwrap_or(Value::Null),
+        _ => Value::Null,
     }
 }
 
@@ -137,11 +140,23 @@ pub fn read_json(path: &Path) -> Result<Option<Value>, String> {
 
 /// Replace the file in one step, so a crash never leaves a truncated config.
 pub fn write_json(path: &Path, value: &Value) -> Result<(), String> {
+    replace_json(path, value, false)
+}
+
+/// The same, for the owner's eyes only: `auth.json` holds the signing keys.
+fn write_private_json(path: &Path, value: &Value) -> Result<(), String> {
+    replace_json(path, value, true)
+}
+
+fn replace_json(path: &Path, value: &Value, private: bool) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| format!("Invalid configuration path '{}'.", path.display()))?;
-    fs::create_dir_all(parent)
-        .map_err(|error| format!("Could not create '{}': {error}", parent.display()))?;
+    let created = match private {
+        true => create_private_dir(parent),
+        false => fs::create_dir_all(parent),
+    };
+    created.map_err(|error| format!("Could not create '{}': {error}", parent.display()))?;
     let serialized = serde_json::to_string_pretty(value)
         .map_err(|error| format!("Could not serialize configuration: {error}"))?;
     let temporary = parent.join(format!(
@@ -151,12 +166,50 @@ pub fn write_json(path: &Path, value: &Value) -> Result<(), String> {
             .unwrap_or("config"),
         std::process::id()
     ));
-    fs::write(&temporary, format!("{serialized}\n"))
-        .map_err(|error| format!("Could not write '{}': {error}", temporary.display()))?;
+    let contents = format!("{serialized}\n");
+    let written = match private {
+        true => write_private(&temporary, &contents),
+        false => fs::write(&temporary, &contents),
+    };
+    written.map_err(|error| format!("Could not write '{}': {error}", temporary.display()))?;
     fs::rename(&temporary, path).map_err(|error| {
         let _ = fs::remove_file(&temporary);
         format!("Could not update '{}': {error}", path.display())
     })
+}
+
+/// A directory only its owner can enter, when it has to be created.
+#[cfg(unix)]
+fn create_private_dir(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::DirBuilderExt;
+    fs::DirBuilder::new().recursive(true).mode(0o700).create(path)
+}
+
+#[cfg(not(unix))]
+fn create_private_dir(path: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(path)
+}
+
+/// A file only its owner can read, from its first byte: the temporary
+/// carries the mode into the rename.
+#[cfg(unix)]
+fn write_private(path: &Path, contents: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    // A temporary left over by a crash keeps its own mode: set it again.
+    file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    file.write_all(contents.as_bytes())
+}
+
+#[cfg(not(unix))]
+fn write_private(path: &Path, contents: &str) -> std::io::Result<()> {
+    fs::write(path, contents)
 }
 
 #[derive(Serialize)]
@@ -247,7 +300,10 @@ pub fn write_config_file(name: String, text: String) -> Result<ConfigDocument, S
     let path = config_file(&name)?;
     let value: Value = serde_json::from_str(&text)
         .map_err(|error| format!("'{name}' must contain valid JSON: {error}"))?;
-    write_json(&path, &value)?;
+    match name.as_str() {
+        "auth.json" => write_private_json(&path, &value)?,
+        _ => write_json(&path, &value)?,
+    }
     document(&name, &path)
 }
 

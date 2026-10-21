@@ -561,28 +561,11 @@ pub async fn upgrade_server(app: AppHandle, options: UpgradeOptions) -> Result<P
     qibocal::off_main(move || upgrade(app, options)).await?
 }
 
-/// Asking the command line whether it knows the subcommand starts Python: off the main thread.
 fn upgrade(app: AppHandle, options: UpgradeOptions) -> Result<ProcessInfo, String> {
     let supervisor = app.state::<Supervisor>();
     let ssh = options.ssh.trim().to_string();
     if ssh.is_empty() {
         return Err("Only a server on another machine has an environment to update.".to_string());
-    }
-    // An older qibocal-report would read `upgrade` as the directory to serve,
-    // and fail on the other machine, far from the cause.
-    if !qibocal::knows(&["report", "server", "upgrade"])? {
-        let environment = qibocal::describe_environment();
-        return Err(format!(
-            "The qibocal-report this launcher runs ({}, {}) is older than the launcher: it has no \
-             'report server upgrade'. Update the launcher's own installation in Configuration, or \
-             choose this build's version there.",
-            environment
-                .version
-                .unwrap_or_else(|| "unknown version".to_string()),
-            environment
-                .executable
-                .unwrap_or_else(|| "not found".to_string())
-        ));
     }
     let mut arguments = vec!["report".to_string(), "server".to_string(), "upgrade".to_string()];
     push_text(&mut arguments, "--ssh", Some(ssh.clone()));
@@ -602,7 +585,7 @@ fn upgrade(app: AppHandle, options: UpgradeOptions) -> Result<ProcessInfo, Strin
         arguments.push(format!("{timeout}"));
     }
     let label = format!("Update {}", options.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| format!("ssh {ssh}")));
-    let detail = format!("ssh {ssh} · {}", options.venv.clone().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "qibocal".to_string()));
+    let detail = format!("ssh {ssh} · {}", options.venv.clone().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "qibocal-report".to_string()));
     supervisor.spawn(&app, "update", label, detail, arguments, None, None)
 }
 

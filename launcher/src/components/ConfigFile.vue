@@ -36,7 +36,7 @@
         <span class="block lx-help !mt-0">{{ entry.description }}</span>
       </span>
       <span v-if="!entry.compatible" class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[11px] font-medium whitespace-nowrap">
-        format {{ entry.version }}
+        {{ entry.version === null ? 'no version' : `format ${entry.version}` }}
       </span>
       <span class="text-xs text-gray-400 whitespace-nowrap">
         {{ entry.exists ? size(entry.size) : 'not created' }}
@@ -45,9 +45,9 @@
     </header>
 
     <div v-if="open" class="border-t border-gray-100 p-4 space-y-3">
-      <!-- Another version's file: ignored, shown as it is, for a migration by hand. -->
+      <!-- Another version's file, or one without a version: ignored, shown as it is, for a migration by hand. -->
       <p v-if="!entry.compatible" class="text-xs text-amber-800 bg-amber-50 rounded-xl px-3 py-2">
-        Written by another version of Qibocal — format {{ entry.version }}, where this one reads
+        Written by another version of Qibocal — {{ entry.version === null ? 'no format version' : `format ${entry.version}` }}, where this one reads
         {{ entry.expected }}. The launcher and the command line leave it as it is and read nothing from it.
         Edit the JSON here to migrate it by hand: once it declares format {{ entry.expected }}, it is read again.
       </p>

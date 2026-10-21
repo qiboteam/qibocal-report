@@ -186,7 +186,7 @@ const remoteFields = [
   {
     name: 'venv',
     label: 'Server environment',
-    help: 'Default: qibocal',
+    help: 'Default: qibocal-report',
     info: 'An environment name, resolved under ~/.cache/qibocal/envs on that machine, or an absolute path there. Created when missing, and given the package below when it has no qibocal-report — the rule the notebook sessions follow too.'
   },
   {
