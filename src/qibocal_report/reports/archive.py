@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 import shutil
 import uuid
 import zipfile
@@ -19,20 +20,30 @@ from typing import Any
 from fastapi import HTTPException
 
 from qibocal_report.logger import log_error, log_info, log_warning
-from qibocal_report.reports.scanner import parse_report_directory
+from qibocal_report.reports.scanner import is_report_directory, parse_report_directory, scan_reports
 
 
 def resolve_report_dir(root_dir: Path, report_id: str) -> Path:
-    """Resolve report folder on disk by report ID or path."""
-    target_dir = root_dir / report_id
-    if not target_dir.is_dir():
-        from qibocal_report.reports.scanner import scan_reports
+    """Resolve report folder on disk by report ID or path.
 
+    Only a report inside the root: an absolute id, or one climbing out of it
+    with `..`, names nothing, whatever is there. The root itself is a report
+    only when it is the one the server serves, found by its id.
+    """
+    root = root_dir.resolve()
+
+    def inside(path: Path, itself: bool = False) -> Path | None:
+        path = path.resolve()
+        within = path.is_relative_to(root) and (itself or path != root)
+        return path if within and is_report_directory(path, root) else None
+
+    target_dir = inside(root / report_id)
+    if target_dir is None:
         for r in scan_reports(root_dir):
             if r.id == report_id:
-                target_dir = Path(r.path)
+                target_dir = inside(Path(r.path), itself=True)
                 break
-    if not target_dir.is_dir():
+    if target_dir is None:
         log_error(f"HTTP 404: Report '{report_id}' not found")
         raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
     return target_dir
@@ -145,13 +156,26 @@ def list_archives(storage_dir: Path | None = None) -> list[dict[str, Any]]:
     return archives
 
 
+# What archive ids look like: `arc-` and a timestamped slug, one folder name.
+ARCHIVE_ID = re.compile(r"arc-[A-Za-z0-9_-]+")
+
+
+def archive_directory(s_dir: Path, archive_id: str) -> Path | None:
+    """The folder of an archive, by id; None for an id that names no archive folder."""
+    clean_id = archive_id.strip()
+    if not ARCHIVE_ID.fullmatch(clean_id):
+        return None
+    return s_dir / clean_id
+
+
 def get_archive_metadata(
     archive_id: str, storage_dir: Path | None = None
 ) -> dict[str, Any] | None:
     """Read metadata for a specific archive."""
     s_dir = storage_dir or get_archive_storage_dir()
-    clean_id = archive_id.strip()
-    archive_dir = s_dir / clean_id
+    archive_dir = archive_directory(s_dir, archive_id)
+    if archive_dir is None:
+        return None
     meta_path = archive_dir / "metadata.json"
     if not meta_path.is_file():
         return None
@@ -166,8 +190,9 @@ def get_archive_index(
 ) -> list[dict[str, Any]] | None:
     """Read the compact report index for an archive without unzipping."""
     s_dir = storage_dir or get_archive_storage_dir()
-    clean_id = archive_id.strip()
-    archive_dir = s_dir / clean_id
+    archive_dir = archive_directory(s_dir, archive_id)
+    if archive_dir is None:
+        return None
     index_path = archive_dir / "index.json"
     if not index_path.is_file():
         return None
@@ -185,11 +210,14 @@ def get_archive_zip_path(
 ) -> Path | None:
     """Return path to the zip archive file."""
     s_dir = storage_dir or get_archive_storage_dir()
-    clean_id = archive_id.strip()
-    archive_dir = s_dir / clean_id
-    meta = get_archive_metadata(clean_id, s_dir)
-    if meta and meta.get("zip_filename"):
-        zip_p = archive_dir / meta["zip_filename"]
+    archive_dir = archive_directory(s_dir, archive_id)
+    if archive_dir is None:
+        return None
+    meta = get_archive_metadata(archive_dir.name, s_dir)
+    zip_name = meta.get("zip_filename") if meta else None
+    # A file of the archive's folder, by name only.
+    if isinstance(zip_name, str) and zip_name == Path(zip_name).name:
+        zip_p = archive_dir / zip_name
         if zip_p.is_file():
             return zip_p
     # Fallback to any .zip in folder
@@ -232,7 +260,8 @@ def create_archive(
         if not clean_id:
             continue
         r_path = (resolved_root / clean_id).resolve()
-        if not (r_path == resolved_root or resolved_root in r_path.parents):
+        # A report inside the root, never the root itself: archiving may remove it.
+        if r_path == resolved_root or resolved_root not in r_path.parents:
             raise ValueError(f"Report path '{clean_id}' is outside the root directory.")
         if not r_path.is_dir():
             raise FileNotFoundError(f"Report directory '{clean_id}' not found.")
@@ -327,9 +356,9 @@ def restore_archive(
     """Restore reports from an archive back to the active report directory."""
     s_dir = storage_dir or get_archive_storage_dir(root_dir)
     clean_id = archive_id.strip()
-    archive_dir = s_dir / clean_id
+    archive_dir = archive_directory(s_dir, clean_id)
 
-    if not archive_dir.is_dir():
+    if archive_dir is None or not archive_dir.is_dir():
         raise FileNotFoundError(f"Archive '{clean_id}' not found.")
 
     zip_path = get_archive_zip_path(clean_id, s_dir)
@@ -384,12 +413,11 @@ def delete_archive(
 ) -> bool:
     """Delete an archive directory and all its contents."""
     s_dir = storage_dir or get_archive_storage_dir()
-    clean_id = archive_id.strip()
-    archive_dir = s_dir / clean_id
-    if not archive_dir.is_dir():
+    archive_dir = archive_directory(s_dir, archive_id)
+    if archive_dir is None or not archive_dir.is_dir():
         return False
     shutil.rmtree(archive_dir)
-    log_info(f"Deleted archive '{clean_id}'.")
+    log_info(f"Deleted archive '{archive_dir.name}'.")
     return True
 
 
@@ -401,8 +429,9 @@ def update_archive(
 ) -> dict[str, Any] | None:
     """Update archive name and/or description."""
     s_dir = storage_dir or get_archive_storage_dir()
-    clean_id = archive_id.strip()
-    archive_dir = s_dir / clean_id
+    archive_dir = archive_directory(s_dir, archive_id)
+    if archive_dir is None:
+        return None
     meta_path = archive_dir / "metadata.json"
     if not meta_path.is_file():
         return None

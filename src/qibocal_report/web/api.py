@@ -345,10 +345,24 @@ async def notes_error_handler(_request: Request, error: NotesError) -> JSONRespo
 # Plotly JSON compresses five to ten times; anything above a kilobyte goes gzipped.
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 
-# Enable CORS for development frontend
+# A form of another site needs no permission to be sent — an upload, say — so
+# what the browser does not stop, the server does: a change asked by a page
+# of an origin not allowed is refused, whatever it is.
+@app.middleware("http")
+async def refuse_foreign_pages(request: Request, call_next):
+    origin = request.headers.get("origin")
+    if origin and request.method not in ("GET", "HEAD", "OPTIONS"):
+        own = f"{request.url.scheme}://{request.url.netloc}"
+        if not config.origin_allowed(origin, own):
+            return JSONResponse(status_code=403, content={"detail": f"Requests from {origin} are not allowed."})
+    return await call_next(request)
+
+
+# The dashboard calls the server from another origin: its own, and no other.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=config.allowed_origins(),
+    allow_origin_regex=config.LOCAL_ORIGIN,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

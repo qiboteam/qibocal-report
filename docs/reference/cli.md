@@ -211,6 +211,7 @@ Ask sparingly: every call costs the controller something. The launcher asks ever
 | `QIBOCAL_REPORT_DIR` | Absolute path to the calibration directory scanned for reports. | Set by CLI argument |
 | `QIBOCAL_NO_UV` | When set, the workers create and fill environments with venv and pip instead of uv. | Unset |
 | `QIBOCAL_DASHBOARD_URL` | The dashboard that invitation links open, told the server's address. | `https://qibo.science/qibocal-report` |
+| `QIBOCAL_ALLOWED_ORIGINS` | Further origins whose pages may call the server from a browser, comma-separated — another deployment of the dashboard, say. The dashboard of `QIBOCAL_DASHBOARD_URL`, the desktop launcher and pages of this machine (`localhost`) always may; any other page is refused, and a change it asks for — an upload included — is answered 403. | Unset |
 | `QIBOCAL_REPORT_CONFIG_DIR` | Override the directory containing server configurations and the default authentication database. | `$XDG_CONFIG_HOME/qibocal/`, falling back to `~/.config/qibocal/` |
 | `XDG_CONFIG_HOME` | Default configuration root. | `~/.config/` |
 | `QIBOCAL_REPORT_DATA_DIR` | Override the data directory, whose `reports/` subfolder is served when no directory is named. | `$XDG_DATA_HOME/qibocal/`, falling back to `~/.local/share/qibocal/` |

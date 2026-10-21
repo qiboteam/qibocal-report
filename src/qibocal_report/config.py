@@ -319,6 +319,42 @@ DASHBOARD_URL = os.environ.get(
 ).rstrip("/")
 
 
+def allowed_origins() -> list[str]:
+    """The pages that may call a server from a browser, besides this machine's.
+
+    The deployed dashboard and the desktop launcher's, plus any listed,
+    comma-separated, in `QIBOCAL_ALLOWED_ORIGINS` — another deployment of the
+    dashboard, say. Any other page is refused: on a server without
+    authentication every caller is an administrator, so an arbitrary site
+    open in the same browser must not be one.
+    """
+    from urllib.parse import urlsplit
+
+    dashboard = urlsplit(DASHBOARD_URL)
+    origins = [
+        f"{dashboard.scheme}://{dashboard.netloc}",
+        # The launcher's webview: macOS and Linux, then Windows.
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ]
+    extra = os.environ.get("QIBOCAL_ALLOWED_ORIGINS", "")
+    origins += [origin.strip().rstrip("/") for origin in extra.split(",") if origin.strip()]
+    return list(dict.fromkeys(origins))
+
+
+# Pages served from this machine: the development servers of the dashboard and the launcher.
+LOCAL_ORIGIN = r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?"
+
+
+def origin_allowed(origin: str, own: str) -> bool:
+    """Whether a page of `origin` may change something on the server at `own`."""
+    import re
+
+    origin = origin.rstrip("/")
+    return origin == own.rstrip("/") or origin in allowed_origins() or re.fullmatch(LOCAL_ORIGIN, origin) is not None
+
+
 def invite_link(server_url: str, token: str, dashboard: str | None = None) -> str:
     """The link an invitation is sent as: the dashboard, told the server and the token."""
     from urllib.parse import urlencode

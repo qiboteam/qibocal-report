@@ -39,13 +39,14 @@ def test_download_authentication_and_cross_origin_filenames(auth_env, enabled):
     token = auth.create_access_token(viewer)
     headers = {
         "Authorization": f"Bearer {token}",
-        "Origin": "https://report-client.example",
+        # The deployed dashboard: another origin, and an allowed one.
+        "Origin": "https://qibo.science",
     }
     report_id = "21:47:29_[3]_pi-pulse"
     protocol_id = next((auth_env / report_id / "data").iterdir()).name
     prefix = f"/api/reports/{quote(report_id, safe='')}"
 
-    archive_dir = auth_env / ".archive" / "download-test"
+    archive_dir = auth_env / ".archive" / "arc-download-test"
     archive_dir.mkdir(parents=True)
     (archive_dir / "metadata.json").write_text(
         json.dumps({"name": "Calibration \u03b1", "zip_filename": "calibration.zip"}),
@@ -60,7 +61,7 @@ def test_download_authentication_and_cross_origin_filenames(auth_env, enabled):
         f"{prefix}/download/old-platform",
         f"{prefix}/download/data/{quote(protocol_id, safe='')}",
         f"{prefix}/meta.json",
-        "/api/archives/download-test/download",
+        "/api/archives/arc-download-test/download",
     ]
     with TestClient(app) as client:
         for path in paths:
@@ -83,7 +84,7 @@ def test_download_authentication_and_cross_origin_filenames(auth_env, enabled):
                 with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
                     assert archive.namelist()
                     assert archive.testzip() is None
-                if path == "/api/archives/download-test/download":
+                if path == "/api/archives/arc-download-test/download":
                     assert "filename*=utf-8''Calibration%20%CE%B1.zip" in response.headers[
                         "Content-Disposition"
                     ]

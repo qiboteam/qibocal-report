@@ -3,7 +3,7 @@
 import asyncio
 from pathlib import Path
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import HTTPException, WebSocket, WebSocketDisconnect
 
 from qibocal_report.reports.generator import (
     get_report_protocols,
@@ -16,8 +16,9 @@ from qibocal_report.logger import (
     log_success,
     log_warning,
 )
+from qibocal_report.reports.archive import resolve_report_dir
 from qibocal_report.reports.notes import NotesError
-from qibocal_report.reports.scanner import get_report_detail, scan_reports
+from qibocal_report.reports.scanner import get_report_detail
 
 
 async def handle_report_websocket(
@@ -27,14 +28,12 @@ async def handle_report_websocket(
     await websocket.accept()
     log_info(f"WebSocket client connected for report: '{report_id}'")
 
-    target_dir = root_dir / report_id
-    if not target_dir.is_dir():
-        for r in scan_reports(root_dir):
-            if r.id == report_id:
-                target_dir = Path(r.path)
-                break
+    try:
+        target_dir = resolve_report_dir(root_dir, report_id)
+    except HTTPException:
+        target_dir = None
 
-    if not target_dir.is_dir():
+    if target_dir is None:
         log_error(f"Report '{report_id}' not found for WebSocket client")
         await websocket.send_json(
             {"type": "error", "message": f"Report '{report_id}' not found"}
