@@ -31,6 +31,10 @@ def resolve_report_dir(root_dir: Path, report_id: str) -> Path:
     only when it is the one the server serves, found by its id.
     """
     root = root_dir.resolve()
+    # An id is relative to the root, and never climbs: not even back into it.
+    if Path(report_id).is_absolute() or ".." in Path(report_id).parts:
+        log_error(f"HTTP 404: Report '{report_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Report {report_id} not found")
 
     def inside(path: Path, itself: bool = False) -> Path | None:
         path = path.resolve()

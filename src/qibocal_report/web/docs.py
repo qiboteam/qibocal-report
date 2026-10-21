@@ -200,6 +200,18 @@ DOCS_NAVIGATION = [
 ]
 
 
+def documented_pages() -> set[str]:
+    """The pages of the documentation, as the navigation names them, and its index."""
+    pages = {"index"}
+    entries = list(DOCS_NAVIGATION)
+    while entries:
+        entry = entries.pop()
+        if entry.get("path"):
+            pages.add(entry["path"].strip("/").removesuffix(".md"))
+        entries.extend(entry.get("items", []))
+    return pages
+
+
 def resolve_docs_content(doc_name: str) -> str:
     """Serve plain markdown documentation content: a section, or one of its pages.
 
@@ -207,9 +219,11 @@ def resolve_docs_content(doc_name: str) -> str:
     names nothing.
     """
     clean_name = doc_name.strip("/").removesuffix(".md")
-    if not clean_name:
-        clean_name = "index"
-    if any(part in ("", ".", "..") or part.startswith(".") for part in clean_name.split("/")):
+    # A section, by its name or by its index page.
+    clean_name = clean_name.removesuffix("/index") or "index"
+    # A page the navigation lists, or nothing: the roots below are folders
+    # shared with other packages — site-packages itself among them.
+    if clean_name not in documented_pages():
         raise HTTPException(status_code=404, detail=f"Documentation '{doc_name}' not found")
 
     roots = [

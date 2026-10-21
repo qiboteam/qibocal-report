@@ -28,7 +28,7 @@ def client(tmp_path, monkeypatch):
     "report_id",
     ["..%2Fsecret", "%2E%2E%2Fsecret", "SECRET_ABSOLUTE", "%2E", f"{REPORT}%2F..%2F..%2Fsecret"],
 )
-@pytest.mark.parametrize("suffix", ["/download", "/download/full", "/meta", "/protocols", ""])
+@pytest.mark.parametrize("suffix", ["/download/full", "/download/new-platform", "/meta", "/protocols", ""])
 def test_a_report_id_never_leaves_the_root(client, tmp_path, report_id, suffix):
     report_id = report_id.replace("SECRET_ABSOLUTE", str(tmp_path / "secret").replace("/", "%2F"))
     response = client.get(f"/api/reports/{report_id}{suffix}")
@@ -36,7 +36,7 @@ def test_a_report_id_never_leaves_the_root(client, tmp_path, report_id, suffix):
 
 
 def test_a_report_inside_the_root_is_found(client):
-    assert client.get(f"/api/reports/{REPORT}/download").status_code == 200
+    assert client.get(f"/api/reports/{REPORT}/download/full").status_code == 200
 
 
 def test_the_live_socket_refuses_an_id_outside_the_root(client):
@@ -123,6 +123,31 @@ def test_a_folder_of_any_name_downloads(client, tmp_path):
 
     shutil.copytree(tmp_path / "reports" / REPORT, tmp_path / "reports" / 'calibração "α"')
     scanner.invalidate_report_cache()
-    response = client.get("/api/reports/calibra%C3%A7%C3%A3o%20%22%CE%B1%22/download")
+    response = client.get("/api/reports/calibra%C3%A7%C3%A3o%20%22%CE%B1%22/download/full")
     assert response.status_code == 200
     assert "filename*=utf-8''calibra%C3%A7%C3%A3o%20%22%CE%B1%22.zip" in response.headers["content-disposition"]
+
+
+@pytest.mark.parametrize("target", [f"{REPORT}/platform", f"{REPORT}/data", "..", f"../reports/{REPORT}"])
+def test_an_action_reaches_reports_only(client, tmp_path, target):
+    response = client.post("/api/reports/bulk-action", json={"action": "delete", "report_ids": [target]})
+    assert response.status_code == 404 or response.json()["affected"] == 0
+    for folder in ("platform", "data"):
+        assert (tmp_path / "reports" / REPORT / folder).is_dir(), "nothing but a report is deleted"
+
+
+@pytest.mark.parametrize("path", [f"/ws/reports/{REPORT}", f"/ws/live/reports/{REPORT}"])
+def test_a_socket_from_a_foreign_page_is_refused(client, path):
+    from starlette.websockets import WebSocketDisconnect
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(path, headers={"origin": "https://evil.example"}) as socket:
+            socket.receive_json()
+    with client.websocket_connect(f"/ws/reports/{REPORT}", headers={"origin": "https://qibo.science"}) as socket:
+        assert socket.receive_json()["type"] != "error"
+
+
+def test_the_documentation_serves_no_other_package_s_markdown(client):
+    # site-packages is one of the roots: its other files are not documentation.
+    assert client.get("/api/docs-content/uvicorn-0.54.0.dist-info/licenses/LICENSE").status_code == 404
+    assert client.get("/api/docs-content/README").status_code == 404

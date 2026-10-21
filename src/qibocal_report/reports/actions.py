@@ -14,47 +14,20 @@ from qibocal_report.reports.scanner import invalidate_report_cache, scan_reports
 
 
 def find_report_dirs(root_dir: Path, report_ids: list[str]) -> list[Path]:
-    """Match given report IDs against directories on disk safely."""
-    import urllib.parse
+    """The report folders the ids name, each once: reports inside the root, and nothing else.
 
-    resolved_root = root_dir.resolve()
-    id_set: set[str] = set()
+    An id naming any other folder — one inside a report, one holding many —
+    matches nothing, so no action, deletion least of all, reaches it.
+    """
+    from qibocal_report.reports.archive import resolve_report_dir
+
+    matched: dict[Path, None] = {}
     for rid in report_ids:
-        id_set.add(rid)
-        unquoted = urllib.parse.unquote(rid)
-        if unquoted != rid:
-            id_set.add(unquoted)
-
-    matched: dict[str, Path] = {}
-
-    for rid in id_set:
-        candidate = (root_dir / rid).resolve()
         try:
-            if (
-                candidate.is_relative_to(resolved_root)
-                and candidate != resolved_root
-                and candidate.is_dir()
-            ):
-                matched[rid] = candidate
-        except (ValueError, OSError):
+            matched[resolve_report_dir(root_dir, rid)] = None
+        except HTTPException:
             pass
-
-    remaining = id_set - set(matched.keys())
-    if remaining:
-        for r in scan_reports(root_dir):
-            if r.id in remaining or Path(r.path).name in remaining:
-                cand = Path(r.path).resolve()
-                try:
-                    if (
-                        cand.is_relative_to(resolved_root)
-                        and cand != resolved_root
-                        and cand.is_dir()
-                    ):
-                        matched[r.id] = cand
-                except (ValueError, OSError):
-                    pass
-
-    return list(matched.values())
+    return list(matched)
 
 
 def _modify_meta_files(

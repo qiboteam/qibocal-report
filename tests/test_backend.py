@@ -1133,3 +1133,13 @@ def test_protocol_execution_order_sorting(tmp_path: Path):
     ]
     flex_sorted = sort_protocols_by_execution_order(flex_protos, test_dir_meta)
     assert [p.id for p in flex_sorted] == ["routine_omega_0", "routine_alpha", "routine_unlisted"]
+
+
+def test_every_documentation_page_is_listed_and_served():
+    from qibocal_report.web.docs import documented_pages
+
+    client = TestClient(app)
+    files = {str(p.relative_to("docs").with_suffix("")).removesuffix("/index") for p in Path("docs").rglob("*.md")}
+    assert files == documented_pages(), "a page missing from the navigation is not served"
+    for page in sorted(files):
+        assert client.get(f"/api/docs-content/{page}").status_code == 200, page

@@ -1497,9 +1497,21 @@ def delete_single_report(report_id: str) -> BulkActionResponse:
 
 
 # --- Real-Time WebSocket ---
+def socket_from_allowed_page(websocket: WebSocket) -> bool:
+    """Whether a socket is opened by a page allowed to call: CORS does not cover sockets."""
+    origin = websocket.headers.get("origin")
+    if not origin:
+        return True
+    scheme = "https" if websocket.url.scheme == "wss" else "http"
+    return config.origin_allowed(origin, f"{scheme}://{websocket.url.netloc}")
+
+
 @app.websocket("/ws/live/reports/{report_id:path}")
 async def live_report_websocket_endpoint(websocket: WebSocket, report_id: str):
     """Subscribe to incremental plots and metadata; requires editor access."""
+    if not socket_from_allowed_page(websocket):
+        await websocket.close(code=1008)
+        return
     token = websocket.query_params.get("token")
 
     def authorized():
@@ -1517,9 +1529,14 @@ async def live_report_websocket_endpoint(websocket: WebSocket, report_id: str):
 @app.websocket("/ws/reports/{report_id:path}")
 async def report_websocket_endpoint(websocket: WebSocket, report_id: str):
     """WebSocket endpoint for real-time report streaming and plot generation."""
+    if not socket_from_allowed_page(websocket):
+        await websocket.close(code=1008)
+        return
     if auth.is_auth_enabled():
         token = websocket.query_params.get("token")
-        if not token or not auth.decode_access_token(token):
+        payload = auth.decode_access_token(token) if token else None
+        # A deleted user's token still decodes: the user must still be there.
+        if not payload or not auth.get_user_by_id(payload.get("sub")):
             await websocket.close(code=1008)
             return
     await handle_report_websocket(websocket, report_id, REPORT_ROOT_DIR)
@@ -1719,11 +1736,6 @@ def get_report_upload_path(
     tags=["Reports"],
     dependencies=[Depends(require_viewer)],
 )
-@app.get(
-    "/api/reports/{report_id:path}/download",
-    tags=["Reports"],
-    dependencies=[Depends(require_viewer)],
-)
 def download_full_report_zip(report_id: str) -> StreamingResponse:
     """Download full protocol report folder compressed on the fly as a zip archive."""
     log_info(f"HTTP GET download full folder for '{report_id}'")
@@ -1768,11 +1780,6 @@ def download_new_platform_zip(report_id: str) -> StreamingResponse:
     tags=["Reports"],
     dependencies=[Depends(require_viewer)],
 )
-@app.get(
-    "/api/reports/{report_id:path}/download/platform",
-    tags=["Reports"],
-    dependencies=[Depends(require_viewer)],
-)
 def download_old_platform_zip(report_id: str) -> StreamingResponse:
     """Download initial platform folder on the fly as a zip archive."""
     log_info(f"HTTP GET download old platform for '{report_id}'")
@@ -1796,11 +1803,6 @@ def download_old_platform_zip(report_id: str) -> StreamingResponse:
 
 @app.get(
     "/api/reports/{report_id:path}/download/data/{protocol_id}",
-    tags=["Reports"],
-    dependencies=[Depends(require_viewer)],
-)
-@app.get(
-    "/api/reports/{report_id:path}/download/protocol/{protocol_id}",
     tags=["Reports"],
     dependencies=[Depends(require_viewer)],
 )
