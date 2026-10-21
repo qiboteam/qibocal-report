@@ -11,10 +11,11 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 /// Files the launcher knows about, with the description shown in the interface.
-const KNOWN_FILES: [(&str, &str); 5] = [
+const KNOWN_FILES: [(&str, &str); 6] = [
     ("servers.json", "Registered report servers"),
     ("notebooks.json", "Saved notebook connections"),
     ("remotes.json", "Remote execution connections, shared with qibocal-widgets"),
+    ("agent-hosts.json", "Agent configurations kept here for other machines"),
     ("auth.json", "Users, invitations and signing keys"),
     ("launcher.json", "Launcher preferences"),
 ];
@@ -336,6 +337,67 @@ pub fn save_notebook(name: String, options: Value) -> Result<Map<String, Value>,
 #[tauri::command]
 pub fn remove_notebook(name: String) -> Result<Map<String, Value>, String> {
     remove_connection("notebooks.json", name)
+}
+
+/// qibocal-agent's own `agent.json`: the file it and qibocal-mcp-remote read,
+/// found as they find it. It is theirs — strictly validated, unknown keys an
+/// error — so it is read and written as it is, without the version the
+/// launcher's own files carry, and listed apart from them.
+pub fn agent_config_path() -> PathBuf {
+    if let Some(custom) = non_empty_env("QIBOCAL_MCP_CONFIG_DIR") {
+        return PathBuf::from(custom).join("agent.json");
+    }
+    let root = non_empty_env("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| dirs::home_dir().map(|home| home.join(".config")))
+        .unwrap_or_else(|| PathBuf::from(".config"));
+    root.join("qibocal").join("agent.json")
+}
+
+#[derive(Serialize)]
+pub struct AgentDocument {
+    pub path: String,
+    pub document: Value,
+}
+
+#[tauri::command]
+pub fn read_agents() -> Result<AgentDocument, String> {
+    let path = agent_config_path();
+    let document = match read_json(&path)? {
+        Some(Value::Object(object)) => Value::Object(object),
+        Some(_) => return Err(format!("'{}' does not hold a JSON object.", path.display())),
+        None => Value::Object(Map::new()),
+    };
+    Ok(AgentDocument { path: path.display().to_string(), document })
+}
+
+#[tauri::command]
+pub fn write_agents(document: Value) -> Result<AgentDocument, String> {
+    if !document.is_object() {
+        return Err("The agent configuration must be a JSON object.".to_string());
+    }
+    let path = agent_config_path();
+    write_json(&path, &document)?;
+    Ok(AgentDocument { path: path.display().to_string(), document })
+}
+
+/// The agent configurations kept here for other machines, by SSH destination.
+#[tauri::command]
+pub fn list_agent_hosts() -> Result<Map<String, Value>, String> {
+    let path = config_file("agent-hosts.json")?;
+    match read_compatible(&path)?.map(|value| entries_of(value, "hosts")) {
+        Some(Value::Object(hosts)) => Ok(hosts),
+        Some(_) => Err(format!("'{}' must contain a host-name object.", path.display())),
+        None => Ok(Map::new()),
+    }
+}
+
+#[tauri::command]
+pub fn save_agent_hosts(hosts: Map<String, Value>) -> Result<Map<String, Value>, String> {
+    let path = config_file("agent-hosts.json")?;
+    guard_write("agent-hosts.json", &path)?;
+    write_json(&path, &versioned("hosts", Value::Object(hosts.clone())))?;
+    Ok(hosts)
 }
 
 /// The remote execution connections of qibocal-widgets' `Remote` plugin.

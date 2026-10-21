@@ -605,6 +605,98 @@ pub struct InviteRequest {
     pub venv: Option<String>,
 }
 
+/// Write agent configurations into agent.json on another machine:
+/// `qibocal agents push`, which merges them there and leaves the rest.
+#[tauri::command]
+pub async fn push_agents(ssh: String, agents: Value, remove: Vec<String>) -> Result<Value, String> {
+    off_main(move || {
+        let mut arguments = vec![
+            "agents".to_string(),
+            "push".to_string(),
+            ssh,
+            "--agents".to_string(),
+            agents.to_string(),
+        ];
+        for name in remove {
+            arguments.push("--remove".to_string());
+            arguments.push(name);
+        }
+        let output = run(&arguments)?;
+        serde_json::from_str(output.trim()).map_err(|error| format!("Could not read the push answer: {error}"))
+    })
+    .await?
+}
+
+/// Where `qibocal-agent` is: the environment or executable chosen in
+/// Configuration, the PATH, or the usual managed environment.
+pub fn agent_executable() -> Result<PathBuf, String> {
+    let name = if cfg!(windows) { "qibocal-agent.exe" } else { "qibocal-agent" };
+    let chosen = settings::launcher_preferences()
+        .get("agentTools")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from);
+    if let Some(path) = chosen {
+        for candidate in [path.clone(), path.join("bin").join(name), path.join("Scripts").join(name), path.join(name)] {
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
+        return Err(format!("No qibocal-agent at '{}', chosen in Configuration.", path.display()));
+    }
+    for directory in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
+        let candidate = directory.join(name);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    let managed = cache_home().join("qibocal").join("envs").join("qibocal-agent").join("bin").join(name);
+    if managed.is_file() {
+        return Ok(managed);
+    }
+    Err("qibocal-agent is not installed here: install qibocal-mcp-servers, and choose its environment under Agents.".to_string())
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRun {
+    /// The named configuration; none for the unnamed defaults.
+    pub name: Option<String>,
+    pub objective: Option<String>,
+}
+
+/// Dispatch an autonomous agent: `qibocal-agent [NAME] [OBJECTIVE]`, through
+/// the login shell, so the model's credentials set in the shell profile reach
+/// it — an application opened from the Dock gets none of them otherwise.
+#[tauri::command]
+pub async fn start_agent(app: AppHandle, request: AgentRun) -> Result<ProcessInfo, String> {
+    off_main(move || {
+        let program = agent_executable()?;
+        let mut words = vec![program.display().to_string()];
+        let name = request.name.map(|value| value.trim().to_string()).filter(|value| !value.is_empty());
+        if let Some(name) = name.clone() {
+            words.push(name);
+        }
+        if let Some(objective) = request.objective.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
+            words.push(objective);
+        }
+        let (mut command, arguments) = if cfg!(windows) {
+            (Command::new(&program), words[1..].to_vec())
+        } else {
+            let shell = std::env::var("SHELL").ok().filter(|value| !value.is_empty()).unwrap_or_else(|| "/bin/sh".to_string());
+            let mut arguments = vec!["-lc".to_string(), "exec \"$0\" \"$@\"".to_string()];
+            arguments.extend(words.clone());
+            (Command::new(shell), arguments)
+        };
+        configure(&mut command);
+        let label = format!("Agent {}", name.clone().unwrap_or_else(|| "default".to_string()));
+        let supervisor = app.state::<Supervisor>();
+        supervisor.spawn_command(&app, "agent", label, "qibocal-agent".to_string(), command, arguments, words, None, None)
+    })
+    .await?
+}
+
 /// Re-issue an administrator invitation for a locally managed server.
 #[tauri::command]
 pub async fn reissue_invite(request: InviteRequest) -> Result<Value, String> {

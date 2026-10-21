@@ -42,6 +42,15 @@ export const desktop = {
   saveNotebook: (name, options) => call('save_notebook', { name, options }),
   removeNotebook: name => call('remove_notebook', { name }),
 
+  /** qibocal-agent's agent.json, as it is, and the configurations kept here for other machines. */
+  readAgents: () => call('read_agents'),
+  writeAgents: document => call('write_agents', { document }),
+  listAgentHosts: () => call('list_agent_hosts'),
+  saveAgentHosts: hosts => call('save_agent_hosts', { hosts }),
+  pushAgents: (ssh, agents, remove = []) => call('push_agents', { ssh, agents, remove }),
+  /** An autonomous agent run, `{ name, objective }`, as a process in Running. */
+  startAgent: request => call('start_agent', { request }),
+
   /** qibocal-widgets' remote execution connections, in remotes.json. */
   listRemotes: () => call('list_remotes'),
   saveRemote: (name, options) => call('save_remote', { name, options }),

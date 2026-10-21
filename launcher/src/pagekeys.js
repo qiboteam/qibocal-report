@@ -67,6 +67,16 @@ export const PAGE_KEYS = {
       d: 'Duplicate it: the form for a new session, with its options'
     }
   },
+  agents: {
+    title: 'Agents',
+    keys: {
+      j: 'Next configuration',
+      k: 'Previous configuration',
+      Enter: 'Run an autonomous agent with it, or push it to its machine',
+      e: 'Edit it',
+      d: 'Duplicate it: the form for a new configuration, with its settings'
+    }
+  },
   remotes: {
     title: 'Remote execution',
     keys: {

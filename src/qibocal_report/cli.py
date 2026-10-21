@@ -361,6 +361,38 @@ def notebook_remove(connection: str):
     remove_connection(connection)
 
 
+@main.group(name="agents")
+def agents():
+    """Agent configurations of qibocal-agent and qibocal-mcp-remote."""
+
+
+@agents.command(name="push")
+@click.argument("ssh")
+@click.option(
+    "--agents",
+    "entries",
+    default="{}",
+    help="The named configurations to write, as a JSON object of agents.NAME entries.",
+)
+@click.option("--remove", multiple=True, help="A named configuration to remove there; repeatable.")
+def agents_push(ssh: str, entries: str, remove: tuple[str, ...]):
+    """Write agent configurations into agent.json on the SSH destination.
+
+    The entries given are merged into its `agents`, the names removed are
+    dropped, and nothing else in the file changes: configurations kept here
+    for an access node reach it this way, without environments or keys.
+    """
+    from qibocal_report.remote.agents import push
+
+    try:
+        parsed = json.loads(entries)
+    except ValueError as error:
+        raise click.BadParameter(f"--agents is not JSON: {error}") from error
+    if not isinstance(parsed, dict):
+        raise click.BadParameter("--agents must be a JSON object.")
+    click.echo(json.dumps(push(ssh, parsed, list(remove))))
+
+
 @main.group(name="config")
 def config_group():
     """Locate and clean local server configurations."""

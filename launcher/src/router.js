@@ -8,6 +8,7 @@ import NotificationsView from './views/NotificationsView.vue'
 import HelpView from './views/HelpView.vue'
 import QueuesView from './views/QueuesView.vue'
 import RemotesView from './views/RemotesView.vue'
+import AgentsView from './views/AgentsView.vue'
 
 /**
  * The launcher sections, described once: the router, the home page cards,
@@ -69,6 +70,16 @@ export const sections = [
     accelerator: 'CmdOrCtrl+Shift+E',
     key: 'e',
     summary: 'Where qibocal-widgets runs the acquisitions of a notebook: over SSH, through SLURM.'
+  },
+  {
+    name: 'agents',
+    path: '/agents',
+    component: AgentsView,
+    title: 'Agents',
+    icon: 'Bot',
+    accelerator: 'CmdOrCtrl+Shift+A',
+    key: 'a',
+    summary: 'The configurations of the Qibocal MCP servers and agents, here and on access nodes, and autonomous runs.'
   },
   {
     name: 'settings',

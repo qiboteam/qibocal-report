@@ -7,6 +7,7 @@ The home page opens onto every section — **Running** first, then what there is
 - **Running** (`Cmd/Ctrl+Shift+R`, or `g r`): the live output of everything the launcher started, with graceful stop.
 - **Notebooks** (`Cmd/Ctrl+Shift+B`, or `g b`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM.
 - **Remote execution** (`Cmd/Ctrl+Shift+E`, or `g e`): where qibocal-widgets runs a notebook's acquisitions, and the reports of those runs.
+- **Agents** (`Cmd/Ctrl+Shift+A`, or `g a`): the configurations of the Qibocal MCP servers, here and on access nodes, and autonomous agent runs.
 - **Configuration** (`Cmd/Ctrl+,`, or `g c`): install or update Qibocal, and edit the files shared with the command line.
 - **Help** (`Cmd/Ctrl+/`): this guide, inside the application, and every keyboard shortcut.
 

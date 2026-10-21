@@ -99,6 +99,12 @@ DOCS_NAVIGATION = [
                 "description": "Connections for qibocal-widgets' remote executor, and their reports",
             },
             {
+                "id": "user-guide/launcher/agents",
+                "path": "user-guide/launcher/agents",
+                "title": "Agents",
+                "description": "Configurations of the Qibocal MCP servers, here and on access nodes, and autonomous runs",
+            },
+            {
                 "id": "user-guide/launcher/configuration",
                 "path": "user-guide/launcher/configuration",
                 "title": "Configuration",

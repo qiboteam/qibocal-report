@@ -25,6 +25,9 @@ export const state = reactive({
   notebooks: {},
   /** Remote execution connections, from remotes.json: qibocal-widgets reads them. */
   remotes: {},
+  /** qibocal-agent's agent.json, `{ path, document }`, and the configurations kept for other machines. */
+  agents: { path: '', document: {} },
+  agentHosts: {},
   processes: [],
   configEntries: [],
   preferences: {},
@@ -178,6 +181,24 @@ export async function refreshNotebooks() {
 export async function refreshRemotes() {
   state.remotes = await load(desktop.listRemotes, {})
   return state.remotes
+}
+
+export async function refreshAgents() {
+  const [agents, hosts] = await Promise.all([
+    load(desktop.readAgents, { path: '', document: {} }),
+    load(desktop.listAgentHosts, {})
+  ])
+  state.agents = agents
+  state.agentHosts = hosts
+  return agents
+}
+
+/** Dispatch an autonomous agent, `{ name, objective }`: a process of its own in Running. */
+export async function startAgent(request) {
+  const info = await desktop.startAgent(request)
+  state.launches[info.id] = { kind: 'agent', options: request, url: null }
+  mergeProcess(info)
+  return info
 }
 
 export async function refreshProcesses() {
@@ -455,6 +476,7 @@ export async function restartProcess(process) {
   if (!launch) throw new Error('The launcher does not know how this was started.')
   if (launch.kind === 'notebook') return startNotebook(launch.options)
   if (launch.kind === 'rebuild') return rebuildNotebook(launch.rerun || launch.options)
+  if (launch.kind === 'agent') return startAgent(launch.options)
   return startServer(launch.options, { url: launch.url || process.url })
 }
 
@@ -570,6 +592,7 @@ export async function initialize() {
     refreshServers(),
     refreshNotebooks(),
     refreshRemotes(),
+    refreshAgents(),
     refreshProcesses(),
     refreshConfigEntries(),
     refreshPreferences()
