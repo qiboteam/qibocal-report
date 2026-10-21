@@ -21,6 +21,24 @@ Pass the last `cursor` as `after` to read newer entries. Logs include Rich
 application messages and Python/uvicorn logging, and disappear on server
 restart. Responses use `Cache-Control: no-store`.
 
+### `GET /api/version`
+What the server is, for a client to check before relying on it; public, with
+or without authentication. `api_version` is raised on every breaking change
+of the REST or GraphQL API, and only then; `features` names what a client may
+rely on beyond it; `commit` is the one the installation was made from, when
+pip recorded it — a Git URL or the archive of a commit — and `null` otherwise.
+The dashboard shows the version on each server's card, and warns when the API
+is not the one it speaks.
+
+```json
+{
+  "version": "0.1.0a1",
+  "api_version": 1,
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "features": ["graphql", "uploads", "archives", "notes", "live", "parameters"]
+}
+```
+
 ### `GET /api/health`
 Returns system status, active server identifier, report count, and scanned root directory.
 

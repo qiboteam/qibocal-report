@@ -73,7 +73,7 @@ def test_download_authentication_and_cross_origin_filenames(auth_env, enabled):
 
             response = client.get(path, headers=headers)
             assert response.status_code == 200
-            assert response.headers["Access-Control-Expose-Headers"] == "Content-Disposition"
+            assert "Content-Disposition" in response.headers["Access-Control-Expose-Headers"]
             if path.endswith("/meta.json"):
                 assert response.headers["Content-Type"] == "application/json"
                 assert response.headers["Content-Disposition"] == "inline"

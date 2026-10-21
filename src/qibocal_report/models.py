@@ -184,6 +184,15 @@ class DateHistogramBin(BaseModel):
     count: int
 
 
+class VersionResponse(BaseModel):
+    """`GET /api/version`: what the server is, for a client to check before relying on it."""
+
+    version: str
+    api_version: int
+    commit: str | None = None
+    features: list[str] = Field(default_factory=list)
+
+
 class FilterStats(BaseModel):
     authors: list[str]
     tags: list[str] = Field(default_factory=list)

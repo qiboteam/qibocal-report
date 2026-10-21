@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "qibocal-report"
-version = "0.1.0"
+version = "0.1.0a1"
 description = "The server behind the Qibocal calibration report dashboard"
 readme = "README.md"
 requires-python = ">=3.10"

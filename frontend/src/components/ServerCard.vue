@@ -151,6 +151,15 @@
         <span v-if="reportCount !== null && reportCount > 0" class="text-[10px] text-gray-500 bg-gray-100 font-mono px-1.5 py-0.2 rounded ml-1">
           {{ reportCount }} runs
         </span>
+        <!-- What the server is: its version, and a warning when its API is not this dashboard's. -->
+        <span
+          v-if="compatibility"
+          class="text-[10px] font-mono px-1.5 py-0.2 rounded ml-1"
+          :class="compatibility.state === 'ok' ? 'text-gray-400' : 'font-medium text-amber-700 bg-amber-50 border border-amber-200/60'"
+          :title="compatibility.title"
+        >
+          {{ compatibility.label }}
+        </span>
         <span
           v-if="requiresAuth && !isAuthenticatedOnServer"
           class="text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200/60 px-1.5 py-0.2 rounded ml-1 flex items-center gap-1"
@@ -172,6 +181,7 @@
 </template>
 
 <script setup>
+import { serverCompatibility } from '../utils/serverVersion.js'
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { renderAvatar } from './Avatars.js'
 import { state, normalizeUrl, getActiveAuthToken, getActiveUser, getAuthHeader } from '../store.js'
@@ -185,6 +195,8 @@ const emit = defineEmits(['select', 'edit', 'delete', 'administer', 'logout'])
 
 const menuOpen = ref(false)
 const reportCount = ref(null)
+/** The server's version answer, read against this dashboard's API; null until it is online. */
+const compatibility = ref(null)
 const requiresAuth = ref(props.isActive && state.auth.checked ? state.auth.enabled : false)
 const isAuthenticatedOnServer = computed(() => Boolean(getActiveAuthToken(props.server) && getActiveUser(props.server)))
 const isChecking = ref(false)
@@ -258,6 +270,7 @@ watch(() => props.server?.url, () => {
   isChecking.value = false
   requiresAuth.value = false
   reportCount.value = null
+  compatibility.value = null
   checkHealth()
 })
 
@@ -299,13 +312,16 @@ async function checkHealth() {
     const normalized = normalizeUrl(props.server?.url)
     const targetUrl = normalized ? `${normalized}/api/health` : '/api/health'
     const statusUrl = normalized ? `${normalized}/api/auth/status` : '/api/auth/status'
+    const versionUrl = normalized ? `${normalized}/api/version` : '/api/version'
 
-    const [hRes, aRes] = await Promise.all([
+    const [hRes, aRes, vRes] = await Promise.all([
       fetch(targetUrl, { headers: getAuthHeader(props.server), signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null),
-      fetch(statusUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null)
+      fetch(statusUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null),
+      fetch(versionUrl, { signal: AbortSignal.timeout(5000), cache: 'no-store' }).catch(() => null)
     ])
     const data = hRes?.ok ? await hRes.json() : null
     const authData = aRes?.ok ? await aRes.json() : null
+    const versionData = vRes?.ok ? await vRes.json().catch(() => null) : null
 
     if (!isCurrent()) return
     if (checkHealthTimeout) clearTimeout(checkHealthTimeout)
@@ -314,6 +330,7 @@ async function checkHealth() {
       connectionStatus.value = 'online'
       saveStatus('online')
       reportCount.value = data.reports_count
+      compatibility.value = serverCompatibility(versionData)
     } else {
       connectionStatus.value = 'disconnected'
       saveStatus('disconnected')

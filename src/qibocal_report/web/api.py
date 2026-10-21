@@ -31,7 +31,7 @@ from fastapi.responses import (
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from qibocal_report import auth, config, qibocal_environment
+from qibocal_report import __version__, auth, config, qibocal_environment
 from qibocal_report.reports.actions import execute_bulk_action, infer_targets
 from qibocal_report.reports.upload import UploadError, receive_report, upload_limit
 from qibocal_report.reports.archive import (
@@ -59,7 +59,9 @@ from qibocal_report.logger import (
     log_info,
     setup_uvicorn_logging,
 )
+from qibocal_report.version import version_info
 from qibocal_report.models import (
+    VersionResponse,
     FolderListing,
     UploadCapability,
     UploadPolicy,
@@ -323,7 +325,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Qibocal Report Server",
     description="REST API for serving and managing Qibocal calibration reports",
-    version="0.1.0",
+    version=__version__,
     docs_url="/api/docs/swagger",
     redoc_url="/api/docs/redoc",
     openapi_url="/api/openapi.json",
@@ -552,6 +554,12 @@ def unchanged_since(request: Request, response: Response) -> Response | None:
 
 
 # --- Health Endpoint ---
+@app.get("/api/version", response_model=VersionResponse, tags=["Health"])
+def get_version() -> VersionResponse:
+    """The server's version, the API it speaks, and its features: public, as the API is."""
+    return VersionResponse(**version_info())
+
+
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
 def health_check(
     response: Response,

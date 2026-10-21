@@ -1,6 +1,6 @@
 [package]
 name = "qibocal-launcher"
-version = "0.1.0"
+version = "0.1.0-1"
 description = "Desktop launcher for Qibocal report servers and notebooks"
 authors = ["Qibo Team"]
 license = "Apache-2.0"

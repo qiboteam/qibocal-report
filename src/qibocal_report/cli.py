@@ -27,7 +27,7 @@ def name_server(name: str) -> None:
     api.SERVER_NAME = name
 
 @click.group(name="qibocal")
-@click.version_option(version="0.1.0", prog_name="qibocal")
+@click.version_option(package_name="qibocal-report", prog_name="qibocal")
 def main():
     """Qibocal: Quantum calibration and characterization framework."""
 

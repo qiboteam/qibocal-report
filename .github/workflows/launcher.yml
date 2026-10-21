@@ -115,18 +115,35 @@ jobs:
         run: pnpm run icons
         working-directory: launcher
 
+      # The version is the Python package's, in pyproject.toml, which the tag
+      # must name: v0.1.0a1 is 0.1.0a1. The application takes it as SemVer,
+      # with the numeric pre-release the Windows MSI installer accepts —
+      # alphas from 1, betas from 101, release candidates from 201 — so
+      # 0.1.0a1 is 0.1.0-1, and the final 0.1.0 is still the greater.
       - name: Take the version from the release tag
         if: github.event_name == 'release'
         shell: bash
         run: |
           tag="${{ github.event.release.tag_name }}"
           version="${tag#v}"
-          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            node -e "const fs=require('fs');const p='launcher/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p));c.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')" "$version"
-            echo "Building version $version."
-          else
-            echo "Tag '$tag' is not a plain version, keeping the configured one."
+          declared="$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml | head -n 1)"
+          if [[ "$version" != "$declared" ]]; then
+            echo "::error::Tag '$tag' names $version, but pyproject.toml declares $declared."
+            exit 1
           fi
+          if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)((a|b|rc)([0-9]+))?$ ]]; then
+            app="${BASH_REMATCH[1]}"
+            case "${BASH_REMATCH[3]}" in
+              a) app="$app-$((BASH_REMATCH[4]))" ;;
+              b) app="$app-$((100 + BASH_REMATCH[4]))" ;;
+              rc) app="$app-$((200 + BASH_REMATCH[4]))" ;;
+            esac
+          else
+            echo "::error::Version $version is not X.Y.Z, nor X.Y.Z followed by aN, bN or rcN."
+            exit 1
+          fi
+          node -e "const fs=require('fs');const p='launcher/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(p));c.version=process.argv[1];fs.writeFileSync(p,JSON.stringify(c,null,2)+'\n')" "$app"
+          echo "Building version $version, as the application's $app."
 
       # Built on its own, and bounded, so that a stuck bundler is a failing
       # step with its own log rather than an hour of apparent compilation:

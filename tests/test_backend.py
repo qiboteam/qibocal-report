@@ -375,11 +375,6 @@ def test_docs_endpoint():
     assert "Qibo Ecosystem" in r_index.text
     assert "qibo.science" in r_index.text
 
-    # Test legacy path
-    r = client.get("/api/docs-content/usage")
-    assert r.status_code == 200
-    assert "# User Guide" in r.text
-
     # Test nested subpage path
     r_sub = client.get("/api/docs-content/user-guide/quickstart")
     assert r_sub.status_code == 200

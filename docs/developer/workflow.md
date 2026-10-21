@@ -85,3 +85,11 @@ The Python package is the server alone: headless, without the dashboard, which i
 devenv shell -- build-wheel
 # or: uv build
 ```
+
+---
+
+## 🏷️ Versions & Releases
+
+There is one version, the Python package's, in `pyproject.toml`, in [PEP 440](https://peps.python.org/pep-0440/) form: `0.1.0a1` for an alpha, `0.1.0b1`, `0.1.0rc1`, then `0.1.0`. The package, `qibocal --version` and the API all read it from the installed metadata. The servers' `GET /api/version` answers it, along with the API version, which counts the API's breaking changes; see the [API reference](../reference/api.md).
+
+A release is a GitHub release whose tag is that version prefixed with `v` — `v0.1.0a1`. Its launcher workflow refuses a tag that does not match `pyproject.toml`, and gives the desktop application the same version in the form its installers accept: SemVer with a numeric pre-release, alphas counted from 1, betas from 101 and release candidates from 201, so `0.1.0a1` is `0.1.0-1`, `0.1.0rc2` is `0.1.0-202`, and `0.1.0` is greater than all of them. The installers are attached to the release. Bump `pyproject.toml` for the next version right after tagging.
