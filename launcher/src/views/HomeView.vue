@@ -134,7 +134,7 @@
               :to="{ name: 'queues', query: { ssh: item.queue.ssh || '', partition: item.queue.partition } }"
               class="font-medium text-gray-900 hover:text-[#3b107e] lx-mono"
             >{{ item.queue.partition }}</router-link>
-            <span v-if="item.queue.ssh" class="text-gray-400 lx-mono truncate">on {{ item.queue.ssh }}</span>
+            <span v-if="item.queue.ssh" class="text-gray-400 truncate" :title="item.queue.ssh">on {{ item.machine }}</span>
             <span v-if="item.entry?.data?.summary?.available === false" class="text-red-700 font-medium">down</span>
             <span class="ml-auto text-[11px] text-gray-400 whitespace-nowrap">
               <template v-if="item.entry?.loading && !item.entry?.data">asking…</template>
@@ -173,7 +173,8 @@ import { openExternal, openInNewWindow, wantsNewWindow } from '../bridge.js'
 import { state, openDashboard, queueEntry, refreshQueue } from '../state.js'
 import { registerPageKeys } from '../shortcuts.js'
 import { pageShortcuts } from '../pagekeys.js'
-import { describeOccupation, ownJobs, queueKey, queueOf } from '../lib/slurm.js'
+import { describeOccupation, groupMachines, ownJobs, queueKey, queueOf } from '../lib/slurm.js'
+import { agentRemotes } from '../lib/agents.js'
 import { timeAgo } from '../lib/time.js'
 
 const router = useRouter()
@@ -212,10 +213,12 @@ const queues = computed(() => {
     const queue = queueOf(state.launches[process.id]?.options)
     if (queue && !byKey.has(queueKey(queue))) byKey.set(queueKey(queue), { key: queueKey(queue), queue })
   }
-  return [...byKey.values()].map(item => {
-    const entry = queueEntry(item.queue)
-    return { ...item, entry, mine: ownJobs(entry?.data) }
-  })
+  // By machine, as Queues groups them; each named as its remote, when it is one.
+  const order = groupMachines([...byKey.values()].map(item => item.queue), agentRemotes(state.agentHosts))
+  return order.flatMap(machine => machine.partitions.map(({ key, queue }) => {
+    const entry = queueEntry(queue)
+    return { key, queue, machine: machine.label, entry, mine: ownJobs(entry?.data) }
+  }))
 })
 
 function jobDot(jobState) {

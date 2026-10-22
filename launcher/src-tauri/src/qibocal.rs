@@ -528,42 +528,29 @@ fn list_administrators(machine: ServerMachine) -> Result<Value, String> {
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct QueueRequest {
-    pub connection: Option<String>,
+pub struct MachineRequest {
     pub ssh: Option<String>,
-    pub partition: Option<String>,
-    pub user: Option<String>,
     #[serde(default)]
-    pub states: Vec<String>,
+    pub partitions: Vec<String>,
     pub timeout: Option<f64>,
 }
 
-/// Ask a SLURM queue once, through `qibocal notebook queue --json`.
+/// Ask a machine's queues once, through `qibocal notebook queues --json`:
+/// the jobs of the partitions given, and a line for every partition there.
 #[tauri::command]
-pub async fn slurm_queue(request: QueueRequest) -> Result<Value, String> {
-    off_main(move || ask_queue(request)).await?
+pub async fn slurm_machine(request: MachineRequest) -> Result<Value, String> {
+    off_main(move || ask_machine(request)).await?
 }
 
-fn ask_queue(request: QueueRequest) -> Result<Value, String> {
-    let mut arguments = vec!["notebook".to_string(), "queue".to_string()];
-    if let Some(connection) = request.connection.filter(|value| !value.trim().is_empty()) {
-        arguments.push(connection);
-    }
+fn ask_machine(request: MachineRequest) -> Result<Value, String> {
+    let mut arguments = vec!["notebook".to_string(), "queues".to_string()];
     if let Some(ssh) = request.ssh.filter(|value| !value.trim().is_empty()) {
         arguments.push("--ssh".to_string());
         arguments.push(ssh);
     }
-    if let Some(partition) = request.partition.filter(|value| !value.trim().is_empty()) {
+    for partition in request.partitions {
         arguments.push("--queue".to_string());
         arguments.push(partition);
-    }
-    if let Some(user) = request.user.filter(|value| !value.trim().is_empty()) {
-        arguments.push("--user".to_string());
-        arguments.push(user);
-    }
-    for state in request.states {
-        arguments.push("--state".to_string());
-        arguments.push(state);
     }
     if let Some(timeout) = request.timeout {
         arguments.push("--timeout".to_string());
@@ -571,7 +558,7 @@ fn ask_queue(request: QueueRequest) -> Result<Value, String> {
     }
     arguments.push("--json".to_string());
     let output = run(&arguments)?;
-    serde_json::from_str(&output).map_err(|error| format!("Could not read the queue answer: {error}"))
+    serde_json::from_str(&output).map_err(|error| format!("Could not read the queues answer: {error}"))
 }
 
 #[derive(serde::Deserialize)]

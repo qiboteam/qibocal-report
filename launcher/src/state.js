@@ -4,7 +4,7 @@ import { defaultLaunch, launchKeys, syncDashboardServers, serverUrl } from './li
 import { installationBehind } from './lib/versions.js'
 import { processNews, unattended } from './lib/alerts.js'
 import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
-import { queueKey, queueOf } from './lib/slurm.js'
+import { machineKey, partitionAnswer, queueKey, queueOf } from './lib/slurm.js'
 import { notebookKey, reportServerOptions } from './lib/notebooks.js'
 import { agentReports, agentReportsKey, agentRunOptions } from './lib/agents.js'
 
@@ -48,7 +48,9 @@ export const state = reactive({
   /** The keys of the page on screen — `{ title, entries }` — or null. */
   pageShortcuts: null,
   /** What each SLURM queue answered, by `queueKey`: `{ data, error, loading, fetchedAt }`. */
-  queues: {}
+  queues: {},
+  /** What each machine answered, by `machineKey`: its partitions' queues, and a line for each partition there. */
+  machines: {}
 })
 
 // What is said on one page is still there on the other.
@@ -683,30 +685,83 @@ export function queueEntry(queue) {
 const queueWatchers = new Map()
 
 /**
- * Ask a queue — unless it was asked a moment ago, in which case the last
- * answer stands; `force` asks anyway. One question at a time per queue:
- * every panel on the same queue shares it.
+ * Every queue the launcher knows: those of the sessions and agents it runs,
+ * of the saved notebook connections, and of this machine's agent
+ * configurations.
  */
-export async function refreshQueue(queue, { force = false } = {}) {
-  const key = queueKey(queue)
-  if (!key) return null
-  const entry = state.queues[key] || (state.queues[key] = { data: null, error: null, loading: false, fetchedAt: 0 })
+export function knownQueues() {
+  const queues = []
+  for (const process of state.processes) {
+    if (process.kind !== 'notebook' && process.kind !== 'agent') continue
+    const queue = queueOf(state.launches[process.id]?.options)
+    if (queue) queues.push(queue)
+  }
+  for (const options of Object.values(state.notebooks || {})) {
+    const queue = queueOf(options)
+    if (queue) queues.push(queue)
+  }
+  for (const [name, entry] of Object.entries(state.agents?.document?.agents || {})) {
+    const queue = queueOf(agentRunOptions({ name }, entry))
+    if (queue) queues.push(queue)
+  }
+  const seen = new Set()
+  return queues.filter(queue => !seen.has(queueKey(queue)) && seen.add(queueKey(queue)))
+}
+
+/**
+ * Ask a machine — unless it was asked a moment ago, in which case the last
+ * answer stands; `force` asks anyway. One question for every queue the
+ * launcher knows there, and `also`: each one's entry is filled from it, so
+ * every panel on the machine shares a single round trip.
+ */
+export async function refreshMachine(ssh, { force = false, also = [] } = {}) {
+  const key = machineKey(ssh)
+  const entry = state.machines[key] || (state.machines[key] = { data: null, error: null, loading: false, fetchedAt: 0 })
   const minimum = (queuePollSeconds.value * 1000) / 2
+  const partitions = [...new Set([
+    ...knownQueues().filter(queue => machineKey(queue.ssh) === key).map(queue => queue.partition),
+    ...also
+  ])]
+  const asked = new Set(entry.data?.known || [])
+  const covered = partitions.every(partition => asked.has(partition))
   if (entry.loading) return entry
-  if (!force && entry.fetchedAt && Date.now() - entry.fetchedAt < minimum) return entry
+  if (!force && covered && entry.fetchedAt && Date.now() - entry.fetchedAt < minimum) return entry
+  const queueEntries = partitions.map(partition => {
+    const queueKeyed = queueKey({ ssh: ssh || null, partition })
+    return state.queues[queueKeyed] || (state.queues[queueKeyed] = { data: null, error: null, loading: false, fetchedAt: 0 })
+  })
   entry.loading = true
+  for (const queueEntry of queueEntries) queueEntry.loading = true
   try {
-    const data = await withQibocal(() => desktop.slurmQueue({ ssh: queue.ssh, partition: queue.partition, timeout: 30 }))
+    const data = await withQibocal(() => desktop.slurmMachine({ ssh: ssh || null, partitions, timeout: 30 }))
     entry.data = data
     entry.error = data?.error || null
     entry.fetchedAt = Date.now()
+    partitions.forEach((partition, index) => {
+      Object.assign(queueEntries[index], { data: partitionAnswer(data, partition), error: data?.error || null, fetchedAt: entry.fetchedAt })
+    })
   } catch (error) {
     entry.error = error?.message || String(error)
     entry.fetchedAt = entry.fetchedAt || Date.now()
+    for (const queueEntry of queueEntries) Object.assign(queueEntry, { error: entry.error, fetchedAt: queueEntry.fetchedAt || Date.now() })
   } finally {
     entry.loading = false
+    for (const queueEntry of queueEntries) queueEntry.loading = false
   }
   return entry
+}
+
+/** The entry of a machine, or null before it was ever asked. */
+export function machineEntry(ssh) {
+  return state.machines[machineKey(ssh)] || null
+}
+
+/** Ask a queue: its machine is asked, for it and the other queues known there. */
+export async function refreshQueue(queue, { force = false } = {}) {
+  const key = queueKey(queue)
+  if (!key) return null
+  await refreshMachine(queue.ssh, { force, also: [queue.partition] })
+  return state.queues[key] || null
 }
 
 /**
@@ -723,6 +778,35 @@ export function watchQueue(queue) {
     queueWatchers.set(key, watcher)
     const tick = () => {
       refreshQueue(queue).finally(() => {
+        if (queueWatchers.get(key) === watcher && watcher.count > 0) {
+          watcher.timer = setTimeout(tick, queuePollSeconds.value * 1000)
+        }
+      })
+    }
+    tick()
+  }
+  watcher.count += 1
+  return () => {
+    watcher.count -= 1
+    if (watcher.count <= 0) {
+      clearTimeout(watcher.timer)
+      queueWatchers.delete(key)
+    }
+  }
+}
+
+/**
+ * Keep a machine fresh while its overview is on screen, as `watchQueue`
+ * keeps a queue: asked now, then every `queuePollSeconds`.
+ */
+export function watchMachine(ssh) {
+  const key = `machine:${machineKey(ssh)}`
+  let watcher = queueWatchers.get(key)
+  if (!watcher) {
+    watcher = { count: 0, timer: null }
+    queueWatchers.set(key, watcher)
+    const tick = () => {
+      refreshMachine(ssh).finally(() => {
         if (queueWatchers.get(key) === watcher && watcher.count > 0) {
           watcher.timer = setTimeout(tick, queuePollSeconds.value * 1000)
         }

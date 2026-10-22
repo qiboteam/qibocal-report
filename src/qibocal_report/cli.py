@@ -251,6 +251,45 @@ def notebook_rebuild(connection: str | None, **options):
     rebuild(load_options(connection, options))
 
 
+@notebook.command(name="queues")
+@click.option("--ssh", help="SSH options followed by a host or user@host destination: the machine; empty, this one.")
+@click.option("-q", "--queue", "partitions", multiple=True, help="A partition whose jobs are wanted (repeatable).")
+@click.option("--json", "as_json", is_flag=True, help="Print the answer as JSON.")
+@click.option("--timeout", type=float, default=30.0, show_default=True, help="Seconds to wait for the controller.")
+def notebook_queues(ssh, partitions, as_json, timeout):
+    """What a machine's SLURM queues are doing, asked once.
+
+    The jobs of each --queue, and a line for every partition of the machine:
+    its nodes by state, its jobs by state, and how many are yours. One
+    squeue for the whole machine, filtered there, so the answer is only as
+    large as what it shows.
+    """
+    import json as json_module
+
+    from qibocal_report.remote.slurm import query_machine
+
+    try:
+        answer = query_machine(ssh=ssh, partitions=list(partitions), timeout=timeout)
+    except (RuntimeError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    if as_json:
+        click.echo(json_module.dumps(answer, indent=2))
+        return
+    if answer["error"]:
+        raise click.ClickException(answer["error"])
+    from rich.console import Console
+    from rich.table import Table
+
+    table = Table(title=f"Partitions on {ssh or 'this machine'}", show_header=True, header_style="bold")
+    for column in ("Partition", "Nodes", "Jobs", "Yours"):
+        table.add_column(column)
+    describe = lambda counts: ", ".join(f"{count} {state.lower()}" for state, count in counts.items()) or "—"
+    for line in answer["partitions"]:
+        name = line["partition"] + ("*" if line["default"] else "") + ("" if line["known"] else " (other)")
+        table.add_row(name, describe(line["nodes"]), describe(line["jobs"]), str(line["mine"]))
+    Console().print(table)
+
+
 @notebook.command(name="queue")
 @click.argument("connection", required=False)
 @click.option("--ssh", help="SSH options followed by a host or user@host destination.")

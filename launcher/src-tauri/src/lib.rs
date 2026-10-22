@@ -146,7 +146,7 @@ pub fn run() {
             qibocal::free_port,
             qibocal::administrators,
             qibocal::reissue_invite,
-            qibocal::slurm_queue,
+            qibocal::slurm_machine,
             qibocal::platform_summary,
             settings::config_entries,
             settings::config_directory,

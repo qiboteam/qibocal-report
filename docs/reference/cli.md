@@ -198,6 +198,14 @@ Write qibocal-agent configurations into `agents.json` on the SSH destination: `-
 ### `qibocal agents install`
 Install `qibocal-agent` where the desktop application keeps it, `~/.cache/qibocal/agents/tools` (under `$XDG_CACHE_HOME` when set), and print the path of its executable — the command an assistant registers, as `qibocal-agent mcp`. The environment is created when missing, with Python 3.12 or 3.13, which uv provides when this Python is another one; `--ref REF`, a branch, tag or commit of qibocal-mcp-servers, `main` by default, replaces whatever was installed. What was installed is recorded in `qibocal-tools.txt` there.
 
+### `qibocal notebook queues`
+What a machine's SLURM queues are doing, asked once: the jobs of each partition given, and a line for every partition of the machine — its nodes by state, its jobs by state, and how many are the caller's. One round trip, over SSH when a destination is given; a single `squeue` for the whole machine is filtered on the machine itself, so only the jobs of the partitions asked for travel back, and counts for the rest. What the launcher's **Queues** asks.
+
+- `--ssh TEXT`: the machine, as SSH options followed by a host or `user@host` destination; without it, this one.
+- `-q, --queue TEXT`: a partition whose jobs are wanted; repeatable.
+- `--json`: the answer as JSON, each partition's queue as `qibocal notebook queue` answers it, under `queues`.
+- `--timeout SECONDS`: how long to wait for the controller; 30 by default.
+
 ### `qibocal notebook queue [CONNECTION]`
 What a SLURM queue is doing, asked once: `squeue`, `sinfo` and `whoami` run in a single round trip — over SSH when a destination is given — and answered as a table, or as JSON with `--json`. The host and the partition come from a saved `CONNECTION`, or from the options.
 

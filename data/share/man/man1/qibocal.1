@@ -305,6 +305,21 @@ Options:
 (the answer as JSON),
 .BI \-\-timeout " SECONDS"
 (seconds to wait for the controller; default: 30).
+.PP
+.B qibocal notebook queues
+.RI [ OPTIONS ]
+.PP
+What a machine's SLURM queues are doing, asked once: the jobs of each
+partition given, and a line for every partition of the machine \(em its nodes
+and jobs by state, and how many are yours. One squeue for the whole machine,
+filtered on it, so only the jobs asked for travel back. Options:
+.BI \-\-ssh " TEXT"
+(the machine; without it, this one),
+.BR \-q ", " \-\-queue " " \fIPARTITION\fR
+(a partition whose jobs are wanted, repeatable),
+.B \-\-json
+and
+.BI \-\-timeout " SECONDS" .
 .SS Examples
 .nf
 qibocal notebook connect

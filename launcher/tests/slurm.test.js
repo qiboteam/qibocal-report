@@ -63,3 +63,31 @@ test('the recap says who is busy and what is mine', () => {
   )
   assert.equal(describeOccupation(null), '')
 })
+
+test('queues are grouped by the machine they are on, named as its remote', async () => {
+  const { groupMachines, machineKey, partitionAnswer } = await import('../src/lib/slurm.js')
+  assert.equal(machineKey(null), 'local')
+  assert.equal(machineKey(' me@login '), 'me@login')
+  const queues = [
+    { ssh: 'me@login', partition: 'qpu' },
+    { ssh: null, partition: 'debug' },
+    { ssh: 'me@login', partition: 'gpu' },
+    { ssh: 'me@login', partition: 'qpu' },
+    { ssh: 'cluster', partition: 'cpu' }
+  ]
+  const machines = groupMachines(queues, [{ name: 'lab', ssh: 'me@login' }])
+  assert.deepEqual(machines.map(machine => [machine.label, machine.partitions.map(item => item.queue.partition)]), [
+    ['cluster', ['cpu']], ['lab', ['qpu', 'gpu']], ['This machine', ['debug']]
+  ], 'by name, this machine last, each partition once')
+  assert.equal(machines[1].partitions[0].key, 'me@login|qpu', 'the very key a single queue has')
+
+  const machine = {
+    ssh: 'me@login', user: 'me', fetched_at: 'now', error: null,
+    queues: { qpu: { jobs: [{ id: '1' }], nodes: [], summary: { total_nodes: 0 } } }
+  }
+  assert.deepEqual(partitionAnswer(machine, 'qpu'), {
+    ssh: 'me@login', partition: 'qpu', user: 'me', jobs: [{ id: '1' }], nodes: [], summary: { total_nodes: 0 },
+    fetched_at: 'now', error: null, stderr: undefined
+  }, 'as one queue alone is answered')
+  assert.equal(partitionAnswer(machine, 'gpu'), null, 'a partition not asked for has no answer')
+})

@@ -110,3 +110,45 @@ export function describeOccupation(summary) {
   parts.push(`${jobs.RUNNING || 0} running, ${jobs.PENDING || 0} pending`)
   return parts.join(' · ')
 }
+
+/** One key per machine: its SSH destination, or this one. */
+export function machineKey(ssh) {
+  return String(ssh || '').trim() || 'local'
+}
+
+/**
+ * The queues grouped by the machine they are on, for the tree of Queues:
+ * `[{ key, ssh, label, partitions: [{ key, queue }] }]`. A machine is
+ * named as the remote of the same destination is, when there is one;
+ * this one comes last.
+ */
+export function groupMachines(queues = [], remotes = []) {
+  const machines = new Map()
+  for (const queue of queues) {
+    const key = machineKey(queue.ssh)
+    if (!machines.has(key)) {
+      const remote = queue.ssh ? remotes.find(entry => entry.ssh === queue.ssh) : null
+      machines.set(key, { key, ssh: queue.ssh || null, label: queue.ssh ? remote?.name || queue.ssh : 'This machine', partitions: [] })
+    }
+    const partitions = machines.get(key).partitions
+    if (!partitions.some(entry => entry.queue.partition === queue.partition)) partitions.push({ key: queueKey(queue), queue })
+  }
+  return [...machines.values()].sort((a, b) => (a.ssh === null) - (b.ssh === null) || a.label.localeCompare(b.label))
+}
+
+/** A partition's queue out of its machine's answer, as one queue alone is answered. */
+export function partitionAnswer(machine, partition) {
+  const own = machine?.queues?.[partition]
+  if (!machine || !own) return null
+  return {
+    ssh: machine.ssh,
+    partition,
+    user: machine.user,
+    jobs: own.jobs,
+    nodes: own.nodes,
+    summary: own.summary,
+    fetched_at: machine.fetched_at,
+    error: machine.error,
+    stderr: machine.stderr
+  }
+}

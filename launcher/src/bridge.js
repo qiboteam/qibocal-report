@@ -79,7 +79,8 @@ export const desktop = {
   /** The users of a server: on this machine, or on its own over SSH (`{ ssh, venv }`). */
   administrators: (machine = null) => call('administrators', { machine }),
   /** Ask a SLURM queue once: `{ ssh, partition, user, states, timeout }`. */
-  slurmQueue: request => call('slurm_queue', { request }),
+  /** A machine's queues at once: the partitions' jobs, and a line for every partition there. */
+  slurmMachine: request => call('slurm_machine', { request }),
   reissueInvite: request => call('reissue_invite', { request })
 }
 
