@@ -16,9 +16,12 @@
     </div>
 
     <p v-if="!known.length && !selected" class="bm-card p-6 text-center text-xs text-gray-500">
-      No queue to look at: a notebook session dispatched to a SLURM partition — running, or saved as a connection —
-      brings its queue here.
-      <router-link to="/notebooks" class="block mt-2 text-[#833dff] hover:text-[#3b107e]">Notebooks</router-link>
+      No queue to look at: a notebook session or an agent dispatched to a SLURM partition — running, or saved as a
+      connection or a configuration — brings its queue here.
+      <span class="flex items-center justify-center gap-3 mt-2">
+        <router-link to="/notebooks" class="text-[#833dff] hover:text-[#3b107e]">Notebooks</router-link>
+        <router-link to="/agents" class="text-[#833dff] hover:text-[#3b107e]">Agents</router-link>
+      </span>
     </p>
 
     <template v-else>
@@ -59,15 +62,19 @@ import { useRoute } from 'vue-router'
 import QueuePanel from '../components/QueuePanel.vue'
 import { state, queuePollSeconds } from '../state.js'
 import { jobIdFromLog, jobNameFromLog, queueKey, queueOf } from '../lib/slurm.js'
+import { agentRunOptions } from '../lib/agents.js'
 
 const route = useRoute()
 const pollSeconds = queuePollSeconds
 
-/** The sessions on a queue: notebooks the launcher started with that partition, still alive. */
+/** What waits in a queue: notebook sessions, and agents, whose operations are jobs of their own. */
+const QUEUED = new Set(['notebook', 'agent'])
+
+/** The sessions on a queue: notebooks and agents the launcher started with that partition, still alive. */
 function sessionsOf(queue) {
   const key = queueKey(queue)
   return state.processes.filter(process =>
-    process.kind === 'notebook' && (process.status === 'running' || process.status === 'stopping') &&
+    QUEUED.has(process.kind) && (process.status === 'running' || process.status === 'stopping') &&
     queueKey(queueOf(state.launches[process.id]?.options)) === key)
 }
 
@@ -75,12 +82,17 @@ function sessionsOf(queue) {
 const known = computed(() => {
   const byKey = new Map()
   for (const process of state.processes) {
-    if (process.kind !== 'notebook') continue
+    if (!QUEUED.has(process.kind)) continue
     const queue = queueOf(state.launches[process.id]?.options)
     if (queue) byKey.set(queueKey(queue), { key: queueKey(queue), queue })
   }
   for (const options of Object.values(state.notebooks || {})) {
     const queue = queueOf(options)
+    if (queue && !byKey.has(queueKey(queue))) byKey.set(queueKey(queue), { key: queueKey(queue), queue })
+  }
+  // The partitions of this machine's agent configurations, as their runs would wait in them.
+  for (const [name, entry] of Object.entries(state.agents?.document?.agents || {})) {
+    const queue = queueOf(agentRunOptions({ name }, entry))
     if (queue && !byKey.has(queueKey(queue))) byKey.set(queueKey(queue), { key: queueKey(queue), queue })
   }
   return [...byKey.values()]

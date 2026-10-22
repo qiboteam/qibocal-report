@@ -6,6 +6,7 @@ import { processNews, unattended } from './lib/alerts.js'
 import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
 import { queueKey, queueOf } from './lib/slurm.js'
 import { notebookKey, reportServerOptions } from './lib/notebooks.js'
+import { agentReports, agentReportsKey, agentRunOptions } from './lib/agents.js'
 
 export const LOG_EVENT = 'launcher://log'
 export const PROCESS_EVENT = 'launcher://process'
@@ -195,11 +196,17 @@ export async function refreshAgents() {
   return agents
 }
 
-/** Dispatch an autonomous agent, `{ name, objective }`: a process of its own in Running. */
+/**
+ * Dispatch an autonomous agent, `{ name, objective }`: a process of its own
+ * in Running, which keeps the queue of its configuration, to be watched.
+ */
 export async function startAgent(request) {
-  const info = await desktop.startAgent(request)
-  state.launches[info.id] = { kind: 'agent', options: request, url: null }
+  const options = agentRunOptions(request, state.agents?.document?.agents?.[request.name])
+  const info = await desktop.startAgent({ name: options.name, objective: options.objective })
+  state.launches[info.id] = { kind: 'agent', options, url: null }
   mergeProcess(info)
+  const queue = queueOf(options)
+  if (queue) refreshQueue(queue).catch(() => {})
   return info
 }
 
@@ -802,4 +809,20 @@ export function savedPrompts() {
 export async function savePrompt(name, text) {
   const kept = savedPrompts().filter(prompt => prompt.name !== name)
   state.preferences = await desktop.savePreferences({ ...state.preferences, agentPrompts: [...kept, { name, text }] })
+}
+
+/**
+ * The report server of a configuration of this machine — all its runs, not
+ * one — started on the host its runs write to, or opened when it runs.
+ */
+export function startAgentReports(name) {
+  const entry = state.agents?.document?.agents?.[name] || {}
+  const options = { ssh: entry.ssh || null, reports: agentReports(entry, name) }
+  return startNotebookReports(options, `${name} agent`, { key: agentReportsKey(name) })
+}
+
+/** The run of a configuration of this machine that goes on, if any; else its latest. */
+export function agentRunOf(name) {
+  const runs = state.processes.filter(process => process.kind === 'agent' && state.launches[process.id]?.options?.name === name)
+  return runs.find(process => process.status === 'running' || process.status === 'stopping') || runs.at(-1) || null
 }

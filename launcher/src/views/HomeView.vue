@@ -207,7 +207,8 @@ function kindLabel(process) {
 const queues = computed(() => {
   const byKey = new Map()
   for (const process of live.value) {
-    if (process.kind !== 'notebook') continue
+    // Notebooks, and agents: each operation of one is a job of its own.
+    if (process.kind !== 'notebook' && process.kind !== 'agent') continue
     const queue = queueOf(state.launches[process.id]?.options)
     if (queue && !byKey.has(queueKey(queue))) byKey.set(queueKey(queue), { key: queueKey(queue), queue })
   }

@@ -67,6 +67,14 @@ They are those of the [configuration guide](https://github.com/qiboteam/qibocal-
 - **Reports** starts a report server on the execution host — the configuration's SSH destination, or the remote it is kept for — serving its output, `~/.local/share/qibocal/agents/runs/NAME` unless set otherwise, and opens it in the dashboard; it is started for a look, and nothing is registered.
 - **Edit**, its name and where it is kept included, **Duplicate**, and the bin.
 
+## A run in Running
+
+A run is a card of **Running**, as a notebook session is:
+
+- **Its queue**: a configuration with a SLURM partition waits in it, one job per operation; the card shows the partition's queue while the agent runs — on the SSH destination, or here — and **Queues** lists it, with the partitions of this machine's other configurations.
+- **Reports** starts the report server of its configuration — the same one **Reports** starts from the configuration, serving all its runs, not this one alone — or opens it in the dashboard when it runs. The two cards lead to each other: *reports running* on the agent's, *agent NAME* on the server's.
+- **Stop both** stops the agent and that report server together; **Stop** stops the agent alone, and the server goes on serving its reports.
+
 ## Saved prompts
 
 Prompts for autonomous runs, kept in `launcher.json`, apart from the configurations, and offered by **Run**. **+** saves one without running it; **Save prompt**, on an agent's run in **Running**, saves the prompt that run was given — or its configuration's objective, given none — under a name typed there.

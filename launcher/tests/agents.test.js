@@ -10,6 +10,9 @@ import {
   agentReports,
   describeAgent,
   agentRemotes,
+  agentOfReportsKey,
+  agentReportsKey,
+  agentRunOptions,
   agentShown,
   mcpSnippet,
   reachedRemote,
@@ -84,4 +87,14 @@ test('names, reports, snippet and summary', () => {
     { command: '/home/me/.cache/qibocal/agents/tools/bin/qibocal-agent', args: ['mcp'], timeout: 3600000 })
   assert.equal(JSON.parse(mcpSnippet(null)).mcpServers.qibocal.command, 'qibocal-agent', 'none found: the bare command')
   assert.equal(describeAgent({ platform: 'tuna5', ssh: 'qrc-ws', partition: 'qw5q', model: 'openai:gpt-4.1' }), 'platform tuna5 · ssh qrc-ws · partition qw5q · openai:gpt-4.1')
+})
+
+test('a run records the queue of its configuration, and its report server is the configuration\'s', () => {
+  assert.deepEqual(agentRunOptions({ name: 'chip', objective: 'Calibrate.' }, { partition: 'qpu', ssh: 'me@login' }),
+    { name: 'chip', objective: 'Calibrate.', queue: 'qpu', ssh: 'me@login' }, 'the queue, as queueOf reads it')
+  assert.deepEqual(agentRunOptions({ name: 'here' }, { ssh: 'me@login' }), { name: 'here', objective: null }, 'no partition, no queue')
+  assert.deepEqual(agentRunOptions({ name: 'gone' }, undefined), { name: 'gone', objective: null })
+  assert.equal(agentReportsKey('chip'), 'agent:local:chip', 'the key the Agents page starts it with')
+  assert.deepEqual(agentOfReportsKey(agentReportsKey('chip', 'lab')), { host: 'lab', name: 'chip' })
+  assert.equal(agentOfReportsKey('session-x'), null, 'a notebook\'s server is no agent\'s')
 })

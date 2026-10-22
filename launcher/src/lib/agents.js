@@ -209,3 +209,33 @@ export function describeAgent(entry = {}) {
   if (entry.model) parts.push(entry.model)
   return parts.join(' · ')
 }
+
+/**
+ * What links a report server to a configuration: one key per configuration,
+ * where it is kept — the server the Agents page starts, and the one a run in
+ * Running starts, are the same server.
+ */
+export function agentReportsKey(name, host = 'local') {
+  return `agent:${host}:${name}`
+}
+
+/** The configuration a report server serves, `{ host, name }`, from its key; null for any other server. */
+export function agentOfReportsKey(key) {
+  const match = /^agent:([^:]+):(.+)$/.exec(String(key || ''))
+  return match ? { host: match[1], name: match[2] } : null
+}
+
+/**
+ * What a run of a configuration records to be watched: its name and
+ * objective, and the queue its operations wait in — the configuration's
+ * partition, on its SSH destination — as it was when the run started.
+ */
+export function agentRunOptions(request = {}, entry = {}) {
+  const partition = String(entry?.partition || '').trim()
+  const ssh = String(entry?.ssh || '').trim()
+  return {
+    name: request.name,
+    objective: request.objective ?? null,
+    ...(partition ? { queue: partition, ...(ssh ? { ssh } : {}) } : {})
+  }
+}

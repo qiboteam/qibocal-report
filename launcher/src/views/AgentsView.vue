@@ -200,6 +200,7 @@ import {
   agentNameError,
   agentRemotes,
   agentReports,
+  agentReportsKey,
   agentShown,
   describeAgent,
   reachedRemote,
@@ -367,7 +368,7 @@ async function reports(item) {
   startingReports.value = item.key
   const ssh = item.host === 'local' ? item.entry.ssh || null : item.destination
   const options = { ssh, reports: agentReports(item.entry, item.name) }
-  const key = `agent:${item.key}`
+  const key = agentReportsKey(item.name, item.host)
   const running = notebookReportsServer(key)
   const started = await attempt(
     () => startNotebookReports(options, `${item.name} agent`, { key }),

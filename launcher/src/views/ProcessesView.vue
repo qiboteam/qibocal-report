@@ -56,6 +56,19 @@
             <code class="lx-mono text-gray-400 truncate block" :title="current.latest.command.join(' ')">{{ current.latest.command.join(' ') }}</code>
           </div>
           <div class="ml-auto flex items-center gap-1.5 shrink-0">
+            <!-- An agent and the report server of its configuration lead to each other. -->
+            <router-link
+              v-if="linkedServer(current.latest)"
+              :to="{ query: { process: linkedServer(current.latest).id } }"
+              class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-medium hover:bg-emerald-100 transition"
+              title="Its configuration's report server, in Running"
+            >reports running</router-link>
+            <router-link
+              v-if="linkedAgent(current.latest)"
+              :to="{ query: { process: linkedAgent(current.latest).id } }"
+              class="px-2 py-0.5 rounded-full bg-purple-50 text-[#833dff] text-[11px] font-medium hover:bg-purple-100 transition"
+              :title="`The runs of ${agentServed(current.latest).name}, whose reports this serves`"
+            >agent {{ agentServed(current.latest).name }}</router-link>
             <!-- A server is read in the embedded dashboard, a notebook in the browser. -->
             <button
               v-if="current.latest.url && current.latest.kind === 'server' && current.latest.status === 'running'"
@@ -109,6 +122,27 @@
               @click="Object.assign(naming, { id: current.latest.id, name: '' })"
             >
               <Bookmark class="w-3.5 h-3.5" /> Save prompt
+            </button>
+            <!-- The reports of the agent's configuration — all its runs — on a server of their own. -->
+            <button
+              v-if="current.latest.kind === 'agent' && agentName(current.latest)"
+              type="button"
+              class="lx-action"
+              :title="linkedServer(current.latest)
+                ? 'Open the reports of its configuration in the dashboard'
+                : 'Start the report server of its configuration, serving all its runs; it goes on after the agent stops'"
+              @click="agentReports(current.latest)"
+            >
+              <LayoutDashboard class="w-3.5 h-3.5" /> Reports
+            </button>
+            <button
+              v-if="current.latest.kind === 'agent' && current.latest.status === 'running' && linkedServer(current.latest)"
+              type="button"
+              class="lx-action"
+              title="Stop the agent and its report server together"
+              @click="stopBoth(current.latest)"
+            >
+              <Square class="w-3.5 h-3.5" /> Stop both
             </button>
             <button
               v-if="current.latest.status === 'running' || current.latest.status === 'stopping'"
@@ -186,6 +220,7 @@ import { Bookmark, ChevronRight, ExternalLink, LayoutDashboard, ListOrdered, Pla
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
 import QueuePanel from '../components/QueuePanel.vue'
 import { jobIdFromLog, jobNameFromLog, queueOf } from '../lib/slurm.js'
+import { agentOfReportsKey, agentReportsKey } from '../lib/agents.js'
 import { desktop, openExternal, wantsNewWindow } from '../bridge.js'
 import {
   state,
@@ -195,6 +230,9 @@ import {
   refreshProcesses,
   registerServer,
   restartProcess,
+  agentRunOf,
+  notebookReportsServer,
+  startAgentReports,
   savePrompt,
   unregisteredServers,
   startNotebookReports
@@ -311,6 +349,45 @@ async function register(process) {
 }
 
 /** A session's reports: its report server started, or opened in the dashboard while it runs. */
+/** The configuration an agent run is of. */
+function agentName(process) {
+  return process?.kind === 'agent' ? state.launches[process.id]?.options?.name || null : null
+}
+
+/** The report server of an agent run's configuration, while it runs. */
+function linkedServer(process) {
+  const name = agentName(process)
+  return name ? notebookReportsServer(agentReportsKey(name)) : null
+}
+
+/** The configuration a report server serves, when it is an agent's. */
+function agentServed(process) {
+  return process?.kind === 'server' ? agentOfReportsKey(state.launches[process.id]?.notebook) : null
+}
+
+/** The run of the configuration a report server serves: the one going on, or its latest. */
+function linkedAgent(process) {
+  const served = agentServed(process)
+  return served?.host === 'local' ? agentRunOf(served.name) : null
+}
+
+/** Its configuration's reports: opened when its server runs, started otherwise. */
+async function agentReports(process) {
+  const running = linkedServer(process)
+  const started = await attempt(
+    () => startAgentReports(agentName(process)),
+    running ? null : 'Starting the report server of the configuration; it appears in the dashboard once it answers.',
+    'processes'
+  )
+  if (started?.id && !running) router.replace({ query: { process: started.id } })
+}
+
+/** The agent, and the report server of its configuration, in one go. */
+async function stopBoth(process) {
+  const server = linkedServer(process)
+  await attempt(() => Promise.all([desktop.stopProcess(process.id), server && desktop.stopProcess(server.id)]))
+}
+
 async function sessionReports(process) {
   const options = state.launches[process.id]?.options || {}
   const started = await attempt(
