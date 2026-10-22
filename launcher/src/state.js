@@ -612,7 +612,7 @@ export async function initialize() {
  * running server that is not registered yet registers it first: the
  * dashboard only knows registered servers.
  */
-export async function openDashboard(preferredUrl = null, { newWindow = false, register = false } = {}) {
+export async function openDashboard(preferredUrl = null, { newWindow = false, register = false, route = null } = {}) {
   if (preferredUrl && register) {
     const keys = new Set(launchKeys(preferredUrl))
     const registered = state.servers.some(server => launchKeys(server.url).some(key => keys.has(key)))
@@ -639,7 +639,9 @@ export async function openDashboard(preferredUrl = null, { newWindow = false, re
   }))
   syncDashboardServers(state.servers, { preferredUrl, transient })
   const target = new URL('dashboard.html', window.location.href)
-  if (preferredUrl) target.hash = '#/dashboard'
+  // A page of its own when asked — its documentation, say — else a server's reports.
+  if (route) target.hash = `#${route}`
+  else if (preferredUrl) target.hash = '#/dashboard'
   // In a new window when asked — a modifier held, the middle button, Shift+Enter.
   if (newWindow) openInNewWindow(target.href)
   else window.location.href = target.href

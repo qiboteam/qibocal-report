@@ -1,7 +1,7 @@
 /**
- * The documentation's table of contents, as the dashboard shows it when the
- * server does not send its own — and the launcher's Help, which shows the
- * Desktop Launcher section of it. No Vue here: the launcher imports it on a
+ * The documentation's table of contents, as the dashboard shows it — the
+ * pages it carries itself, whatever server it reads — and the launcher's
+ * Help, which shows the Desktop Launcher section of it. No Vue here: the launcher imports it on a
  * page where the dashboard's store does not run.
  */
 export const DEFAULT_DOCS_NAV = [
@@ -102,6 +102,30 @@ export const DEFAULT_DOCS_NAV = [
     ]
   },
   {
+    section: 'Admin Guide',
+    path: 'admin-guide',
+    items: [
+      {
+        id: 'admin-guide/index',
+        path: 'admin-guide',
+        title: 'Server Administration & Security',
+        description: 'Enabling authentication (--auth), initial bootstrap, and server administration'
+      },
+      {
+        id: 'admin-guide/roles',
+        path: 'admin-guide/roles',
+        title: 'Roles & Permissions Matrix',
+        description: 'Viewer, Editor, and Admin capabilities, restrictions, and enforcement'
+      },
+      {
+        id: 'admin-guide/invitations',
+        path: 'admin-guide/invitations',
+        title: 'Invitations & Team Onboarding',
+        description: 'Generating tokens, expiration policies, paste-box flows, and revocation'
+      }
+    ]
+  },
+  {
     section: 'Developer & Architecture',
     path: 'developer',
     items: [
@@ -148,4 +172,43 @@ export const DEFAULT_DOCS_NAV = [
 /** The section a page belongs to, by its path; null for none. */
 export function docsSection(path, nav = DEFAULT_DOCS_NAV) {
   return nav.find(section => section.path === path || section.items.some(item => item.path === path)) || null
+}
+
+/** The deployed dashboard's documentation: a link to it is to this very documentation. */
+const DEPLOYED_DOCS = /^https?:\/\/qibo\.science\/qibocal-report\/?#\/docs\/?(.*)$/i
+
+/** Every page of the documentation, by path: the sections' own and their items. */
+export function docPages(nav = DEFAULT_DOCS_NAV) {
+  const pages = new Set(['index'])
+  for (const section of nav) {
+    if (section.path) pages.add(section.path)
+    for (const item of section.items || []) pages.add(item.path)
+  }
+  return pages
+}
+
+/**
+ * Where a link on page `current` leads: `{ kind: 'anchor', id }` within it,
+ * `{ kind: 'doc', page, id }` to a page of this documentation — a path from
+ * its root, as the dashboard writes them, or one relative to the page's own
+ * file, as on GitHub; a link to the deployed documentation is one too — or
+ * `{ kind: 'url', url }` anywhere else.
+ */
+export function resolveDocLink(href, current = 'index', nav = DEFAULT_DOCS_NAV) {
+  let text = String(href || '').trim()
+  if (!text) return { kind: 'url', url: null }
+  if (text.startsWith('#')) return { kind: 'anchor', id: text.slice(1) }
+  const deployed = text.match(DEPLOYED_DOCS)
+  if (deployed) text = `/${deployed[1]}`
+  else if (/^[a-z][a-z0-9+.-]*:|^\/\//i.test(text)) return { kind: 'url', url: text }
+  const [path, id = null] = text.split('#')
+  const page = value => value.replace(/\.md$/, '').replace(/\/index$/, '').replace(/^index$/, '').replace(/\/$/, '') || 'index'
+  const pages = docPages(nav)
+  const rooted = page(path.replace(/^\/+/, '').replace(/^docs\//, ''))
+  if (!path.startsWith('.') && pages.has(rooted)) return { kind: 'doc', page: rooted, id }
+  // Relative to the page's own file: a section's page is its index.
+  const sections = new Set(nav.map(section => section.path).filter(path => path && path !== 'index'))
+  const file = current === 'index' ? 'index.md' : sections.has(current) ? `${current}/index.md` : `${current}.md`
+  const resolved = new URL(path, `https://docs.invalid/${file}`).pathname.replace(/^\/+/, '')
+  return { kind: 'doc', page: page(decodeURIComponent(resolved)), id }
 }

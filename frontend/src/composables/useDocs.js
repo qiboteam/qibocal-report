@@ -1,10 +1,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { apiFetch } from '../store.js'
 import { DEFAULT_DOCS_NAV } from '../utils/docsNav.js'
 
 export { DEFAULT_DOCS_NAV }
 
+// The documentation of this very dashboard, built in: the same wherever it runs —
+// deployed, or in the desktop application — with or without a server.
 const bundledDocs = import.meta.glob('../../../docs/**/*.md', { query: '?raw', import: 'default', eager: true })
 
 function getBundledDocContent(name) {
@@ -109,57 +110,12 @@ export function useDocs() {
     }
   }
 
-  async function fetchNav() {
-    try {
-      const res = await apiFetch('/api/docs-nav')
-      if (res.ok) {
-        const data = await res.json()
-        if (Array.isArray(data) && data.length > 0) {
-          nav.value = data
-        }
-      }
-    } catch (err) {
-      console.debug('Using client-side default docs nav', err)
-    }
-  }
-
-  async function loadDoc(name) {
-    loading.value = true
-    try {
-      const res = await apiFetch(`/api/docs-content/${name}`)
-      if (res.ok) {
-        rawMarkdown.value = await res.text()
-        loading.value = false
-        return
-      }
-    } catch (err) {
-      console.warn('Failed to load docs from active server, trying local host...', err)
-    }
-
-    try {
-      const localRes = await fetch(`/api/docs-content/${name}`)
-      if (localRes.ok) {
-        rawMarkdown.value = await localRes.text()
-        loading.value = false
-        return
-      }
-    } catch {}
-
-    const fallback = getBundledDocContent(name)
-    if (fallback) {
-      rawMarkdown.value = fallback
-      loading.value = false
-      return
-    }
-
-    rawMarkdown.value = `# Not Found\nCould not load documentation for \`${name}\`.`
+  function loadDoc(name) {
+    rawMarkdown.value = getBundledDocContent(name) ?? `# Not Found\nThere is no page \`${name}\` in this documentation.`
     loading.value = false
   }
 
-  onMounted(async () => {
-    await fetchNav()
-    syncDocFromRoute()
-  })
+  onMounted(syncDocFromRoute)
 
   watch(
     () => route.params.page,

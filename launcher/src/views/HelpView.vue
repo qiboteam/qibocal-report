@@ -106,6 +106,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
 import { openExternal } from '../bridge.js'
+import { openDashboard } from '../state.js'
 import { SHORTCUTS, describeKeys } from '../shortcuts.js'
 import { PAGE_KEYS, pageShortcuts } from '../pagekeys.js'
 import { helpPages, helpTarget } from '../lib/help.js'
@@ -156,18 +157,27 @@ function jump(id) {
   article.value?.querySelector(`#${CSS.escape(id)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-/** Links in a page: its anchors scroll, its sibling pages open here, everything else outside. */
+/**
+ * Links in a page: its anchors scroll, its sibling pages open here, the rest
+ * of the documentation in the application's dashboard; only what the
+ * application does not hold opens outside.
+ */
 function follow(event) {
   const anchor = event.target?.closest?.('a[href]')
   if (!anchor) return
   event.preventDefault()
-  const target = helpTarget(anchor.getAttribute('href') || '')
+  const target = helpTarget(anchor.getAttribute('href') || '', current.value.name)
   if (target.kind === 'anchor') jump(target.id)
   else if (target.kind === 'page') {
     open(target.name)
     if (target.id) nextTick(() => jump(target.id))
-  } else if (target.url) openExternal(target.url)
+  } else if (target.kind === 'docs') openDashboard(null, { route: `/docs/${target.page}` })
+  else if (target.url) openExternal(target.url)
 }
 
-watch(() => route.params.page, () => window.scrollTo({ top: 0 }))
+// A page opened at a heading — from another page of the application — goes to it.
+watch(() => [route.params.page, route.hash], ([, hash]) => {
+  if (hash) nextTick(() => jump(decodeURIComponent(hash.slice(1))))
+  else window.scrollTo({ top: 0 })
+}, { immediate: true })
 </script>

@@ -125,6 +125,7 @@ import { marked } from 'marked'
 import { getActiveServerUrl, canAccessDashboard } from '../store.js'
 import { useDocs } from '../composables/useDocs.js'
 import { sanitizeHtml } from '../utils/sanitize.js'
+import { resolveDocLink } from '../utils/docsNav.js'
 import DocsSidebar from '../components/docs/DocsSidebar.vue'
 import DocsBreadcrumb from '../components/docs/DocsBreadcrumb.vue'
 
@@ -154,28 +155,15 @@ const renderedContent = computed(() => {
 function onArticleClick(e) {
   const target = e.target.closest('a')
   if (!target) return
-  const href = target.getAttribute('href')
-  if (!href || href.startsWith('#')) return
-  if (
-    href.startsWith('http://') ||
-    href.startsWith('https://') ||
-    href.startsWith('//') ||
-    href.startsWith('mailto:')
-  ) {
+  const link = resolveDocLink(target.getAttribute('href'), activeDoc.value, nav.value)
+  // Elsewhere: outside, in a tab of its own. This documentation, the deployed copy included: here.
+  if (link.kind === 'url') {
     target.setAttribute('target', '_blank')
     target.setAttribute('rel', 'noopener noreferrer')
     return
   }
-  // Internal doc link
   e.preventDefault()
-  let docPath = href.replace(/^\/+/, '').replace(/^docs\//, '').replace(/\.md$/, '')
-  if (!docPath.includes('/') && currentSection.value) {
-    const sec = nav.value.find(s => s.section === currentSection.value)
-    if (sec?.path && sec.path !== 'index') {
-      docPath = `${sec.path}/${docPath}`
-    }
-  }
-  navigateTo(docPath)
+  if (link.kind === 'doc') navigateTo(link.page)
 }
 </script>
 

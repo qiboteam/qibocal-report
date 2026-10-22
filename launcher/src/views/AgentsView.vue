@@ -32,7 +32,7 @@
           assistant or autonomous runs here, or a <em>remote</em>, for an assistant running there, which reads it from
           its own agents.json. An assistant registers <code class="lx-mono">qibocal-agent mcp</code> once, and selects a
           configuration when it is asked to calibrate.
-          <a href="#" class="text-[#833dff] hover:text-[#3b107e]" @click.prevent="openExternal(DOCS)">How it fits together, with diagrams</a>.
+          <router-link :to="{ name: 'help-page', params: { page: 'agents' }, hash: '#how-it-fits-together' }" class="text-[#833dff] hover:text-[#3b107e]">How it fits together, with diagrams</router-link>, in Help.
         </p>
       </div>
 
@@ -271,8 +271,6 @@ import {
   withoutRemote
 } from '../lib/agents.js'
 
-/** Where the setup is told at length, with diagrams. */
-const DOCS = 'https://qibo.science/qibocal-report/#/docs/user-guide/launcher/agents'
 /** The repository qibocal-agent is installed from. */
 const TOOLS_REPOSITORY = 'qiboteam/qibocal-mcp-servers'
 
