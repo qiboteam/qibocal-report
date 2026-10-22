@@ -170,11 +170,10 @@ import { Activity, ExternalLink, LayoutDashboard, Settings } from 'lucide-vue-ne
 import { sections } from '../router.js'
 import { sectionIcons } from '../icons.js'
 import { openExternal, openInNewWindow, wantsNewWindow } from '../bridge.js'
-import { state, openDashboard, queueEntry, refreshQueue } from '../state.js'
+import { state, machines, openDashboard, queueEntry, refreshQueue } from '../state.js'
 import { registerPageKeys } from '../shortcuts.js'
 import { pageShortcuts } from '../pagekeys.js'
 import { describeOccupation, groupMachines, ownJobs, queueKey, queueOf } from '../lib/slurm.js'
-import { agentRemotes } from '../lib/agents.js'
 import { timeAgo } from '../lib/time.js'
 
 const router = useRouter()
@@ -213,8 +212,8 @@ const queues = computed(() => {
     const queue = queueOf(state.launches[process.id]?.options)
     if (queue && !byKey.has(queueKey(queue))) byKey.set(queueKey(queue), { key: queueKey(queue), queue })
   }
-  // By machine, as Queues groups them; each named as its remote, when it is one.
-  const order = groupMachines([...byKey.values()].map(item => item.queue), agentRemotes(state.agentHosts))
+  // By machine, as Queues groups them; each named as the application's machines are.
+  const order = groupMachines([...byKey.values()].map(item => item.queue), machines.value)
   return order.flatMap(machine => machine.partitions.map(({ key, queue }) => {
     const entry = queueEntry(queue)
     return { key, queue, machine: machine.label, entry, mine: ownJobs(entry?.data) }

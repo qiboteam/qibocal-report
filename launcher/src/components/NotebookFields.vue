@@ -58,7 +58,7 @@
             :placeholder="field.placeholderFor ? field.placeholderFor(values) : field.placeholder"
           />
           <datalist v-if="choices[field.name]?.length" :id="`${id}-choices`">
-            <option v-for="choice in choices[field.name]" :key="choice" :value="choice" />
+            <option v-for="choice in choices[field.name]" :key="choice.value ?? choice" :value="choice.value ?? choice" :label="choice.label" />
           </datalist>
         </template>
       </form-field>

@@ -6,6 +6,9 @@
 | --- | --- |
 | `servers.json` | Registered report servers |
 | `notebooks.json` | Saved notebook connections |
+| `remotes.json` | Remote execution connections, shared with qibocal-widgets |
+| `machines.json` | The machines, by name, each its SSH destination — see [Machines](machines.md) |
+| `agent-hosts.json` | Agent configurations kept here for other machines, by machine |
 | `auth.json` | Users, invitations and signing keys |
 | `launcher.json` | Launcher preferences |
 

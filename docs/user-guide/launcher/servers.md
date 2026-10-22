@@ -39,6 +39,8 @@ The remote machine needs an OpenSSH server and `python3` 3.10 or later — not Q
 
 ---
 
+The SSH destination of a server on another machine offers the [machines](machines.md); the registered servers are filtered by the machine they were started on, the destination remembered with their launch, when they are on more than one.
+
 ## 📡 Handling running servers
 
 Stopping is graceful and never holds the window: a server or a session is told to stop, its card reads *stopping…* meanwhile, and whatever is still there after six seconds is killed. Closing the window, or quitting, while something runs is the same stop for everything at once, behind a dialog listing what is being waited for, each with a wheel until it is gone: the application closes by itself when the last one has stopped, or at once with **Force close** — which is also how a second close, or a second quit, is read.

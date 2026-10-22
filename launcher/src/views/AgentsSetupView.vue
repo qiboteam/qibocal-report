@@ -1,7 +1,7 @@
 <!--
   What the Agents page shares among its configurations, on a page of its own:
-  how it fits together, the qibocal-agent it runs and registers, the one MCP
-  registration, and the SSH remotes the configurations reach.
+  how it fits together, the qibocal-agent it runs and registers, and the one
+  MCP registration; the machines are the application's, on Machines.
 -->
 <template>
   <div class="max-w-4xl mx-auto px-5 py-8 space-y-5">
@@ -12,7 +12,7 @@
           A configuration says where the calibration server starts — here, or over SSH on its <em>SSH destination</em>,
           usually a cluster's access node — and, with a <em>SLURM partition</em>, that each operation runs as a job
           on the nodes reaching the instruments. It is <em>kept for</em> where its user is: <em>this machine</em>, for an
-          assistant or autonomous runs here, or a <em>remote</em>, for an assistant running there, which reads it from
+          assistant or autonomous runs here, or <em>another machine</em>, for an assistant running there, which reads it from
           its own agents.json. An assistant registers <code class="lx-mono">qibocal-agent mcp</code> once, and selects a
           configuration when it is asked to calibrate.
           <router-link :to="{ name: 'help-page', params: { page: 'agents' }, hash: '#how-it-fits-together' }" class="text-[#833dff] hover:text-[#3b107e]">How it fits together, with diagrams</router-link>, in Help.
@@ -56,71 +56,41 @@
         <p class="lx-help !mt-0">
           For Copilot, in <code class="lx-mono">~/.copilot/mcp-config.json</code>; other assistants take the same command and arguments.
           It starts nothing by itself: the assistant lists the configurations and selects one when calibrating.
-          An assistant on a remote registers the same, with the path of the qibocal-agent there.
+          An assistant on another machine registers the same, with the path of the qibocal-agent there.
         </p>
       </div>
 
     </section>
 
-    <!-- SSH remotes: named once, reached by several configurations; a grid, as each says little. -->
-    <section class="space-y-2.5">
-      <div class="flex items-center gap-2 px-1">
-        <h2 class="text-sm font-semibold text-gray-900">Remotes</h2>
-        <span class="text-xs text-gray-400">{{ remotes.length }}</span>
-      </div>
-      <div class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-        <article v-for="remote in remotes" :key="remote.name" class="bm-card p-3.5 flex items-start gap-2">
-          <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-gray-900 truncate">{{ remote.name }}</p>
-            <p class="lx-mono text-gray-500 truncate" :title="remote.ssh">{{ remote.ssh }}</p>
-            <p class="text-[11px] text-gray-400 mt-0.5">{{ remote.kept }} kept · {{ reachingCount(remote) }} reaching it</p>
-          </div>
-          <button type="button" class="lx-action shrink-0" :disabled="remote.kept > 0" :title="remote.kept ? 'It keeps configurations: move or remove them first' : 'Forget this remote'" @click="removeRemote(remote)"><Trash2 class="w-3.5 h-3.5" /></button>
-        </article>
-        <form class="bm-card p-3.5 space-y-2" @submit.prevent="addRemote">
-          <input v-model.trim="newRemote.name" type="text" class="lx-input lx-mono" placeholder="lab" aria-label="Name of the remote" spellcheck="false" autocomplete="off" />
-          <input v-model.trim="newRemote.ssh" type="text" class="lx-input lx-mono" placeholder="user@access-node" aria-label="SSH destination of the remote" spellcheck="false" autocomplete="off" />
-          <button type="submit" class="lx-action" :disabled="Boolean(remoteError) || !newRemote.name || !newRemote.ssh"><Plus class="w-3.5 h-3.5" /> Add remote</button>
-        </form>
-      </div>
-      <p class="lx-help px-1">{{ remoteError || 'A name, and the SSH destination as ssh takes it: an alias of the SSH configuration, or user@host.' }}</p>
-    </section>
+    <!-- The machines configurations are kept for, or reach: the application's, on a page of their own. -->
+    <p class="bm-card p-4 text-xs text-gray-500">
+      The machines a configuration is kept for, or starts its calibration server on, are the application's:
+      <router-link :to="{ name: 'machines' }" class="text-[#833dff] hover:text-[#3b107e]">Machines</router-link>
+      names them, and shows what each one serves.
+    </p>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, Copy, Download, FolderOpen, Plus, RotateCcw, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Copy, Download, FolderOpen, RotateCcw } from 'lucide-vue-next'
 import { chooseDirectory, desktop } from '../bridge.js'
 import { state, attempt, fail, installAgentTools, notify, refreshAgents, refreshAgentTools } from '../state.js'
-import { agentConfigurations, agentRemotes, mcpSnippet, reachedRemote, withRemote, withoutRemote } from '../lib/agents.js'
+import { mcpSnippet } from '../lib/agents.js'
 
 /** The repository qibocal-agent is installed from. */
 const TOOLS_REPOSITORY = 'qiboteam/qibocal-mcp-servers'
 
 const router = useRouter()
 
-const newRemote = reactive({ name: '', ssh: '' })
 const toolsRef = ref('main')
 const toolsRefs = ref([])
 const installing = ref(false)
 
-const configurations = computed(() => agentConfigurations(state.agents.document, state.agentHosts))
-const remotes = computed(() => agentRemotes(state.agentHosts))
 const tools = computed(() => state.preferences?.agentTools || '')
 const toolsInfo = computed(() => state.agentTools)
 const snippet = computed(() => mcpSnippet(toolsInfo.value?.executable))
-const remoteError = computed(() => {
-  if (!newRemote.name) return ''
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(newRemote.name)) return 'A name is a letter or digit, then letters, digits, dots, underscores or hyphens.'
-  return remotes.value.some(remote => remote.name === newRemote.name) ? `${newRemote.name} is a remote already.` : ''
-})
-
-/** How many configurations start their server on a remote. */
-function reachingCount(remote) {
-  return configurations.value.filter(item => reachedRemote(item.entry, remotes.value) === remote.name).length
-}
 
 async function copy(text) {
   try {
@@ -155,18 +125,6 @@ async function installTools() {
   const started = await attempt(() => installAgentTools(toolsRef.value || 'main'), 'Installing qibocal-agent; its output is in Running.', 'processes')
   installing.value = false
   if (started) router.push({ name: 'processes', query: { process: started.id } })
-}
-
-async function addRemote() {
-  const saved = await attempt(() => desktop.saveAgentHosts(withRemote(state.agentHosts, newRemote.name, newRemote.ssh)), `Remote ${newRemote.name} added.`, 'agents')
-  if (saved === undefined) return
-  state.agentHosts = saved
-  Object.assign(newRemote, { name: '', ssh: '' })
-}
-
-async function removeRemote(remote) {
-  const saved = await attempt(() => desktop.saveAgentHosts(withoutRemote(state.agentHosts, remote.name)), `Remote ${remote.name} removed.`, 'agents')
-  if (saved !== undefined) state.agentHosts = saved
 }
 
 /** The branches and tags qibocal-agent can be installed from, offered with the version. */

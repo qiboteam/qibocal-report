@@ -161,6 +161,8 @@ pub fn run() {
             settings::list_remotes,
             settings::read_agents,
             settings::write_agents,
+            settings::list_machines,
+            settings::save_machines,
             settings::list_agent_hosts,
             settings::save_agent_hosts,
             qibocal::push_agents,

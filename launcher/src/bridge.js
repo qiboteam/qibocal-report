@@ -46,6 +46,9 @@ export const desktop = {
   readAgents: () => call('read_agents'),
   writeAgents: document => call('write_agents', { document }),
   listAgentHosts: () => call('list_agent_hosts'),
+  /** The machines, by name: `{ name: { ssh } }`, in machines.json. */
+  listMachines: () => call('list_machines'),
+  saveMachines: machines => call('save_machines', { machines }),
   saveAgentHosts: hosts => call('save_agent_hosts', { hosts }),
   pushAgents: (ssh, agents, remove = []) => call('push_agents', { ssh, agents, remove }),
   /** The qibocal-agent the Agents page uses, and installing it where the launcher keeps it. */

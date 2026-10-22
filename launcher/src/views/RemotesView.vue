@@ -29,6 +29,7 @@
       <notebook-fields
         :values="form"
         :fields="REMOTE_FIELDS"
+        :choices="{ ssh: machineChoices }"
         :errors="created.errors"
         :warnings="created.warnings"
         named
@@ -52,7 +53,8 @@
     <section class="space-y-2.5">
       <div class="flex items-center gap-2 px-1">
         <h2 class="text-sm font-semibold text-gray-900">Registered connections</h2>
-        <span class="text-xs text-gray-400">{{ names.length }}</span>
+        <span class="text-xs text-gray-400">{{ shownNames.length }}</span>
+        <machine-filter v-model="machineFilter" class="ml-2" :destinations="names.map(name => state.remotes[name]?.ssh)" />
         <button
           type="button"
           class="ml-auto text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
@@ -68,7 +70,7 @@
       </p>
 
       <article
-        v-for="(name, index) in names"
+        v-for="(name, index) in shownNames"
         :key="name"
         class="bm-card p-4"
         :class="{ 'lx-focus': focused(index) }"
@@ -123,6 +125,7 @@
           <notebook-fields
             :values="editing.form"
             :fields="REMOTE_FIELDS"
+        :choices="{ ssh: machineChoices }"
             :errors="edited.errors"
             :warnings="edited.warnings"
             named
@@ -145,10 +148,13 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bookmark, Files, LayoutDashboard, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
 import NotebookFields from '../components/NotebookFields.vue'
+import MachineFilter from '../components/MachineFilter.vue'
+import { onMachine } from '../lib/machines.js'
 import NotebookTabs from '../components/NotebookTabs.vue'
 import { confirmAction, desktop } from '../bridge.js'
 import {
   state,
+  machines as machineList,
   attempt,
   notebookReportsServer,
   rebuildNotebook,
@@ -175,6 +181,11 @@ const rebuilding = ref(null)
 const startingReports = ref(null)
 
 const names = computed(() => Object.keys(state.remotes || {}))
+/** The machine the list is narrowed to, and what it shows. */
+const machineFilter = ref('all')
+const shownNames = computed(() => names.value.filter(name => onMachine(state.remotes[name]?.ssh, machineFilter.value, machineList.value)))
+/** The machines, offered for an SSH destination: each by its destination, named. */
+const machineChoices = computed(() => machineList.value.map(machine => ({ value: machine.ssh, label: machine.name })))
 const created = computed(() => normalizeRemoteOptions(form))
 const edited = computed(() => normalizeRemoteOptions(editing.form))
 
@@ -195,11 +206,11 @@ const reportsServer = name => notebookReportsServer(reportsKey(name))
 
 const { focused } = usePageKeys({
   page: 'remotes',
-  count: () => names.value.length,
+  count: () => shownNames.value.length,
   actions: {
-    Enter: index => reports(names.value[index]),
-    e: index => toggleEdit(names.value[index]),
-    d: index => duplicate(names.value[index])
+    Enter: index => reports(shownNames.value[index]),
+    e: index => toggleEdit(shownNames.value[index]),
+    d: index => duplicate(shownNames.value[index])
   }
 })
 

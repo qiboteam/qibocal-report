@@ -5,8 +5,8 @@
         <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Agents</h1>
         <p class="mt-1 text-xs text-gray-500">
           The configurations of the <a href="https://github.com/qiboteam/qibocal-mcp-servers" class="text-[#833dff] hover:text-[#3b107e]" @click.prevent="openExternal('https://github.com/qiboteam/qibocal-mcp-servers')">Qibocal MCP servers</a>:
-          for an assistant on this machine, in <code class="lx-mono">{{ state.agents.path || 'agents.json' }}</code>, or for one on a
-          remote, kept here and pushed there. A configuration also dispatches autonomous agents.
+          for an assistant on this machine, in <code class="lx-mono">{{ state.agents.path || 'agents.json' }}</code>, or for one on another
+          machine, kept here and pushed there. A configuration also dispatches autonomous agents.
         </p>
       </div>
       <div class="ml-auto shrink-0 flex flex-col items-end gap-1.5">
@@ -34,7 +34,7 @@
         <button type="button" class="lx-primary" :disabled="!formValid(form) || saving" @click="create">
           <Bookmark class="w-3.5 h-3.5" /> {{ form.host === 'local' ? 'Save' : 'Save and push' }}
         </button>
-        <span class="lx-help !mt-0">{{ form.host === 'local' ? 'Written to agents.json, which qibocal-agent reads.' : `Kept here, and written to agents.json on ${form.hostName || 'the remote'}.` }}</span>
+        <span class="lx-help !mt-0">{{ form.host === 'local' ? 'Written to agents.json, which qibocal-agent reads.' : `Kept here, and written to agents.json on ${form.hostName || 'that machine'}.` }}</span>
       </div>
     </section>
 
@@ -66,7 +66,7 @@
       </div>
 
       <p v-if="!shown.length" class="bm-card p-5 text-xs text-gray-500">
-        No configuration {{ configurations.length ? 'among these' : 'yet' }}. <em>New configuration</em> adds one, for this machine or a remote.
+        No configuration {{ configurations.length ? 'among these' : 'yet' }}. <em>New configuration</em> adds one, for this machine or another.
       </p>
 
       <article
@@ -80,7 +80,7 @@
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium text-gray-900 truncate">
               {{ item.name }}
-              <span class="ml-1.5 text-[10px] uppercase tracking-wide font-semibold" :class="item.host === 'local' ? 'text-gray-400' : 'text-[#833dff]'" :title="item.host === 'local' ? 'Kept for this machine' : `Kept for the remote ${item.host}, pushed to ${item.destination}`">{{ item.host === 'local' ? 'this machine' : `for ${item.host}` }}</span>
+              <span class="ml-1.5 text-[10px] uppercase tracking-wide font-semibold" :class="item.host === 'local' ? 'text-gray-400' : 'text-[#833dff]'" :title="item.host === 'local' ? 'Kept for this machine' : `Kept for the machine ${item.host}, pushed to ${item.destination}`">{{ item.host === 'local' ? 'this machine' : `for ${item.host}` }}</span>
               <span class="ml-1 text-[10px] uppercase tracking-wide font-semibold text-gray-400" :title="reachedRemote(item.entry, remotes) ? 'Its calibration server starts there, over SSH' : 'Its calibration server starts where it runs'">{{ reachedRemote(item.entry, remotes) ? `via ${reachedRemote(item.entry, remotes)}` : 'direct' }}</span>
             </p>
             <p class="lx-mono text-gray-500 truncate">{{ describeAgent(item.entry) }}</p>
@@ -224,8 +224,8 @@ const run = reactive({ item: null, objective: '', busy: false })
 const addingPrompt = ref(false)
 const newPrompt = reactive({ name: '', text: '' })
 
-const configurations = computed(() => agentConfigurations(state.agents.document, state.agentHosts))
-const remotes = computed(() => agentRemotes(state.agentHosts))
+const configurations = computed(() => agentConfigurations(state.agents.document, state.agentHosts, state.machines))
+const remotes = computed(() => agentRemotes(state.machines, state.agentHosts))
 const keptFilters = computed(() => [
   { value: 'all', label: 'All' },
   { value: 'local', label: 'This machine' },
@@ -288,7 +288,7 @@ async function store(values, previous = null) {
   }
 }
 
-/** Where a remote's configurations are pushed: its SSH destination. */
+/** Where a machine's configurations are pushed: its SSH destination. */
 function destinationOf(host) {
   return remotes.value.find(remote => remote.name === host)?.ssh || host
 }

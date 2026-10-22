@@ -28,7 +28,7 @@
       <h2 class="text-sm font-semibold text-gray-900 mb-4">New session</h2>
       <notebook-fields
         :values="form"
-        :choices="{ remote: remoteChoices(state.remotes, form) }"
+        :choices="{ remote: remoteChoices(state.remotes, form), ssh: machineChoices }"
         :errors="created.errors"
         :warnings="created.warnings"
         named
@@ -63,7 +63,8 @@
     <section class="space-y-2.5">
       <div class="flex items-center gap-2 px-1">
         <h2 class="text-sm font-semibold text-gray-900">Registered sessions</h2>
-        <span class="text-xs text-gray-400">{{ names.length }}</span>
+        <span class="text-xs text-gray-400">{{ shownNames.length }}</span>
+        <machine-filter v-model="machineFilter" class="ml-2" :destinations="names.map(name => state.notebooks[name]?.ssh)" />
         <button
           type="button"
           class="ml-auto text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
@@ -79,7 +80,7 @@
       </p>
 
       <article
-        v-for="(name, index) in names"
+        v-for="(name, index) in shownNames"
         :key="name"
         class="bm-card p-4"
         :class="{ 'lx-focus': focused(index) }"
@@ -162,7 +163,7 @@
         <form v-if="editing.name === name" class="mt-3.5 pt-3.5 border-t border-gray-100" @submit.prevent="saveEdit(name)">
           <notebook-fields
             :values="editing.form"
-            :choices="{ remote: remoteChoices(state.remotes, editing.form) }"
+            :choices="{ remote: remoteChoices(state.remotes, editing.form), ssh: machineChoices }"
             :errors="edited.errors"
             :warnings="edited.warnings"
             named
@@ -185,9 +186,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bookmark, ExternalLink, Files, LayoutDashboard, Pencil, Play, Plus, RefreshCw, Trash2, X } from 'lucide-vue-next'
 import NotebookFields from '../components/NotebookFields.vue'
+import MachineFilter from '../components/MachineFilter.vue'
+import { onMachine } from '../lib/machines.js'
 import { confirmAction, desktop, openExternal } from '../bridge.js'
 import {
   state,
+  machines as machineList,
   attempt,
   fail,
   notify,
@@ -215,6 +219,11 @@ const rebuilding = ref(null)
 const startingReports = ref(null)
 
 const names = computed(() => Object.keys(state.notebooks || {}))
+/** The machine the list is narrowed to, and what it shows. */
+const machineFilter = ref('all')
+const shownNames = computed(() => names.value.filter(name => onMachine(state.notebooks[name]?.ssh, machineFilter.value, machineList.value)))
+/** The machines, offered for an SSH destination: each by its destination, named. */
+const machineChoices = computed(() => machineList.value.map(machine => ({ value: machine.ssh, label: machine.name })))
 const created = computed(() => normalizeNotebookOptions(form))
 const edited = computed(() => normalizeNotebookOptions(editing.form))
 
@@ -249,12 +258,12 @@ function runningSession(name) {
 
 const { focused } = usePageKeys({
   page: 'notebooks',
-  count: () => names.value.length,
+  count: () => shownNames.value.length,
   actions: {
-    Enter: index => activate(names.value[index]),
-    s: index => activate(names.value[index]),
-    e: index => toggleEdit(names.value[index]),
-    d: index => duplicate(names.value[index])
+    Enter: index => activate(shownNames.value[index]),
+    s: index => activate(shownNames.value[index]),
+    e: index => toggleEdit(shownNames.value[index]),
+    d: index => duplicate(shownNames.value[index])
   }
 })
 

@@ -71,6 +71,13 @@ export const CONFIG_SHAPES = {
     })),
     template: () => ({ ssh: '' })
   },
+  'machines.json': {
+    kind: 'map',
+    entry: 'machine',
+    envelope: 'machines',
+    known: [{ name: 'ssh', label: 'SSH destination', type: 'text', mono: true }],
+    template: () => ({ ssh: '' })
+  },
   'launcher.json': {
     kind: 'map',
     entry: 'preference',

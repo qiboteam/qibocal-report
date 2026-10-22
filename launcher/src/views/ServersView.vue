@@ -94,7 +94,8 @@
     <section class="space-y-2.5">
       <div class="flex items-center gap-2 px-1">
         <h2 class="text-sm font-semibold text-gray-900">Registered servers</h2>
-        <span class="text-xs text-gray-400">{{ state.servers.length }}</span>
+        <span class="text-xs text-gray-400">{{ shownServers.length }}</span>
+        <machine-filter v-model="machineFilter" class="ml-2" :destinations="state.servers.map(serverSsh)" />
         <button
           type="button"
           class="ml-auto text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
@@ -110,7 +111,7 @@
       </p>
 
       <article
-        v-for="(server, index) in state.servers"
+        v-for="(server, index) in shownServers"
         :key="server.id"
         class="bm-card p-4"
         :class="{ 'lx-focus': focused(index) }"
@@ -241,9 +242,12 @@ import {
   unregisteredServers,
   updateServer,
   updateServerInstallation,
-  withQibocal
+  withQibocal,
+  machines as machineList
 } from '../state.js'
-import { blankForm, formFrom, formProblems, launchFrom, serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
+import MachineFilter from '../components/MachineFilter.vue'
+import { onMachine } from '../lib/machines.js'
+import { blankForm, formFrom, formProblems, launchFrom, launchKeys, serverCommand, serverUrl, suggestServerName } from '../lib/servers.js'
 import { usePageKeys } from '../composables/pageKeys.js'
 
 const route = useRoute()
@@ -327,16 +331,26 @@ function activate(server, event = null) {
 }
 
 // j and k walk the registered servers; the letters do what the buttons do.
+/** The machine a registered server runs on: the destination remembered with its launch; none for this one. */
+function serverSsh(server) {
+  const launches = state.preferences?.launches || {}
+  const key = launchKeys(server.url).find(entry => launches[entry])
+  return String(launches[key]?.ssh || '').trim()
+}
+/** The machine the list is narrowed to, and what it shows. */
+const machineFilter = ref('all')
+const shownServers = computed(() => state.servers.filter(server => onMachine(serverSsh(server), machineFilter.value, machineList.value)))
+
 const { focused } = usePageKeys({
   page: 'servers',
-  count: () => state.servers.length,
+  count: () => shownServers.value.length,
   actions: {
-    Enter: (index, event) => activate(state.servers[index], event),
-    s: (index, event) => activate(state.servers[index], event),
-    e: index => toggleEdit(state.servers[index]),
-    i: index => { adminServer.value = state.servers[index] },
-    d: index => duplicate(state.servers[index]),
-    u: index => { if (launchOptionsFor(state.servers[index])) update(state.servers[index]) }
+    Enter: (index, event) => activate(shownServers.value[index], event),
+    s: (index, event) => activate(shownServers.value[index], event),
+    e: index => toggleEdit(shownServers.value[index]),
+    i: index => { adminServer.value = shownServers.value[index] },
+    d: index => duplicate(shownServers.value[index]),
+    u: index => { if (launchOptionsFor(shownServers.value[index])) update(shownServers.value[index]) }
   }
 })
 

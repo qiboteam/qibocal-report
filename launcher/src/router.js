@@ -10,6 +10,7 @@ import QueuesView from './views/QueuesView.vue'
 import RemotesView from './views/RemotesView.vue'
 import AgentsView from './views/AgentsView.vue'
 import AgentsSetupView from './views/AgentsSetupView.vue'
+import MachinesView from './views/MachinesView.vue'
 
 /**
  * The launcher sections, described once: the router, the home page cards,
@@ -71,6 +72,16 @@ export const sections = [
     accelerator: 'CmdOrCtrl+Shift+A',
     key: 'a',
     summary: 'The configurations of the Qibocal MCP servers and agents, here and on access nodes, and autonomous runs.'
+  },
+  {
+    name: 'machines',
+    path: '/machines',
+    component: MachinesView,
+    title: 'Machines',
+    icon: 'Network',
+    accelerator: 'CmdOrCtrl+Shift+M',
+    key: 'm',
+    summary: 'The machines reached over SSH, named once for every page, and what each one serves.'
   },
   {
     name: 'settings',

@@ -17,8 +17,6 @@ import {
   mcpSnippet,
   reachedRemote,
   withHostAgent,
-  withRemote,
-  withoutRemote,
   withLocalAgent
 } from '../src/lib/agents.js'
 
@@ -47,22 +45,18 @@ test('configurations come from agents.json and from those kept for other machine
   assert.deepEqual(withHostAgent(hosts, 'qrc-ws', 'onsite', null), { 'qrc-ws': { agents: {} } }, 'a remote stays without configurations')
 })
 
-test('remotes are named once, and configurations are filtered by where they are kept and what they reach', () => {
-  let hosts = withRemote({}, 'lab', ' me@login ')
-  hosts = withHostAgent(hosts, 'lab', 'onsite', { platform: 'qw5q' })
-  hosts = withRemote(hosts, 'lab', 'me@login2')
-  assert.deepEqual(hosts.lab, { ssh: 'me@login2', agents: { onsite: { platform: 'qw5q' } } }, 'a new destination keeps the configurations')
-  hosts = withRemote(hosts, 'cluster', 'cluster')
-  assert.deepEqual(agentRemotes(hosts), [{ name: 'cluster', ssh: 'cluster', kept: 0 }, { name: 'lab', ssh: 'me@login2', kept: 1 }])
-  assert.throws(() => withoutRemote(hosts, 'lab'), /keeps configurations/)
-  assert.deepEqual(Object.keys(withoutRemote(hosts, 'cluster')), ['lab'])
+test('the machines are the remotes, and configurations are filtered by where they are kept and what they reach', () => {
+  const machines = { lab: { ssh: 'me@login2' }, cluster: { ssh: 'cluster' } }
+  const hosts = withHostAgent({}, 'lab', 'onsite', { platform: 'qw5q' })
+  assert.deepEqual(agentRemotes(machines, hosts), [{ name: 'cluster', ssh: 'cluster', kept: 0 }, { name: 'lab', ssh: 'me@login2', kept: 1 }])
 
-  const remotes = agentRemotes(hosts)
+  const remotes = agentRemotes(machines, hosts)
   assert.equal(reachedRemote({ ssh: 'me@login2' }, remotes), 'lab')
-  assert.equal(reachedRemote({ ssh: 'elsewhere' }, remotes), 'elsewhere', 'a destination with no remote is itself')
+  assert.equal(reachedRemote({ ssh: 'elsewhere' }, remotes), 'elsewhere', 'a destination with no machine is itself')
   assert.equal(reachedRemote({}, remotes), null)
   const document = { agents: { here: { platform: 'sim' }, there: { platform: 'qw5q', ssh: 'me@login2' } } }
-  const items = agentConfigurations(document, hosts)
+  const items = agentConfigurations(document, hosts, machines)
+  assert.equal(items.find(item => item.name === 'onsite').destination, 'me@login2', 'pushed to its machine\'s destination')
   const names = filters => items.filter(item => agentShown(item, filters, remotes)).map(item => item.name)
   assert.deepEqual(names({}), ['here', 'there', 'onsite'])
   assert.deepEqual(names({ kept: 'local' }), ['here', 'there'])

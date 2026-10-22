@@ -11,10 +11,11 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 /// Files the launcher knows about, with the description shown in the interface.
-const KNOWN_FILES: [(&str, &str); 6] = [
+const KNOWN_FILES: [(&str, &str); 7] = [
     ("servers.json", "Registered report servers"),
     ("notebooks.json", "Saved notebook connections"),
     ("remotes.json", "Remote execution connections, shared with qibocal-widgets"),
+    ("machines.json", "Named machines, by SSH destination"),
     ("agent-hosts.json", "Agent configurations kept here for other machines"),
     ("auth.json", "Users, invitations and signing keys"),
     ("launcher.json", "Launcher preferences"),
@@ -437,7 +438,27 @@ pub fn write_agents(document: Value) -> Result<AgentDocument, String> {
     Ok(AgentDocument { path: path.display().to_string(), document })
 }
 
-/// The agent configurations kept here for other machines, by SSH destination.
+/// The machines, by name: each its SSH destination, as every connection
+/// file still stores it — the names are the application's alone.
+#[tauri::command]
+pub fn list_machines() -> Result<Map<String, Value>, String> {
+    let path = config_file("machines.json")?;
+    match read_compatible(&path)?.map(|value| entries_of(value, "machines")) {
+        Some(Value::Object(machines)) => Ok(machines),
+        Some(_) => Err(format!("'{}' must contain a machine-name object.", path.display())),
+        None => Ok(Map::new()),
+    }
+}
+
+#[tauri::command]
+pub fn save_machines(machines: Map<String, Value>) -> Result<Map<String, Value>, String> {
+    let path = config_file("machines.json")?;
+    guard_write("machines.json", &path)?;
+    write_json(&path, &versioned("machines", Value::Object(machines.clone())))?;
+    Ok(machines)
+}
+
+/// The agent configurations kept here for other machines, by machine name.
 #[tauri::command]
 pub fn list_agent_hosts() -> Result<Map<String, Value>, String> {
     let path = config_file("agent-hosts.json")?;

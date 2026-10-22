@@ -105,6 +105,12 @@ DOCS_NAVIGATION = [
                 "description": "Configurations of the Qibocal MCP servers, here and on access nodes, and autonomous runs",
             },
             {
+                "id": "user-guide/launcher/machines",
+                "path": "user-guide/launcher/machines",
+                "title": "Machines",
+                "description": "The machines reached over SSH, named once for every page, and what each one serves",
+            },
+            {
                 "id": "user-guide/launcher/configuration",
                 "path": "user-guide/launcher/configuration",
                 "title": "Configuration",

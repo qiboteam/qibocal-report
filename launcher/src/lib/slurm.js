@@ -119,7 +119,7 @@ export function machineKey(ssh) {
 /**
  * The queues grouped by the machine they are on, for the tree of Queues:
  * `[{ key, ssh, label, partitions: [{ key, queue }] }]`. A machine is
- * named as the remote of the same destination is, when there is one;
+ * named as the application's machine of the same destination is, when there is one;
  * this one comes last.
  */
 export function groupMachines(queues = [], remotes = []) {

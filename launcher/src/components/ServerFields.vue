@@ -65,7 +65,11 @@
           info="SSH options followed by a host or user@host, the way ssh takes them. Host aliases, agent authentication and jump hosts from the SSH configuration all work; the destination comes last."
           :error="errors.ssh"
         >
-          <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.ssh" type="text" :class="['lx-input lx-mono', control]" placeholder="user@host" />
+          <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.ssh" type="text" :class="['lx-input lx-mono', control]" placeholder="user@host" :list="`${id}-machines`" />
+          <!-- The machines, offered by destination, each named. -->
+          <datalist :id="`${id}-machines`">
+            <option v-for="machine in machines" :key="machine.name" :value="machine.ssh" :label="machine.name" />
+          </datalist>
         </form-field>
 
         <form-field
@@ -163,7 +167,7 @@ import PathPicker from './PathPicker.vue'
 import SegmentedControl from './SegmentedControl.vue'
 import ToggleSwitch from './ToggleSwitch.vue'
 import { desktop } from '../bridge.js'
-import { attempt } from '../state.js'
+import { attempt, machines } from '../state.js'
 import { PLACES, SHARED_DIRECTORY } from '../lib/servers.js'
 
 const props = defineProps({

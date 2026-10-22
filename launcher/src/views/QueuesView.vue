@@ -151,9 +151,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ChevronRight, PanelLeftClose, PanelLeftOpen, RefreshCw, Server } from 'lucide-vue-next'
 import QueuePanel from '../components/QueuePanel.vue'
-import { state, knownQueues, machineEntry, queuePollSeconds, refreshMachine, watchMachine } from '../state.js'
+import { state, knownQueues, machineEntry, machines as namedMachines, queuePollSeconds, refreshMachine, watchMachine } from '../state.js'
 import { groupMachines, jobIdFromLog, jobNameFromLog, machineKey, queueKey, queueOf } from '../lib/slurm.js'
-import { agentRemotes } from '../lib/agents.js'
 import { timeAgo } from '../lib/time.js'
 
 const route = useRoute()
@@ -179,8 +178,8 @@ function sessionsOf(queue) {
     queueKey(queueOf(state.launches[process.id]?.options)) === key)
 }
 
-/** The machines and their partitions, named as the remotes of the same destination are. */
-const machines = computed(() => groupMachines(knownQueues(), agentRemotes(state.agentHosts)))
+/** The machines and their partitions, named as the application's machines are. */
+const machines = computed(() => groupMachines(knownQueues(), namedMachines.value))
 
 /** How many sessions and agents wait on a machine's partitions. */
 function running(machine) {

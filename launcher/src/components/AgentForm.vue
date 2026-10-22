@@ -1,6 +1,6 @@
 <!--
   The settings of an agent configuration: where it is kept — this machine's
-  agents.json, or one of the SSH remotes it is pushed to — its name, and the
+  agents.json, or one of the application's machines it is pushed to — its name, and the
   settings qibocal-agent reads, the few that matter first and the rest behind
   "More options". The same form for a new configuration and for editing one.
 -->
@@ -12,19 +12,19 @@
         label="Kept for"
         :help="form.host === 'local'
           ? 'An assistant, or autonomous runs, on this machine; it may still start the calibration server elsewhere, through its SSH destination.'
-          : 'An assistant running on that remote: kept here, and pushed to its agents.json.'"
+          : 'An assistant running on that machine: kept here, and pushed to its agents.json.'"
       >
         <segmented-control v-model="form.host" :options="places" />
       </form-field>
       <form-field
         v-if="form.host !== 'local'"
         v-slot="{ id, control }"
-        label="Remote"
+        label="Machine"
         required
-        :help="remotes.length ? 'Where the assistant runs, among the remotes in Setup.' : 'Add the remote first, in Setup above.'"
+        :help="remotes.length ? 'Where the assistant runs, among the machines.' : 'Name the machine first, on Machines.'"
       >
         <select :id="id" v-model="form.hostName" :class="['lx-select w-full', control]">
-          <option value="" disabled>Choose a remote</option>
+          <option value="" disabled>Choose a machine</option>
           <option v-for="remote in remotes" :key="remote.name" :value="remote.name">{{ remote.name }} — {{ remote.ssh }}</option>
         </select>
       </form-field>
@@ -53,13 +53,13 @@ const props = defineProps({
   form: { type: Object, required: true },
   /** The names already used where this one is kept. */
   names: { type: Array, default: () => [] },
-  /** The SSH remotes, `{ name, ssh }`: where a configuration is kept, and what its SSH destination offers. */
+  /** The machines, `{ name, ssh }`: where a configuration is kept, and what its SSH destination offers. */
   remotes: { type: Array, default: () => [] }
 })
 
 const places = [
   { value: 'local', label: 'This machine' },
-  { value: 'remote', label: 'A remote' }
+  { value: 'remote', label: 'Another machine' }
 ]
 
 /** The fields, lists shown as text areas. */

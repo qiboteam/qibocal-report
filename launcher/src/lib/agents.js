@@ -6,11 +6,10 @@
  * Those for another machine — an assistant on an access node — are kept
  * here, under the SSH remote they are pushed to.
  *
- * SSH remotes are named here, apart from the configurations: several
- * configurations reach the same access node, and an assistant there keeps
- * its own. They are the keys of `agent-hosts.json`, each with its `ssh`
- * destination — the key itself when it has none — and the configurations
- * kept for it; agents.json itself only ever holds the destination.
+ * The machines a configuration is kept for, or reaches, are the
+ * application's machines (`lib/machines.js`): `agent-hosts.json` keeps the
+ * configurations kept for each, by its name; agents.json itself only ever
+ * holds the destination.
  *
  * Pure, and covered by `tests/agents.test.js`.
  */
@@ -100,42 +99,26 @@ export function agentEntry(values = {}, { previous = {} } = {}) {
  * — `host` 'local' for this machine's agents.json, or the remote one is kept
  * for, with `destination`, where it is pushed.
  */
-export function agentConfigurations(document = {}, hosts = {}) {
+export function agentConfigurations(document = {}, hosts = {}, machines = {}) {
   const list = []
   for (const [name, entry] of Object.entries(document?.agents || {})) list.push({ key: `local:${name}`, name, host: 'local', entry })
   for (const [host, kept] of Object.entries(hosts || {})) {
-    const destination = remoteDestination(host, kept)
+    // Pushed to the machine's destination; its name, for one no machine is called.
+    const destination = String(machines?.[host]?.ssh || '').trim() || host
     for (const [name, entry] of Object.entries(kept?.agents || {})) list.push({ key: `${host}:${name}`, name, host, destination, entry })
   }
   return list
 }
 
-/** Where a remote is reached: its `ssh`, or its name, as the remotes kept before destinations were. */
-function remoteDestination(name, kept) {
-  const ssh = typeof kept?.ssh === 'string' ? kept.ssh.trim() : ''
-  return ssh || name
-}
-
-/** The SSH remotes, by name: `{ name, ssh, kept }`, `kept` counting the configurations kept for each. */
-export function agentRemotes(hosts = {}) {
-  return Object.entries(hosts || {})
-    .map(([name, kept]) => ({ name, ssh: remoteDestination(name, kept), kept: Object.keys(kept?.agents || {}).length }))
+/**
+ * The machines, as the Agents page offers them: `{ name, ssh, kept }`,
+ * `kept` counting the configurations kept for each.
+ */
+export function agentRemotes(machines = {}, hosts = {}) {
+  return Object.entries(machines || {})
+    .map(([name, entry]) => ({ name, ssh: String(entry?.ssh || '').trim(), kept: Object.keys(hosts?.[name]?.agents || {}).length }))
+    .filter(machine => machine.ssh)
     .sort((a, b) => a.name.localeCompare(b.name))
-}
-
-/** The remotes with one added, or its destination changed; its configurations stay. */
-export function withRemote(hosts = {}, name, ssh) {
-  const next = JSON.parse(JSON.stringify(hosts || {}))
-  next[name] = { ...(next[name] || {}), ssh: ssh.trim(), agents: next[name]?.agents || {} }
-  return next
-}
-
-/** The remotes without one: only one that keeps no configuration goes. */
-export function withoutRemote(hosts = {}, name) {
-  if (Object.keys(hosts?.[name]?.agents || {}).length) throw new Error(`${name} still keeps configurations: move or remove them first.`)
-  const next = JSON.parse(JSON.stringify(hosts || {}))
-  delete next[name]
-  return next
 }
 
 /**
@@ -172,10 +155,10 @@ export function withLocalAgent(document = {}, name, entry) {
   return next
 }
 
-/** The kept configurations with one set — or removed — for a remote, which stays either way. */
+/** The kept configurations with one set — or removed — for a machine. */
 export function withHostAgent(hosts = {}, host, name, entry) {
   const next = JSON.parse(JSON.stringify(hosts || {}))
-  const kept = next[host] || { ssh: host, agents: {} }
+  const kept = next[host] || { agents: {} }
   kept.agents = { ...(kept.agents || {}) }
   if (entry) kept.agents[name] = entry
   else delete kept.agents[name]

@@ -7,6 +7,7 @@ import { loadNotices, nextNoticeId, storeNotices } from './lib/notices.js'
 import { machineKey, partitionAnswer, queueKey, queueOf } from './lib/slurm.js'
 import { notebookKey, reportServerOptions } from './lib/notebooks.js'
 import { agentReports, agentReportsKey, agentRunOptions } from './lib/agents.js'
+import { machineList, migrateAgentRemotes, retargetAgents, retargetHosts, retargetLaunches } from './lib/machines.js'
 
 export const LOG_EVENT = 'launcher://log'
 export const PROCESS_EVENT = 'launcher://process'
@@ -49,7 +50,9 @@ export const state = reactive({
   pageShortcuts: null,
   /** What each SLURM queue answered, by `queueKey`: `{ data, error, loading, fetchedAt }`. */
   queues: {},
-  /** What each machine answered, by `machineKey`: its partitions' queues, and a line for each partition there. */
+  /** What each machine's queues answered, by `machineKey`: its partitions' queues, and a line for each partition there. */
+  machineQueues: {},
+  /** The machines, by name, from machines.json: `{ name: { ssh } }`. */
   machines: {}
 })
 
@@ -189,14 +192,68 @@ export async function refreshRemotes() {
 }
 
 export async function refreshAgents() {
-  const [agents, hosts] = await Promise.all([
+  const [agents] = await Promise.all([
     load(desktop.readAgents, { path: '', document: {} }),
-    load(desktop.listAgentHosts, {})
+    refreshMachines()
   ])
   state.agents = agents
-  state.agentHosts = hosts
   return agents
 }
+
+/**
+ * The machines, and the configurations kept for each: the remotes the
+ * Agents page kept before there were machines become machines, once.
+ */
+export async function refreshMachines() {
+  const [machines, hosts] = await Promise.all([load(desktop.listMachines, {}), load(desktop.listAgentHosts, {})])
+  const migrated = migrateAgentRemotes(machines, hosts)
+  if (migrated.changed) {
+    try {
+      state.machines = await desktop.saveMachines(migrated.machines)
+      state.agentHosts = await desktop.saveAgentHosts(migrated.hosts)
+      return state.machines
+    } catch (error) {
+      fail(`The remotes of Agents could not become machines: ${error?.message || error}`)
+    }
+  }
+  state.machines = machines
+  state.agentHosts = hosts
+  return state.machines
+}
+
+/**
+ * Save the machines. With `moved`, `{ from, to }`, a machine's destination
+ * changed, and every connection that reached it follows — notebook sessions,
+ * remote execution connections, agent configurations, those kept for
+ * machines, remembered server launches — since each file stores the
+ * destination itself. Configurations kept for a machine are moved here;
+ * Push writes them there again.
+ */
+export async function saveMachines(machines, { moved = null } = {}) {
+  if (moved && moved.from && moved.from !== moved.to) {
+    const { from, to } = moved
+    const reaches = options => String(options?.ssh || '').trim() === from
+    for (const [name, options] of Object.entries(state.notebooks || {})) {
+      if (reaches(options)) state.notebooks = await desktop.saveNotebook(name, { ...options, ssh: to })
+    }
+    for (const [name, options] of Object.entries(state.remotes || {})) {
+      if (reaches(options)) state.remotes = await desktop.saveRemote(name, { ...options, ssh: to })
+    }
+    if (Object.values(state.agents?.document?.agents || {}).some(reaches)) {
+      state.agents = await desktop.writeAgents(retargetAgents(state.agents.document, from, to))
+    }
+    state.agentHosts = await desktop.saveAgentHosts(retargetHosts(state.agentHosts, from, to))
+    const launches = state.preferences?.launches || {}
+    if (Object.values(launches).some(reaches)) {
+      state.preferences = await desktop.savePreferences({ ...state.preferences, launches: retargetLaunches(launches, from, to) })
+    }
+  }
+  state.machines = await desktop.saveMachines(machines)
+  return state.machines
+}
+
+/** The machines as a list, `[{ name, ssh }]`, for the pages to offer and group by. */
+export const machines = computed(() => machineList(state.machines))
 
 /**
  * Dispatch an autonomous agent, `{ name, objective }`: a process of its own
@@ -716,7 +773,7 @@ export function knownQueues() {
  */
 export async function refreshMachine(ssh, { force = false, also = [] } = {}) {
   const key = machineKey(ssh)
-  const entry = state.machines[key] || (state.machines[key] = { data: null, error: null, loading: false, fetchedAt: 0 })
+  const entry = state.machineQueues[key] || (state.machineQueues[key] = { data: null, error: null, loading: false, fetchedAt: 0 })
   const minimum = (queuePollSeconds.value * 1000) / 2
   const partitions = [...new Set([
     ...knownQueues().filter(queue => machineKey(queue.ssh) === key).map(queue => queue.partition),
@@ -753,7 +810,7 @@ export async function refreshMachine(ssh, { force = false, also = [] } = {}) {
 
 /** The entry of a machine, or null before it was ever asked. */
 export function machineEntry(ssh) {
-  return state.machines[machineKey(ssh)] || null
+  return state.machineQueues[machineKey(ssh)] || null
 }
 
 /** Ask a queue: its machine is asked, for it and the other queues known there. */
