@@ -100,6 +100,19 @@ Bring a remote server's `qibocal-report` up to date, without starting it: the `-
 - `--ssh TEXT` (required): the machine whose environment is updated.
 - `--venv NAME_OR_PATH`, `--install PACKAGES`, `-w, --workdir`, `--timeout`: as for `qibocal report server`.
 
+### `qibocal report upload PATH SERVER`
+Upload a report to a server, as the dashboard's **Upload** does: `PATH` is a report folder — one holding a `meta.json` — zipped on the fly and sent under its own name, or the zip of one, as a download gives it. It lands at the top of the server's reports; one of the same name there is never overwritten. The server is asked first whether it takes the upload, so a refusal costs no transfer.
+
+- `--token TOKEN`: sign in with this token; also `QIBOCAL_REPORT_TOKEN`.
+- `-u, --username NAME`: sign in as this user; the password is asked, or taken from `QIBOCAL_REPORT_PASSWORD`.
+- `--json`: answer with the server's reply, `{"id", "name"}`.
+
+A server without authentication accepts anyone who reaches it; one with it, its administrators and whom its upload policy names. The same requests by hand are in the [API reference](api.md#uploading-a-report-by-hand).
+
+```bash
+qibocal report upload "./runs/21:47:29_[3]_pi-pulse" https://reports.example.org -u alice
+```
+
 ### `qibocal report dev`
 
 Starts the developer server with live Vite Hot Module Replacement (HMR) for the frontend and Uvicorn auto-reload for the backend.

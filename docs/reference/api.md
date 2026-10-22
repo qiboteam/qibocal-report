@@ -60,6 +60,36 @@ Whether the caller may upload reports here: `{"accepted", "auth_enabled"}`. A se
 ### `POST /api/uploads`
 Receive a report: the body is the zip of one report folder, as `/api/reports/{id}/download/full` gives it (`Content-Type: application/zip`). It is checked — one top-level folder holding a `meta.json`, no absolute path, no `..`, no link, at most `QIBOCAL_REPORT_UPLOAD_LIMIT` bytes unpacked (4 GiB) — and unpacked at the top of the reports directory under its folder's name. Answers `{"id", "name"}`; `401` to sign in, `403` for an account the policy leaves out, `409` when a report of that name is already there, which is never overwritten, `413` when too large.
 
+### Uploading a report by hand
+
+What `qibocal report upload` does, with `curl` — from any machine, with no Qibocal installed. Zip the report folder under its own name, from the folder holding it:
+
+```bash
+cd ./runs
+zip -r report.zip "21:47:29_[3]_pi-pulse"
+```
+
+A server with authentication wants a token: sign in for one — a server without it needs none, and the `Authorization` headers below can be left out.
+
+```bash
+SERVER=https://reports.example.org
+TOKEN=$(curl -s "$SERVER/api/auth/login" -H 'Content-Type: application/json' \
+  -d '{"username": "alice", "password": "…"}' | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])')
+```
+
+Ask whether the upload is taken, then send it:
+
+```bash
+curl -s "$SERVER/api/uploads" -H "Authorization: Bearer $TOKEN"
+# {"accepted":true,"auth_enabled":true}
+
+curl -s -X POST "$SERVER/api/uploads" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/zip' --data-binary @report.zip
+# {"id":"21:47:29_[3]_pi-pulse","name":"21:47:29_[3]_pi-pulse"}
+```
+
+The body is the zip itself, not a form: `--data-binary`, not `-F`. A refusal says why in `detail`, with the statuses above: `401` to sign in, `403` for an account the policy leaves out, `409` for a report of that name already there, `413` when too large.
+
 ### `GET /api/admin/uploads`, `PUT /api/admin/uploads`
 Who may upload, beyond the administrators, who always may: `{"policy": "admins" | "editors" | "viewers", "users": [user ids]}` — editors too, every signed-in user, and chosen individuals. Kept in `auth.json`. Administrators only.
 

@@ -383,6 +383,17 @@ Options:
 \-\-install (qibocal-report), \-\-timeout (300), as for
 .BR "qibocal report server" .
 .TP
+.BR "qibocal report upload" " PATH SERVER"
+Upload a report to a server, as the dashboard's Upload does: PATH is a report
+folder, holding a meta.json, sent under its own name, or the zip of one, as a
+download gives it. A report of the same name there is never overwritten.
+.BI \-\-token " TOKEN"
+signs in with a token (also QIBOCAL_REPORT_TOKEN);
+.BI \-u ", " \-\-username " NAME"
+signs in as a user, the password asked or taken from QIBOCAL_REPORT_PASSWORD;
+.B \-\-json
+answers with the server's reply.
+.TP
 .BR "qibocal report targets" " [DIRECTORY]"
 Gather each report's targets from its protocols: every protocol's action.yml
 under the directory (default: the shared reports directory) names the qubits,

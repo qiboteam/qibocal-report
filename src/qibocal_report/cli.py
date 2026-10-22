@@ -672,6 +672,37 @@ def server_upgrade(ssh: str, **remote):
     upgrade(load_options({"ssh": ssh, "upgrade": True, "registered": False, **remote}))
 
 
+@report.command(name="upload")
+@click.argument("path", type=click.Path(exists=True, path_type=Path))
+@click.argument("server")
+@click.option("--token", envvar="QIBOCAL_REPORT_TOKEN", help="Sign in with this token (also QIBOCAL_REPORT_TOKEN).")
+@click.option("-u", "--username", help="Sign in as this user; the password is asked, or taken from QIBOCAL_REPORT_PASSWORD.")
+@click.option("--json", "output_json", is_flag=True, help="Answer with the server's reply, as JSON.")
+def report_upload(path: Path, server: str, token: str | None, username: str | None, output_json: bool):
+    """Upload the report at PATH to SERVER, as the dashboard does.
+
+    PATH is a report folder, sent under its own name, or the zip of one, as a
+    download gives it. A server with authentication asks to sign in: with
+    --token, or as --username. The report lands at the top of the server's
+    reports; one of the same name there is never overwritten.
+    """
+    from qibocal_report.reports.send import SendError, send_report
+
+    password = None
+    if username and not token:
+        password = os.environ.get("QIBOCAL_REPORT_PASSWORD") or click.prompt(
+            f"Password for {username}", hide_input=True
+        )
+    try:
+        sent = send_report(path, server, token=token, username=username, password=password)
+    except SendError as error:
+        raise click.ClickException(str(error)) from error
+    if output_json:
+        click.echo(json.dumps({"id": sent.id, "name": sent.name}))
+    else:
+        click.echo(f"Uploaded to {server} as {sent.name}.")
+
+
 @report.command(name="dev")
 @click.argument("directory", required=False, type=click.Path(file_okay=False))
 @click.option("--host", default="localhost", help="Host address to bind to.")
