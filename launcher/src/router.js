@@ -9,6 +9,7 @@ import HelpView from './views/HelpView.vue'
 import QueuesView from './views/QueuesView.vue'
 import RemotesView from './views/RemotesView.vue'
 import AgentsView from './views/AgentsView.vue'
+import AgentsSetupView from './views/AgentsSetupView.vue'
 
 /**
  * The launcher sections, described once: the router, the home page cards,
@@ -103,6 +104,8 @@ export const router = createRouter({
     { name: 'help-page', path: '/help/:page', component: HelpView },
     // A tab of Notebooks: the connections a session hands its acquisitions to.
     { name: 'remotes', path: '/notebooks/remote', component: RemotesView },
+    // Reached from Agents: what its configurations share.
+    { name: 'agents-setup', path: '/agents/setup', component: AgentsSetupView },
     // Reached from Running, where a session waits in its queue.
     { name: 'queues', path: '/queues', component: QueuesView },
     { path: '/:pathMatch(.*)*', redirect: '/' }

@@ -1,6 +1,6 @@
 # Desktop Launcher: Agents
 
-**Agents** manages the configurations of `qibocal-agent`, from the [Qibocal MCP servers](https://github.com/qiboteam/qibocal-mcp-servers) — the MCP server an assistant such as Copilot, Claude or Cursor registers, `qibocal-agent mcp`, and the autonomous calibration agent, `qibocal-agent run` — and dispatches autonomous runs. The page opens on **Setup**, what is not one configuration's own; then the configurations, with **Refresh**, and **New configuration** for the form; then the **Saved prompts**.
+**Agents** manages the configurations of `qibocal-agent`, from the [Qibocal MCP servers](https://github.com/qiboteam/qibocal-mcp-servers) — the MCP server an assistant such as Copilot, Claude or Cursor registers, `qibocal-agent mcp`, and the autonomous calibration agent, `qibocal-agent run` — and dispatches autonomous runs. The page lists the configurations, with **Refresh**, and **New configuration** for the form, then the **Saved prompts**; **Setup**, below **New configuration**, opens what is not one configuration's own on a page of its own, **Agents - Setup**.
 
 ## How it fits together
 
@@ -42,17 +42,19 @@ In both cases an assistant registers `qibocal-agent mcp` **once**. It starts not
 
 ## Setup
 
+**Agents - Setup**, from the **Setup** button of the page:
+
 - **What it is**: the explanation above, in brief, and a link here.
 - **qibocal-agent**: the one the page runs and registers, by absolute path, with its version. **Install** — **Update** once installed — puts the branch, tag or commit given (`main` by default, the repository's branches and tags offered) in `~/.cache/qibocal/agents/tools`, an environment of its own with Python 3.12 or 3.13, which uv provides when needed: `qibocal agents install --ref REF`, its output in **Running**. **Choose environment…** takes another one instead, a checkout's `.venv` say, and **Detect** forgets it: the installed one is used, else the one on the `PATH`.
 - **MCP registration**: the registration of `qibocal-agent mcp` for an assistant on this machine, with **Copy** — for Copilot, `~/.copilot/mcp-config.json`; other assistants take the same command and arguments. One serves every configuration, so there is nothing to register again when one is added. An assistant on a remote registers the same, with the path of the qibocal-agent installed there. The launcher writes no other tool's file.
-- **Remotes**: the SSH remotes, each a name and a destination as `ssh` takes it — an alias of the SSH configuration, or `user@host` — named once, and reached by as many configurations as need them. A configuration is kept for one of them, and its SSH destination offers their destinations. They are kept in `agent-hosts.json`, with the configurations kept for each; a remote holding configurations is not removed until they are moved or removed.
+- **Remotes**: a grid of the SSH remotes, the last cell adding one: each a name and a destination as `ssh` takes it — an alias of the SSH configuration, or `user@host` — named once, and reached by as many configurations as need them. A configuration is kept for one of them, and its SSH destination offers their destinations. They are kept in `agent-hosts.json`, with the configurations kept for each; a remote holding configurations is not removed until they are moved or removed.
 
 ## Where a configuration is kept
 
 - For **this machine**, it is an entry of `agents.json` — `~/.config/qibocal/agents.json`, or `$XDG_CONFIG_HOME/qibocal/agents.json`, or `$QIBOCAL_AGENTS_CONFIG_DIR/agents.json` — the file `qibocal-agent` itself reads, every configuration under `agents`. Each has a name: `default` is the one used when none is given, an ordinary entry otherwise, and `agent` and `agents` are reserved. The file is the tool's, and it refuses a key it does not know, so the launcher writes nothing else in it.
 - For **a remote**, it is kept here, under that remote in `agent-hosts.json`, and written to the `agents.json` there when saved, with `qibocal agents push`: the entries it owns are merged into the remote `agents`, and every other one is left as it is. Only the configuration travels, never environments or keys. When the remote cannot be reached, the configuration is kept here anyway, and **Push** sends it again.
 
-Two rows of chips filter the list, together: **Kept for** — this machine, or each remote — and **Reaches** — **Directly**, a configuration without SSH destination, or the remote its SSH destination is. Each card says both: *this machine* or *for* a remote, and *direct* or *via* a remote.
+Two filters, on one line, select the list together — chips while they are few, dropdowns once the remotes make them long: **Kept for** — this machine, or each remote — and **Reaches** — **Directly**, a configuration without SSH destination, or the remote its SSH destination is. Each card says both: *this machine* or *for* a remote, and *direct* or *via* a remote.
 
 ## The settings
 
