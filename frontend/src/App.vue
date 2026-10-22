@@ -8,6 +8,7 @@
     <login-modal />
     <register-modal />
     <shortcuts-modal />
+    <file-viewer-modal />
   </div>
 </template>
 
@@ -20,6 +21,7 @@ import { createArrivals, describeArrivals } from './utils/arrivals.js'
 import { getActiveServerUrl } from './utils/url.js'
 import { cheatsheetOpen, isPlainKey, isTypingTarget } from './utils/shortcuts.js'
 import ShortcutsModal from './components/modals/ShortcutsModal.vue'
+import FileViewerModal from './components/modals/FileViewerModal.vue'
 import LoginModal from './components/modals/LoginModal.vue'
 import RegisterModal from './components/modals/RegisterModal.vue'
 import LoadingSpinner from './components/LoadingSpinner.vue'

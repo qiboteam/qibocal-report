@@ -68,7 +68,7 @@
           </svg>
         </button>
 
-        <!-- View meta.json (plain JSON in new browser tab) -->
+        <!-- View meta.json: in a tab of its own, or over the page where no tab opens -->
         <api-file-button
           :path="metaJsonPath"
           preview

@@ -1,5 +1,7 @@
 import { apiFetch } from '../api.js'
 import { state } from '../store.js'
+import { inDesktop } from './desktop.js'
+import { showFile } from './fileViewer.js'
 
 async function fetchFile(path, server) {
   const response = await apiFetch(path, { cache: 'no-store' }, server)
@@ -49,10 +51,21 @@ export async function downloadApiFile(path, filename = 'download.zip', server = 
   return name
 }
 
-export async function openApiFile(path, server = state.activeServer) {
+/** A file shown over the page: where no tab can open, inside the application or past a pop-up blocker. */
+async function viewApiFile(path, name, server) {
+  const response = await fetchFile(path, server)
+  showFile(getFilename(response, name), await response.text(), response.headers.get('Content-Type') || '')
+}
+
+/**
+ * Show a file: in a tab of its own in a browser; over the page inside the
+ * desktop application, which opens no tab, or when the browser refuses one.
+ */
+export async function openApiFile(path, server = state.activeServer, name = path.split('/').pop() || 'file') {
+  if (inDesktop()) return viewApiFile(path, name, server)
   // Reserve the tab during the click, before awaiting a network request.
   const tab = window.open('about:blank', '_blank')
-  if (!tab) throw new Error('Please allow pop-ups to view this file.')
+  if (!tab) return viewApiFile(path, name, server)
   tab.opener = null
   let url
   try {

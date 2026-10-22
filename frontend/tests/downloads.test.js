@@ -209,13 +209,35 @@ test('authenticated downloads and metadata previews', async t => {
       mock.restoreAll()
     })
 
-    await t.test('a blocked popup is reported without starting a request', async () => {
+    await t.test('a blocked popup shows the file over the page instead', async () => {
       setupBrowser()
+      const { fileViewer, closeFile } = await vite.ssrLoadModule('/src/utils/fileViewer.js')
       mock.method(window, 'open', () => null)
-      const fetch = mock.method(globalThis, 'fetch', async () => assert.fail('Unexpected request'))
-      await assert.rejects(openApiFile('/meta.json'), /allow pop-ups/)
-      assert.equal(fetch.mock.callCount(), 0)
+      mock.method(globalThis, 'fetch', async () => Response.json({ platform: 'test' }))
+      await openApiFile('/meta.json')
+      assert.equal(fileViewer.open, true)
+      assert.equal(fileViewer.name, 'meta.json')
+      assert.equal(fileViewer.text, '{\n  "platform": "test"\n}', 'indented, to read')
+      closeFile()
       mock.restoreAll()
+    })
+
+    await t.test('inside the application, where no tab opens, the file is shown over the page', async () => {
+      setupBrowser()
+      const { fileViewer, closeFile } = await vite.ssrLoadModule('/src/utils/fileViewer.js')
+      window.qibocalDesktop = {}
+      const open = mock.method(window, 'open', () => assert.fail('No tab inside the application'))
+      mock.method(globalThis, 'fetch', async () => new Response('{"targets":[0,1]}', { headers: { 'Content-Type': 'application/json' } }))
+      try {
+        await openApiFile('/meta.json')
+        assert.equal(open.mock.callCount(), 0)
+        assert.equal(fileViewer.open, true)
+        assert.deepEqual(JSON.parse(fileViewer.text), { targets: [0, 1] })
+      } finally {
+        delete window.qibocalDesktop
+        closeFile()
+        mock.restoreAll()
+      }
     })
 
     await t.test('failed previews close the reserved tab and clean up any blob', async () => {
@@ -462,4 +484,12 @@ test('authenticated downloads and metadata previews', async t => {
     delete globalThis.document
     delete globalThis.window
   }
+})
+
+test('a file reads best indented when it is JSON, and as it is otherwise', async () => {
+  const { readableText } = await import('../src/utils/fileViewer.js')
+  assert.equal(readableText('{"a":1}'), '{\n  "a": 1\n}')
+  assert.equal(readableText('[1]', 'application/json'), '[\n  1\n]')
+  assert.equal(readableText('{ broken'), '{ broken', 'not JSON after all: as it is')
+  assert.equal(readableText('id: rabi\n', 'application/yaml'), 'id: rabi\n')
 })
