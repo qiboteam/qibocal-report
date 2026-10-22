@@ -8,7 +8,8 @@ import PlatformView from './views/PlatformView.vue'
 import ArchivesView from './views/ArchivesView.vue'
 import ServerAdminView from './views/ServerAdminView.vue'
 import InviteRegisterView from './views/InviteRegisterView.vue'
-import { state, fetchServers, checkActiveServerAuth, setActiveServer } from './store.js'
+import { state, fetchServers, checkActiveServerAuth, connectServer, setActiveServer } from './store.js'
+import { connectAddress } from './utils/url.js'
 
 const routes = [
   {
@@ -33,6 +34,20 @@ const routes = [
   { path: '/servers', name: 'servers', component: ServersView },
   { path: '/admin/:serverId?', name: 'admin', component: ServerAdminView },
   { path: '/invite', name: 'invite', component: InviteRegisterView },
+  {
+    // A server's own page links here: the server is registered when it is
+    // not yet, and opened — its reports, or Servers to sign in first.
+    path: '/connect',
+    name: 'connect',
+    component: { template: '<div></div>' },
+    beforeEnter: async (to, from, next) => {
+      const url = connectAddress(to.query.server)
+      if (!url) return next({ name: 'servers' })
+      await connectServer(url)
+      if (state.auth?.enabled && (!state.auth?.token || !state.auth?.user)) return next({ name: 'servers' })
+      return next({ name: 'dashboard' })
+    }
+  },
   { path: '/dashboard', name: 'dashboard', component: DashboardView },
   { path: '/archives', name: 'archives', component: ArchivesView },
   { path: '/statistics', name: 'statistics', component: StatisticsView },
@@ -69,7 +84,8 @@ router.beforeEach(async (to, from, next) => {
     to.name === 'servers' ||
     to.path === '/servers' ||
     to.name === 'invite' ||
-    to.path.startsWith('/invite')
+    to.path.startsWith('/invite') ||
+    to.name === 'connect'
   ) {
     return next()
   }

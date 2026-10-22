@@ -83,6 +83,26 @@ export function inviteLink(serverUrl, token, { reset = false, base = dashboardBa
 }
 
 /**
+ * The link that opens a server in the dashboard, registering it first when
+ * it is not yet: what a server's own page offers.
+ */
+export function connectLink(serverUrl, { base = dashboardBase() } = {}) {
+  return `${base}/#/connect?${new URLSearchParams({ server: normalizeUrl(serverUrl) })}`
+}
+
+/** The server a connect link names: an http(s) address, normalised, or '' for anything else. */
+export function connectAddress(value) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!/^https?:\/\//i.test(text)) return ''
+  try {
+    const url = new URL(text)
+    return url.username || url.password ? '' : normalizeUrl(`${url.origin}${url.pathname}`)
+  } catch {
+    return ''
+  }
+}
+
+/**
  * The server, and any invitation or password-reset token, of what was
  * pasted: a link `inviteLink` makes, or a plain server URL.
  */

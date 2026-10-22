@@ -1,4 +1,5 @@
 import asyncio
+import html
 from datetime import datetime
 import json
 import logging
@@ -2160,8 +2161,15 @@ code { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 0.25em; }
 </head>
 <body>
 <h1>Qibocal report server</h1>
-<p>This server has no page of its own. Open the <a href="{dashboard}">dashboard</a>, or the Qibocal desktop application, and add this server's address there.</p>
+<p>This server has no page of its own: <a id="connect" href="{dashboard}">open it in the dashboard</a>, which adds it to your servers when it is not there yet. In the Qibocal desktop application, add its address, <code id="address">this page's</code>, under Servers.</p>
 <p>The API is under <code>/api</code>; its documentation is at <a href="/api/docs/swagger">/api/docs/swagger</a>.</p>
+<script>
+// The address as the browser reached it — behind a proxy, under a prefix —
+// which the server itself may not know.
+const here = location.origin + location.pathname.replace(/\/+$/, "");
+document.getElementById("connect").href = {dashboard_json} + "/#/connect?server=" + encodeURIComponent(here);
+document.getElementById("address").textContent = here;
+</script>
 </body>
 </html>
 """
@@ -2169,4 +2177,6 @@ code { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 0.25em; }
 
 @app.get("/", include_in_schema=False)
 async def root() -> HTMLResponse:
-    return HTMLResponse(ROOT_PAGE.replace("{dashboard}", config.DASHBOARD_URL))
+    dashboard = config.DASHBOARD_URL
+    page = ROOT_PAGE.replace("{dashboard_json}", json.dumps(dashboard).replace("</", "<\\/"))
+    return HTMLResponse(page.replace("{dashboard}", html.escape(dashboard, quote=True)))

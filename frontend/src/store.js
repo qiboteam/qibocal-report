@@ -621,6 +621,30 @@ export async function addServer(urlOrObj, name = null, description = null, avata
   return created
 }
 
+/**
+ * Open a server by its address, as a connect link asks: registered first
+ * when it is not yet — named as it names itself, when it says — then made
+ * the active one. Answers the server.
+ */
+export async function connectServer(url) {
+  const clean = normalizeUrl(url)
+  let server = state.servers.find(entry => normalizeUrl(entry.url) === clean)
+  if (!server) {
+    let name = null
+    try {
+      const response = await fetch(`${clean}/api/health`, { signal: AbortSignal.timeout(5000), cache: 'no-store' })
+      const said = response.ok ? (await response.json()).server_name : null
+      // The name every unnamed server answers with names none.
+      name = typeof said === 'string' && said.trim() && said !== 'local-instance' ? said.trim() : null
+    } catch {
+      // Unreachable for now: registered all the same, as the link asks.
+    }
+    server = await addServer(clean, name)
+  }
+  await setActiveServer(server)
+  return server
+}
+
 export async function updateServer(id, updates) {
   const dataToSend = { ...updates }
   if (dataToSend.url) {

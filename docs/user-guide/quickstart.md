@@ -46,7 +46,7 @@ qibocal report server
 qibocal report server ./runs --port 8000
 ```
 
-The server is headless: it answers its API at `http://localhost:8000`, and no page. Open the dashboard at [qibo.science/qibocal-report](https://qibo.science/qibocal-report) — or the Qibocal desktop application — and add the server's address under **Servers**. The dashboard reads any number of servers from one browser, on lab computers, measurement rigs and clusters alike.
+The server is headless: it answers its API at `http://localhost:8000`, and no page of its own. Opening that address in a browser shows a link that opens the server in the dashboard, at [qibo.science/qibocal-report](https://qibo.science/qibocal-report), adding it to your servers when it is not there yet: `#/connect?server=ADDRESS`. In the Qibocal desktop application, add its address under **Servers**. The dashboard reads any number of servers from one browser, on lab computers, measurement rigs and clusters alike.
 
 ### 2. Developer Mode (Live HMR)
 

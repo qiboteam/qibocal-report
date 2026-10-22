@@ -17,7 +17,7 @@ globalThis.sessionStorage = createStorage()
 const {
   state, addServer, updateServer, deleteServer, fetchServers,
   setActiveServer, setServerAuth, getActiveAuthToken, saveStoredServers,
-  exportClientState, importClientState, loginActiveServer, registerWithInvite
+  exportClientState, importClientState, loginActiveServer, registerWithInvite, connectServer
 } = await import('../src/store.js')
 const { parseClientState } = await import('../src/utils/clientState.js')
 
@@ -261,4 +261,32 @@ test('a server only an invitation link named is registered once the invitation i
   assert.ok(server.id)
   assert.deepEqual(state.servers.find(entry => entry.url === invited.url), server)
   assert.equal(getActiveAuthToken(server), 'invited-session')
+})
+
+test('a connect link opens a known server, and registers an unknown one under the name it gives', async () => {
+  mock.restoreAll()
+  mock.method(globalThis, 'fetch', async url => {
+    if (url.endsWith('/api/health')) return Response.json({ status: 'ok', server_name: 'qrc-cluster' })
+    assert.ok(url.endsWith('/api/graphql'), `Unexpected backend request: ${url}`)
+    return openSession()
+  })
+  const known = await connectServer('http://second.example/')
+  assert.equal(known.id, 'second', 'already there: only opened')
+  assert.equal(state.activeServer.id, 'second')
+  assert.equal(state.servers.length, 2)
+
+  const added = await connectServer('https://reports.example.org/prefix')
+  assert.equal(added.name, 'qrc-cluster', 'named as it names itself')
+  assert.equal(added.url, 'https://reports.example.org/prefix')
+  assert.equal(state.activeServer.id, added.id)
+  assert.equal(state.servers.length, 3)
+  assert.equal((await connectServer('https://reports.example.org/prefix/')).id, added.id, 'once')
+
+  mock.restoreAll()
+  mock.method(globalThis, 'fetch', async url => {
+    if (url.endsWith('/api/health')) throw new TypeError('unreachable')
+    return openSession()
+  })
+  const silent = await connectServer('http://quiet.example')
+  assert.ok(silent.name && silent.name !== 'local-instance', 'unreachable: a name of its own all the same')
 })
