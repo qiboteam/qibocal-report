@@ -806,6 +806,28 @@ pub fn rebuild_notebook(
     supervisor.spawn(&app, "update", label, detail, arguments, None, None)
 }
 
+/// Install qibocal-agent where the launcher keeps it, at a branch, tag or
+/// commit: `qibocal agents install`, as a process of its own in Running.
+#[tauri::command]
+pub fn install_agent_tools(
+    app: AppHandle,
+    supervisor: State<Supervisor>,
+    reference: Option<String>,
+) -> Result<ProcessInfo, String> {
+    let reference = reference
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "main".to_string());
+    let arguments = vec![
+        "agents".to_string(),
+        "install".to_string(),
+        "--ref".to_string(),
+        reference.clone(),
+    ];
+    let detail = format!("qibocal-mcp-servers {reference} · {}", qibocal::agent_tools_directory().display());
+    supervisor.spawn(&app, "update", "Install qibocal-agent".to_string(), detail, arguments, None, None)
+}
+
 #[tauri::command]
 pub fn start_notebook(
     app: AppHandle,

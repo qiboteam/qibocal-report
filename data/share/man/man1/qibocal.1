@@ -424,6 +424,16 @@ the remote agents;
 .BI \-\-remove " NAME" ,
 repeatable, drops one there. Nothing else in the remote file changes, and
 nothing but the configuration travels, never environments or keys.
+.TP
+.B qibocal agents install
+Install qibocal-agent where the desktop application keeps it,
+.IR ~/.cache/qibocal/agents/tools ,
+and print the path of its executable: the command an assistant registers. The
+environment is created when missing, with Python 3.12 or 3.13, which uv
+provides when needed;
+.BI \-\-ref " REF" ,
+a branch, tag or commit of qibocal-mcp-servers (default: main), replaces what
+was installed.
 .SH CONFIG COMMANDS
 .TP
 .B qibocal config path

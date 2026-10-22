@@ -8,9 +8,12 @@ configuration travels, never environments or keys.
 """
 
 import json
+import os
 import re
 import shlex
 import subprocess
+import sys
+from pathlib import Path
 
 import click
 
@@ -79,3 +82,61 @@ def push(ssh: str, agents: dict, remove: list[str] | None = None, timeout: float
         detail = (completed.stderr or completed.stdout).strip() or f"status {completed.returncode}"
         raise click.ClickException(f"On {destination}: {detail}")
     return json.loads(completed.stdout.strip().splitlines()[-1])
+
+
+# The tools an assistant registers, `qibocal-agent`, installed by the
+# application in an environment of their own: they need Python 3.12 or 3.13,
+# which uv provides when this Python is another one.
+TOOLS_REPOSITORY = "https://github.com/qiboteam/qibocal-mcp-servers"
+TOOLS_PYTHON = ">=3.12,<3.14"
+TOOLS_MARKER = "qibocal-tools.txt"
+
+
+def tools_directory() -> Path:
+    """The environment of the tools: `~/.cache/qibocal/agents/tools`, in qibocal-agent's own folder."""
+    cache = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(cache) / "qibocal" / "agents" / "tools"
+
+
+def tools_requirement(ref: str = "main") -> str:
+    """qibocal-agent, with what autonomous runs need, from a branch, tag or commit of its repository."""
+    return f"qibocal-agent[agent] @ git+{TOOLS_REPOSITORY}@{ref}#subdirectory=packages/agent"
+
+
+def install_tools(ref: str = "main", timeout: float = 1800.0) -> Path:
+    """Create the tools' environment when missing, and install `ref` in it, replacing what was there.
+
+    Answers the `qibocal-agent` executable, the absolute path an assistant registers.
+    """
+    from qibocal_report.remote import notebook_worker as worker
+
+    if not re.fullmatch(r"[A-Za-z0-9._/-]+", ref):
+        raise click.ClickException(f"Invalid version: {ref!r}: a branch, tag or commit.")
+    path = tools_directory()
+    python = worker._bin(path, "python")
+    runtime = worker.Runtime(timeout)
+    try:
+        uv = worker.find_uv(runtime)
+        if not python.is_file():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if uv:
+                runtime.command([uv, "venv", "--seed", "--python", TOOLS_PYTHON, str(path)])
+            elif (3, 12) <= sys.version_info[:2] < (3, 14):
+                runtime.command([sys.executable, "-m", "venv", str(path)])
+            else:
+                raise click.ClickException(
+                    "qibocal-agent needs Python 3.12 or 3.13, and this one is "
+                    f"{sys.version_info[0]}.{sys.version_info[1]}: install uv, which provides it."
+                )
+        requirement = tools_requirement(ref)
+        if uv:
+            runtime.command([uv, "pip", "install", "--python", str(python), "--reinstall-package", "qibocal-agent", requirement])
+        else:
+            runtime.command([str(python), "-m", "pip", "install", "--upgrade", "--force-reinstall", "--no-deps", requirement])
+            runtime.command([str(python), "-m", "pip", "install", requirement])
+    except worker.WorkerError as error:
+        raise click.ClickException(str(error)) from error
+    finally:
+        runtime.close()
+    (path / TOOLS_MARKER).write_text(requirement + "\n", encoding="utf-8")
+    return worker._bin(path, "qibocal-agent")

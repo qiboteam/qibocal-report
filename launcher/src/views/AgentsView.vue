@@ -5,8 +5,8 @@
         <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Agents</h1>
         <p class="mt-1 text-xs text-gray-500">
           The configurations of the <a href="https://github.com/qiboteam/qibocal-mcp-servers" class="text-[#833dff] hover:text-[#3b107e]" @click.prevent="openExternal('https://github.com/qiboteam/qibocal-mcp-servers')">Qibocal MCP servers</a>:
-          for an assistant on this machine, in <code class="lx-mono">{{ state.agents.path || 'agents.json' }}</code>, or for one on an
-          access node, kept here and pushed there. A configuration also dispatches autonomous agents.
+          for an assistant on this machine, in <code class="lx-mono">{{ state.agents.path || 'agents.json' }}</code>, or for one on a
+          remote, kept here and pushed there. A configuration also dispatches autonomous agents.
         </p>
       </div>
       <button
@@ -21,22 +21,83 @@
       </button>
     </div>
 
-    <!-- Where qibocal-agent is, to run agents and register the MCP. -->
-    <div class="bm-card p-3.5 flex flex-wrap items-center gap-2 text-xs">
-      <span class="text-gray-500 shrink-0">qibocal-agent</span>
-      <code class="lx-mono text-gray-700 truncate flex-1 min-w-0">{{ tools || 'found on the PATH, or in ~/.cache/qibocal/envs/qibocal-agent' }}</code>
-      <button type="button" class="lx-action" @click="chooseTools"><FolderOpen class="w-3.5 h-3.5" /> Choose environment…</button>
-      <button v-if="tools" type="button" class="lx-action" @click="saveTools('')"><RotateCcw class="w-3.5 h-3.5" /> Detect</button>
-    </div>
+    <!-- What is not one configuration's: how it fits together, the tools, their registration, the remotes. -->
+    <section class="bm-card p-5 space-y-4">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900">Setup</h2>
+        <p class="mt-1 text-xs text-gray-500 leading-relaxed">
+          A configuration says where the calibration server starts — here, or over SSH on its <em>SSH destination</em>,
+          usually a cluster's access node — and, with a <em>SLURM partition</em>, that each operation runs as a job
+          on the nodes reaching the instruments. It is <em>kept for</em> where its user is: <em>this machine</em>, for an
+          assistant or autonomous runs here, or a <em>remote</em>, for an assistant running there, which reads it from
+          its own agents.json. An assistant registers <code class="lx-mono">qibocal-agent mcp</code> once, and selects a
+          configuration when it is asked to calibrate.
+          <a href="#" class="text-[#833dff] hover:text-[#3b107e]" @click.prevent="openExternal(DOCS)">How it fits together, with diagrams</a>.
+        </p>
+      </div>
+
+      <!-- The qibocal-agent everything here runs, and registers. -->
+      <div class="space-y-2">
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <span class="font-semibold text-gray-700 shrink-0">qibocal-agent</span>
+          <span v-if="toolsInfo?.version" class="lx-tag">{{ toolsInfo.version }}</span>
+          <span v-if="toolsInfo?.managed" class="text-[10px] uppercase tracking-wide font-semibold text-[#833dff]">installed here</span>
+          <code class="lx-mono text-gray-600 truncate flex-1 min-w-0" :title="toolsInfo?.executable || toolsInfo?.error || ''">
+            {{ toolsInfo?.executable || toolsInfo?.error || 'Looking for it…' }}
+          </code>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <input v-model.trim="toolsRef" type="text" list="agent-tools-refs" class="lx-input lx-mono !w-40" placeholder="main" spellcheck="false" autocomplete="off" title="Branch, tag or commit of qibocal-mcp-servers" />
+          <datalist id="agent-tools-refs"><option v-for="ref in toolsRefs" :key="ref" :value="ref" /></datalist>
+          <button type="button" class="lx-primary !py-1" :disabled="installing" :title="`Install this version in ${toolsInfo?.directory || '~/.cache/qibocal/agents/tools'}, replacing what is there; its output is in Running`" @click="installTools">
+            <Download class="w-3.5 h-3.5" /> {{ toolsInfo?.installed ? 'Update' : 'Install' }}
+          </button>
+          <button type="button" class="lx-action" title="Use qibocal-agent from another environment" @click="chooseTools"><FolderOpen class="w-3.5 h-3.5" /> Choose environment…</button>
+          <button v-if="tools" type="button" class="lx-action" title="Forget the chosen environment: the installed one, else the PATH" @click="saveTools('')"><RotateCcw class="w-3.5 h-3.5" /> Detect</button>
+        </div>
+        <p class="lx-help !mt-0">{{ toolsInfo?.installed ? `Installed: ${toolsInfo.installed}` : 'Installed in its own environment, with Python 3.12 or 3.13, from GitHub.' }}</p>
+      </div>
+
+      <!-- One registration for every configuration. -->
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold text-gray-700">MCP registration</span>
+          <button type="button" class="lx-action ml-auto" :disabled="!toolsInfo?.executable" title="Copy the registration, for an assistant on this machine" @click="copy(snippet)"><Copy class="w-3.5 h-3.5" /> Copy</button>
+        </div>
+        <pre class="lx-mono text-[11px] bg-[#f7f5ff] text-[#3b107e] rounded-xl p-3 overflow-x-auto">{{ snippet }}</pre>
+        <p class="lx-help !mt-0">
+          For Copilot, in <code class="lx-mono">~/.copilot/mcp-config.json</code>; other assistants take the same command and arguments.
+          It starts nothing by itself: the assistant lists the configurations and selects one when calibrating.
+          An assistant on a remote registers the same, with the path of the qibocal-agent there.
+        </p>
+      </div>
+
+      <!-- SSH remotes: named once, reached by several configurations. -->
+      <div class="space-y-2">
+        <span class="text-xs font-semibold text-gray-700">Remotes</span>
+        <div v-for="remote in remotes" :key="remote.name" class="flex items-center gap-2 text-xs">
+          <span class="font-medium text-gray-900">{{ remote.name }}</span>
+          <code class="lx-mono text-gray-500 truncate min-w-0">{{ remote.ssh }}</code>
+          <span class="text-gray-400">{{ remote.kept }} kept · {{ reachingCount(remote) }} reaching it</span>
+          <button type="button" class="lx-action ml-auto" :disabled="remote.kept > 0" :title="remote.kept ? 'It keeps configurations: move or remove them first' : 'Forget this remote'" @click="removeRemote(remote)"><Trash2 class="w-3.5 h-3.5" /></button>
+        </div>
+        <form class="flex flex-wrap items-center gap-2" @submit.prevent="addRemote">
+          <input v-model.trim="newRemote.name" type="text" class="lx-input lx-mono !w-36" placeholder="lab" aria-label="Name of the remote" spellcheck="false" autocomplete="off" />
+          <input v-model.trim="newRemote.ssh" type="text" class="lx-input lx-mono flex-1 min-w-[12rem]" placeholder="user@access-node" aria-label="SSH destination of the remote" spellcheck="false" autocomplete="off" />
+          <button type="submit" class="lx-action" :disabled="Boolean(remoteError) || !newRemote.name || !newRemote.ssh"><Plus class="w-3.5 h-3.5" /> Add remote</button>
+        </form>
+        <p class="lx-help !mt-0">{{ remoteError || 'A name, and the SSH destination as ssh takes it: an alias of the SSH configuration, or user@host.' }}</p>
+      </div>
+    </section>
 
     <section v-if="creating" class="bm-card p-5">
       <h2 class="text-sm font-semibold text-gray-900 mb-4">New configuration</h2>
-      <agent-form :form="form" :names="takenNames(form.host === 'local' ? 'local' : form.hostName.trim())" />
+      <agent-form :form="form" :remotes="remotes" :names="takenNames(form.host === 'local' ? 'local' : form.hostName.trim())" />
       <div class="flex flex-wrap items-center gap-2.5 mt-5">
         <button type="button" class="lx-primary" :disabled="!formValid(form) || saving" @click="create">
           <Bookmark class="w-3.5 h-3.5" /> {{ form.host === 'local' ? 'Save' : 'Save and push' }}
         </button>
-        <span class="lx-help !mt-0">{{ form.host === 'local' ? 'Written to agents.json, which qibocal-agent reads.' : `Kept here, and written to agents.json on ${form.hostName || 'that machine'}.` }}</span>
+        <span class="lx-help !mt-0">{{ form.host === 'local' ? 'Written to agents.json, which qibocal-agent reads.' : `Kept here, and written to agents.json on ${form.hostName || 'the remote'}.` }}</span>
       </div>
     </section>
 
@@ -44,17 +105,6 @@
       <div class="flex flex-wrap items-center gap-2 px-1">
         <h2 class="text-sm font-semibold text-gray-900">Configurations</h2>
         <span class="text-xs text-gray-400">{{ shown.length }}</span>
-        <!-- Where they are kept: this machine, or the host they are pushed to. -->
-        <div class="flex flex-wrap gap-1.5 ml-2">
-          <button
-            v-for="filter in filters"
-            :key="filter.value"
-            type="button"
-            class="lx-chip"
-            :class="{ 'is-on': where === filter.value }"
-            @click="where = filter.value"
-          >{{ filter.label }}</button>
-        </div>
         <button
           type="button"
           class="ml-auto text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
@@ -65,8 +115,20 @@
         </button>
       </div>
 
+      <!-- Two filters, together: where a configuration is kept, and the remote it reaches. -->
+      <div v-if="configurations.length" class="space-y-1.5 px-1">
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-[11px] text-gray-400 w-16 shrink-0">Kept for</span>
+          <button v-for="filter in keptFilters" :key="filter.value" type="button" class="lx-chip" :class="{ 'is-on': filters.kept === filter.value }" @click="filters.kept = filter.value">{{ filter.label }}</button>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span class="text-[11px] text-gray-400 w-16 shrink-0">Reaches</span>
+          <button v-for="filter in reachFilters" :key="filter.value" type="button" class="lx-chip" :class="{ 'is-on': filters.reaches === filter.value }" @click="filters.reaches = filter.value">{{ filter.label }}</button>
+        </div>
+      </div>
+
       <p v-if="!shown.length" class="bm-card p-5 text-xs text-gray-500">
-        No configuration {{ where === 'all' ? 'yet' : 'here' }}. <em>New configuration</em> adds one, for this machine or an access node.
+        No configuration {{ configurations.length ? 'among these' : 'yet' }}. <em>New configuration</em> adds one, for this machine or a remote.
       </p>
 
       <article
@@ -79,7 +141,8 @@
           <div class="min-w-0">
             <p class="text-sm font-medium text-gray-900 truncate">
               {{ item.name }}
-              <span class="ml-1.5 text-[10px] uppercase tracking-wide font-semibold" :class="item.host === 'local' ? 'text-gray-400' : 'text-[#833dff]'">{{ item.host === 'local' ? 'this machine' : item.host }}</span>
+              <span class="ml-1.5 text-[10px] uppercase tracking-wide font-semibold" :class="item.host === 'local' ? 'text-gray-400' : 'text-[#833dff]'" :title="item.host === 'local' ? 'Kept for this machine' : `Kept for the remote ${item.host}, pushed to ${item.destination}`">{{ item.host === 'local' ? 'this machine' : `for ${item.host}` }}</span>
+              <span class="ml-1 text-[10px] uppercase tracking-wide font-semibold text-gray-400" :title="reachedRemote(item.entry, remotes) ? 'Its calibration server starts there, over SSH' : 'Its calibration server starts where it runs'">{{ reachedRemote(item.entry, remotes) ? `via ${reachedRemote(item.entry, remotes)}` : 'direct' }}</span>
             </p>
             <p class="lx-mono text-gray-500 truncate">{{ describeAgent(item.entry) }}</p>
           </div>
@@ -93,14 +156,11 @@
             <button v-if="item.host === 'local'" type="button" class="lx-primary !py-1" title="Dispatch an autonomous agent with this configuration" @click="openRun(item)">
               <Play class="w-3.5 h-3.5" /> Run
             </button>
-            <button v-else type="button" class="lx-primary !py-1" :disabled="pushing === item.key" :title="`Write it to agents.json on ${item.host}: the configuration only, not environments`" @click="push(item)">
+            <button v-else type="button" class="lx-primary !py-1" :disabled="pushing === item.key" :title="`Write it to agents.json on ${item.host} (${item.destination}): the configuration only, not environments`" @click="push(item)">
               <Upload class="w-3.5 h-3.5" /> {{ pushing === item.key ? 'Pushing…' : 'Push' }}
             </button>
             <button type="button" class="lx-action" :disabled="startingReports === item.key" title="Start a report server on the execution host, serving its output, and open it in the dashboard" @click="reports(item)">
               <LayoutDashboard class="w-3.5 h-3.5" /> Reports
-            </button>
-            <button v-if="item.host === 'local'" type="button" class="lx-action" title="The registration of qibocal-agent mcp for an assistant, to copy" @click="toggleSnippet(item)">
-              <Braces class="w-3.5 h-3.5" /> MCP
             </button>
             <button type="button" class="lx-action" title="Edit it" @click="toggleEdit(item)">
               <Pencil class="w-3.5 h-3.5" /> Edit
@@ -114,14 +174,8 @@
           </div>
         </div>
 
-        <div v-if="snippetFor === item.key" class="mt-3.5 pt-3.5 border-t border-gray-100">
-          <p class="lx-help !mt-0 mb-2">For Copilot, in <code class="lx-mono">~/.copilot/mcp-config.json</code>; other assistants take the same command and arguments.</p>
-          <pre class="lx-mono text-[11px] bg-[#f7f5ff] text-[#3b107e] rounded-xl p-3 overflow-x-auto">{{ mcpSnippet(item.name, tools) }}</pre>
-          <button type="button" class="lx-action mt-2" @click="copy(mcpSnippet(item.name, tools))"><Copy class="w-3.5 h-3.5" /> Copy</button>
-        </div>
-
         <form v-if="editing.key === item.key" class="mt-3.5 pt-3.5 border-t border-gray-100" @submit.prevent="saveEdit(item)">
-          <agent-form :form="editing.form" :names="takenNames(editing.form.host === 'local' ? 'local' : editing.form.hostName.trim(), item)" />
+          <agent-form :form="editing.form" :remotes="remotes" :names="takenNames(editing.form.host === 'local' ? 'local' : editing.form.hostName.trim(), item)" />
           <div class="flex flex-wrap items-center gap-2 mt-4">
             <button type="submit" class="lx-primary" :disabled="editing.busy || !formValid(editing.form, item)">{{ editing.form.host === 'local' ? 'Save' : 'Save and push' }}</button>
             <button type="button" class="lx-action" @click="editing.key = null">Cancel</button>
@@ -135,8 +189,19 @@
       <div class="flex items-center gap-2 px-1">
         <h2 class="text-sm font-semibold text-gray-900">Saved prompts</h2>
         <span class="text-xs text-gray-400">{{ prompts.length }}</span>
+        <button type="button" class="ml-auto lx-action !py-0.5" :class="{ 'is-open': addingPrompt }" :title="addingPrompt ? 'Close' : 'Save a prompt, without running it'" @click="addingPrompt = !addingPrompt">
+          <component :is="addingPrompt ? X : Plus" class="w-3.5 h-3.5" />
+        </button>
       </div>
-      <p v-if="!prompts.length" class="bm-card p-5 text-xs text-gray-500">No prompt saved yet: a run's prompt can be saved from its dialog.</p>
+      <form v-if="addingPrompt" class="bm-card p-4 space-y-2" @submit.prevent="addPrompt">
+        <input v-model.trim="newPrompt.name" type="text" class="lx-input" placeholder="Name" aria-label="Name of the prompt" />
+        <textarea v-model="newPrompt.text" rows="5" class="lx-input" placeholder="Calibrate qubit 0's drive frequency using spectroscopy. Sweep no wider than 20 MHz… Stop on errors." aria-label="The prompt" />
+        <div class="flex items-center gap-2">
+          <button type="submit" class="lx-primary" :disabled="!newPrompt.name || !newPrompt.text.trim()"><Bookmark class="w-3.5 h-3.5" /> Save</button>
+          <span class="lx-help !mt-0">{{ prompts.some(prompt => prompt.name === newPrompt.name) ? `Replaces the prompt ${newPrompt.name}.` : 'Offered by Run; a run\'s prompt can also be saved from Running.' }}</span>
+        </div>
+      </form>
+      <p v-if="!prompts.length && !addingPrompt" class="bm-card p-5 text-xs text-gray-500">No prompt saved yet: <strong>+</strong> saves one, and so does Running, from an agent's run.</p>
       <article v-for="(prompt, index) in prompts" :key="prompt.name" class="bm-card p-4 flex items-start gap-3">
         <div class="min-w-0 flex-1">
           <p class="text-sm font-medium text-gray-900">{{ prompt.name }}</p>
@@ -165,9 +230,6 @@
             class="lx-input"
             :placeholder="run.item.entry.objective ? `Empty: the saved objective — ${run.item.entry.objective}` : 'Calibrate qubit 0\'s drive frequency using spectroscopy. Sweep no wider than 20 MHz… Stop on errors or insufficient evidence.'"
           />
-          <div class="flex items-center gap-2">
-            <input v-model.trim="run.saveAs" type="text" class="lx-input" placeholder="Save it as… (optional)" />
-          </div>
           <p class="lx-help !mt-0">The model's credentials come from your shell profile; the launcher keeps none.</p>
         </div>
         <div class="mt-3 pt-3 border-t border-gray-100 flex items-center justify-end gap-2 shrink-0">
@@ -182,24 +244,37 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bookmark, Braces, Copy, Files, FolderOpen, LayoutDashboard, Pencil, Play, Plus, RefreshCw, RotateCcw, Trash2, Upload, X } from 'lucide-vue-next'
+import { Bookmark, Copy, Download, Files, FolderOpen, LayoutDashboard, Pencil, Play, Plus, RefreshCw, RotateCcw, Trash2, Upload, X } from 'lucide-vue-next'
 import AgentForm from '../components/AgentForm.vue'
 import { chooseDirectory, desktop, openExternal } from '../bridge.js'
-import { state, attempt, fail, notebookReportsServer, notify, refreshAgents, startAgent, startNotebookReports } from '../state.js'
+import {
+  state, attempt, fail, installAgentTools, notebookReportsServer, notify, refreshAgents, refreshAgentTools,
+  savePrompt, savedPrompts, startAgent, startNotebookReports
+} from '../state.js'
 import { usePageKeys } from '../composables/pageKeys.js'
 import {
   agentConfigurations,
   agentEditorValues,
   agentEntry,
   agentNameError,
+  agentRemotes,
   agentReports,
+  agentShown,
   describeAgent,
   mcpSnippet,
+  reachedRemote,
   withHostAgent,
-  withLocalAgent
+  withLocalAgent,
+  withRemote,
+  withoutRemote
 } from '../lib/agents.js'
+
+/** Where the setup is told at length, with diagrams. */
+const DOCS = 'https://qibo.science/qibocal-report/#/docs/user-guide/launcher/agents'
+/** The repository qibocal-agent is installed from. */
+const TOOLS_REPOSITORY = 'qiboteam/qibocal-mcp-servers'
 
 const router = useRouter()
 
@@ -210,21 +285,45 @@ const creating = ref(false)
 const saving = ref(false)
 const form = reactive(blank())
 const editing = reactive({ key: null, form: blank(), busy: false })
-const where = ref('all')
+const filters = reactive({ kept: 'all', reaches: 'all' })
 const pushing = ref(null)
 const startingReports = ref(null)
-const snippetFor = ref(null)
-const run = reactive({ item: null, objective: '', saveAs: '', busy: false })
+const run = reactive({ item: null, objective: '', busy: false })
+const addingPrompt = ref(false)
+const newPrompt = reactive({ name: '', text: '' })
+const newRemote = reactive({ name: '', ssh: '' })
+const toolsRef = ref('main')
+const toolsRefs = ref([])
+const installing = ref(false)
 
 const configurations = computed(() => agentConfigurations(state.agents.document, state.agentHosts))
-const filters = computed(() => [
+const remotes = computed(() => agentRemotes(state.agentHosts))
+const keptFilters = computed(() => [
   { value: 'all', label: 'All' },
   { value: 'local', label: 'This machine' },
-  ...Object.keys(state.agentHosts || {}).map(host => ({ value: host, label: host }))
+  ...remotes.value.map(remote => ({ value: remote.name, label: remote.name }))
 ])
-const shown = computed(() => configurations.value.filter(item => where.value === 'all' || item.host === where.value))
+const reachFilters = computed(() => {
+  // The registered remotes, and any destination typed without one.
+  const reached = configurations.value.map(item => reachedRemote(item.entry, remotes.value)).filter(Boolean)
+  const names = [...new Set([...remotes.value.map(remote => remote.name), ...reached])]
+  return [{ value: 'all', label: 'All' }, { value: 'direct', label: 'Directly' }, ...names.map(name => ({ value: name, label: name }))]
+})
+const shown = computed(() => configurations.value.filter(item => agentShown(item, filters, remotes.value)))
 const tools = computed(() => state.preferences?.agentTools || '')
-const prompts = computed(() => (Array.isArray(state.preferences?.agentPrompts) ? state.preferences.agentPrompts : []))
+const toolsInfo = computed(() => state.agentTools)
+const snippet = computed(() => mcpSnippet(toolsInfo.value?.executable))
+const prompts = computed(savedPrompts)
+const remoteError = computed(() => {
+  if (!newRemote.name) return ''
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(newRemote.name)) return 'A name is a letter or digit, then letters, digits, dots, underscores or hyphens.'
+  return remotes.value.some(remote => remote.name === newRemote.name) ? `${newRemote.name} is a remote already.` : ''
+})
+
+/** How many configurations start their server on a remote. */
+function reachingCount(remote) {
+  return configurations.value.filter(item => reachedRemote(item.entry, remotes.value) === remote.name).length
+}
 
 /** Names already used where a form keeps its configuration, but its own. */
 function takenNames(host, own = null) {
@@ -235,7 +334,7 @@ function takenNames(host, own = null) {
 }
 
 function formValid(values, own = null) {
-  if (values.host !== 'local' && !values.hostName.trim()) return false
+  if (values.host !== 'local' && !remotes.value.some(remote => remote.name === values.hostName)) return false
   if (agentNameError(values.name)) return false
   const host = values.host === 'local' ? 'local' : values.hostName.trim()
   const clash = configurations.value.some(item => item !== own && item.host === host && item.name === values.name)
@@ -268,18 +367,23 @@ async function store(values, previous = null) {
   }
 }
 
+/** Where a remote's configurations are pushed: its SSH destination. */
+function destinationOf(host) {
+  return remotes.value.find(remote => remote.name === host)?.ssh || host
+}
+
 async function drop(item) {
   if (item.host === 'local') {
     state.agents = await desktop.writeAgents(withLocalAgent(state.agents.document, item.name, null))
   } else {
     state.agentHosts = await desktop.saveAgentHosts(withHostAgent(state.agentHosts, item.host, item.name, null))
-    await desktop.pushAgents(item.host, {}, [item.name]).catch(error => fail(`Not removed from ${item.host}: ${error?.message || error}`, 'agents'))
+    await desktop.pushAgents(destinationOf(item.host), {}, [item.name]).catch(error => fail(`Not removed from ${item.host}: ${error?.message || error}`, 'agents'))
   }
 }
 
 async function pushOne(host, name, entry) {
   try {
-    await desktop.pushAgents(host, { [name]: entry }, [])
+    await desktop.pushAgents(destinationOf(host), { [name]: entry }, [])
     notify(`${name} written to agents.json on ${host}.`, 'agents')
   } catch (error) {
     fail(`${name} is kept here, but not pushed to ${host}: ${error?.message || error}. Push it again when the host is reachable.`, 'agents')
@@ -341,7 +445,7 @@ async function push(item) {
 /** Its reports: a server on the execution host, serving its output. */
 async function reports(item) {
   startingReports.value = item.key
-  const ssh = item.host === 'local' ? item.entry.ssh || null : item.host
+  const ssh = item.host === 'local' ? item.entry.ssh || null : item.destination
   const options = { ssh, reports: agentReports(item.entry, item.name) }
   const key = `agent:${item.key}`
   const running = notebookReportsServer(key)
@@ -352,10 +456,6 @@ async function reports(item) {
   )
   startingReports.value = null
   if (started && !running) router.push({ name: 'processes' })
-}
-
-function toggleSnippet(item) {
-  snippetFor.value = snippetFor.value === item.key ? null : item.key
 }
 
 async function copy(text) {
@@ -375,16 +475,12 @@ function runningOf(item) {
 }
 
 function openRun(item) {
-  Object.assign(run, { item, objective: '', saveAs: '', busy: false })
+  Object.assign(run, { item, objective: '', busy: false })
 }
 
 async function dispatch() {
   run.busy = true
   const objective = run.objective.trim()
-  if (run.saveAs && objective) {
-    const kept = prompts.value.filter(prompt => prompt.name !== run.saveAs)
-    await savePreferences({ agentPrompts: [...kept, { name: run.saveAs, text: objective }] })
-  }
   const started = await attempt(
     () => startAgent({ name: run.item.name, objective: objective || null }),
     `Agent ${run.item.name} dispatched; its output is in Running.`,
@@ -395,6 +491,13 @@ async function dispatch() {
     run.item = null
     router.push({ name: 'processes', query: { process: started.id } })
   }
+}
+
+async function addPrompt() {
+  const saved = await attempt(() => savePrompt(newPrompt.name, newPrompt.text.trim()), `Prompt ${newPrompt.name} saved.`, 'agents')
+  if (saved === undefined) return
+  Object.assign(newPrompt, { name: '', text: '' })
+  addingPrompt.value = false
 }
 
 async function forgetPrompt(index) {
@@ -416,7 +519,50 @@ async function chooseTools() {
 async function saveTools(path) {
   const { agentTools: _old, ...rest } = state.preferences || {}
   await savePreferences(path ? { ...rest, agentTools: path } : rest, { replace: true })
+  await refreshAgentTools().catch(() => {})
 }
 
-onMounted(() => refreshAgents())
+/** Install the version asked, as a process in Running; the status follows once it is done. */
+async function installTools() {
+  installing.value = true
+  const started = await attempt(() => installAgentTools(toolsRef.value || 'main'), 'Installing qibocal-agent; its output is in Running.', 'processes')
+  installing.value = false
+  if (started) router.push({ name: 'processes', query: { process: started.id } })
+}
+
+async function addRemote() {
+  const saved = await attempt(() => desktop.saveAgentHosts(withRemote(state.agentHosts, newRemote.name, newRemote.ssh)), `Remote ${newRemote.name} added.`, 'agents')
+  if (saved === undefined) return
+  state.agentHosts = saved
+  Object.assign(newRemote, { name: '', ssh: '' })
+}
+
+async function removeRemote(remote) {
+  const saved = await attempt(() => desktop.saveAgentHosts(withoutRemote(state.agentHosts, remote.name)), `Remote ${remote.name} removed.`, 'agents')
+  if (saved === undefined) return
+  state.agentHosts = saved
+  for (const key of ['kept', 'reaches']) if (filters[key] === remote.name) filters[key] = 'all'
+}
+
+/** The branches and tags qibocal-agent can be installed from, offered with the version. */
+async function loadToolsRefs() {
+  const names = async kind => {
+    const response = await fetch(`https://api.github.com/repos/${TOOLS_REPOSITORY}/${kind}?per_page=100`)
+    return response.ok ? (await response.json()).map(ref => ref.name) : []
+  }
+  const [branches, tags] = await Promise.all([names('branches'), names('tags')])
+  toolsRefs.value = [...new Set(['main', ...branches, ...tags])]
+}
+
+// The status follows an install, once its run ends.
+watch(
+  () => state.processes.filter(process => state.launches[process.id]?.kind === 'tools').map(process => process.status).join(),
+  () => refreshAgentTools().catch(() => {})
+)
+
+onMounted(() => {
+  refreshAgents()
+  refreshAgentTools().catch(() => {})
+  loadToolsRefs().catch(() => {})
+})
 </script>

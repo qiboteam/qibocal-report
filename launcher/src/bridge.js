@@ -48,6 +48,9 @@ export const desktop = {
   listAgentHosts: () => call('list_agent_hosts'),
   saveAgentHosts: hosts => call('save_agent_hosts', { hosts }),
   pushAgents: (ssh, agents, remove = []) => call('push_agents', { ssh, agents, remove }),
+  /** The qibocal-agent the Agents page uses, and installing it where the launcher keeps it. */
+  agentTools: () => call('agent_tools'),
+  installAgentTools: reference => call('install_agent_tools', { reference }),
   /** An autonomous agent run, `{ name, objective }`, as a process in Running. */
   startAgent: request => call('start_agent', { request }),
 

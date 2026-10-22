@@ -165,6 +165,8 @@ pub fn run() {
             settings::save_agent_hosts,
             qibocal::push_agents,
             qibocal::start_agent,
+            qibocal::agent_tools,
+            process::install_agent_tools,
             settings::save_remote,
             settings::remove_remote,
             settings::preferences,

@@ -607,8 +607,14 @@ pub async fn push_agents(ssh: String, agents: Value, remove: Vec<String>) -> Res
     .await?
 }
 
-/// Where `qibocal-agent` is: the environment or executable chosen in
-/// Configuration, the PATH, or the usual managed environment.
+/// The environment the launcher installs `qibocal-agent` in, with
+/// `qibocal agents install`: in qibocal-agent's own cache folder.
+pub fn agent_tools_directory() -> PathBuf {
+    cache_home().join("qibocal").join("agents").join("tools")
+}
+
+/// Where `qibocal-agent` is: the environment or executable chosen on the
+/// Agents page, the one the launcher installs, or the PATH.
 pub fn agent_executable() -> Result<PathBuf, String> {
     let name = if cfg!(windows) { "qibocal-agent.exe" } else { "qibocal-agent" };
     let chosen = settings::launcher_preferences()
@@ -625,17 +631,66 @@ pub fn agent_executable() -> Result<PathBuf, String> {
         }
         return Err(format!("No qibocal-agent at '{}', chosen in Configuration.", path.display()));
     }
+    let managed = agent_tools_directory()
+        .join(if cfg!(windows) { "Scripts" } else { "bin" })
+        .join(name);
+    if managed.is_file() {
+        return Ok(managed);
+    }
     for directory in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
         let candidate = directory.join(name);
         if candidate.is_file() {
             return Ok(candidate);
         }
     }
-    let managed = cache_home().join("qibocal").join("envs").join("qibocal-agent").join("bin").join(name);
-    if managed.is_file() {
-        return Ok(managed);
-    }
-    Err("qibocal-agent is not installed here: install qibocal-mcp-servers, and choose its environment under Agents.".to_string())
+    Err("qibocal-agent is not installed: install it from Agents, or choose an environment holding it.".to_string())
+}
+
+#[derive(serde::Serialize)]
+pub struct AgentTools {
+    /// The qibocal-agent the launcher uses, by absolute path; none when there is none.
+    pub executable: Option<String>,
+    /// Whether it is the one the launcher installed.
+    pub managed: bool,
+    /// Where the launcher installs it.
+    pub directory: String,
+    /// What the launcher last installed there, as pip took it.
+    pub installed: Option<String>,
+    /// What `qibocal-agent --version` answers.
+    pub version: Option<String>,
+    pub error: Option<String>,
+}
+
+/// The qibocal-agent the Agents page registers and runs: where it is, what it is.
+#[tauri::command]
+pub async fn agent_tools() -> Result<AgentTools, String> {
+    off_main(|| {
+        let directory = agent_tools_directory();
+        let installed = std::fs::read_to_string(directory.join("qibocal-tools.txt"))
+            .ok()
+            .map(|text| text.trim().to_string())
+            .filter(|text| !text.is_empty());
+        let (executable, error) = match agent_executable() {
+            Ok(path) => (Some(path), None),
+            Err(error) => (None, Some(error)),
+        };
+        let version = executable.as_ref().and_then(|path| {
+            let mut command = Command::new(path);
+            configure(&mut command);
+            let output = command.arg("--version").output().ok()?;
+            let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            output.status.success().then(|| text.rsplit(' ').next().unwrap_or(&text).to_string())
+        });
+        Ok(AgentTools {
+            managed: executable.as_ref().is_some_and(|path| path.starts_with(&directory)),
+            executable: executable.map(|path| path.display().to_string()),
+            directory: directory.display().to_string(),
+            installed,
+            version,
+            error,
+        })
+    })
+    .await?
 }
 
 #[derive(serde::Deserialize)]

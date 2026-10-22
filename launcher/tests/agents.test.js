@@ -9,8 +9,13 @@ import {
   agentNameError,
   agentReports,
   describeAgent,
+  agentRemotes,
+  agentShown,
   mcpSnippet,
+  reachedRemote,
   withHostAgent,
+  withRemote,
+  withoutRemote,
   withLocalAgent
 } from '../src/lib/agents.js'
 
@@ -29,14 +34,38 @@ test('an entry is written as qibocal-agent validates it, keeping what the editor
 test('configurations come from agents.json and from those kept for other machines', () => {
   const document = { agents: { default: { platform: 'qutrits' }, tuna: { platform: 'tuna5' } } }
   const hosts = { 'qrc-ws': { agents: { onsite: { platform: 'qw5q' } } } }
-  assert.deepEqual(agentConfigurations(document, hosts).map(item => [item.key, item.name, item.host]), [
-    ['local:default', 'default', 'local'], ['local:tuna', 'tuna', 'local'], ['qrc-ws:onsite', 'onsite', 'qrc-ws']
-  ])
+  assert.deepEqual(agentConfigurations(document, hosts).map(item => [item.key, item.name, item.host, item.destination]), [
+    ['local:default', 'default', 'local', undefined], ['local:tuna', 'tuna', 'local', undefined], ['qrc-ws:onsite', 'onsite', 'qrc-ws', 'qrc-ws']
+  ], 'a remote kept before destinations is reached by its name')
   const added = withLocalAgent(document, 'new', { platform: 'x' })
   assert.deepEqual(Object.keys(added.agents), ['default', 'tuna', 'new'])
   assert.equal(document.agents.new, undefined, 'the document given is left alone')
   assert.deepEqual(withLocalAgent(withLocalAgent(document, 'tuna', null), 'default', null), {}, 'nothing left, no empty sections')
-  assert.deepEqual(withHostAgent(hosts, 'qrc-ws', 'onsite', null), {}, 'a host without configurations goes')
+  assert.deepEqual(withHostAgent(hosts, 'qrc-ws', 'onsite', null), { 'qrc-ws': { agents: {} } }, 'a remote stays without configurations')
+})
+
+test('remotes are named once, and configurations are filtered by where they are kept and what they reach', () => {
+  let hosts = withRemote({}, 'lab', ' me@login ')
+  hosts = withHostAgent(hosts, 'lab', 'onsite', { platform: 'qw5q' })
+  hosts = withRemote(hosts, 'lab', 'me@login2')
+  assert.deepEqual(hosts.lab, { ssh: 'me@login2', agents: { onsite: { platform: 'qw5q' } } }, 'a new destination keeps the configurations')
+  hosts = withRemote(hosts, 'cluster', 'cluster')
+  assert.deepEqual(agentRemotes(hosts), [{ name: 'cluster', ssh: 'cluster', kept: 0 }, { name: 'lab', ssh: 'me@login2', kept: 1 }])
+  assert.throws(() => withoutRemote(hosts, 'lab'), /keeps configurations/)
+  assert.deepEqual(Object.keys(withoutRemote(hosts, 'cluster')), ['lab'])
+
+  const remotes = agentRemotes(hosts)
+  assert.equal(reachedRemote({ ssh: 'me@login2' }, remotes), 'lab')
+  assert.equal(reachedRemote({ ssh: 'elsewhere' }, remotes), 'elsewhere', 'a destination with no remote is itself')
+  assert.equal(reachedRemote({}, remotes), null)
+  const document = { agents: { here: { platform: 'sim' }, there: { platform: 'qw5q', ssh: 'me@login2' } } }
+  const items = agentConfigurations(document, hosts)
+  const names = filters => items.filter(item => agentShown(item, filters, remotes)).map(item => item.name)
+  assert.deepEqual(names({}), ['here', 'there', 'onsite'])
+  assert.deepEqual(names({ kept: 'local' }), ['here', 'there'])
+  assert.deepEqual(names({ reaches: 'lab' }), ['there'])
+  assert.deepEqual(names({ kept: 'lab', reaches: 'direct' }), ['onsite'], 'the two filters together')
+  assert.deepEqual(names({ kept: 'local', reaches: 'direct' }), ['here'])
 })
 
 test('names, reports, snippet and summary', () => {
@@ -50,11 +79,9 @@ test('names, reports, snippet and summary', () => {
   assert.equal(agentReports({ output: '/shared/runs' }, 'tuna'), '/shared/runs')
   assert.equal(agentReports({ output: 'mine' }, 'tuna'), '~/.local/share/qibocal/agents/runs/mine')
   assert.equal(agentReports({}), '~/.local/share/qibocal/agents/runs/default')
-  const snippet = JSON.parse(mcpSnippet('tuna', '/x/qibocal-mcp-servers/.venv'))
-  assert.equal(snippet.mcpServers.qibocal.command, '/x/qibocal-mcp-servers/.venv/bin/qibocal-agent')
-  assert.deepEqual(snippet.mcpServers.qibocal.args, ['mcp', 'tuna'])
-  assert.deepEqual(JSON.parse(mcpSnippet('default')).mcpServers.qibocal, { command: 'qibocal-agent', args: ['mcp'], timeout: 3600000 })
-  assert.equal(JSON.parse(mcpSnippet('tuna', '/e/bin/qibocal-agent')).mcpServers.qibocal.command, '/e/bin/qibocal-agent', 'the executable itself')
-  assert.equal(JSON.parse(mcpSnippet('tuna', '/c/envs/qibocal-agent')).mcpServers.qibocal.command, '/c/envs/qibocal-agent/bin/qibocal-agent', 'an environment named after it')
+  // One registration for every configuration, by the absolute path of qibocal-agent.
+  assert.deepEqual(JSON.parse(mcpSnippet('/home/me/.cache/qibocal/agents/tools/bin/qibocal-agent')).mcpServers.qibocal,
+    { command: '/home/me/.cache/qibocal/agents/tools/bin/qibocal-agent', args: ['mcp'], timeout: 3600000 })
+  assert.equal(JSON.parse(mcpSnippet(null)).mcpServers.qibocal.command, 'qibocal-agent', 'none found: the bare command')
   assert.equal(describeAgent({ platform: 'tuna5', ssh: 'qrc-ws', partition: 'qw5q', model: 'openai:gpt-4.1' }), 'platform tuna5 · ssh qrc-ws · partition qw5q · openai:gpt-4.1')
 })

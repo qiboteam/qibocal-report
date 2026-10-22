@@ -182,6 +182,9 @@ Destroy a session's kernel environment and make it again from scratch: where the
 ### `qibocal agents push SSH`
 Write qibocal-agent configurations into `agents.json` on the SSH destination: `--agents JSON` gives the entries to write, as an object of `agents.NAME` entries, merged into the remote `agents`; `--remove NAME`, repeatable, drops one there. `agent` and `agents` are reserved names. Nothing else in the remote file changes, and nothing but the configuration travels. The remote side needs only its system `python3`.
 
+### `qibocal agents install`
+Install `qibocal-agent` where the desktop application keeps it, `~/.cache/qibocal/agents/tools` (under `$XDG_CACHE_HOME` when set), and print the path of its executable — the command an assistant registers, as `qibocal-agent mcp`. The environment is created when missing, with Python 3.12 or 3.13, which uv provides when this Python is another one; `--ref REF`, a branch, tag or commit of qibocal-mcp-servers, `main` by default, replaces whatever was installed. What was installed is recorded in `qibocal-tools.txt` there.
+
 ### `qibocal notebook queue [CONNECTION]`
 What a SLURM queue is doing, asked once: `squeue`, `sinfo` and `whoami` run in a single round trip — over SSH when a destination is given — and answered as a table, or as JSON with `--json`. The host and the partition come from a saved `CONNECTION`, or from the options.
 

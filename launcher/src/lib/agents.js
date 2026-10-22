@@ -4,7 +4,13 @@
  * `default` the one used without a name — read and written as the tool
  * expects it: its file, strictly validated, so no key of ours goes in it.
  * Those for another machine — an assistant on an access node — are kept
- * here, by SSH destination, and pushed there.
+ * here, under the SSH remote they are pushed to.
+ *
+ * SSH remotes are named here, apart from the configurations: several
+ * configurations reach the same access node, and an assistant there keeps
+ * its own. They are the keys of `agent-hosts.json`, each with its `ssh`
+ * destination — the key itself when it has none — and the configurations
+ * kept for it; agents.json itself only ever holds the destination.
  *
  * Pure, and covered by `tests/agents.test.js`.
  */
@@ -28,8 +34,8 @@ export function agentNameError(name) {
 export const AGENT_FIELDS = [
   { name: 'platform', label: 'Platform', type: 'text', placeholder: 'qw5q_platinum', help: 'Required at run time.', info: 'The installed Qibolab platform the calibration runs on.' },
   { name: 'model', label: 'Model', type: 'text', placeholder: 'openai:gpt-4.1', help: 'For autonomous runs.', info: 'A vision-capable Pydantic AI model identifier, github-copilot:MODEL_ID or openwebui:MODEL_ID. Its credentials stay in the environment: the launcher stores no key.' },
-  { name: 'ssh', label: 'SSH destination', type: 'text', placeholder: 'access-node', help: 'Empty: the hardware is reached from where the agent runs.', info: 'The access node the MCP server is launched on, over SSH.' },
-  { name: 'partition', label: 'SLURM partition', type: 'text', help: 'Empty: direct execution.', info: 'Each operation is dispatched through srun on this partition.' },
+  { name: 'ssh', label: 'SSH destination', type: 'text', placeholder: 'access-node', help: 'Where the calibration server starts. Empty: where the agent runs.', info: 'The machine the calibration server is started on, over SSH, from wherever the configuration is used: usually a cluster\'s access node. One of the remotes, or any destination ssh takes. Empty, the server starts where the agent or the assistant runs, which must then reach the instruments itself.' },
+  { name: 'partition', label: 'SLURM partition', type: 'text', help: 'Empty: operations run where the server is.', info: 'From the machine the server starts on, each operation is one srun job on this partition, whose nodes reach the instruments; nothing is allocated between operations. Empty, the server runs them itself, so it must reach the instruments.' },
   { name: 'objective', label: 'Objective', type: 'textarea', placeholder: 'Calibrate qubit 0\'s drive frequency… Sweep no wider than 20 MHz… Stop on errors.', help: 'The objective of a run given none.', info: 'The calibration goal, with operator-approved hardware limits, an execution budget and stopping criteria. A run\'s own prompt overrides it.' },
   { name: 'model_base_url', label: 'Model endpoint', type: 'text', advanced: true, help: 'For openwebui: and github-copilot: models.', info: 'OpenWebUI URLs include /api. No credentials in URLs.' },
   { name: 'output', label: 'Output', type: 'text', advanced: true, help: 'Default: the name, under ~/.local/share/qibocal/agents/runs.', info: 'Where the reports are written, on the execution host. Reports serves it.' },
@@ -91,16 +97,68 @@ export function agentEntry(values = {}, { previous = {} } = {}) {
 
 /**
  * Every configuration, as the page lists them: `{ key, name, host, entry }`
- * — `host` 'local' for this machine's agents.json, or the SSH destination
- * one is kept for.
+ * — `host` 'local' for this machine's agents.json, or the remote one is kept
+ * for, with `destination`, where it is pushed.
  */
 export function agentConfigurations(document = {}, hosts = {}) {
   const list = []
   for (const [name, entry] of Object.entries(document?.agents || {})) list.push({ key: `local:${name}`, name, host: 'local', entry })
   for (const [host, kept] of Object.entries(hosts || {})) {
-    for (const [name, entry] of Object.entries(kept?.agents || {})) list.push({ key: `${host}:${name}`, name, host, entry })
+    const destination = remoteDestination(host, kept)
+    for (const [name, entry] of Object.entries(kept?.agents || {})) list.push({ key: `${host}:${name}`, name, host, destination, entry })
   }
   return list
+}
+
+/** Where a remote is reached: its `ssh`, or its name, as the remotes kept before destinations were. */
+function remoteDestination(name, kept) {
+  const ssh = typeof kept?.ssh === 'string' ? kept.ssh.trim() : ''
+  return ssh || name
+}
+
+/** The SSH remotes, by name: `{ name, ssh, kept }`, `kept` counting the configurations kept for each. */
+export function agentRemotes(hosts = {}) {
+  return Object.entries(hosts || {})
+    .map(([name, kept]) => ({ name, ssh: remoteDestination(name, kept), kept: Object.keys(kept?.agents || {}).length }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** The remotes with one added, or its destination changed; its configurations stay. */
+export function withRemote(hosts = {}, name, ssh) {
+  const next = JSON.parse(JSON.stringify(hosts || {}))
+  next[name] = { ...(next[name] || {}), ssh: ssh.trim(), agents: next[name]?.agents || {} }
+  return next
+}
+
+/** The remotes without one: only one that keeps no configuration goes. */
+export function withoutRemote(hosts = {}, name) {
+  if (Object.keys(hosts?.[name]?.agents || {}).length) throw new Error(`${name} still keeps configurations: move or remove them first.`)
+  const next = JSON.parse(JSON.stringify(hosts || {}))
+  delete next[name]
+  return next
+}
+
+/**
+ * The remote a configuration reaches its hardware through: the registered
+ * one with its SSH destination, the destination itself when none is
+ * registered, or null — reached directly from where it runs.
+ */
+export function reachedRemote(entry = {}, remotes = []) {
+  const ssh = String(entry?.ssh || '').trim()
+  if (!ssh) return null
+  return remotes.find(remote => remote.ssh === ssh)?.name || ssh
+}
+
+/**
+ * Whether a configuration passes the page's filters, together: where it is
+ * kept (`all`, `local`, or a remote) and what it reaches (`all`, `direct`,
+ * or a remote).
+ */
+export function agentShown(item, { kept = 'all', reaches = 'all' } = {}, remotes = []) {
+  if (kept !== 'all' && item.host !== kept) return false
+  if (reaches === 'all') return true
+  const reached = reachedRemote(item.entry, remotes)
+  return reaches === 'direct' ? reached === null : reached === reaches
 }
 
 /** The agents.json with one configuration of this machine set — or removed, with a null entry. */
@@ -114,15 +172,14 @@ export function withLocalAgent(document = {}, name, entry) {
   return next
 }
 
-/** The kept configurations with one set — or removed — for a host. */
+/** The kept configurations with one set — or removed — for a remote, which stays either way. */
 export function withHostAgent(hosts = {}, host, name, entry) {
   const next = JSON.parse(JSON.stringify(hosts || {}))
-  const kept = next[host] || { agents: {} }
+  const kept = next[host] || { ssh: host, agents: {} }
   kept.agents = { ...(kept.agents || {}) }
   if (entry) kept.agents[name] = entry
   else delete kept.agents[name]
-  if (Object.keys(kept.agents).length) next[host] = kept
-  else delete next[host]
+  next[host] = kept
   return next
 }
 
@@ -134,16 +191,14 @@ export function agentReports(entry = {}, name = DEFAULT_AGENT) {
 }
 
 /**
- * The registration of `qibocal-agent mcp` in an assistant, for this
- * configuration — named after `mcp`, unless it is the default. `tools` is
- * the environment chosen for qibocal-agent, or the executable itself.
+ * The registration of `qibocal-agent mcp` in an assistant: one for every
+ * configuration, since it starts none until the assistant selects one.
+ * `executable` is the absolute path of qibocal-agent, so an assistant
+ * started anywhere runs it in its own environment.
  */
-export function mcpSnippet(name = DEFAULT_AGENT, tools = '') {
-  const chosen = String(tools || '').trim().replace(/\/+$/, '')
-  const executable = /(^|[\\/])qibocal-agent(\.exe)?$/.test(chosen) && /[\\/](bin|Scripts)[\\/][^\\/]+$/.test(chosen)
-  const command = !chosen ? 'qibocal-agent' : executable ? chosen : `${chosen}/bin/qibocal-agent`
-  const args = name && name !== DEFAULT_AGENT ? ['mcp', name] : ['mcp']
-  return JSON.stringify({ mcpServers: { qibocal: { command, args, timeout: 3600000 } } }, null, 2)
+export function mcpSnippet(executable = '') {
+  const command = String(executable || '').trim() || 'qibocal-agent'
+  return JSON.stringify({ mcpServers: { qibocal: { command, args: ['mcp'], timeout: 3600000 } } }, null, 2)
 }
 
 /** One-line summary of a configuration. */

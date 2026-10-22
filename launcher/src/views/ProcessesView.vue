@@ -95,6 +95,21 @@
             >
               <LayoutDashboard class="w-3.5 h-3.5" /> Reports
             </button>
+            <!-- An agent's prompt, kept for the next runs: under a name typed here. -->
+            <form v-if="promptOf(current.latest) && naming.id === current.latest.id" class="flex items-center gap-1.5" @submit.prevent="keepPrompt(current.latest)">
+              <input v-model.trim="naming.name" type="text" class="lx-input !py-1 !w-36" placeholder="Name" aria-label="Name of the prompt" />
+              <button type="submit" class="lx-action" :disabled="!naming.name"><Bookmark class="w-3.5 h-3.5" /> Save</button>
+              <button type="button" class="lx-action" title="Cancel" @click="naming.id = null"><X class="w-3.5 h-3.5" /></button>
+            </form>
+            <button
+              v-else-if="promptOf(current.latest)"
+              type="button"
+              class="lx-action"
+              title="Save the prompt of this run, to choose it in the next ones"
+              @click="Object.assign(naming, { id: current.latest.id, name: '' })"
+            >
+              <Bookmark class="w-3.5 h-3.5" /> Save prompt
+            </button>
             <button
               v-if="current.latest.status === 'running' || current.latest.status === 'stopping'"
               type="button"
@@ -167,7 +182,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Bookmark, ChevronRight, ExternalLink, LayoutDashboard, ListOrdered, Play, Square, Trash2 } from 'lucide-vue-next'
+import { Bookmark, ChevronRight, ExternalLink, LayoutDashboard, ListOrdered, Play, Square, Trash2, X } from 'lucide-vue-next'
 import AnsiOutput from '@dashboard/components/diagnostics/AnsiOutput.vue'
 import QueuePanel from '../components/QueuePanel.vue'
 import { jobIdFromLog, jobNameFromLog, queueOf } from '../lib/slurm.js'
@@ -180,6 +195,7 @@ import {
   refreshProcesses,
   registerServer,
   restartProcess,
+  savePrompt,
   unregisteredServers,
   startNotebookReports
 } from '../state.js'
@@ -191,6 +207,26 @@ const selected = ref(null)
 const restarting = ref(false)
 /** Which runs are unfolded; none to begin with. */
 const openRuns = reactive({})
+/** The agent run whose prompt is being named, to be saved. */
+const naming = reactive({ id: null, name: '' })
+
+/**
+ * The prompt an agent run was given — or, given none, its configuration's
+ * own objective — when there is one to keep.
+ */
+function promptOf(process) {
+  if (process?.kind !== 'agent') return ''
+  const options = state.launches[process.id]?.options || {}
+  if (options.objective) return options.objective
+  const entry = state.agents?.document?.agents?.[options.name]
+  return typeof entry?.objective === 'string' ? entry.objective : ''
+}
+
+async function keepPrompt(process) {
+  const name = naming.name
+  const saved = await attempt(() => savePrompt(name, promptOf(process)), `Prompt ${name} saved: Run offers it.`, 'processes')
+  if (saved !== undefined) naming.id = null
+}
 
 /**
  * One card per thing started: the runs of the same server or session —

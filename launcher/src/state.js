@@ -28,6 +28,8 @@ export const state = reactive({
   /** qibocal-agent's agents.json, `{ path, document }`, and the configurations kept for other machines. */
   agents: { path: '', document: {} },
   agentHosts: {},
+  /** The qibocal-agent in use: `{ executable, managed, directory, installed, version, error }`. */
+  agentTools: null,
   processes: [],
   configEntries: [],
   preferences: {},
@@ -477,6 +479,7 @@ export async function restartProcess(process) {
   if (launch.kind === 'notebook') return startNotebook(launch.options)
   if (launch.kind === 'rebuild') return rebuildNotebook(launch.rerun || launch.options)
   if (launch.kind === 'agent') return startAgent(launch.options)
+  if (launch.kind === 'tools') return installAgentTools(launch.options.reference)
   return startServer(launch.options, { url: launch.url || process.url })
 }
 
@@ -772,4 +775,29 @@ export async function updateServer(id, changes) {
 
 export async function forgetServer(id) {
   state.servers = await desktop.saveServers(state.servers.filter(server => server.id !== id))
+}
+
+/** What qibocal-agent the Agents page uses: where it is, what version. */
+export async function refreshAgentTools() {
+  state.agentTools = await desktop.agentTools()
+  return state.agentTools
+}
+
+/** Install qibocal-agent at a branch, tag or commit, as a process of its own in Running. */
+export async function installAgentTools(reference = 'main') {
+  const info = await withQibocal(() => desktop.installAgentTools(reference))
+  state.launches[info.id] = { kind: 'tools', options: { reference }, url: null }
+  mergeProcess(info)
+  return info
+}
+
+/** The saved prompts of autonomous runs, kept in launcher.json. */
+export function savedPrompts() {
+  return Array.isArray(state.preferences?.agentPrompts) ? state.preferences.agentPrompts : []
+}
+
+/** Save a prompt under a name, replacing one of the same name. */
+export async function savePrompt(name, text) {
+  const kept = savedPrompts().filter(prompt => prompt.name !== name)
+  state.preferences = await desktop.savePreferences({ ...state.preferences, agentPrompts: [...kept, { name, text }] })
 }

@@ -47,14 +47,20 @@
           <option v-for="choice in choices[field.name] || []" :key="choice" :value="choice">{{ choice }}</option>
           <option v-if="values[field.name] && !(choices[field.name] || []).includes(values[field.name])" :value="values[field.name]">{{ values[field.name] }} (not offered here)</option>
         </select>
-        <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
-          v-else
-          :id="id"
-          v-model.trim="values[field.name]"
-          type="text"
-          class="lx-input lx-mono"
-          :placeholder="field.placeholderFor ? field.placeholderFor(values) : field.placeholder"
-        />
+        <template v-else>
+          <!-- Offered values, when there are: suggestions, any other still typed. -->
+          <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+            :id="id"
+            v-model.trim="values[field.name]"
+            type="text"
+            class="lx-input lx-mono"
+            :list="choices[field.name]?.length ? `${id}-choices` : undefined"
+            :placeholder="field.placeholderFor ? field.placeholderFor(values) : field.placeholder"
+          />
+          <datalist v-if="choices[field.name]?.length" :id="`${id}-choices`">
+            <option v-for="choice in choices[field.name]" :key="choice" :value="choice" />
+          </datalist>
+        </template>
       </form-field>
     </div>
 

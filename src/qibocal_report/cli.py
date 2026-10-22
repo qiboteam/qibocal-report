@@ -410,6 +410,20 @@ def agents_push(ssh: str, entries: str, remove: tuple[str, ...]):
     click.echo(json.dumps(push(ssh, parsed, list(remove))))
 
 
+@agents.command(name="install")
+@click.option("--ref", default="main", show_default=True, help="Branch, tag or commit of qibocal-mcp-servers to install.")
+def agents_install(ref: str):
+    """Install qibocal-agent where the application keeps it, and print its path.
+
+    In `~/.cache/qibocal/agents/tools`, created when missing, with Python 3.12
+    or 3.13 from uv when this one is another; `REF` replaces whatever was
+    installed. The printed path is the command an assistant registers.
+    """
+    from qibocal_report.remote.agents import install_tools
+
+    click.echo(install_tools(ref))
+
+
 @main.group(name="config")
 def config_group():
     """Locate and clean local server configurations."""
