@@ -267,8 +267,16 @@
         :class="p.status === 'error' ? 'bg-amber-500' : 'bg-emerald-500'"
       ></span>
     </a>
-    <upload-modal :show="showUpload" :report-ids="reportId ? [reportId] : []" @close="showUpload = false" />
   </div>
+
+  <!--
+    The upload dialog, for the button of the expanded sidebar: outside both
+    layouts — it lived in the collapsed one, where no button opens it — and
+    on the page itself, where no container of the sidebar can clip it.
+  -->
+  <Teleport to="body">
+    <upload-modal :show="showUpload" :report-ids="reportId ? [reportId] : []" @close="showUpload = false" />
+  </Teleport>
 </template>
 
 <script setup>
