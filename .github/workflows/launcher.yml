@@ -44,9 +44,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Apple Silicon only: Intel Macs are legacy, and a universal
+          # binary compiles everything twice. The runner is ARM, so this is
+          # its own target, and needs no other installed.
           - label: macOS
             os: macos-14
-            target: universal-apple-darwin
+            target: aarch64-apple-darwin
             bundles: app,dmg
           - label: Linux
             os: ubuntu-22.04
@@ -89,10 +92,6 @@ jobs:
 
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Add the Apple architectures
-        if: matrix.target == 'universal-apple-darwin'
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Cache the Rust build
         uses: Swatinem/rust-cache@v2

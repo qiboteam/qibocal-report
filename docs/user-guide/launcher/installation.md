@@ -4,7 +4,7 @@ Installers for the three desktop platforms are attached to every [release](https
 
 | Platform | File | Notes |
 | --- | --- | --- |
-| macOS | `.dmg` | Universal binary, Intel and Apple silicon |
+| macOS | `.dmg` | Apple silicon (M1 and later); Intel Macs are not supported |
 | Linux | `.deb`, `.rpm`, `.AppImage` | One artifact each; the AppImage needs no installation |
 | Windows | `-setup.exe`, `.msi` | The installer sets the application up for the current user |
 
