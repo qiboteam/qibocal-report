@@ -102,20 +102,31 @@ def letter_c(x: float) -> tuple[list[str], float]:
     return [path], x + 2 * R
 
 
+# The A, M and P follow the drawing of the wordmark, measured on it at the
+# scale of the letters it shares with Qibo's (5.95 px to a unit).
+
+
 def letter_a(x: float) -> tuple[list[str], float]:
-    """A tent: a solid triangle, its door a pointed arch, a pennant on a pole."""
-    w = 21.8
-    xm = x + w / 2
-    tent = f"M {fmt(x, BASE)} L {fmt(xm, TOP)} L {fmt(x + w, BASE)} Z"
-    dw, dh = 4.6, 9.4
+    """A tent rising a little above the letters, a pennant on its pole.
+
+    The door is cut from the base: narrow at its top, it flares towards the
+    ground, its sides curving outwards.
+    """
+    w = 22.2
+    xm, apex = x + w / 2, TOP - 1.7
+    tent = f"M {fmt(x, BASE)} L {fmt(xm, apex)} L {fmt(x + w, BASE)} Z"
+    door_top, half = BASE - 10.1, 3.95
+    # Tangent nearly upright at the top (a quarter across for one down) and
+    # spreading towards the base (0.62 across).
+    bend_x, bend_y = 1.56, door_top + 6.25
     door = (
-        f"M {fmt(xm - dw / 2, BASE)} Q {fmt(xm - dw / 2 + 0.3, BASE - dh * 0.6)} {fmt(xm, BASE - dh)} "
-        f"Q {fmt(xm + dw / 2 - 0.3, BASE - dh * 0.6)} {fmt(xm + dw / 2, BASE)} Z"
+        f"M {fmt(xm - half, BASE)} Q {fmt(xm - bend_x, bend_y)} {fmt(xm, door_top)} "
+        f"Q {fmt(xm + bend_x, bend_y)} {fmt(xm + half, BASE)} Z"
     )
-    pole_w, pole_h = 0.8, 4.6
-    top = TOP - pole_h
-    pole = f"M {fmt(xm - pole_w / 2, top)} H {fmt(xm + pole_w / 2)} V {fmt(TOP + 1.5)} H {fmt(xm - pole_w / 2)} Z"
-    flag = f"M {fmt(xm + pole_w / 2, top)} L {fmt(xm + pole_w / 2 + 4.4, top + 1.15)} L {fmt(xm + pole_w / 2, top + 2.3)} Z"
+    pole_w, top = 0.84, TOP - 5.6
+    right = xm + pole_w / 2
+    pole = f"M {fmt(xm - pole_w / 2, top)} H {fmt(right)} V {fmt(apex + 2.0)} H {fmt(xm - pole_w / 2)} Z"
+    flag = f"M {fmt(right, top)} L {fmt(right + 3.87, top + 1.34)} L {fmt(right, top + 2.69)} Z"
     return [f"{tent} {door}", pole, flag], x + w
 
 
@@ -126,90 +137,63 @@ def _meet(p1, d1, p2, d2) -> tuple[float, float]:
     return p1[0] + t * d1[0], p1[1] + t * d1[1]
 
 
-SNOW_LINE = 0.6  # width of the line drawn round each cap of snow
-
-
 def _polygon(points) -> str:
     head, *rest = points
     return f"M {fmt(*head)} " + " ".join(f"L {fmt(*point)}" for point in rest) + " Z"
 
 
-def _inset(points, d: float) -> list[tuple[float, float]]:
-    """A polygon with every edge moved inwards by d, its corners where the moved edges meet."""
-    n = len(points)
-    area = sum(points[i][0] * points[(i + 1) % n][1] - points[(i + 1) % n][0] * points[i][1] for i in range(n))
-    side = 1 if area > 0 else -1
-    edges = []
-    for i in range(n):
-        (x1, y1), (x2, y2) = points[i], points[(i + 1) % n]
-        length = math.hypot(x2 - x1, y2 - y1)
-        nx, ny = -side * (y2 - y1) / length, side * (x2 - x1) / length
-        edges.append(((x1 + nx * d, y1 + ny * d), (x2 - x1, y2 - y1)))
-    return [_meet(*edges[i - 1], *edges[i]) for i in range(n)]
-
-
 def letter_m(x: float) -> tuple[list[str], float]:
-    """Two peaks, rising a little above the letters, each with a cap of snow.
+    """Two peaks, rising above the letters, each under a cap of snow.
 
-    The outer legs reach the base; the inner strokes meet in a valley above
-    it, and a line round each cap of snow is cut out of the letter.
+    The outer legs and the wedge between them reach the base; the valley
+    between the peaks stays above it. The caps are cut out of the peaks: an
+    arrowhead under each summit, its lower edge notched like a snow line.
     """
-    w, t = 25.0, 3.9
-    peak_y = TOP - 1.6
-    p1, p2 = (x + 5.2, peak_y), (x + w - 5.2, peak_y)
-    xv = x + w / 2
-    valley_top = (xv, 65.6)
-    valley_bottom = (xv, 71.2)
-    left_leg = (p1[0] - x, peak_y - BASE)
-    right_leg = (p2[0] - (x + w), peak_y - BASE)
-    down_left = (xv - p1[0], valley_top[1] - peak_y)
-    down_right = (xv - p2[0], valley_top[1] - peak_y)
-    inner_left = _meet((x + t, BASE), left_leg, valley_bottom, down_left)
-    inner_right = _meet((x + w - t, BASE), right_leg, valley_bottom, down_right)
-    path = (
-        f"M {fmt(x, BASE)} L {fmt(*p1)} L {fmt(*valley_top)} L {fmt(*p2)} L {fmt(x + w, BASE)} "
-        f"L {fmt(x + w - t, BASE)} L {fmt(*inner_right)} L {fmt(*valley_bottom)} "
-        f"L {fmt(*inner_left)} L {fmt(x + t, BASE)} Z"
-    )
-    snow = []
-    for peak, outer, inner in ((p1, left_leg, down_left), (p2, down_right, right_leg)):
-        # The cap: an arrowhead under the summit, its sides along the slopes,
-        # its lower edge notched like a snow line.
-        tip_y, line_y, notch = peak[1] + 1.4, peak[1] + 9.4, 2.8
-        side = line_y - tip_y
-        lx = peak[0] + outer[0] / outer[1] * side + 0.8
-        rx = peak[0] + inner[0] / inner[1] * side - 0.8
-        cap = [(peak[0], tip_y), (lx, line_y), (peak[0], line_y - notch), (rx, line_y)]
-        snow.append(cap)
-    # The snow is a thin line cut out of the peak: the cap, and the cap drawn
-    # a line's width inside it, both in the letter's path, so that even-odd
-    # filling leaves the ring between them empty on any background.
-    for cap in snow:
-        path += " " + _polygon(cap) + " " + _polygon(_inset(cap, SNOW_LINE))
-    return [path], x + w
+    w, t = 26.4, 3.87
+    peak_y = BASE - 23.87
+    p1, p2 = (x + 5.46, peak_y), (x + w - 5.46, peak_y)
+    valley = (x + w / 2, 70.1)
+    foot = 11.43  # where the wedge between the legs meets the base
+    leg = (p1[0] - x, peak_y - BASE)
+    wedge = (6.55 - foot, 64.7 - BASE)  # the wedge's edge, towards the counter's top
+    inner_left = _meet((x + t, BASE), leg, (x + foot, BASE), wedge)
+    inner_right = (2 * x + w - inner_left[0], inner_left[1])
+    outline = [
+        (x, BASE), p1, valley, p2, (x + w, BASE), (x + w - t, BASE), inner_right,
+        (x + w - foot, BASE), (x + foot, BASE), inner_left, (x + t, BASE),
+    ]
+    caps = []
+    for peak, side in ((p1, 1), (p2, -1)):
+        caps.append([
+            (peak[0] + side * 0.25, peak[1] + 2.86),
+            (peak[0] + side * 2.7, peak[1] + 9.08),
+            (peak[0] + side * 0.76, peak[1] + 7.23),
+            (peak[0] - side * 1.0, peak[1] + 9.08),
+        ])
+    return [" ".join(_polygon(points) for points in (outline, *caps))], x + w
 
 
 def letter_p(x: float) -> tuple[list[str], float]:
-    """A stem and a round bowl, the bowl as the B's."""
-    t, tb = STEM, 3.6
-    R = 6.4
-    xr = x + 13.6 - R
+    """A stem and a round bowl."""
+    t, tb, w = STEM, 3.4, 12.8
+    R = 5.9
+    xr = x + w - R
     path = (
         f"M {fmt(x, TOP)} H {fmt(xr)} A {fmt(R, R)} 0 0 1 {fmt(xr, TOP + 2 * R)} "
         f"H {fmt(x + t)} V {fmt(BASE)} H {fmt(x)} Z "
         f"M {fmt(x + t, TOP + tb)} H {fmt(xr)} A {fmt(R - tb, R - tb)} 0 0 1 {fmt(xr, TOP + 2 * R - tb)} "
         f"H {fmt(x + t)} Z"
     )
-    return [path], x + 13.6
+    return [path], x + w
 
 
 def camp_paths() -> tuple[list[str], float]:
-    # Gaps follow the image: the foot of the tent tucks under the C, the M
-    # stands just past it, and the P a stem's width after.
-    c, x = letter_c(223.3)
-    a, x = letter_a(x - 0.4)
-    m, x = letter_m(x + 0.8)
-    p, x = letter_p(x + 2.4)
+    # Placed as in the drawing: the foot of the tent tucks under the C, the M
+    # stands just past it, and the P somewhat further.
+    c, _ = letter_c(223.3)
+    a, _ = letter_a(242.99)
+    m, _ = letter_m(266.02)
+    p, x = letter_p(295.26)
     return [*c, *a, *m, *p], x
 
 
@@ -263,7 +247,7 @@ def ticks() -> str:
 
 # --- Assembly ----------------------------------------------------------------
 
-WORD_VIEWBOX = "141 45.5 172.5 33"
+WORD_VIEWBOX = "141 45.5 169 33"
 MARK_VIEWBOX = "133.63 38 48 48"
 
 
