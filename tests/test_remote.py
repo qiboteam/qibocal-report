@@ -10,10 +10,10 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from qibocal_report import version
-from qibocal_report.remote import report_worker
-from qibocal_report.cli import main
-from qibocal_report.remote.server import (
+from qibocamp import version
+from qibocamp.remote import report_worker
+from qibocamp.cli import main
+from qibocamp.remote.server import (
     RemoteServerOptions,
     launch,
     load_options,
@@ -26,10 +26,10 @@ from qibocal_report.remote.server import (
 
 def test_defaults_are_the_documented_ones():
     options = load_options({"ssh": "me@node"})
-    assert options.venv == "qibocal-report"
-    # This very qibocal-report, from GitHub, until it is on PyPI.
+    assert options.venv == "qibocamp"
+    # This very qibocamp, from GitHub, until it is on PyPI.
     assert options.install == version.default_install()
-    assert options.install.startswith("git+https://github.com/qiboteam/qibocal-report@")
+    assert options.install.startswith("git+https://github.com/qiboteam/qibocamp@")
     assert options.directory is None, "the shared directory of the remote host"
     assert options.timeout == 300.0
     assert options.auth is False
@@ -37,7 +37,7 @@ def test_defaults_are_the_documented_ones():
 
 def test_unset_options_do_not_override_the_defaults():
     options = load_options({"ssh": "me@node", "venv": None, "workdir": None})
-    assert options.venv == "qibocal-report"
+    assert options.venv == "qibocamp"
     assert options.workdir is None
 
 
@@ -126,7 +126,7 @@ def test_the_tunnel_survives_an_idle_connection():
 def test_the_tunnelled_address_is_registered(monkeypatch):
     recorded = {}
     monkeypatch.setattr(
-        "qibocal_report.config.add_server",
+        "qibocamp.config.add_server",
         lambda **values: recorded.update(values) or values,
     )
     register(
@@ -144,7 +144,7 @@ def test_an_unregisterable_server_is_reported(monkeypatch):
     def refuse(**_):
         raise OSError("read-only configuration")
 
-    monkeypatch.setattr("qibocal_report.config.add_server", refuse)
+    monkeypatch.setattr("qibocamp.config.add_server", refuse)
     with pytest.raises(click.ClickException, match="Could not register"):
         register("http://127.0.0.1:1", load_options({"ssh": "me@node"}), "me@node")
 
@@ -154,20 +154,20 @@ def test_a_worker_that_dies_before_readiness_is_reported():
     process.poll.return_value = 255
     process.stdout = iter(())
     process.stderr = iter(())
-    with patch("qibocal_report.remote.server.subprocess.Popen", return_value=process):
+    with patch("qibocamp.remote.server.subprocess.Popen", return_value=process):
         with pytest.raises(click.ClickException, match="Report launcher exited"):
             launch(load_options({"ssh": "me@node", "timeout": 5}))
 
 
 def test_a_nonsensical_readiness_response_is_refused(monkeypatch):
     monkeypatch.setattr(
-        "qibocal_report.remote.server._wait_message",
+        "qibocamp.remote.server._wait_message",
         lambda *_args, **_kwargs: {"port": 0},
     )
     process = MagicMock()
     process.stdout = iter(())
     process.stderr = iter(())
-    with patch("qibocal_report.remote.server.subprocess.Popen", return_value=process):
+    with patch("qibocamp.remote.server.subprocess.Popen", return_value=process):
         with pytest.raises(click.ClickException, match="Invalid report startup"):
             launch(load_options({"ssh": "me@node", "timeout": 5}))
 
@@ -178,7 +178,7 @@ def test_the_cli_delegates_to_the_remote_launcher(tmp_path):
     def record(options: RemoteServerOptions):
         captured["options"] = options
 
-    with patch("qibocal_report.remote.server.launch", record):
+    with patch("qibocamp.remote.server.launch", record):
         result = CliRunner().invoke(
             main,
             [
@@ -192,7 +192,7 @@ def test_the_cli_delegates_to_the_remote_launcher(tmp_path):
                 "--workdir",
                 "/shared",
                 "--install",
-                "qibocal-report==0.1.0",
+                "qibocamp==0.1.0",
                 "--timeout",
                 "60",
                 "--auth",
@@ -204,14 +204,14 @@ def test_the_cli_delegates_to_the_remote_launcher(tmp_path):
     assert options.directory == "/shared/runs"
     assert options.venv == "chip"
     assert options.workdir == "/shared"
-    assert options.install == "qibocal-report==0.1.0"
+    assert options.install == "qibocamp==0.1.0"
     assert options.timeout == 60.0
     assert options.auth is True
 
 
 def test_a_remote_directory_is_not_checked_here():
     """`/shared/runs` exists on the other machine, not on this one."""
-    with patch("qibocal_report.remote.server.launch") as launcher:
+    with patch("qibocamp.remote.server.launch") as launcher:
         result = CliRunner().invoke(
             main, ["report", "server", "/definitely/not/here", "--ssh", "me@node"]
         )
@@ -264,12 +264,12 @@ def test_the_worker_reads_the_report_directory_on_its_own_host(tmp_path):
 def test_the_worker_names_the_environment_as_the_notebooks_do(monkeypatch):
     monkeypatch.setenv("XDG_CACHE_HOME", "/tmp/cache")
     assert report_worker.environment_path("qibocal") == Path(
-        "/tmp/cache/qibocal/envs/qibocal"
+        "/tmp/cache/qibocamp/envs/qibocal"
     )
     assert report_worker.environment_path("/opt/envs/chip") == Path("/opt/envs/chip")
 
 
-def test_an_environment_without_qibocal_is_filled_in(tmp_path):
+def test_an_environment_without_qibocamp_is_filled_in(tmp_path):
     """An environment created for something else still gets the report package."""
     environment = tmp_path / "env"
     (environment / "bin").mkdir(parents=True)
@@ -277,7 +277,7 @@ def test_an_environment_without_qibocal_is_filled_in(tmp_path):
     python.write_text("#!/bin/sh\n", encoding="utf-8")
     python.chmod(0o755)
     runtime = MagicMock()
-    executable = environment / "bin" / "qibocal"
+    executable = environment / "bin" / "qibocamp"
 
     def install(command, capture=False):
         if capture:
@@ -288,7 +288,7 @@ def test_an_environment_without_qibocal_is_filled_in(tmp_path):
 
     runtime.command.side_effect = install
     assert (
-        report_worker.ensure_qibocal(runtime, environment, ["qibocal-report"])
+        report_worker.ensure_qibocamp(runtime, environment, ["qibocamp"])
         == executable
     )
 
@@ -301,8 +301,8 @@ def test_an_environment_that_stays_empty_is_reported(tmp_path):
     python.chmod(0o755)
     runtime = MagicMock()
     runtime.command.return_value = "true"
-    with pytest.raises(report_worker.WorkerError, match="no executable bin/qibocal"):
-        report_worker.ensure_qibocal(runtime, environment, ["wrong-package"])
+    with pytest.raises(report_worker.WorkerError, match="no executable bin/qibocamp"):
+        report_worker.ensure_qibocamp(runtime, environment, ["wrong-package"])
 
 
 def test_an_answering_server_ends_the_wait():
@@ -310,7 +310,7 @@ def test_an_answering_server_ends_the_wait():
     process = MagicMock()
     process.poll.return_value = None
     opener = MagicMock()
-    with patch("qibocal_report.remote.report_worker.build_opener", return_value=opener):
+    with patch("qibocamp.remote.report_worker.build_opener", return_value=opener):
         report_worker.wait_http(runtime, "http://127.0.0.1:1/", process)
     opener.open.assert_called_once()
 
@@ -332,13 +332,13 @@ def test_the_readiness_line_names_the_port(capsys):
 
 
 def test_the_launcher_and_the_worker_agree_on_the_prefix():
-    from qibocal_report.remote.server import READY_PREFIX
+    from qibocamp.remote.server import READY_PREFIX
 
     assert READY_PREFIX == report_worker.READY_PREFIX
 
 
 def test_waiting_for_a_message_gives_up(monkeypatch):
-    from qibocal_report.remote.notebook import _wait_message
+    from qibocamp.remote.notebook import _wait_message
 
     with pytest.raises(click.ClickException, match="Timed out waiting for report"):
         _wait_message(MagicMock(), queue.Queue(), time.monotonic() - 1, "report")
@@ -346,7 +346,7 @@ def test_waiting_for_a_message_gives_up(monkeypatch):
 
 def test_the_name_and_the_registration_travel_with_the_options():
     captured = {}
-    with patch("qibocal_report.remote.server.launch", lambda options: captured.update(o=options)):
+    with patch("qibocamp.remote.server.launch", lambda options: captured.update(o=options)):
         result = CliRunner().invoke(
             main,
             ["report", "server", "--ssh", "me@node", "--name", "Lab", "--no-register"],
@@ -372,14 +372,14 @@ def test_a_server_that_is_not_to_be_registered_is_left_alone(monkeypatch):
     def refuse(**_):
         raise AssertionError("add_server must not be called")
 
-    monkeypatch.setattr("qibocal_report.config.add_server", refuse)
+    monkeypatch.setattr("qibocamp.config.add_server", refuse)
     register("http://127.0.0.1:1", load_options({"ssh": "me@node", "registered": False}), "me@node")
 
 
 def test_the_given_name_wins_over_the_generated_one(monkeypatch):
     recorded = {}
     monkeypatch.setattr(
-        "qibocal_report.config.add_server",
+        "qibocamp.config.add_server",
         lambda **values: recorded.update(values) or values,
     )
     register("http://127.0.0.1:1", load_options({"ssh": "me@node", "name": "Lab"}), "me@node")
@@ -388,17 +388,17 @@ def test_the_given_name_wins_over_the_generated_one(monkeypatch):
 
 
 def test_the_worker_and_the_package_agree_on_the_shared_directory(monkeypatch, tmp_path):
-    from qibocal_report import config
+    from qibocamp import config
 
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "share"))
-    monkeypatch.delenv("QIBOCAL_REPORT_DATA_DIR", raising=False)
+    monkeypatch.delenv("QIBOCAMP_DATA_DIR", raising=False)
     assert report_worker.reports_path() == config.get_reports_dir(create=False)
-    monkeypatch.setenv("QIBOCAL_REPORT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("QIBOCAMP_DATA_DIR", str(tmp_path / "data"))
     assert report_worker.reports_path() == config.get_reports_dir(create=False)
 
 
 def test_the_worker_creates_the_shared_directory_when_none_is_named(monkeypatch, tmp_path):
-    monkeypatch.setenv("QIBOCAL_REPORT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("QIBOCAMP_DATA_DIR", str(tmp_path / "data"))
     directory = report_worker.reports_directory(None)
     assert directory == tmp_path / "data" / "reports"
     assert directory.is_dir()
@@ -409,7 +409,7 @@ def test_the_worker_creates_the_shared_directory_when_none_is_named(monkeypatch,
 
 def test_the_worker_starts_from_a_temporary_directory_by_default(monkeypatch, tmp_path):
     """Nothing is written where the server starts, so the home folder is spared."""
-    monkeypatch.setenv("QIBOCAL_REPORT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("QIBOCAMP_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("TMPDIR", str(tmp_path / "tmp"))
     (tmp_path / "tmp").mkdir()
     import tempfile
@@ -421,62 +421,62 @@ def test_the_worker_starts_from_a_temporary_directory_by_default(monkeypatch, tm
         seen["cwd"] = Path.cwd()
         raise report_worker.Stopped()
 
-    monkeypatch.setattr(report_worker, "ensure_qibocal", stop_here)
+    monkeypatch.setattr(report_worker, "ensure_qibocamp", stop_here)
     try:
         report_worker.run({"timeout": 5})
     finally:
         tempfile.tempdir = None
     assert seen["cwd"].parent == (tmp_path / "tmp").resolve()
-    assert seen["cwd"].name.startswith("qibocal-report-")
+    assert seen["cwd"].name.startswith("qibocamp-")
 
 
 def test_an_update_travels_to_the_worker_and_puts_the_package_back_by_force():
     options = load_options({"ssh": "me@node", "upgrade": True})
     assert options.upgrade is True
     assert load_options({"ssh": "me@node"}).upgrade is False
-    from qibocal_report.remote.server import worker_command
+    from qibocamp.remote.server import worker_command
 
     command = worker_command(options)
     assert '"upgrade": true' in command[-1]
 
-    from qibocal_report.remote import report_worker
+    from qibocamp.remote import report_worker
 
-    first, second = report_worker.upgrade_commands("/env/bin/python", ["qibocal-report"], seeded=True)
-    assert first[-4:] == ["--upgrade", "--force-reinstall", "--no-deps", "qibocal-report"]
-    assert second[-2:] == ["--upgrade", "qibocal-report"]
+    first, second = report_worker.upgrade_commands("/env/bin/python", ["qibocamp"], seeded=True)
+    assert first[-4:] == ["--upgrade", "--force-reinstall", "--no-deps", "qibocamp"]
+    assert second[-2:] == ["--upgrade", "qibocamp"]
     assert first[:4] == ["/env/bin/python", "-m", "pip", "install"]
 
 
 def test_upgrade_is_a_subcommand_and_starts_nothing():
     captured = {}
     with (
-        patch("qibocal_report.remote.server.upgrade", lambda options: captured.update(o=options)),
-        patch("qibocal_report.remote.server.launch", lambda options: captured.update(launched=True)),
+        patch("qibocamp.remote.server.upgrade", lambda options: captured.update(o=options)),
+        patch("qibocamp.remote.server.launch", lambda options: captured.update(launched=True)),
     ):
         result = CliRunner().invoke(
-            main, ["report", "server", "upgrade", "--ssh", "me@node", "--venv", "chip", "--install", "qibocal-report==1.2"]
+            main, ["report", "server", "upgrade", "--ssh", "me@node", "--venv", "chip", "--install", "qibocamp==1.2"]
         )
     assert result.exit_code == 0, result.output
     assert "launched" not in captured, "an upgrade starts no server"
     assert captured["o"].upgrade is True
-    assert captured["o"].venv == "chip" and captured["o"].install == "qibocal-report==1.2"
+    assert captured["o"].venv == "chip" and captured["o"].install == "qibocamp==1.2"
     assert captured["o"].registered is False
     # Without a destination there is nothing to update.
     alone = CliRunner().invoke(main, ["report", "server", "upgrade"])
     assert alone.exit_code != 0 and "--ssh" in alone.output
     # The word is the subcommand, never a directory; a directory still is one.
-    with patch("qibocal_report.remote.server.launch", lambda options: captured.update(dir=options.directory)):
+    with patch("qibocamp.remote.server.launch", lambda options: captured.update(dir=options.directory)):
         CliRunner().invoke(main, ["report", "server", "/data", "--ssh", "me@node"])
     assert captured["dir"] == "/data"
 
 
 def test_the_upgrading_worker_puts_the_packages_back_and_exits(monkeypatch, tmp_path):
-    from qibocal_report.remote import report_worker
+    from qibocamp.remote import report_worker
 
     calls = []
     monkeypatch.setattr(
-        report_worker, "ensure_qibocal",
-        lambda runtime, path, packages, upgrade=False: calls.append((path, packages, upgrade)) or (path / "bin" / "qibocal"),
+        report_worker, "ensure_qibocamp",
+        lambda runtime, path, packages, upgrade=False: calls.append((path, packages, upgrade)) or (path / "bin" / "qibocamp"),
     )
     monkeypatch.setattr(report_worker, "environment_path", lambda name: tmp_path / name)
     monkeypatch.setattr(report_worker, "log_node", lambda role: None)
@@ -485,7 +485,7 @@ def test_the_upgrading_worker_puts_the_packages_back_and_exits(monkeypatch, tmp_
     monkeypatch.setattr(report_worker, "event", lambda kind, **details: events.append(details.get("message", kind)))
     spawned = []
     monkeypatch.setattr(report_worker.Runtime, "spawn", lambda self, *a, **k: spawned.append(a) or (None, None))
-    report_worker.run({"upgrade": True, "venv": "chip", "install": "qibocal-report", "workdir": str(tmp_path)})
-    assert calls == [(tmp_path / "chip", ["qibocal-report"], True)]
+    report_worker.run({"upgrade": True, "venv": "chip", "install": "qibocamp", "workdir": str(tmp_path)})
+    assert calls == [(tmp_path / "chip", ["qibocamp"], True)]
     assert spawned == [], "nothing is started"
     assert any("up to date" in message for message in events)

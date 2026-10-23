@@ -159,8 +159,8 @@
               class="lx-action"
               :disabled="updating === server.id"
               :title="launchOptionsFor(server).ssh
-                ? 'Bring qibocal-report up to date in its environment on that machine, and start it again'
-                : 'Update the launcher\'s own qibocal-report, and start it again'"
+                ? 'Bring qibocamp up to date in its environment on that machine, and start it again'
+                : 'Update the launcher\'s own qibocamp, and start it again'"
               @click="update(server)"
             >
               <RefreshCw class="w-3.5 h-3.5" :class="{ 'lx-spin': updating === server.id }" /> {{ updating === server.id ? 'Updating…' : 'Update' }}
@@ -242,7 +242,7 @@ import {
   unregisteredServers,
   updateServer,
   updateServerInstallation,
-  withQibocal,
+  withQibocamp,
   machines as machineList
 } from '../state.js'
 import MachineFilter from '../components/MachineFilter.vue'
@@ -261,7 +261,7 @@ const adminServer = ref(null)
 /** The server being edited, with the form opened on it. */
 const editing = reactive({ serverId: null, where: 'local', form: blankForm(), busy: false })
 const starting = ref(false)
-/** The server whose qibocal-report is being updated, by id. */
+/** The server whose qibocamp is being updated, by id. */
 const updating = ref(null)
 
 const temporary = computed(() => unregisteredServers())
@@ -354,7 +354,7 @@ const { focused } = usePageKeys({
   }
 })
 
-/** Bring a server's qibocal-report up to date and start it again, keeping its entry. */
+/** Bring a server's qibocamp up to date and start it again, keeping its entry. */
 async function update(server) {
   updating.value = server.id
   const started = await attempt(

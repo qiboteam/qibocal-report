@@ -1,8 +1,8 @@
 /**
  * Notebook connection options, described once for the whole interface.
  *
- * The shape mirrors `qibocal_report.remote.notebook.NotebookOptions`, so a connection
- * saved here is understood verbatim by `qibocal notebook connect`.
+ * The shape mirrors `qibocamp.remote.notebook.NotebookOptions`, so a connection
+ * saved here is understood verbatim by `qibocamp notebook connect`.
  */
 export const NOTEBOOK_FIELDS = [
   {
@@ -58,7 +58,7 @@ export const NOTEBOOK_FIELDS = [
     placeholder: 'qibocal',
     placeholderFor: values => (values?.name ? environmentName(values.name) : 'qibocal'),
     help: 'Default: the connection\'s name, or qibocal for a session not saved.',
-    info: 'An environment name, resolved under ~/.cache/qibocal/envs on the computing node, or an absolute path there. Created, with the notebook and a kernel, when missing.'
+    info: 'An environment name, resolved under ~/.cache/qibocamp/envs on the computing node, or an absolute path there. Created, with the notebook and a kernel, when missing.'
   },
   {
     name: 'subnet',
@@ -84,7 +84,7 @@ export const NOTEBOOK_FIELDS = [
     advanced: true,
     placeholder: 'reports',
     help: 'Empty: the working directory. Relative to it.',
-    info: 'Where the session\'s calibrations keep their reports. It is created when the session starts, and exported to the notebook and its kernels as QIBOCAL_REPORTS_DIR, for the code there to write to — the working directory, and the files the notebook sees, stay as they are. Reports serves this folder.'
+    info: 'Where the session\'s calibrations keep their reports. It is created when the session starts, and exported to the notebook and its kernels as QIBOCAMP_REPORTS_DIR, for the code there to write to — the working directory, and the files the notebook sees, stay as they are. Reports serves this folder.'
   },
   {
     name: 'requirements',
@@ -148,7 +148,7 @@ export function fieldApplies(field, place) {
 
 /**
  * The kernel environment a registered connection uses by default: its name,
- * made safe for a folder — as `qibocal_report.remote.notebook.environment_name`.
+ * made safe for a folder — as `qibocamp.remote.notebook.environment_name`.
  */
 export function environmentName(connection) {
   // No leading underscore either: _remote holds the remote connections' own.
@@ -252,10 +252,10 @@ export function normalizeNotebookOptions(values = {}, fields = NOTEBOOK_FIELDS) 
 
 /**
  * The environment a notebook's report server runs in, on the session's
- * machine: one of its own. The kernel environment holds qibocal, whose
- * `qibocal` command is not qibocal-report's, and would be found first.
+ * machine: one of its own. The kernel environment holds qibocal and the
+ * session's requirements, not necessarily the qibocamp of this launcher.
  */
-export const REPORTS_ENVIRONMENT = 'qibocal-report'
+export const REPORTS_ENVIRONMENT = 'qibocamp'
 
 /** The key a notebook's report server is known by: its connection, or where it runs. */
 export function notebookKey(options = {}, name = null) {

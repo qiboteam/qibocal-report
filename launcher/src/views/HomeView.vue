@@ -2,7 +2,7 @@
   <div class="max-w-5xl mx-auto px-5 py-10">
     <div class="text-center mb-9">
       <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900 tracking-tight">
-        Qibocal on this machine
+        Qibocamp on this machine
       </h1>
       <p class="mt-1.5 text-xs sm:text-sm text-gray-500 max-w-xl mx-auto">
         Start report servers, open notebook sessions and browse your reports, without leaving the application.

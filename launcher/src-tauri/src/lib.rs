@@ -1,4 +1,4 @@
-//! Qibocal: a thin desktop shell around the `qibocal` command line.
+//! Qibocamp: a thin desktop shell around the `qibocamp` command line.
 //!
 //! The Rust side only does what a browser cannot: find the interpreter, read
 //! and write the shared configuration files, and supervise long-running
@@ -6,7 +6,7 @@
 
 mod background;
 mod process;
-mod qibocal;
+mod cli;
 mod settings;
 
 use std::path::PathBuf;
@@ -140,14 +140,14 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            qibocal::environment,
-            qibocal::set_executable,
-            qibocal::install_qibocal,
-            qibocal::free_port,
-            qibocal::administrators,
-            qibocal::reissue_invite,
-            qibocal::slurm_machine,
-            qibocal::platform_summary,
+            cli::environment,
+            cli::set_executable,
+            cli::install_cli,
+            cli::free_port,
+            cli::administrators,
+            cli::reissue_invite,
+            cli::slurm_machine,
+            cli::platform_summary,
             settings::config_entries,
             settings::config_directory,
             settings::read_config_file,
@@ -165,9 +165,9 @@ pub fn run() {
             settings::save_machines,
             settings::list_agent_hosts,
             settings::save_agent_hosts,
-            qibocal::push_agents,
-            qibocal::start_agent,
-            qibocal::agent_tools,
+            cli::push_agents,
+            cli::start_agent,
+            cli::agent_tools,
             process::install_agent_tools,
             settings::save_remote,
             settings::remove_remote,
@@ -186,7 +186,7 @@ pub fn run() {
             background::system_notify,
         ])
         .build(tauri::generate_context!())
-        .expect("could not start the Qibocal launcher")
+        .expect("could not start Qibocamp")
         .run(|app, event| match event {
             // Quitting the application is the window closing, with the same
             // wait; `code` is set by the launcher's own exit, which is final.
@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(announced_url("[I 10:00] Jupyter Server is running at http://10.0.0.5:8888/lab"), None);
         assert_eq!(announced_url("Connecting to SSH destination node."), None);
         assert_eq!(
-            announced_url("https://github.com/qiboteam/qibocal-report/archive/3e33908e940d.tar.gz"),
+            announced_url("https://github.com/qiboteam/qibocamp/archive/3e33908e940d.tar.gz"),
             None,
             "pip's download, wrapped onto a line of its own, is not an address of this machine"
         );

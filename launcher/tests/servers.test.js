@@ -144,21 +144,21 @@ test('the next server is named as the command line names its own', () => {
 test('a local server is started with a host and a port', () => {
   assert.equal(
     serverCommand({ mode: 'server', directory: '/data/runs', host: 'localhost', port: 8000 }),
-    'qibocal report server /data/runs --host localhost --port 8000 --no-auth'
+    'qibocamp report server /data/runs --host localhost --port 8000 --no-auth'
   )
 })
 
 test('the name and the registration are passed on, the directory left out when empty', () => {
   assert.equal(
     serverCommand({ mode: 'server', directory: '  ', port: 8000, name: 'Server 1', register: false }),
-    "qibocal report server --host localhost --port 8000 --no-auth --name 'Server 1' --no-register"
+    "qibocamp report server --host localhost --port 8000 --no-auth --name 'Server 1' --no-register"
   )
 })
 
 test('the developer mode carries the frontend port', () => {
   assert.equal(
     serverCommand({ mode: 'dev', directory: '/data', port: 8000, auth: true, frontendPort: 5174 }),
-    'qibocal report dev /data --host localhost --port 8000 --auth --frontend-port 5174'
+    'qibocamp report dev /data --host localhost --port 8000 --auth --frontend-port 5174'
   )
 })
 
@@ -172,18 +172,18 @@ test('a remote server replaces the address with the SSH options', () => {
       ssh: 'me@login-node',
       venv: 'qibocal',
       workdir: '/shared',
-      install: 'qibocal-report',
+      install: 'qibocamp',
       timeout: 600
     }),
-    'qibocal report server /shared/runs --auth --ssh me@login-node ' +
-      '--workdir /shared --venv qibocal --install qibocal-report --timeout 600'
+    'qibocamp report server /shared/runs --auth --ssh me@login-node ' +
+      '--workdir /shared --venv qibocal --install qibocamp --timeout 600'
   )
 })
 
 test('an update is a command of its own, for a server on another machine', () => {
   assert.equal(
-    upgradeCommand({ ssh: 'me@node', venv: 'chip', install: 'qibocal-report==1.2' }),
-    'qibocal report server upgrade --ssh me@node --venv chip --install qibocal-report==1.2'
+    upgradeCommand({ ssh: 'me@node', venv: 'chip', install: 'qibocamp==1.2' }),
+    'qibocamp report server upgrade --ssh me@node --venv chip --install qibocamp==1.2'
   )
   assert.equal(upgradeCommand({ mode: 'server', host: 'localhost' }), '', 'nothing remote, nothing to upgrade')
   assert.ok(!serverCommand({ mode: 'server', ssh: 'me@node' }).includes('upgrade'), 'starting is not updating')
@@ -192,14 +192,14 @@ test('an update is a command of its own, for a server on another machine', () =>
 test('the remote options are left out without a destination', () => {
   assert.equal(
     serverCommand({ mode: 'server', directory: '/data', port: 8000, ssh: '  ', venv: 'qibocal' }),
-    'qibocal report server /data --host localhost --port 8000 --no-auth'
+    'qibocamp report server /data --host localhost --port 8000 --no-auth'
   )
 })
 
 test('an argument that would be split is quoted', () => {
   assert.equal(
     serverCommand({ mode: 'server', directory: '/data/my runs', port: 8000, ssh: '-J bastion me@node' }),
-    "qibocal report server '/data/my runs' --no-auth --ssh '-J bastion me@node'"
+    "qibocamp report server '/data/my runs' --no-auth --ssh '-J bastion me@node'"
   )
 })
 
@@ -228,12 +228,12 @@ test('a server the launcher does not start opens as already running', () => {
 })
 
 test('the form and the launch options are each other\'s inverse', () => {
-  const form = { ...blankForm(), name: 'brave-bohr', ssh: 'me@cluster', directory: '/data', install: 'qibocal-report==1.2' }
+  const form = { ...blankForm(), name: 'brave-bohr', ssh: 'me@cluster', directory: '/data', install: 'qibocamp==1.2' }
   const options = launchFrom('ssh', form, { register: true })
   assert.equal(options.mode, 'server')
   assert.equal(options.register, true)
   assert.equal(options.ssh, 'me@cluster')
-  assert.equal(options.install, 'qibocal-report==1.2')
+  assert.equal(options.install, 'qibocamp==1.2')
   assert.equal(options.venv, null)
   assert.deepEqual(formFrom(options).form, { ...form, description: '', url: '' })
   assert.equal(launchFrom('reachable', form), null, 'nothing to start for an address')

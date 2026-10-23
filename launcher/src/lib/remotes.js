@@ -9,7 +9,7 @@
  * The fields the two have in common mean the same as a notebook
  * connection's, so they are the very same descriptions; the environments
  * are made the same way — same place, same installer, same requirements
- * marker — so Regenerate env is `qibocal notebook rebuild` with these options.
+ * marker — so Regenerate env is `qibocamp notebook rebuild` with these options.
  * A connection's own, unless it names one, is under `_remote/`, apart from
  * the sessions'.
  */
@@ -43,7 +43,7 @@ export const REMOTE_FIELDS = [
     placeholderFor: values => remoteEnvironmentName(values?.name),
     help: 'Default: the connection\'s own, _remote/ and its name.',
     label: 'Environment',
-    info: 'An environment name, resolved under ~/.cache/qibocal/envs on the remote side, or an absolute path there — the same place notebook sessions use. Unless one is named, each connection has its own, under _remote/, shared with no session nor other connection; naming the same one shares it.'
+    info: 'An environment name, resolved under ~/.cache/qibocamp/envs on the remote side, or an absolute path there — the same place notebook sessions use. Unless one is named, each connection has its own, under _remote/, shared with no session nor other connection; naming the same one shares it.'
   },
   {
     name: 'python',
@@ -88,7 +88,7 @@ export function describeRemote(connection = {}, name = null) {
   return parts.join(' · ')
 }
 
-/** The options of `qibocal notebook rebuild` that regenerate a remote connection's environment. */
+/** The options of `qibocamp notebook rebuild` that regenerate a remote connection's environment. */
 export function rebuildOptions(connection = {}, name = null) {
   const keep = ['ssh', 'queue', 'slurm', 'workdir', 'venv', 'requirements', 'rebuild_on_compute', 'timeout']
   const options = Object.fromEntries(keep.filter(key => connection[key] !== undefined && connection[key] !== null && connection[key] !== '').map(key => [key, connection[key]]))

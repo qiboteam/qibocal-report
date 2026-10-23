@@ -8,9 +8,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import sample_reports
-from qibocal_report import auth
-from qibocal_report.web.api import app, set_report_root
-from qibocal_report.models import UserRole
+from qibocamp import auth
+from qibocamp.web.api import app, set_report_root
+from qibocamp.models import UserRole
 
 
 @pytest.fixture
@@ -18,8 +18,8 @@ def auth_env(tmp_path, monkeypatch):
     """Setup isolated auth environment with auth enabled."""
     auth_dir = tmp_path / "auth_config"
     auth_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(auth_dir))
-    monkeypatch.setenv("QIBOCAL_AUTH_ENABLED", "1")
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(auth_dir))
+    monkeypatch.setenv("QIBOCAMP_AUTH_ENABLED", "1")
     auth.set_auth_enabled(True)
 
     # Setup sample reports dir
@@ -29,7 +29,7 @@ def auth_env(tmp_path, monkeypatch):
     yield test_reports
 
     auth.set_auth_enabled(None)
-    monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("QIBOCAMP_AUTH_ENABLED", raising=False)
 
 
 @pytest.mark.parametrize("enabled", [True, False])
@@ -517,7 +517,7 @@ def test_archive_permissions(auth_env):
 
 def test_auth_disabled_backward_compatibility(tmp_path, monkeypatch):
     """When auth is disabled (default), all endpoints are accessible without token."""
-    monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("QIBOCAMP_AUTH_ENABLED", raising=False)
     auth.set_auth_enabled(False)
 
     test_reports = sample_reports(tmp_path / "sample_data_noauth")

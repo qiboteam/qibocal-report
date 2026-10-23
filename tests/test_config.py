@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from qibocal_report import config
+from qibocamp import config
 
 
 @pytest.fixture
 def config_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path))
     return tmp_path
 
 

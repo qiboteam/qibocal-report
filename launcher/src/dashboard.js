@@ -31,7 +31,7 @@ import './styles.js'
  * the launcher manages — those it has ever started — and which of them
  * run right now, to show the managed ones only while they are up.
  */
-window.qibocalDesktop = {
+window.qibocampDesktop = {
   // What is shown for a look stays out of the file, whatever the dashboard saves.
   saveServers: servers => desktop.saveServers(withoutTransient(servers)),
   managedServers: async () => {

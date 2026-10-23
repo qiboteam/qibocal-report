@@ -17,7 +17,7 @@ async function build({ goTo, openDashboard, launchServer, servers, quit }) {
   const items = []
 
   items.push(await Submenu.new({
-    text: 'Qibocal',
+    text: 'Qibocamp',
     items: [
       await MenuItem.new({
         id: 'menu-dashboard',
@@ -31,7 +31,7 @@ async function build({ goTo, openDashboard, launchServer, servers, quit }) {
       // background; this stops what runs, waits for it, and goes.
       await MenuItem.new({
         id: 'menu-quit',
-        text: 'Quit Qibocal',
+        text: 'Quit Qibocamp',
         accelerator: 'CmdOrCtrl+Q',
         action: () => quit?.()
       })

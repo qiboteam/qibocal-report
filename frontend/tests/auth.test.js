@@ -114,7 +114,7 @@ test('sessions are isolated per server and logout allows a different account', a
   assert.equal(state.auth.token, null)
   assert.equal(state.auth.user, null)
   assert.equal(getActiveAuthToken(server), null)
-  const saved = JSON.parse(storage.get('qibocal_report_auth'))
+  const saved = JSON.parse(storage.get('qibocamp_auth'))
   assert.equal(saved[server.id], undefined)
   assert.equal(saved[otherServer.id].token, 'other-session')
 

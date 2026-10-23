@@ -15,9 +15,9 @@ import pytest
 from click.testing import CliRunner
 from rich.console import Console
 
-from qibocal_report.cli import main
-from qibocal_report import config
-from qibocal_report.remote.notebook import (
+from qibocamp.cli import main
+from qibocamp import config
+from qibocamp.remote.notebook import (
     READY_PREFIX,
     NotebookOptions,
     NotebookOutput,
@@ -31,7 +31,7 @@ from qibocal_report.remote.notebook import (
     ssh_arguments,
     stop_process,
 )
-from qibocal_report.remote.notebook_worker import EVENT_PREFIX
+from qibocamp.remote.notebook_worker import EVENT_PREFIX
 
 
 def stored_connections() -> dict:
@@ -141,21 +141,21 @@ def test_notebook_help():
 
 
 def test_connection_file_xdg(tmp_path, monkeypatch):
-    monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
+    monkeypatch.delenv("QIBOCAMP_CONFIG_DIR")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    assert connection_file() == tmp_path / "qibocal" / "notebooks.json"
+    assert connection_file() == tmp_path / "qibocamp" / "notebooks.json"
     assert not connection_file().parent.exists()
 
 
 def test_connection_file_home(tmp_path, monkeypatch):
-    monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
+    monkeypatch.delenv("QIBOCAMP_CONFIG_DIR")
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
-    assert connection_file() == tmp_path / ".config" / "qibocal" / "notebooks.json"
+    assert connection_file() == tmp_path / ".config" / "qibocamp" / "notebooks.json"
 
 
 def test_cli_defaults():
-    with patch("qibocal_report.remote.notebook.launch") as mock:
+    with patch("qibocamp.remote.notebook.launch") as mock:
         result = CliRunner().invoke(main, ["notebook", "connect"])
     assert result.exit_code == 0
     assert mock.call_args.args == (NotebookOptions(),)
@@ -178,7 +178,7 @@ def test_named_connection_cli_overrides():
         )),
         encoding="utf-8",
     )
-    with patch("qibocal_report.remote.notebook.launch") as mock:
+    with patch("qibocamp.remote.notebook.launch") as mock:
         result = CliRunner().invoke(
             main,
             [
@@ -209,7 +209,7 @@ def test_named_connection_cli_overrides():
 
 
 def test_cli_short_options():
-    with patch("qibocal_report.remote.notebook.launch") as mock:
+    with patch("qibocamp.remote.notebook.launch") as mock:
         result = CliRunner().invoke(
             main,
             [
@@ -253,7 +253,7 @@ def test_cli_short_options():
 )
 def test_invalid_connection(contents, error):
     connection_file().write_text(registry(contents), encoding="utf-8")
-    with patch("qibocal_report.remote.notebook.launch") as mock:
+    with patch("qibocamp.remote.notebook.launch") as mock:
         result = CliRunner().invoke(main, ["notebook", "connect", "chip"])
     assert result.exit_code == 1
     assert error in result.output
@@ -282,7 +282,7 @@ def test_missing_connection():
     ],
 )
 def test_invalid_cli_options(arguments, command):
-    with patch("qibocal_report.remote.notebook.launch") as mock:
+    with patch("qibocamp.remote.notebook.launch") as mock:
         result = CliRunner().invoke(
             main,
             ["notebook", command, *(["chip"] if command == "add" else []), *arguments],
@@ -295,14 +295,14 @@ def test_invalid_cli_options(arguments, command):
 def test_add_help_references_connect():
     result = CliRunner().invoke(main, ["notebook", "add", "--help"])
     assert result.exit_code == 0
-    assert "qibocal notebook connect --help" in result.output
+    assert "qibocamp notebook connect --help" in result.output
     assert "--ssh" not in result.output
     assert "--timeout" not in result.output
 
 
 def test_add_options_round_trip(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "new-config"))
-    with patch("qibocal_report.remote.notebook.launch") as mock:
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path / "new-config"))
+    with patch("qibocamp.remote.notebook.launch") as mock:
         result = CliRunner().invoke(
             main,
             [
@@ -341,7 +341,7 @@ def test_add_options_round_trip(tmp_path, monkeypatch):
         "subnet": "2001:db8::/64",
     }
     assert stored_connections() == {"chip": values}
-    with patch("qibocal_report.remote.notebook.launch") as mock:
+    with patch("qibocamp.remote.notebook.launch") as mock:
         result = CliRunner().invoke(main, ["notebook", "connect", "chip"])
     assert result.exit_code == 0, result.output
     assert mock.call_args.args == (NotebookOptions(**values),)
@@ -391,7 +391,7 @@ def test_add_interactive_selected_options():
     )
 
 
-# As many as `qibocal notebook connect` has: the prompt numbers them all.
+# As many as `qibocamp notebook connect` has: the prompt numbers them all.
 OPTIONS = len(NotebookOptions.model_fields)
 
 
@@ -445,7 +445,7 @@ def test_add_write_failure_preserves_registry():
     text = registry('{"old": {}}\n')
     path = connection_file()
     path.write_text(text, encoding="utf-8")
-    with patch("qibocal_report.config.os.replace", side_effect=OSError("denied")):
+    with patch("qibocamp.config.os.replace", side_effect=OSError("denied")):
         result = CliRunner().invoke(main, ["notebook", "add", "new", "--marimo"])
     assert result.exit_code == 1
     assert "Could not write" in result.output
@@ -479,7 +479,7 @@ def test_update_preserves_unspecified_settings():
         registry(json.dumps({"chip": values, "other": {"venv": "custom"}})),
         encoding="utf-8",
     )
-    with patch("qibocal_report.remote.notebook.launch") as launch:
+    with patch("qibocamp.remote.notebook.launch") as launch:
         result = CliRunner().invoke(
             main,
             [
@@ -580,7 +580,7 @@ def test_remove_immediately_preserves_other_connections(other):
     if other:
         connections["other"] = {"venv": "custom"}
     connection_file().write_text(registry(json.dumps(connections)), encoding="utf-8")
-    with patch("qibocal_report.remote.notebook.launch") as launch:
+    with patch("qibocamp.remote.notebook.launch") as launch:
         result = CliRunner().invoke(main, ["notebook", "remove", "chip"])
     assert result.exit_code == 0, result.output
     assert "Removed notebook connection 'chip'" in result.output
@@ -625,7 +625,7 @@ def test_mutation_write_failure_preserves_registry(command):
     text = registry('{"chip": {}}\n')
     path = connection_file()
     path.write_text(text, encoding="utf-8")
-    with patch("qibocal_report.config.os.replace", side_effect=OSError("denied")):
+    with patch("qibocamp.config.os.replace", side_effect=OSError("denied")):
         result = CliRunner().invoke(
             main,
             [
@@ -731,13 +731,13 @@ def test_launch_composes_layers(ssh, slurm, capsys):
     )
     with (
         patch(
-            "qibocal_report.remote.notebook.subprocess.Popen", side_effect=[process, tunnel]
+            "qibocamp.remote.notebook.subprocess.Popen", side_effect=[process, tunnel]
         ) as popen,
-        patch("qibocal_report.remote.notebook._wait_tunnel") as wait_tunnel,
-        patch("qibocal_report.remote.notebook.free_port", return_value=9000),
-        patch("qibocal_report.remote.notebook.webbrowser.open") as browser,
-        patch("qibocal_report.remote.notebook.time.sleep", side_effect=KeyboardInterrupt),
-        patch("qibocal_report.remote.notebook.stop_process") as stop,
+        patch("qibocamp.remote.notebook._wait_tunnel") as wait_tunnel,
+        patch("qibocamp.remote.notebook.free_port", return_value=9000),
+        patch("qibocamp.remote.notebook.webbrowser.open") as browser,
+        patch("qibocamp.remote.notebook.time.sleep", side_effect=KeyboardInterrupt),
+        patch("qibocamp.remote.notebook.stop_process") as stop,
     ):
         launch(options)
     command = popen.call_args_list[0].args[0]
@@ -781,11 +781,11 @@ def test_launch_composes_layers(ssh, slurm, capsys):
 def test_launch_opens_browser(marimo):
     process = worker_process()
     with (
-        patch("qibocal_report.remote.notebook.subprocess.Popen", return_value=process),
-        patch("qibocal_report.remote.notebook._wait_tunnel"),
-        patch("qibocal_report.remote.notebook.webbrowser.open", return_value=True) as browser,
-        patch("qibocal_report.remote.notebook.time.sleep", side_effect=KeyboardInterrupt),
-        patch("qibocal_report.remote.notebook.stop_process"),
+        patch("qibocamp.remote.notebook.subprocess.Popen", return_value=process),
+        patch("qibocamp.remote.notebook._wait_tunnel"),
+        patch("qibocamp.remote.notebook.webbrowser.open", return_value=True) as browser,
+        patch("qibocamp.remote.notebook.time.sleep", side_effect=KeyboardInterrupt),
+        patch("qibocamp.remote.notebook.stop_process"),
     ):
         launch(NotebookOptions(marimo=marimo))
     query_key = "access_token" if marimo else "token"
@@ -796,8 +796,8 @@ def test_launch_startup_failure_cleans_up():
     process = worker_process()
     process.stdout = io.StringIO("")
     with (
-        patch("qibocal_report.remote.notebook.subprocess.Popen", return_value=process),
-        patch("qibocal_report.remote.notebook.stop_process") as stop,
+        patch("qibocamp.remote.notebook.subprocess.Popen", return_value=process),
+        patch("qibocamp.remote.notebook.stop_process") as stop,
         pytest.raises(click.ClickException, match="exited before startup"),
     ):
         launch(NotebookOptions())
@@ -819,7 +819,7 @@ def test_stop_process_escalates():
         0,
     ]
     process.poll.return_value = None
-    with patch("qibocal_report.remote.notebook.os.killpg") as killpg:
+    with patch("qibocamp.remote.notebook.os.killpg") as killpg:
         stop_process(process)
     assert killpg.call_count == 2
 
@@ -857,7 +857,7 @@ def test_tunnel_failure():
 def test_tunnel_wait_bypasses_proxies():
     process = MagicMock()
     process.poll.return_value = None
-    with patch("qibocal_report.remote.notebook.build_opener") as build_opener:
+    with patch("qibocamp.remote.notebook.build_opener") as build_opener:
         _wait_tunnel("http://127.0.0.1:1234", [process], time.monotonic() + 1)
     assert build_opener.call_args.args[0].proxies == {}
     build_opener.return_value.open.assert_called_once()
@@ -908,11 +908,11 @@ class Handler(BaseHTTPRequestHandler):
 
 server = HTTPServer(("127.0.0.1", 0), Handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
-print("QIBOCAL_NOTEBOOK_EVENT " + json.dumps({
+print("QIBOCAMP_NOTEBOOK_EVENT " + json.dumps({
     "kind": "node", "role": "access and compute",
     "identity": {"hostname": "local-test", "fqdn": "local-test.example"},
 }), file=sys.stderr, flush=True)
-print("QIBOCAL_NOTEBOOK_READY " + json.dumps({
+print("QIBOCAMP_NOTEBOOK_READY " + json.dumps({
     "host": "localhost", "port": server.server_port,
     "token": "test-token", "path": "/lab",
 }), flush=True)
@@ -927,9 +927,9 @@ server.server_close()
         raise KeyboardInterrupt
 
     with (
-        patch("qibocal_report.remote.notebook.Path.read_text", return_value=source),
+        patch("qibocamp.remote.notebook.Path.read_text", return_value=source),
         patch(
-            "qibocal_report.remote.notebook.webbrowser.open", side_effect=interrupt_after_ready
+            "qibocamp.remote.notebook.webbrowser.open", side_effect=interrupt_after_ready
         ),
     ):
         launch(NotebookOptions(timeout=5))

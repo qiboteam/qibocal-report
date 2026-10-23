@@ -5,10 +5,10 @@ import json
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-from qibocal_report import config
+from qibocamp import config
 
-from qibocal_report.web import api
-from qibocal_report.cli import main
+from qibocamp.web import api
+from qibocamp.cli import main
 
 
 def test_the_root_tells_where_the_dashboard_is_and_serves_no_page():

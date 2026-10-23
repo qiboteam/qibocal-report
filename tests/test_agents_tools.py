@@ -4,9 +4,9 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from qibocal_report.cli import main
-from qibocal_report.remote import agents
-from qibocal_report.remote import notebook_worker as worker
+from qibocamp.cli import main
+from qibocamp.remote import agents
+from qibocamp.remote import notebook_worker as worker
 
 
 class Recorder:

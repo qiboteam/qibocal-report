@@ -7,19 +7,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import sample_reports
-from qibocal_report import config
-from qibocal_report.web.api import app, get_report_root, set_report_root
-from qibocal_report.reports.generator import (
+from qibocamp import config
+from qibocamp.web.api import app, get_report_root, set_report_root
+from qibocamp.reports.generator import (
     has_cached_report,
     load_cached_protocols,
     regenerate_report,
 )
-from qibocal_report.reports.scanner import compute_filter_stats, filter_reports, scan_reports
+from qibocamp.reports.scanner import compute_filter_stats, filter_reports, scan_reports
 
 
 @pytest.fixture(autouse=True)
 def setup_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path / "config"))
     test_reports = sample_reports(tmp_path / "sample_data")
     target_meta = test_reports / "10:50:56_[0]_resonator_punchout" / "meta.json"
     if target_meta.exists():
@@ -149,10 +149,10 @@ def test_generator_modes():
     # Test error reporting when Qibocal is not available / cannot generate
     from unittest.mock import patch
 
-    from qibocal_report.reports.generator import GenerationError, generate_report_on_the_fly
+    from qibocamp.reports.generator import GenerationError, generate_report_on_the_fly
 
     with patch(
-        "qibocal_report.reports.generator._generate_qibocal_protocols",
+        "qibocamp.reports.generator._generate_qibocal_protocols",
         return_value=(None, GenerationError("Qibocal is not installed in the environment.")),
     ):
         rep_unavail = test_reports / "nonexistent_run"
@@ -405,7 +405,7 @@ def test_docs_endpoint():
 
 
 def test_the_root_names_the_dashboard():
-    from qibocal_report.config import DASHBOARD_URL
+    from qibocamp.config import DASHBOARD_URL
 
     client = TestClient(app)
     r = client.get("/")
@@ -560,7 +560,7 @@ def test_remove_label_and_author_actions():
 
 
 def test_author_identities_and_search_index():
-    from qibocal_report.config import resolve_author_identity
+    from qibocamp.config import resolve_author_identity
 
     # 1. Test resolve_author_identity helper
     identities = {
@@ -596,8 +596,8 @@ def test_author_identities_and_search_index():
     assert first.id.lower() in first.search_index
 
     # 4. Test compute_filter_stats and filter_reports with author_identities
-    from qibocal_report.models import ReportSummary
-    from qibocal_report.reports.scanner import compute_filter_stats, filter_reports
+    from qibocamp.models import ReportSummary
+    from qibocamp.reports.scanner import compute_filter_stats, filter_reports
 
     dummy_reports = [
         ReportSummary(
@@ -663,7 +663,7 @@ def test_author_identities_and_search_index():
 
 def test_pagination_and_cache_invalidation(monkeypatch):
     # Every scan checks the tree, rather than trusting the last walk for a while.
-    monkeypatch.setenv("QIBOCAL_REPORT_SCAN_INTERVAL", "0")
+    monkeypatch.setenv("QIBOCAMP_SCAN_INTERVAL", "0")
     client = TestClient(app)
     test_reports = get_report_root()
 
@@ -693,7 +693,7 @@ def test_pagination_and_cache_invalidation(monkeypatch):
     assert p1_ids.isdisjoint(p2_ids)
 
     # 2. Test backend caching and invalidation
-    from qibocal_report.reports.scanner import _REPORT_CACHE, invalidate_report_cache
+    from qibocamp.reports.scanner import _REPORT_CACHE, invalidate_report_cache
 
     # First scan caches the results
     scan1 = scan_reports(test_reports)
@@ -1038,14 +1038,14 @@ def test_archive_workflow(tmp_path):
 
 def test_protocol_execution_order_sorting(tmp_path: Path):
     """Test protocol execution order sorting in report view (Issue #3)."""
-    from qibocal_report.reports.generator import (
+    from qibocamp.reports.generator import (
         get_execution_order,
         load_cached_protocols,
         get_report_protocols,
         sort_protocols_by_execution_order,
     )
-    from qibocal_report.reports.scanner import get_report_detail
-    from qibocal_report.models import ProtocolDetail
+    from qibocamp.reports.scanner import get_report_detail
+    from qibocamp.models import ProtocolDetail
 
     # 1. Test real sample data with 9 routines
     sample_dir = tmp_path / "sample_data" / "21:47:29_[3]_pi-pulse"
@@ -1136,7 +1136,7 @@ def test_protocol_execution_order_sorting(tmp_path: Path):
 
 
 def test_every_documentation_page_is_listed_and_served():
-    from qibocal_report.web.docs import documented_pages
+    from qibocamp.web.docs import documented_pages
 
     client = TestClient(app)
     files = {str(p.relative_to("docs").with_suffix("")).removesuffix("/index") for p in Path("docs").rglob("*.md")}

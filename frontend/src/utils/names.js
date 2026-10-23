@@ -1,10 +1,10 @@
 /**
  * Server names, generated the way the command line generates them.
  *
- * `qibocal report server` registers an instance as an adjective and a
+ * `qibocamp report server` registers an instance as an adjective and a
  * scientist — "zen-bohr", "swift-curie" — and a server added from here or
  * from the launcher should not read differently. The two lists are copied
- * from `qibocal_report.config`, and a test on that side holds them equal.
+ * from `qibocamp.config`, and a test on that side holds them equal.
  */
 export const ADJECTIVES = [
   'zen',

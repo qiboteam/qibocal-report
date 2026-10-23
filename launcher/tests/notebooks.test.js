@@ -103,7 +103,7 @@ test('a notebook report server runs on the same channel and serves the working d
   assert.equal(remote.ssh, '-p 2222 user@login', 'the same destination, options and all')
   assert.equal(remote.directory, '/scratch/runs')
   assert.equal(remote.workdir, '/scratch/runs')
-  assert.equal(remote.venv, REPORTS_ENVIRONMENT, 'not the kernel environment, whose qibocal command is not ours')
+  assert.equal(remote.venv, REPORTS_ENVIRONMENT, 'not the kernel environment, which holds qibocal, not this qibocamp')
   assert.equal(remote.name, 'chip reports')
   assert.equal(remote.register, false, 'for a look: nothing is registered')
   assert.equal(remote.queue, undefined, 'the server runs on the access node, never through SLURM')
@@ -147,7 +147,7 @@ test('remote execution connections share the notebook fields and keep their own'
     'its own environment, apart from a session of the same name')
   assert.equal(normalizeRemoteOptions({ ...defaultRemoteOptions(), venv: 'qibocal' }).options.venv, 'qibocal', 'sharing one is a choice, kept')
   assert.deepEqual(rebuildOptions({ ssh: 'me@login', queue: 'qpu', platform: 'qw11q', python: '3.12', venv: 'lab', reports: 'out' }),
-    { ssh: 'me@login', queue: 'qpu', venv: 'lab' }, 'what qibocal notebook rebuild takes, and nothing else')
+    { ssh: 'me@login', queue: 'qpu', venv: 'lab' }, 'what qibocamp notebook rebuild takes, and nothing else')
 })
 
 test('a session runs here, on the access node, or on a computing node, with the fields that make sense there', () => {

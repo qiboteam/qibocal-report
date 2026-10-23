@@ -277,7 +277,7 @@ test('server management saves and loads a client-state file with confirmation an
     page.saveClientState()
     const contents = await blob.text()
     assert.equal(contents.includes('private-session'), false)
-    assert.equal(link.download, 'qibocal-report-client.json')
+    assert.equal(link.download, 'qibocamp-client.json')
     assert.equal(link.href, 'blob:client-state')
     assert.equal(link.click.mock.callCount(), 1)
     assert.equal(revoke.mock.calls[0].arguments[0], 'blob:client-state')
@@ -290,7 +290,7 @@ test('server management saves and loads a client-state file with confirmation an
     assert.equal(target.value, '')
     assert.equal(page.loadingClientState.value, false)
     assert.match(page.toastMessage.value, /Client state loaded/)
-    assert.deepEqual(JSON.parse(storage.get('qibocal_report_servers')).map(s => s.id), [server.id])
+    assert.deepEqual(JSON.parse(storage.get('qibocamp_servers')).map(s => s.id), [server.id])
 
     const saved = store.exportClientState()
     globalThis.confirm = mock.fn(() => false)

@@ -19,7 +19,7 @@ const COMMIT = 'abc1234def5678abc1234def5678abc1234def56'
 const build = { defaultPackage: archiveSpec('commit', COMMIT), buildCommit: COMMIT }
 
 test('the default is the commit the launcher was built from, a bare archive URL', () => {
-  assert.equal(defaultSpec(build), `https://github.com/qiboteam/qibocal-report/archive/${COMMIT}.tar.gz`)
+  assert.equal(defaultSpec(build), `https://github.com/qiboteam/qibocamp/archive/${COMMIT}.tar.gz`)
   assert.ok(!defaultSpec(build).includes(' '), 'one word, for the remote worker')
   assert.deepEqual(parseSpec(defaultSpec(build)), { kind: 'commit', ref: COMMIT })
   assert.equal(defaultSpec(null), MAIN_SPEC, 'without a known commit, the main branch')
@@ -30,7 +30,7 @@ test('releases, branches, tags and hand-typed requirements are told apart', () =
   assert.deepEqual(parseSpec(releaseSpec('0.2.0')), { kind: 'release', ref: '0.2.0' })
   assert.deepEqual(parseSpec(archiveSpec('tag', 'v0.1.0')), { kind: 'tag', ref: 'v0.1.0' })
   assert.deepEqual(parseSpec(archiveSpec('branch', 'feature/x')), { kind: 'branch', ref: 'feature/x' })
-  assert.deepEqual(parseSpec(`qibocal-report @ ${archiveSpec('branch', 'main')}`), { kind: 'branch', ref: 'main' }, 'the named form is read too')
+  assert.deepEqual(parseSpec(`qibocamp @ ${archiveSpec('branch', 'main')}`), { kind: 'branch', ref: 'main' }, 'the named form is read too')
   assert.deepEqual(parseSpec('/home/me/checkout'), { kind: 'other', ref: '/home/me/checkout' })
 })
 
@@ -63,10 +63,10 @@ test('main leads the branches, the rest keep their order', () => {
 
 test('a build is named by its release tag, else its commit, with its page on GitHub', () => {
   assert.deepEqual(buildIdentity({ buildTag: 'v1.2.0', buildCommit: 'abc1234def' }), {
-    label: 'v1.2.0', url: 'https://github.com/qiboteam/qibocal-report/releases/tag/v1.2.0'
+    label: 'v1.2.0', url: 'https://github.com/qiboteam/qibocamp/releases/tag/v1.2.0'
   })
   assert.deepEqual(buildIdentity({ buildCommit: 'abc1234def5678' }), {
-    label: 'commit abc1234', url: 'https://github.com/qiboteam/qibocal-report/commit/abc1234def5678'
+    label: 'commit abc1234', url: 'https://github.com/qiboteam/qibocamp/commit/abc1234def5678'
   })
   assert.deepEqual(buildIdentity({}), { label: 'development build', url: null })
   assert.deepEqual(buildIdentity(null).url, null)

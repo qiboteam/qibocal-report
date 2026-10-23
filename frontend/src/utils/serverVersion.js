@@ -19,7 +19,7 @@ export function serverCompatibility(info) {
   const label = `v${info.version}`
   const built = info.commit ? ` (commit ${String(info.commit).slice(0, 7)})` : ''
   if (info.api_version === API_VERSION) {
-    return { state: 'ok', label, title: `qibocal-report ${info.version}${built}, API v${info.api_version}` }
+    return { state: 'ok', label, title: `Qibocamp Server ${info.version}${built}, API v${info.api_version}` }
   }
   const older = info.api_version < API_VERSION
   return {

@@ -11,7 +11,7 @@
 <template>
   <div v-if="state.closing" class="lx-veil" role="dialog" aria-modal="true" aria-labelledby="lx-closing-title">
     <div class="lx-dialog">
-      <h2 id="lx-closing-title" class="text-sm font-semibold text-gray-900">Closing Qibocal</h2>
+      <h2 id="lx-closing-title" class="text-sm font-semibold text-gray-900">Closing Qibocamp</h2>
       <p class="mt-1 text-xs text-gray-500">
         What the launcher started is being stopped; sessions get a moment to close their tunnels. The
         application closes by itself once everything has stopped.

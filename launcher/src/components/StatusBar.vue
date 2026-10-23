@@ -24,7 +24,7 @@
         title="Follow the installation in Running"
       >
         <Loader2 class="w-3 h-3 lx-spin" />
-        Installing qibocal-report… follow it in Running
+        Installing qibocamp… follow it in Running
       </a>
 
       <div class="ml-auto flex items-center gap-2 min-w-0">
@@ -47,7 +47,7 @@
 import { computed } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import NotificationBell from './NotificationBell.vue'
-import { state, hasQibocal, installing } from '../state.js'
+import { state, hasQibocamp, installing } from '../state.js'
 import { describeSpec } from '../lib/versions.js'
 import { launcherHref } from '../lib/links.js'
 
@@ -55,16 +55,16 @@ import { launcherHref } from '../lib/links.js'
 const versionLabel = computed(() => {
   const environment = state.environment
   if (!environment) return ''
-  if (!hasQibocal.value) return installing.value ? 'qibocal-report: installing' : 'qibocal-report not installed'
-  const version = String(environment.version || '').replace(/^qibocal,?\s*version\s*/i, '').trim()
+  if (!hasQibocamp.value) return installing.value ? 'qibocamp: installing' : 'qibocamp not installed'
+  const version = String(environment.version || '').replace(/^qibocamp,?\s*version\s*/i, '').trim()
   const held = environment.source === 'managed' && environment.managedPackage
     ? describeSpec(environment.managedPackage, environment)
     : ''
-  return `qibocal-report ${version || ''}${held ? ` · ${held}` : ''}`.replace(/\s+/g, ' ').trim()
+  return `qibocamp ${version || ''}${held ? ` · ${held}` : ''}`.replace(/\s+/g, ' ').trim()
 })
 const versionTitle = computed(() => state.environment?.executable || 'Configuration')
 /** Found, being installed, or missing: green, amber, red. */
 const dotClass = computed(() =>
-  hasQibocal.value ? 'bg-emerald-500' : installing.value ? 'bg-amber-400' : 'bg-red-400'
+  hasQibocamp.value ? 'bg-emerald-500' : installing.value ? 'bg-amber-400' : 'bg-red-400'
 )
 </script>

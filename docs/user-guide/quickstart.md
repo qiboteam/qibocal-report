@@ -1,30 +1,30 @@
 # User Guide: Getting Started & Quickstart
 
-`qibocal-report` is a modern, lightweight web application and server designed to serve and explore [Qibocal](https://github.com/qiboteam/qibocal) calibration reports interactively.
+Qibocamp is a modern, lightweight web application and server designed to serve and explore [Qibocal](https://github.com/qiboteam/qibocal) calibration reports interactively. It builds on top of Qibocal, which remains a separate project.
 
 ---
 
 ## ⚡ Installation
 
-Install `qibocal-report` in your Python environment (Python 3.10+). The package is not on PyPI yet: install it from GitHub.
+Install Qibocamp in your Python environment (Python 3.10+). The package is not on PyPI yet: install it from GitHub.
 
 ### Using `pip`
 
 ```bash
-pip install git+https://github.com/qiboteam/qibocal-report
+pip install git+https://github.com/qiboteam/qibocamp
 ```
 
 ### Using `uv`
 
 ```bash
-uv pip install git+https://github.com/qiboteam/qibocal-report
+uv pip install git+https://github.com/qiboteam/qibocamp
 ```
 
 ### From Source
 
 ```bash
-git clone https://github.com/qiboteam/qibocal-report.git
-cd qibocal-report
+git clone https://github.com/qiboteam/qibocamp.git
+cd qibocamp
 pip install -e .
 ```
 
@@ -32,21 +32,21 @@ pip install -e .
 
 ## 🚀 Running the Server & Application
 
-The command-line tool `qibocal report` runs the server in two ways:
+The command-line tool `qibocamp report` runs the Qibocamp Server in two ways:
 
 ### 1. Report Server
 
 Start the server on any directory containing Qibocal calibration folders:
 
 ```bash
-# Serve the shared reports directory, ~/.local/share/qibocal/reports
-qibocal report server
+# Serve the shared reports directory, ~/.local/share/qibocamp/reports
+qibocamp report server
 
 # Or specify a directory and custom port
-qibocal report server ./runs --port 8000
+qibocamp report server ./runs --port 8000
 ```
 
-The server is headless: it answers its API at `http://localhost:8000`, and no page of its own. Opening that address in a browser shows a link that opens the server in the dashboard, at [qibo.science/qibocal-report](https://qibo.science/qibocal-report), adding it to your servers when it is not there yet: `#/connect?server=ADDRESS`. In the Qibocal desktop application, add its address under **Servers**. The dashboard reads any number of servers from one browser, on lab computers, measurement rigs and clusters alike.
+The server is headless: it answers its API at `http://localhost:8000`, and no page of its own. Opening that address in a browser shows a link that opens the server in the dashboard, at [qibo.science/qibocamp](https://qibo.science/qibocamp), adding it to your servers when it is not there yet: `#/connect?server=ADDRESS`. In the Qibocamp desktop application, add its address under **Servers**. The dashboard reads any number of servers from one browser, on lab computers, measurement rigs and clusters alike.
 
 ### 2. Developer Mode (Live HMR)
 
@@ -54,7 +54,7 @@ For frontend and backend developers wanting live Hot Module Replacement, on the 
 
 ```bash
 unzip -q sample_data/test-data.zip -d sample_data
-qibocal report dev ./sample_data
+qibocamp report dev ./sample_data
 ```
 
 This starts the FastAPI backend (with auto-reload) and the Vite frontend dev server at `http://localhost:5173`.
@@ -63,7 +63,7 @@ This starts the FastAPI backend (with auto-reload) and the Vite frontend dev ser
 
 ## 📁 Calibration Run Directory Layout
 
-`qibocal-report` automatically scans and recognizes directories produced by Qibocal:
+The Qibocamp Server automatically scans and recognizes directories produced by Qibocal:
 
 ```text
 sample_data/

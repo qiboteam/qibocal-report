@@ -76,11 +76,11 @@ fn light_taskbar() -> bool {
 /// The icon in the tray — the menu bar on macOS — with the two things it
 /// offers: the windows back, and quitting.
 pub fn install_tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "tray-open", "Open Qibocal", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "tray-quit", "Quit Qibocal", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "tray-open", "Open Qibocamp", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "tray-quit", "Quit Qibocamp", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &quit])?;
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("Qibocal")
+        .tooltip("Qibocamp")
         .menu(&menu)
         // A menu bar extra opens its menu on macOS; elsewhere a click is the window.
         .show_menu_on_left_click(cfg!(target_os = "macos"))

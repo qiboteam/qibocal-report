@@ -1,6 +1,6 @@
-//! Read and write the configuration files shared with the `qibocal` CLI.
+//! Read and write the configuration files shared with the `qibocamp` CLI.
 //!
-//! The layout mirrors `qibocal_report.config.get_config_dir`, so the launcher
+//! The layout mirrors `qibocamp.config.get_config_dir`, so the launcher
 //! and the command line always see the same servers, notebook connections and
 //! authentication database.
 
@@ -63,7 +63,7 @@ fn incompatible(name: &str, found: Option<u64>) -> String {
         None => "no format version".to_string(),
     };
     format!(
-        "{name} was written by another version of Qibocal ({declared}; this one reads {CONFIG_VERSION}). \
+        "{name} was written by another version of Qibocamp ({declared}; this one reads {CONFIG_VERSION}). \
          It is left as it is until migrated by hand, in Configuration."
     )
 }
@@ -107,14 +107,14 @@ fn versioned(key: &str, entries: Value) -> Value {
 }
 
 pub fn config_dir() -> PathBuf {
-    if let Some(custom) = non_empty_env("QIBOCAL_REPORT_CONFIG_DIR") {
+    if let Some(custom) = non_empty_env("QIBOCAMP_CONFIG_DIR") {
         return PathBuf::from(custom);
     }
     let root = non_empty_env("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .or_else(|| dirs::home_dir().map(|home| home.join(".config")))
         .unwrap_or_else(|| PathBuf::from(".config"));
-    root.join("qibocal")
+    root.join("qibocamp")
 }
 
 fn non_empty_env(name: &str) -> Option<String> {

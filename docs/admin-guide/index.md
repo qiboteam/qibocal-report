@@ -1,12 +1,12 @@
 # 🛡️ Server Administration & Security Guide
 
-This guide covers everything system administrators need to know to secure, configure, and manage a `qibocal-report` instance in multi-user quantum laboratory environments.
+This guide covers everything system administrators need to know to secure, configure, and manage a Qibocamp Server in multi-user quantum laboratory environments.
 
 ---
 
 ## 🔒 Authentication Overview
 
-By default, `qibocal-report` starts in **open/single-user mode** for frictionless local developer workflows. In lab environments with shared servers or network deployments, you can enable **Role-Based Access Control (RBAC)** to enforce user authentication and split privileges across three distinct roles:
+By default, the Qibocamp Server starts in **open/single-user mode** for frictionless local developer workflows. In lab environments with shared servers or network deployments, you can enable **Role-Based Access Control (RBAC)** to enforce user authentication and split privileges across three distinct roles:
 
 - **Viewer**: Read-only access. Ideal for external collaborators, students, or dashboard monitors who should view calibration plots and download artifacts without modifying reports.
 - **Editor**: Full read-and-write permissions on reports and archives. Ideal for experimental physicists who tag runs, edit authors, regenerate plots, and archive runs.
@@ -20,17 +20,17 @@ To enable authentication on your report server, pass the `--auth` flag when star
 
 ```bash
 # Production server mode with authentication enabled
-qibocal report server /path/to/reports --auth --host 0.0.0.0 --port 8000
+qibocamp report server /path/to/reports --auth --host 0.0.0.0 --port 8000
 
 # Development mode with authentication enabled
-qibocal report dev /path/to/reports --auth --port 8000
+qibocamp report dev /path/to/reports --auth --port 8000
 ```
 
 Alternatively, you can set the environment variable:
 
 ```bash
-export QIBOCAL_AUTH_ENABLED=1
-qibocal report server /path/to/reports
+export QIBOCAMP_AUTH_ENABLED=1
+qibocamp report server /path/to/reports
 ```
 
 When started with `--auth`, the server:
@@ -55,24 +55,24 @@ server only. Click the server again to sign in as a different user.
 
 ## 🔑 Initial Setup: The First Administrator
 
-When a server starts with `--auth` for the first time and no users exist in the database, `qibocal-report` **automatically generates a secure initial Admin Invitation**:
+When a server starts with `--auth` for the first time and no users exist in the database, the Qibocamp Server **automatically generates a secure initial Admin Invitation**:
 
 ```text
-╭──────────────────────── ⚛️  Qibocal Report Server ────────────────────────╮
+╭─────────────────────────── ⚛️  Qibocamp Server ───────────────────────────╮
 │ 📁 Reports Directory : /path/to/reports                                   │
 │ ⚙️  FastAPI Server   : http://0.0.0.0:8000                                │
 │ 📖 REST API Docs     : http://0.0.0.0:8000/api/docs/swagger               │
-│ 🖥️  Dashboard        : https://qibo.science/qibocal-report                │
+│ 🖥️  Dashboard        : https://qibo.science/qibocamp                      │
 │ 🔒 Auth & Roles       : Enabled                                           │
-│ 🔑 Admin Invite Link  : https://qibo.science/qibocal-report/#/invite?     │
+│ 🔑 Admin Invite Link  : https://qibo.science/qibocamp/#/invite?           │
 │    token=adm_a8f10b89e...&server=http%3A%2F%2F0.0.0.0%3A8000             │
 │                                                                           │
 │ The server has no page of its own: add its address in the dashboard,      │
-│ or in the Qibocal desktop application. Press Ctrl+C to stop the server.   │
+│ or in the Qibocamp desktop application. Press Ctrl+C to stop the server.  │
 ╰───────────────────────────────────────────────────────────────────────────╯
 ```
 
-The link opens the deployed dashboard — `QIBOCAL_DASHBOARD_URL` names another one — and tells it the server's address. A server bound to `0.0.0.0` is announced as such: regenerate the link with `qibocal report admin invite --server-url` and the address the browser reaches it at, if that one does not work from there.
+The link opens the deployed dashboard — `QIBOCAMP_DASHBOARD_URL` names another one — and tells it the server's address. A server bound to `0.0.0.0` is announced as such: regenerate the link with `qibocamp report admin invite --server-url` and the address the browser reaches it at, if that one does not work from there.
 
 ### Steps to Bootstrap:
 1. Copy the setup link printed in the terminal.
@@ -101,10 +101,10 @@ The Server Administration dashboard provides three main panels:
 
 ## 📤 Uploads from other servers
 
-Reports can be uploaded to a server from another one, through the dashboard. With authentication on, the **Uploads** card of Server Administration says who may: administrators always, and, as chosen, editors too, every signed-in user, or selected individuals. The choice is kept in `auth.json`, next to the users. Without authentication, the server accepts uploads from anyone who reaches it. From a browser, either way, only the pages of the dashboard, the desktop application and this machine may change anything — further origins are listed in `QIBOCAL_ALLOWED_ORIGINS`; any other page is answered `403`.
+Reports can be uploaded to a server from another one, through the dashboard. With authentication on, the **Uploads** card of Server Administration says who may: administrators always, and, as chosen, editors too, every signed-in user, or selected individuals. The choice is kept in `auth.json`, next to the users. Without authentication, the server accepts uploads from anyone who reaches it. From a browser, either way, only the pages of the dashboard, the desktop application and this machine may change anything — further origins are listed in `QIBOCAMP_ALLOWED_ORIGINS`; any other page is answered `403`.
 
 ## 💾 Storage & Cryptography Architecture
 
 - **Password Hashing**: Passwords are encrypted using **PBKDF2-HMAC-SHA256** with 100,000 iterations and unique 16-byte random salts per user. Raw passwords are never stored.
 - **JWT Tokens**: Authenticated sessions issue signed JSON Web Tokens (HS256) valid for 7 days.
-- **Persistence**: User credentials, roles, and invitation tokens are persisted in `auth.json` inside the server configuration directory (`$XDG_CONFIG_HOME/qibocal/`, falling back to `$HOME/.config/qibocal/`). `$QIBOCAL_REPORT_CONFIG_DIR` overrides this directory; `$QIBOCAL_AUTH_FILE` can override the authentication file separately.
+- **Persistence**: User credentials, roles, and invitation tokens are persisted in `auth.json` inside the server configuration directory (`$XDG_CONFIG_HOME/qibocamp/`, falling back to `$HOME/.config/qibocamp/`). `$QIBOCAMP_CONFIG_DIR` overrides this directory; `$QIBOCAMP_AUTH_FILE` can override the authentication file separately.

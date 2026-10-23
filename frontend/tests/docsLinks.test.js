@@ -32,7 +32,7 @@ test('a link leads to a page of this documentation, from its root or from the pa
   assert.deepEqual(resolveDocLink('quickstart.md', 'user-guide'), doc('user-guide/quickstart'), 'a section is its index')
   assert.deepEqual(resolveDocLink('user-guide/index.md', 'index'), doc('user-guide'))
   // The deployed copy of this very documentation is this documentation.
-  assert.deepEqual(resolveDocLink('https://qibo.science/qibocal-report/#/docs/user-guide/launcher/agents', 'index'),
+  assert.deepEqual(resolveDocLink('https://qibo.science/qibocamp/#/docs/user-guide/launcher/agents', 'index'),
     doc('user-guide/launcher/agents'))
   for (const href of ['https://qibo.science/qibocal/stable/protocols/', 'https://github.com/qiboteam', 'mailto:a@b.c', '//cdn.example/x']) {
     assert.deepEqual(resolveDocLink(href, 'index'), { kind: 'url', url: href })

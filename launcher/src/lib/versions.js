@@ -1,5 +1,5 @@
 /**
- * Which qibocal-report goes into the launcher's own environment.
+ * Which qibocamp goes into the launcher's own environment.
  *
  * The choice is a pip requirement, stored as `package` in `launcher.json`:
  * a release from PyPI, or the archive of a commit, branch or tag of the
@@ -10,8 +10,8 @@
  * interface; everything here is pure and tested.
  */
 
-export const PROJECT = 'qibocal-report'
-export const REPOSITORY = 'qiboteam/qibocal-report'
+export const PROJECT = 'qibocamp'
+export const REPOSITORY = 'qiboteam/qibocamp'
 export const PYPI_URL = `https://pypi.org/pypi/${PROJECT}/json`
 export const BRANCHES_URL = `https://api.github.com/repos/${REPOSITORY}/branches?per_page=100`
 export const TAGS_URL = `https://api.github.com/repos/${REPOSITORY}/tags?per_page=100`

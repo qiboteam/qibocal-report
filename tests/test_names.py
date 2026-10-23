@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 
-from qibocal_report import config
+from qibocamp import config
 
 NAMES_JS = Path(__file__).resolve().parent.parent / "frontend" / "src" / "utils" / "names.js"
 

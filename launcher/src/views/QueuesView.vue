@@ -160,7 +160,7 @@ const router = useRouter()
 const pollSeconds = queuePollSeconds
 
 /** Whether the tree of machines is shown: hidden, the table has the page's width. Remembered. */
-const TREE_KEY = 'qibocal_launcher_queues_tree'
+const TREE_KEY = 'qibocamp_launcher_queues_tree'
 const treeOpen = ref(localStorage.getItem(TREE_KEY) !== 'closed')
 function toggleTree() {
   treeOpen.value = !treeOpen.value

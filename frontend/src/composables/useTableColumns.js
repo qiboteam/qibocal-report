@@ -10,7 +10,7 @@ const DEFAULT_COLUMNS = [
   { key: 'date', label: 'Date', width: 175, minWidth: 120, resizable: true }
 ]
 
-const STORAGE_KEY = 'qibocal_report_table_columns_v1'
+const STORAGE_KEY = 'qibocamp_table_columns_v1'
 
 /**
  * Composable for managing resizable report table columns with persistence.

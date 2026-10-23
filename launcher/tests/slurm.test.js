@@ -41,16 +41,16 @@ test('the nodes read as one line, idle first', () => {
 })
 
 test('the job is known by name at submission, by id once it runs', () => {
-  const lines = ['[2mSubmitting SLURM job qibocal-nb-a1b2c3 on partition gpu; waiting for a compute node.[0m']
-  assert.equal(jobNameFromLog(lines), 'qibocal-nb-a1b2c3')
+  const lines = ['[2mSubmitting SLURM job qibocamp-nb-a1b2c3 on partition gpu; waiting for a compute node.[0m']
+  assert.equal(jobNameFromLog(lines), 'qibocamp-nb-a1b2c3')
   assert.equal(jobNameFromLog(['Submitting SLURM job on partition gpu']), null, 'a job the caller named is not ours to find')
   const jobs = [
     { id: '7', name: 'other', user: 'me', state: 'PENDING' },
-    { id: '9', name: 'qibocal-nb-a1b2c3', user: 'me', state: 'PENDING' }
+    { id: '9', name: 'qibocamp-nb-a1b2c3', user: 'me', state: 'PENDING' }
   ]
-  assert.equal(positionOf(jobs, null, 'qibocal-nb-a1b2c3'), 2)
-  assert.deepEqual(filterJobs(jobs, { jobName: 'qibocal-nb-a1b2c3' }).map(job => job.id), ['9', '7'])
-  assert.equal(isOwnJob(jobs[1], { jobId: '7', jobName: 'qibocal-nb-a1b2c3' }), false, 'the id, once known, rules')
+  assert.equal(positionOf(jobs, null, 'qibocamp-nb-a1b2c3'), 2)
+  assert.deepEqual(filterJobs(jobs, { jobName: 'qibocamp-nb-a1b2c3' }).map(job => job.id), ['9', '7'])
+  assert.equal(isOwnJob(jobs[1], { jobId: '7', jobName: 'qibocamp-nb-a1b2c3' }), false, 'the id, once known, rules')
 })
 
 test('the recap says who is busy and what is mine', () => {

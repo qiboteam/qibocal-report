@@ -1,6 +1,6 @@
 # Developer: System Architecture
 
-`qibocal-report` is engineered as a decoupled, modular system composed of a high-throughput **FastAPI** backend and a reactive **Vue 3** Single-Page Application (SPA).
+Qibocamp is engineered as a decoupled, modular system composed of a high-throughput **FastAPI** backend, the Qibocamp Server, and a reactive **Vue 3** Single-Page Application (SPA), the Qibocamp Dashboard, which the Qibocamp desktop application embeds.
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -22,7 +22,7 @@
 
 ---
 
-## 🐍 Backend Architecture (`src/qibocal_report/`)
+## 🐍 Backend Architecture (`src/qibocamp/`)
 
 The package is one level deep. At the top sit what everything shares — `cli.py`, the entry point; `config.py`, the shared configuration directory and the registered servers; `models.py`, the Pydantic shapes; `auth.py`, users and tokens; `logger.py`; `qibocal_environment.py`, the Qibocal installation the server generates plots with — and three subpackages group the rest:
 
@@ -40,7 +40,7 @@ The package is one level deep. At the top sit what everything shares — `cli.py
 - All payload structures, metadata representations, and protocol outputs are modeled with **Pydantic v2** (`BaseModel`), guaranteeing contract validation and high serialization speeds.
 
 ### 3. Report Scanner (`reports/scanner.py`)
-- Traverses the directory tree configured via `QIBOCAL_REPORT_DIR` or the CLI argument.
+- Traverses the directory tree configured via `QIBOCAMP_DIR` or the CLI argument.
 - Scans for directories containing `meta.json`.
 - Extracts runcards, platform snapshots (`platform/`, `new_platform/`), executed protocols, qubit sets, and execution timestamps.
 - Aggregates facets on the fly for lightning-fast statistical querying.
@@ -91,12 +91,12 @@ Provides two distinct operational modes:
 
 ## 🖥️ Desktop Launcher (`launcher/`)
 
-The launcher is a **Tauri v2** application: a Rust core around the same web
+The launcher, the Qibocamp desktop application, is a **Tauri v2** application: a Rust core around the same web
 frontend, built as a separate package so the SPA keeps being deployed on its own.
 
 ### 1. Native Core (`src-tauri/src/`)
 - `settings.rs` reads and writes the configuration directory shared with the CLI (`servers.json`, `notebooks.json`, `auth.json`, `launcher.json`), replacing files atomically.
-- `qibocal.rs` resolves the `qibocal` executable — explicit preference, `QIBOCAL_EXECUTABLE`, `PATH`, then the usual virtual-environment layouts — and runs the short-lived commands (`report admin list`, `report admin invite`).
+- `cli.rs` resolves the `qibocamp` executable — explicit preference, `QIBOCAMP_EXECUTABLE`, `PATH`, then the usual virtual-environment layouts — and runs the short-lived commands (`report admin list`, `report admin invite`).
 - `process.rs` supervises the long-running ones, streaming their output to the interface through the `launcher://log` and `launcher://process` events, and stopping them with a signal followed, only if needed, by a kill.
 
 ### 2. Embedded Dashboard

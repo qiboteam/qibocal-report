@@ -5,7 +5,7 @@
         <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Notebooks</h1>
         <p class="mt-1 text-xs text-gray-500">
           A JupyterLab or Marimo session runs here, over SSH, or through SLURM. Registered sessions are the very
-          connections <code class="lx-mono">qibocal notebook</code> uses.
+          connections <code class="lx-mono">qibocamp notebook</code> uses.
         </p>
       </div>
       <!-- The form for a new session opens from here; the page starts on the sessions it has. -->
@@ -240,7 +240,7 @@ const editNameError = computed(() => {
 
 /** The command a form stands for, as the command line takes it. */
 function commandFor(name, options) {
-  const parts = ['qibocal', 'notebook', 'connect']
+  const parts = ['qibocamp', 'notebook', 'connect']
   if (name) parts.push(name)
   for (const [key, value] of Object.entries(options)) {
     if (key === 'marimo') parts.push(value ? '--marimo' : '--jupyter')

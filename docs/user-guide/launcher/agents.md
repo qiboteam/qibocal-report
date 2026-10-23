@@ -32,7 +32,7 @@ A configuration is **kept for** where its user is. **This machine**: an assistan
 ```text
  this machine                         another machine: the access node
 ┌──────────────────────┐   push    ┌──────────────────────────────┐ srun  ┌──────────────┐
-│ Qibocal application  │ ────────▶ │ agents.json                  │ ────▶ │ compute node │
+│ Qibocamp application │ ────────▶ │ agents.json                  │ ────▶ │ compute node │
 │  └ agent-hosts.json  │   (ssh)   │ assistant                    │       │ instruments  │
 └──────────────────────┘           │  └ qibocal-agent mcp, server │       └──────────────┘
                                    └──────────────────────────────┘
@@ -45,14 +45,14 @@ In both cases an assistant registers `qibocal-agent mcp` **once**. It starts not
 **Agents - Setup**, from the **Setup** button of the page:
 
 - **What it is**: the explanation above, in brief, and a link here.
-- **qibocal-agent**: the one the page runs and registers, by absolute path, with its version. **Install** — **Update** once installed — puts the branch, tag or commit given (`main` by default, the repository's branches and tags offered) in `~/.cache/qibocal/agents/tools`, an environment of its own with Python 3.12 or 3.13, which uv provides when needed: `qibocal agents install --ref REF`, its output in **Running**. **Choose environment…** takes another one instead, a checkout's `.venv` say, and **Detect** forgets it: the installed one is used, else the one on the `PATH`.
+- **qibocal-agent**: the one the page runs and registers, by absolute path, with its version. **Install** — **Update** once installed — puts the branch, tag or commit given (`main` by default, the repository's branches and tags offered) in `~/.cache/qibocal/agents/tools`, an environment of its own with Python 3.12 or 3.13, which uv provides when needed: `qibocamp agents install --ref REF`, its output in **Running**. **Choose environment…** takes another one instead, a checkout's `.venv` say, and **Detect** forgets it: the installed one is used, else the one on the `PATH`.
 - **MCP registration**: the registration of `qibocal-agent mcp` for an assistant on this machine, with **Copy** — for Copilot, `~/.copilot/mcp-config.json`; other assistants take the same command and arguments. One serves every configuration, so there is nothing to register again when one is added. An assistant on another machine registers the same, with the path of the qibocal-agent installed there. The launcher writes no other tool's file.
 - **Machines**: the machines a configuration is kept for, or reaches, are the application's, on [Machines](machines.md).
 
 ## Where a configuration is kept
 
 - For **this machine**, it is an entry of `agents.json` — `~/.config/qibocal/agents.json`, or `$XDG_CONFIG_HOME/qibocal/agents.json`, or `$QIBOCAL_AGENTS_CONFIG_DIR/agents.json` — the file `qibocal-agent` itself reads, every configuration under `agents`. Each has a name: `default` is the one used when none is given, an ordinary entry otherwise, and `agent` and `agents` are reserved. The file is the tool's, and it refuses a key it does not know, so the launcher writes nothing else in it.
-- For **another machine**, it is kept here, under that machine's name in `agent-hosts.json`, and written to the `agents.json` there — at the machine's destination — when saved, with `qibocal agents push`: the entries it owns are merged into the remote `agents`, and every other one is left as it is. Only the configuration travels, never environments or keys. When the machine cannot be reached, the configuration is kept here anyway, and **Push** sends it again.
+- For **another machine**, it is kept here, under that machine's name in `agent-hosts.json`, and written to the `agents.json` there — at the machine's destination — when saved, with `qibocamp agents push`: the entries it owns are merged into the remote `agents`, and every other one is left as it is. Only the configuration travels, never environments or keys. When the machine cannot be reached, the configuration is kept here anyway, and **Push** sends it again.
 
 Two filters, on one line, select the list together — chips while they are few, dropdowns once the machines make them long: **Kept for** — this machine, or each other machine — and **Reaches** — **Directly**, a configuration without SSH destination, or the machine its SSH destination is. Each card says both: *this machine* or *for* a machine, and *direct* or *via* a machine.
 

@@ -1,10 +1,10 @@
 import { normalizeUrl } from './url.js'
 
 export const CLIENT_LAYOUT_KEYS = [
-  'qibocal_report_table_columns_v1',
-  'qibocal_sidebar_width',
-  'qibocal_sidebar_top_height',
-  'qibocal_sidebar_middle_height'
+  'qibocamp_table_columns_v1',
+  'qibocamp_sidebar_width',
+  'qibocamp_sidebar_top_height',
+  'qibocamp_sidebar_middle_height'
 ]
 
 function requireValue(condition, field) {
@@ -59,7 +59,7 @@ export function parseClientServer(server) {
 
 // Project onto known fields so credentials and arbitrary storage keys cannot be imported or exported.
 export function parseClientState(data) {
-  requireValue(isObject(data) && data.format === 'qibocal-report-client' && data.version === 1,
+  requireValue(isObject(data) && data.format === 'qibocamp-client' && data.version === 1,
     'unsupported file format or version')
   requireValue(Array.isArray(data.servers), 'server list')
   const servers = data.servers.map(parseClientServer)
@@ -95,7 +95,7 @@ export function parseClientState(data) {
   for (const key of CLIENT_LAYOUT_KEYS) {
     if (data.layout[key] == null) continue
     const raw = string(data.layout[key], `layout ${key}`)
-    if (key === 'qibocal_report_table_columns_v1') {
+    if (key === 'qibocamp_table_columns_v1') {
       const widths = JSON.parse(raw)
       requireValue(isObject(widths) && Object.values(widths).every(width =>
         typeof width === 'number' && Number.isFinite(width) && width > 0), 'column widths')
@@ -106,7 +106,7 @@ export function parseClientState(data) {
     }
   }
   return {
-    format: 'qibocal-report-client',
+    format: 'qibocamp-client',
     version: 1,
     servers,
     activeServerId,

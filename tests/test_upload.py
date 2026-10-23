@@ -6,10 +6,10 @@ import zipfile
 import pytest
 from fastapi.testclient import TestClient
 
-from qibocal_report import auth
-from qibocal_report.reports import scanner
-from qibocal_report.reports.upload import UploadError, receive_report
-from qibocal_report.web import api
+from qibocamp import auth
+from qibocamp.reports import scanner
+from qibocamp.reports.upload import UploadError, receive_report
+from qibocamp.web import api
 
 
 def report_zip(folder="10:00:00_[0]_rabi", files=None):
@@ -61,7 +61,7 @@ def test_what_is_not_one_safe_report_is_refused(root, tmp_path, files, folder, r
 
 
 def test_a_report_larger_than_the_limit_is_refused(root, tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_UPLOAD_LIMIT", "10")
+    monkeypatch.setenv("QIBOCAMP_UPLOAD_LIMIT", "10")
     archive = tmp_path / "report.zip"
     archive.write_bytes(report_zip(files={"meta.json": "x" * 100}))
     with pytest.raises(UploadError) as large:

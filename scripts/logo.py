@@ -1,11 +1,12 @@
-"""Build the Qibocal logo files from the Qibo Q.
+"""Build the Qibocamp logo files from the Qibo Q.
 
 The mark is the Q of the Qibo wordmark — ring, the flank of Kibo filling the
 lower half of the counter, the slope running out as the base of the word —
 with the graduation of a dial drawn on the inner edge of the ring: ticks all
 the way round at a 17.5° pitch, long and short alternating, except where the
-mountain would cover them. The wordmark adds QIBOCAL, the first four letters
-being Qibo's own; C, A and L are drawn in the same geometric style.
+mountain would cover them. The wordmark adds QIBOCAMP, the first four letters
+being Qibo's own; C and P are drawn in the same geometric style, the A as a
+tent with its flag, and the M as two peaks under snow.
 
 Everything is drawn in the coordinate space of the original `qibo_logo.svg`
 paths, so the Q is that outline verbatim. Run from the repository root:
@@ -102,36 +103,114 @@ def letter_c(x: float) -> tuple[list[str], float]:
 
 
 def letter_a(x: float) -> tuple[list[str], float]:
-    w, t = 21.4, STEM
+    """A tent: a solid triangle, its door a pointed arch, a pennant on a pole."""
+    w = 21.8
     xm = x + w / 2
-    rise = t * 2 * (BASE - TOP) / w
-    outer = f"M {fmt(x, BASE)} L {fmt(xm, TOP)} L {fmt(x + w, BASE)} Z"
-    inner = f"M {fmt(x + t, BASE)} L {fmt(xm, TOP + rise)} L {fmt(x + w - t, BASE)} Z"
-    bar_y = 69.0
-    # The bar spans the counter and runs into the legs, so the slant leaves no gap.
-    frac = (bar_y - (TOP + rise)) / (BASE - (TOP + rise))
-    left = xm - frac * (xm - (x + t)) - 3.0
-    right = xm + frac * ((x + w - t) - xm) + 3.0
-    bar = f"M {fmt(left, bar_y)} H {fmt(right)} V {fmt(bar_y + 3.4)} H {fmt(left)} Z"
-    return [f"{outer} {inner}", bar], x + w
-
-
-def letter_l(x: float) -> tuple[list[str], float]:
-    w, t = 12.2, STEM
-    path = (
-        f"M {fmt(x, TOP)} H {fmt(x + t)} V {fmt(BASE - 3.6)} H {fmt(x + w)} "
-        f"V {fmt(BASE)} H {fmt(x)} Z"
+    tent = f"M {fmt(x, BASE)} L {fmt(xm, TOP)} L {fmt(x + w, BASE)} Z"
+    dw, dh = 4.6, 9.4
+    door = (
+        f"M {fmt(xm - dw / 2, BASE)} Q {fmt(xm - dw / 2 + 0.3, BASE - dh * 0.6)} {fmt(xm, BASE - dh)} "
+        f"Q {fmt(xm + dw / 2 - 0.3, BASE - dh * 0.6)} {fmt(xm + dw / 2, BASE)} Z"
     )
+    pole_w, pole_h = 0.8, 4.6
+    top = TOP - pole_h
+    pole = f"M {fmt(xm - pole_w / 2, top)} H {fmt(xm + pole_w / 2)} V {fmt(TOP + 1.5)} H {fmt(xm - pole_w / 2)} Z"
+    flag = f"M {fmt(xm + pole_w / 2, top)} L {fmt(xm + pole_w / 2 + 4.4, top + 1.15)} L {fmt(xm + pole_w / 2, top + 2.3)} Z"
+    return [f"{tent} {door}", pole, flag], x + w
+
+
+def _meet(p1, d1, p2, d2) -> tuple[float, float]:
+    """Where the line through p1 along d1 crosses the line through p2 along d2."""
+    det = d1[0] * d2[1] - d1[1] * d2[0]
+    t = ((p2[0] - p1[0]) * d2[1] - (p2[1] - p1[1]) * d2[0]) / det
+    return p1[0] + t * d1[0], p1[1] + t * d1[1]
+
+
+SNOW_LINE = 0.6  # width of the line drawn round each cap of snow
+
+
+def _polygon(points) -> str:
+    head, *rest = points
+    return f"M {fmt(*head)} " + " ".join(f"L {fmt(*point)}" for point in rest) + " Z"
+
+
+def _inset(points, d: float) -> list[tuple[float, float]]:
+    """A polygon with every edge moved inwards by d, its corners where the moved edges meet."""
+    n = len(points)
+    area = sum(points[i][0] * points[(i + 1) % n][1] - points[(i + 1) % n][0] * points[i][1] for i in range(n))
+    side = 1 if area > 0 else -1
+    edges = []
+    for i in range(n):
+        (x1, y1), (x2, y2) = points[i], points[(i + 1) % n]
+        length = math.hypot(x2 - x1, y2 - y1)
+        nx, ny = -side * (y2 - y1) / length, side * (x2 - x1) / length
+        edges.append(((x1 + nx * d, y1 + ny * d), (x2 - x1, y2 - y1)))
+    return [_meet(*edges[i - 1], *edges[i]) for i in range(n)]
+
+
+def letter_m(x: float) -> tuple[list[str], float]:
+    """Two peaks, rising a little above the letters, each with a cap of snow.
+
+    The outer legs reach the base; the inner strokes meet in a valley above
+    it, and a line round each cap of snow is cut out of the letter.
+    """
+    w, t = 25.0, 3.9
+    peak_y = TOP - 1.6
+    p1, p2 = (x + 5.2, peak_y), (x + w - 5.2, peak_y)
+    xv = x + w / 2
+    valley_top = (xv, 65.6)
+    valley_bottom = (xv, 71.2)
+    left_leg = (p1[0] - x, peak_y - BASE)
+    right_leg = (p2[0] - (x + w), peak_y - BASE)
+    down_left = (xv - p1[0], valley_top[1] - peak_y)
+    down_right = (xv - p2[0], valley_top[1] - peak_y)
+    inner_left = _meet((x + t, BASE), left_leg, valley_bottom, down_left)
+    inner_right = _meet((x + w - t, BASE), right_leg, valley_bottom, down_right)
+    path = (
+        f"M {fmt(x, BASE)} L {fmt(*p1)} L {fmt(*valley_top)} L {fmt(*p2)} L {fmt(x + w, BASE)} "
+        f"L {fmt(x + w - t, BASE)} L {fmt(*inner_right)} L {fmt(*valley_bottom)} "
+        f"L {fmt(*inner_left)} L {fmt(x + t, BASE)} Z"
+    )
+    snow = []
+    for peak, outer, inner in ((p1, left_leg, down_left), (p2, down_right, right_leg)):
+        # The cap: an arrowhead under the summit, its sides along the slopes,
+        # its lower edge notched like a snow line.
+        tip_y, line_y, notch = peak[1] + 1.4, peak[1] + 9.4, 2.8
+        side = line_y - tip_y
+        lx = peak[0] + outer[0] / outer[1] * side + 0.8
+        rx = peak[0] + inner[0] / inner[1] * side - 0.8
+        cap = [(peak[0], tip_y), (lx, line_y), (peak[0], line_y - notch), (rx, line_y)]
+        snow.append(cap)
+    # The snow is a thin line cut out of the peak: the cap, and the cap drawn
+    # a line's width inside it, both in the letter's path, so that even-odd
+    # filling leaves the ring between them empty on any background.
+    for cap in snow:
+        path += " " + _polygon(cap) + " " + _polygon(_inset(cap, SNOW_LINE))
     return [path], x + w
 
 
-def cal_paths() -> tuple[list[str], float]:
-    # Gaps follow the existing word: round to round 1.9, round into the open
-    # side of A 0.0, the foot of A to the vertical L 3.0.
+def letter_p(x: float) -> tuple[list[str], float]:
+    """A stem and a round bowl, the bowl as the B's."""
+    t, tb = STEM, 3.6
+    R = 6.4
+    xr = x + 13.6 - R
+    path = (
+        f"M {fmt(x, TOP)} H {fmt(xr)} A {fmt(R, R)} 0 0 1 {fmt(xr, TOP + 2 * R)} "
+        f"H {fmt(x + t)} V {fmt(BASE)} H {fmt(x)} Z "
+        f"M {fmt(x + t, TOP + tb)} H {fmt(xr)} A {fmt(R - tb, R - tb)} 0 0 1 {fmt(xr, TOP + 2 * R - tb)} "
+        f"H {fmt(x + t)} Z"
+    )
+    return [path], x + 13.6
+
+
+def camp_paths() -> tuple[list[str], float]:
+    # Gaps follow the image: the foot of the tent tucks under the C, the M
+    # stands just past it, and the P a stem's width after.
     c, x = letter_c(223.3)
-    a, x = letter_a(x + 0.0)
-    l, x = letter_l(x + 3.0)
-    return [*c, *a, *l], x
+    a, x = letter_a(x - 0.4)
+    m, x = letter_m(x + 0.8)
+    p, x = letter_p(x + 2.4)
+    return [*c, *a, *m, *p], x
 
 
 # --- The graduation ----------------------------------------------------------
@@ -184,7 +263,7 @@ def ticks() -> str:
 
 # --- Assembly ----------------------------------------------------------------
 
-WORD_VIEWBOX = "141 45.5 141.5 33"
+WORD_VIEWBOX = "141 45.5 172.5 33"
 MARK_VIEWBOX = "133.63 38 48 48"
 
 
@@ -196,7 +275,7 @@ def mark_body(color: str) -> str:
 
 
 def word_body(color: str) -> str:
-    letters, _ = cal_paths()
+    letters, _ = camp_paths()
     paths = [
         f'<path fill-rule="evenodd" fill="{color}" d="{Q_OUTER} {Q_SKY}"/>',
         f'<path fill="none" stroke="{color}" stroke-width="1.5" d="{ticks()}"/>',
@@ -211,7 +290,7 @@ def word_body(color: str) -> str:
 def svg(viewbox: str, body: str, *, size: str = "", comment: str = "") -> str:
     head = f"<!--\n{comment}\n-->\n" if comment else ""
     return (
-        f'{head}<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}"{size} role="img" aria-label="Qibocal">\n'
+        f'{head}<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}"{size} role="img" aria-label="Qibocamp">\n'
         f"  {body}\n</svg>\n"
     )
 
@@ -265,12 +344,12 @@ def favicon() -> str:
 
 
 def main() -> int:
-    write(ROOT / "docs/assets/qibocal_logo_dark.svg", svg(WORD_VIEWBOX, word_body("#000000"), comment=ABOUT))
-    write(ROOT / "docs/assets/qibocal_logo_light.svg", svg(WORD_VIEWBOX, word_body("#ffffff"), comment=ABOUT))
-    write(ROOT / "docs/assets/qibocal_mark.svg", svg(MARK_VIEWBOX, mark_body("#000000"), comment=ABOUT))
+    write(ROOT / "docs/assets/qibocamp_logo_dark.svg", svg(WORD_VIEWBOX, word_body("#000000"), comment=ABOUT))
+    write(ROOT / "docs/assets/qibocamp_logo_light.svg", svg(WORD_VIEWBOX, word_body("#ffffff"), comment=ABOUT))
+    write(ROOT / "docs/assets/qibocamp_mark.svg", svg(MARK_VIEWBOX, mark_body("#000000"), comment=ABOUT))
     # The launcher inlines these, so `currentColor` takes the colour of the page.
-    write(ROOT / "launcher/src/assets/qibocal-logo.svg", svg(WORD_VIEWBOX, word_body("currentColor"), comment=ABOUT))
-    write(ROOT / "launcher/src/assets/qibocal-mark.svg", svg(MARK_VIEWBOX, mark_body("currentColor"), comment=ABOUT))
+    write(ROOT / "launcher/src/assets/qibocamp-logo.svg", svg(WORD_VIEWBOX, word_body("currentColor"), comment=ABOUT))
+    write(ROOT / "launcher/src/assets/qibocamp-mark.svg", svg(MARK_VIEWBOX, mark_body("currentColor"), comment=ABOUT))
     write(ROOT / "launcher/src-tauri/icon.svg", icon())
     # The tray glyphs; rasterised by `scripts/tray-icons.sh`, as the tray takes PNG.
     write(ROOT / "launcher/src-tauri/tray/tray-black.svg", tray("#000000"))

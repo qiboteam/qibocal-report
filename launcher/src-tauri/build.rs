@@ -1,13 +1,13 @@
 use std::process::Command;
 
-/// The commit this launcher is built from, so that the `qibocal-report` it
+/// The commit this launcher is built from, so that the `qibocamp` it
 /// installs is the one whose command line it knows how to drive.
 ///
-/// The build machine says so through `QIBOCAL_BUILD_COMMIT`; a local build
+/// The build machine says so through `QIBOCAMP_BUILD_COMMIT`; a local build
 /// asks git. Without either, the launcher falls back to the main branch.
 fn build_commit() -> Option<String> {
-    println!("cargo:rerun-if-env-changed=QIBOCAL_BUILD_COMMIT");
-    if let Some(commit) = std::env::var("QIBOCAL_BUILD_COMMIT")
+    println!("cargo:rerun-if-env-changed=QIBOCAMP_BUILD_COMMIT");
+    if let Some(commit) = std::env::var("QIBOCAMP_BUILD_COMMIT")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
@@ -23,10 +23,10 @@ fn build_commit() -> Option<String> {
 }
 
 /// The tag this launcher is released as, when it is: the build machine says
-/// so through `QIBOCAL_BUILD_TAG`; a local build asks git for a tag on HEAD.
+/// so through `QIBOCAMP_BUILD_TAG`; a local build asks git for a tag on HEAD.
 fn build_tag() -> Option<String> {
-    println!("cargo:rerun-if-env-changed=QIBOCAL_BUILD_TAG");
-    if let Some(tag) = std::env::var("QIBOCAL_BUILD_TAG")
+    println!("cargo:rerun-if-env-changed=QIBOCAMP_BUILD_TAG");
+    if let Some(tag) = std::env::var("QIBOCAMP_BUILD_TAG")
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
@@ -46,10 +46,10 @@ fn build_tag() -> Option<String> {
 
 fn main() {
     if let Some(commit) = build_commit() {
-        println!("cargo:rustc-env=QIBOCAL_BUILD_COMMIT={commit}");
+        println!("cargo:rustc-env=QIBOCAMP_BUILD_COMMIT={commit}");
     }
     if let Some(tag) = build_tag() {
-        println!("cargo:rustc-env=QIBOCAL_BUILD_TAG={tag}");
+        println!("cargo:rustc-env=QIBOCAMP_BUILD_TAG={tag}");
     }
     tauri_build::build()
 }

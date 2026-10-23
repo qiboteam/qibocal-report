@@ -7,10 +7,10 @@ import pytest
 from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
-from qibocal_report import auth
-from qibocal_report.reports import actions, scanner
-from qibocal_report.web import api
-from qibocal_report.cli import main
+from qibocamp import auth
+from qibocamp.reports import actions, scanner
+from qibocamp.web import api
+from qibocamp.cli import main
 
 
 def make_report(root: Path, name: str, protocols: dict[str, list], meta_targets=None) -> Path:

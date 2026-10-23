@@ -7,10 +7,10 @@ The home page opens onto every section — **Running** first, then what there is
 - **Running** (`Cmd/Ctrl+Shift+R`, or `g r`): the live output of everything the launcher started, with graceful stop.
 - **Notebooks** (`Cmd/Ctrl+Shift+B`, or `g b`): open JupyterLab or Marimo sessions, locally, over SSH or through SLURM; its **Remote execution** tab holds where qibocal-widgets runs a notebook's acquisitions.
 - **Agents** (`Cmd/Ctrl+Shift+A`, or `g a`): the configurations of the Qibocal MCP servers, here and on access nodes, and autonomous agent runs.
-- **Configuration** (`Cmd/Ctrl+,`, or `g c`): install or update Qibocal, and edit the files shared with the command line.
+- **Configuration** (`Cmd/Ctrl+,`, or `g c`): install or update Qibocamp, and edit the files shared with the command line.
 - **Help** (`Cmd/Ctrl+/`): this guide, inside the application, and every keyboard shortcut.
 
-Under the cards, **Running now** names what is alive at the moment, in a line each: the server, session or installation, with the way to its card in **Running** and the way to where it is used — the dashboard for a server, the browser for a notebook, **Configuration** for an installation of `qibocal-report`.
+Under the cards, **Running now** names what is alive at the moment, in a line each: the server, session or installation, with the way to its card in **Running** and the way to where it is used — the dashboard for a server, the browser for a notebook, **Configuration** for an installation of Qibocamp.
 
 ## Windows
 
@@ -18,7 +18,7 @@ A second window shows another page next to the first — two reports, a report a
 
 ## In the background
 
-Closing a window does not stop anything. The last window on screen is hidden rather than closed — `Cmd/Ctrl+W`, the close button, it is the same — and the launcher stays in the background, its servers and notebook sessions with it, as Teams or Telegram do. It comes back from its icon in the system tray — the menu bar on macOS — the Q alone, drawn as the system draws its own: on macOS a template image, painted black or white to suit the menu bar, elsewhere white, or black on a light Windows taskbar. Its menu offers **Open Qibocal** and **Quit Qibocal**; a click on the icon opens it directly on Linux and Windows; on macOS the dock icon does the same. Quitting is explicit: **Quit Qibocal** in the application menu, `Cmd/Ctrl+Q`, or the tray's item stops what runs, waits for it — the closing dialog lists whom it waits for, and offers to go without waiting — and exits; nothing is ever left behind.
+Closing a window does not stop anything. The last window on screen is hidden rather than closed — `Cmd/Ctrl+W`, the close button, it is the same — and the launcher stays in the background, its servers and notebook sessions with it, as Teams or Telegram do. It comes back from its icon in the system tray — the menu bar on macOS — the Q alone, drawn as the system draws its own: on macOS a template image, painted black or white to suit the menu bar, elsewhere white, or black on a light Windows taskbar. Its menu offers **Open Qibocamp** and **Quit Qibocamp**; a click on the icon opens it directly on Linux and Windows; on macOS the dock icon does the same. Quitting is explicit: **Quit Qibocamp** in the application menu, `Cmd/Ctrl+Q`, or the tray's item stops what runs, waits for it — the closing dialog lists whom it waits for, and offers to go without waiting — and exits; nothing is ever left behind.
 
 While the launcher is in the background, or behind another window, or on another of its pages, what happens is also said by the system: a notification when a server comes up or a notebook session is ready, when one of them fails, and when new reports appear on a registered server — the dashboard asks each server for its count every minute, inside the launcher only. Everything is in the bell and the Notifications page as well.
 

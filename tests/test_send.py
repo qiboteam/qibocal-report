@@ -9,11 +9,11 @@ from click.testing import CliRunner
 from conftest import sample_reports
 from fastapi.testclient import TestClient
 
-from qibocal_report import auth
-from qibocal_report.cli import main
-from qibocal_report.models import UserRole
-from qibocal_report.reports import scanner, send
-from qibocal_report.web.api import app, set_report_root
+from qibocamp import auth
+from qibocamp.cli import main
+from qibocamp.models import UserRole
+from qibocamp.reports import scanner, send
+from qibocamp.web.api import app, set_report_root
 
 REPORT = "21:47:29_[3]_pi-pulse"
 SERVER = "http://testserver"
@@ -22,7 +22,7 @@ SERVER = "http://testserver"
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
     """A receiving server with an empty root, and a report on this machine to send."""
-    monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("QIBOCAMP_AUTH_ENABLED", raising=False)
     local = sample_reports(tmp_path / "local")
     root = tmp_path / "server"
     root.mkdir()
@@ -64,7 +64,7 @@ def test_what_is_not_a_report_is_refused_before_sending(setup, tmp_path):
 
 def test_a_server_with_authentication_asks_to_sign_in(setup, monkeypatch):
     folder, root, transport = setup
-    monkeypatch.setenv("QIBOCAL_AUTH_ENABLED", "1")
+    monkeypatch.setenv("QIBOCAMP_AUTH_ENABLED", "1")
     auth.set_auth_enabled(True)
     auth.create_user("alice", "password123", UserRole.ADMIN.value)
     auth.create_user("bob", "password123", UserRole.VIEWER.value)
@@ -84,11 +84,11 @@ def test_the_command_signs_in_and_answers(setup, monkeypatch):
     folder, root, transport = setup
     real = send.send_report
     monkeypatch.setattr(send, "send_report", lambda *args, **kwargs: real(*args, **kwargs, transport=transport))
-    monkeypatch.setenv("QIBOCAL_AUTH_ENABLED", "1")
+    monkeypatch.setenv("QIBOCAMP_AUTH_ENABLED", "1")
     auth.set_auth_enabled(True)
     auth.create_user("alice", "password123", UserRole.ADMIN.value)
     result = CliRunner().invoke(main, ["report", "upload", str(folder), SERVER, "-u", "alice", "--json"], input="password123\n")
     assert result.exit_code == 0, result.output
     assert json.loads(result.output.strip().splitlines()[-1])["name"] == REPORT
-    again = CliRunner().invoke(main, ["report", "upload", str(folder), SERVER, "-u", "alice"], env={"QIBOCAL_REPORT_PASSWORD": "password123"})
+    again = CliRunner().invoke(main, ["report", "upload", str(folder), SERVER, "-u", "alice"], env={"QIBOCAMP_PASSWORD": "password123"})
     assert again.exit_code == 1 and "never overwritten" in again.output

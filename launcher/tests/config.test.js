@@ -121,8 +121,8 @@ test('a field is typed by what it holds, not by what it should hold', () => {
 })
 
 test('a scalar entry becomes a single unnamed field', () => {
-  const fields = entryFields('launcher.json', '/usr/bin/qibocal')
-  assert.deepEqual(fields, [{ name: '', label: 'Value', type: 'text', value: '/usr/bin/qibocal' }])
+  const fields = entryFields('launcher.json', '/usr/bin/qibocamp')
+  assert.deepEqual(fields, [{ name: '', label: 'Value', type: 'text', value: '/usr/bin/qibocamp' }])
 })
 
 test('updating a field leaves the rest of the document alone', () => {

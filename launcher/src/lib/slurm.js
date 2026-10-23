@@ -30,11 +30,11 @@ export function jobIdFromLog(lines = []) {
 /**
  * The name the worker gave the job, from the "Submitting SLURM job …" line
  * the command line prints at submission: in the queue at once, where the
- * id arrives only once a compute node has started.
+ * id arrives only once a compute node has started: `qibocamp-nb-…`.
  */
 export function jobNameFromLog(lines = []) {
   for (const line of lines) {
-    const match = /Submitting SLURM job (qibocal-nb-[0-9a-f]+)/.exec(stripAnsi(line))
+    const match = /Submitting SLURM job (qibocamp-nb-[0-9a-f]+)/.exec(stripAnsi(line))
     if (match) return match[1]
   }
   return null

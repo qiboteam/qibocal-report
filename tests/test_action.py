@@ -5,9 +5,9 @@ from urllib.parse import quote
 import pytest
 from fastapi.testclient import TestClient
 
-from qibocal_report import auth
+from qibocamp import auth
 
-from qibocal_report.web import api
+from qibocamp.web import api
 
 ACTION = "id: rabi\noperation: rabi_amplitude\nparameters:\n  min_amp: 0.0\n  max_amp: 1.0\n"
 

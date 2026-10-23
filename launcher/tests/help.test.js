@@ -26,6 +26,6 @@ test('links lead within the page, to another Help page, to the rest of the docum
   assert.deepEqual(helpTarget('../../reference/cli.md', 'agents'), { kind: 'docs', page: 'reference/cli', id: null })
   // The rest of the documentation is in the application's dashboard; the deployed copy of it too.
   assert.deepEqual(helpTarget('reference/cli'), { kind: 'docs', page: 'reference/cli', id: null })
-  assert.deepEqual(helpTarget('https://qibo.science/qibocal-report/#/docs/user-guide/launcher/agents'), { kind: 'page', name: 'agents', id: null })
+  assert.deepEqual(helpTarget('https://qibo.science/qibocamp/#/docs/user-guide/launcher/agents'), { kind: 'page', name: 'agents', id: null })
   assert.deepEqual(helpTarget('https://github.com/qiboteam'), { kind: 'url', url: 'https://github.com/qiboteam' })
 })

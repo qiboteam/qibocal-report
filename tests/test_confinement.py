@@ -4,15 +4,15 @@ import pytest
 from conftest import sample_reports
 from fastapi.testclient import TestClient
 
-from qibocal_report.reports import archive, scanner
-from qibocal_report.web.api import app, set_report_root
+from qibocamp.reports import archive, scanner
+from qibocamp.web.api import app, set_report_root
 
 REPORT = "21:47:29_[3]_pi-pulse"
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("QIBOCAMP_AUTH_ENABLED", raising=False)
     root = sample_reports(tmp_path / "reports")
     set_report_root(root, is_original=True)
     scanner.invalidate_report_cache()
@@ -85,7 +85,7 @@ def test_only_the_dashboard_the_launcher_and_this_machine_may_call(client, origi
 
 
 def test_another_deployment_of_the_dashboard_can_be_allowed(client, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_ALLOWED_ORIGINS", "https://lab.example.org/, https://other.example")
+    monkeypatch.setenv("QIBOCAMP_ALLOWED_ORIGINS", "https://lab.example.org/, https://other.example")
     upload = client.post(
         "/api/reports/upload", headers={"origin": "https://lab.example.org"}, files={"file": ("r.zip", b"PK", "application/zip")}
     )

@@ -11,7 +11,7 @@ import {
 // --- Initial Local Storage State ---
 let initialHistory = []
 try {
-  const savedHistory = localStorage.getItem('qibocal_report_history')
+  const savedHistory = localStorage.getItem('qibocamp_history')
   if (savedHistory) {
     const parsed = JSON.parse(savedHistory)
     if (Array.isArray(parsed)) {
@@ -23,8 +23,8 @@ try {
 }
 
 // --- Storage Keys ---
-const SEARCH_STATE_STORAGE_KEY = 'qibocal_report_search_state'
-const SERVERS_STORAGE_KEY = 'qibocal_report_servers'
+const SEARCH_STATE_STORAGE_KEY = 'qibocamp_search_state'
+const SERVERS_STORAGE_KEY = 'qibocamp_servers'
 
 function loadStoredServers() {
   try {
@@ -43,7 +43,7 @@ function loadStoredServers() {
 
 function loadSidebarPreference() {
   try {
-    return localStorage.getItem('qibocal_report_sidebar_collapsed') === 'true'
+    return localStorage.getItem('qibocamp_sidebar_collapsed') === 'true'
   } catch (error) {
     console.warn('Failed to load sidebar preference', error)
     return false
@@ -127,7 +127,7 @@ export const state = reactive({
 
 watch(() => state.sidebarCollapsed, value => {
   try {
-    localStorage.setItem('qibocal_report_sidebar_collapsed', String(value))
+    localStorage.setItem('qibocamp_sidebar_collapsed', String(value))
   } catch (error) {
     console.warn('Failed to save sidebar preference', error)
   }
@@ -135,7 +135,7 @@ watch(() => state.sidebarCollapsed, value => {
 
 // Restore active server from localStorage
 if (state.servers.length > 0) {
-  const savedActiveId = localStorage.getItem('qibocal_active_server_id')
+  const savedActiveId = localStorage.getItem('qibocamp_active_server_id')
   if (savedActiveId) {
     const found = state.servers.find(s => s.id === savedActiveId)
     if (found) {
@@ -149,7 +149,7 @@ if (state.servers.length > 0) {
 }
 
 // --- Auth Storage & Helpers ---
-const AUTH_STORAGE_KEY = 'qibocal_report_auth'
+const AUTH_STORAGE_KEY = 'qibocamp_auth'
 
 function loadStoredAuth() {
   try {
@@ -519,7 +519,7 @@ export function noteUnauthorized(server, token) {
  *
  * In the browser the list lives in localStorage. Inside the desktop
  * launcher it is `servers.json`, the file the command line reads too: the
- * launcher page exposes `window.qibocalDesktop.saveServers` before mounting
+ * launcher page exposes `window.qibocampDesktop.saveServers` before mounting
  * this application, and every change made here is written through it, so a
  * server added, renamed or removed in the dashboard is the launcher's at
  * once. localStorage is still written, as the cache the next visit starts
@@ -527,7 +527,7 @@ export function noteUnauthorized(server, token) {
  */
 export function saveStoredServers(servers) {
   localStorage.setItem(SERVERS_STORAGE_KEY, JSON.stringify(servers))
-  const desktop = typeof window !== 'undefined' ? window.qibocalDesktop : null
+  const desktop = typeof window !== 'undefined' ? window.qibocampDesktop : null
   if (typeof desktop?.saveServers === 'function') {
     Promise.resolve(desktop.saveServers(servers)).catch(error => {
       console.warn('The desktop launcher could not save the servers', error)
@@ -566,7 +566,7 @@ export function setActiveServer(server) {
     state.auth.checked = false
     state.auth.token = null
     state.auth.user = null
-    localStorage.removeItem('qibocal_active_server_id')
+    localStorage.removeItem('qibocamp_active_server_id')
     return
   }
   if (getServerAuthKey(server) !== getServerAuthKey(state.activeServer)) {
@@ -576,7 +576,7 @@ export function setActiveServer(server) {
   }
   state.activeServer = { ...server, url: normalizeUrl(server.url) }
   if (server.id) {
-    localStorage.setItem('qibocal_active_server_id', server.id)
+    localStorage.setItem('qibocamp_active_server_id', server.id)
   }
   return checkActiveServerAuth(state.activeServer)
 }
@@ -695,7 +695,7 @@ export async function deleteServer(id) {
 
 export function exportClientState() {
   return parseClientState({
-    format: 'qibocal-report-client',
+    format: 'qibocamp-client',
     version: 1,
     servers: state.servers,
     activeServerId: state.activeServer?.id || null,
@@ -711,9 +711,9 @@ export function importClientState(data) {
   const active = saved.servers.find(server => server.id === saved.activeServerId) || null
   const changes = [
     [localStorage, SERVERS_STORAGE_KEY, JSON.stringify(saved.servers)],
-    [localStorage, 'qibocal_active_server_id', saved.activeServerId],
-    [localStorage, 'qibocal_report_history', JSON.stringify(saved.history)],
-    [localStorage, 'qibocal_report_sidebar_collapsed', String(saved.sidebarCollapsed)],
+    [localStorage, 'qibocamp_active_server_id', saved.activeServerId],
+    [localStorage, 'qibocamp_history', JSON.stringify(saved.history)],
+    [localStorage, 'qibocamp_sidebar_collapsed', String(saved.sidebarCollapsed)],
     [sessionStorage, SEARCH_STATE_STORAGE_KEY, JSON.stringify(saved.searchState)],
     [localStorage, AUTH_STORAGE_KEY, null],
     ...CLIENT_LAYOUT_KEYS.map(key => [localStorage, key, saved.layout[key] ?? null]),
@@ -817,7 +817,7 @@ export function addToHistory(report, server = state.activeServer) {
   ].slice(0, 100)
 
   try {
-    localStorage.setItem('qibocal_report_history', JSON.stringify(state.history))
+    localStorage.setItem('qibocamp_history', JSON.stringify(state.history))
   } catch (e) {
     console.error('Failed to save history to localStorage', e)
   }
@@ -832,7 +832,7 @@ export function removeFromHistory(reportIds, server = state.activeServer) {
     return false
   })
   try {
-    localStorage.setItem('qibocal_report_history', JSON.stringify(state.history))
+    localStorage.setItem('qibocamp_history', JSON.stringify(state.history))
   } catch (e) {
     console.error('Failed to update history in localStorage', e)
   }
@@ -845,7 +845,7 @@ export function clearHistory(server = state.activeServer) {
     state.history = []
   }
   try {
-    localStorage.setItem('qibocal_report_history', JSON.stringify(state.history))
+    localStorage.setItem('qibocamp_history', JSON.stringify(state.history))
   } catch (e) {
     console.error('Failed to clear history in localStorage', e)
   }

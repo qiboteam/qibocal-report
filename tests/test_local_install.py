@@ -3,14 +3,14 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from qibocal_report import auth, qibocal_environment
+from qibocamp import auth, qibocal_environment
 
-from qibocal_report.web import api
+from qibocamp.web import api
 
 
 @pytest.fixture
 def client(monkeypatch):
-    monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("QIBOCAMP_AUTH_ENABLED", raising=False)
     auth.set_auth_enabled(False)
     yield TestClient(api.app)
     auth.set_auth_enabled(None)

@@ -3,9 +3,9 @@ requires = ["uv_build>=0.13.0,<0.14.0"]
 build-backend = "uv_build"
 
 [project]
-name = "qibocal-report"
+name = "qibocamp"
 version = "0.1.0a2"
-description = "The command line and report server of the Qibocal application"
+description = "The command line and report server of Qibocamp"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -33,7 +33,7 @@ dev = [
 ]
 
 [project.scripts]
-qibocal = "qibocal_report.cli:main"
+qibocamp = "qibocamp.cli:main"
 
 [tool.uv.build-backend]
 source-include = ["docs/**", "data/**"]
