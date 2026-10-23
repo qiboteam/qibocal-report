@@ -275,7 +275,7 @@ def test_generation_and_regeneration_keep_notes_outside_plot_cache(report, monke
     assert "notes" not in cached[0]
     assert load_notes(report / "data" / "rabi-1") == [note]
     monkeypatch.setattr(
-        generator, "_generate_qibocal_protocols", lambda _: (None, "No Qibocal")
+        generator, "_generate_qibocal_protocols", lambda _: (None, generator.GenerationError("No Qibocal"))
     )
     protocols = generator.generate_report_on_the_fly(report)
     assert next(p for p in protocols if p.id == "rabi-1").notes == [note]

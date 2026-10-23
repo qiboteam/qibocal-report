@@ -116,7 +116,7 @@ def test_failed_generation_does_not_destroy_good_cache(report_dir, monkeypatch):
     previous = protocol_inputs(report_dir)
     (report_dir / "data" / "rabi-0" / "data.json").write_text("{}")
     monkeypatch.setattr(
-        live, "_generate_qibocal_protocols", lambda *_: (None, "Unfinished write")
+        live, "_generate_qibocal_protocols", lambda *_: (None, generator.GenerationError("Unfinished write"))
     )
     with pytest.raises(RuntimeError, match="Unfinished write"):
         live.refresh_live_protocols(report_dir, protocol_inputs(report_dir), previous)
@@ -264,7 +264,7 @@ def test_failed_task_is_not_acknowledged_by_a_sibling_update(report_dir, monkeyp
     (report_dir / "data" / "rabi-0" / "data.json").write_text('{"changed": true}')
     failed_inputs = protocol_inputs(report_dir)
     monkeypatch.setattr(
-        live, "_generate_qibocal_protocols", lambda *_: (None, "Incomplete input")
+        live, "_generate_qibocal_protocols", lambda *_: (None, generator.GenerationError("Incomplete input"))
     )
     with pytest.raises(RuntimeError):
         live.refresh_live_protocols(report_dir, failed_inputs, previous)
@@ -306,7 +306,7 @@ def test_native_protocol_errors_preserve_good_plots_and_fingerprints(
     assert live.cached_inputs(report_dir, current)["rabi-0"] == previous["rabi-0"]
 
 
-def test_legacy_cache_removes_previously_deleted_protocols(report_dir):
+def test_a_cache_without_fingerprints_removes_previously_deleted_protocols(report_dir):
     shutil.rmtree(report_dir / "data" / "ramsey-0")
     (report_dir / "history.json").write_text('["rabi-0"]')
     current = protocol_inputs(report_dir)
@@ -337,7 +337,7 @@ def test_input_manifest_alone_is_not_a_plot_cache(tmp_path):
     assert not generator.has_cached_report(tmp_path)
 
 
-def test_legacy_per_task_cache_ignores_live_fingerprints_and_temporary_files(
+def test_a_per_task_cache_ignores_live_fingerprints_and_temporary_files(
     report_dir,
 ):
     original = generator.load_cached_protocols(report_dir)

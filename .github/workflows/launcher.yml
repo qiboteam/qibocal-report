@@ -27,9 +27,9 @@ on:
       - "pyproject.toml"
       - ".github/workflows/launcher.yml"
 
-# Only the release event needs to write, to attach the installers.
+# Read only: the release job alone writes, to attach the installers.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: launcher-${{ github.event_name }}-${{ github.ref }}
@@ -100,11 +100,15 @@ jobs:
           workspaces: launcher/src-tauri -> target
           key: ${{ matrix.label }}
 
-      # The launcher has no lockfile: the dashboard it embeds is pinned by the
-      # frontend package, and the desktop dependencies follow the Tauri release
-      # the toolchain provides.
+      # Both lockfiles are committed, and a build takes them as they are: a
+      # tag rebuilds with the dependencies it was released with. A lockfile
+      # out of step with its manifest fails here, rather than being updated.
+      - name: Check the Rust lockfile
+        run: cargo fetch --locked
+        working-directory: launcher/src-tauri
+
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
         working-directory: launcher
 
       - name: Run the launcher tests
@@ -298,12 +302,31 @@ jobs:
           path: artifacts/*.AppImage
           if-no-files-found: error
 
-      - name: Attach the installers to the release
-        if: github.event_name == 'release'
-        shell: bash
+  # The one job allowed to write: the installers of a release, attached to
+  # it. Those of the platforms that built, when another one failed.
+  release:
+    name: Attach the installers to the release
+    needs: build
+    if: ${{ github.event_name == 'release' && !cancelled() }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download the installers
+        uses: actions/download-artifact@v6
+        with:
+          pattern: qibocal-launcher-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Attach them to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" artifacts/* --clobber
+        run: |
+          ls -l artifacts
+          gh release upload "${{ github.event.release.tag_name }}" artifacts/* --clobber --repo "${{ github.repository }}"
 
   # The dashboard the launcher embeds has tests of its own, and the Linux
   # package is installed as a user would install it: a job after the build,

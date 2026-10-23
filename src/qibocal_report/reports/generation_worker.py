@@ -24,7 +24,7 @@ def main() -> None:
         if protocols is not None
         else None,
         "error": error,
-        "error_code": getattr(error, "error_code", None),
+        "error_code": error.error_code if error else None,
     }
     result_path.write_text(json.dumps(payload, default=_json_default), encoding="utf-8")
 

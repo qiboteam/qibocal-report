@@ -1593,11 +1593,11 @@ def test_missing_code_survives_worker_and_protocol_serialization(monkeypatch, tm
     assert detail.model_dump()["error_code"] == "qibocal_not_installed"
 
 
-def test_legacy_mocked_generator_entrypoint_remains_compatible(monkeypatch, tmp_path):
+def test_an_error_without_a_code_reaches_the_dashboard_as_its_message(monkeypatch, tmp_path):
     monkeypatch.setattr(
         generator,
         "_generate_qibocal_protocols",
-        lambda path: (None, "Qibocal is not installed in the environment."),
+        lambda path: (None, generator.GenerationError("Qibocal is not installed in the environment.")),
     )
     protocol = generator.generate_report_on_the_fly(tmp_path)[0]
     assert "Qibocal is not installed" in protocol.error

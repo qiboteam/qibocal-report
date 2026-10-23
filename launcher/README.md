@@ -104,9 +104,12 @@ them for all three, on demand and on every release.
 
 ## Notes
 
-- There is no `pnpm-lock.yaml`: the dependencies are the frontend's, pinned
-  there, plus the Tauri packages that have to follow the toolchain the build
-  machine provides. CI installs with `--no-frozen-lockfile`.
+- `pnpm-lock.yaml` and `src-tauri/Cargo.lock` are committed, and CI builds
+  with them as they are (`pnpm install --frozen-lockfile`, `cargo fetch
+  --locked`), so a tag rebuilds with the dependencies it was released with.
+  After changing `package.json` or `Cargo.toml`, update them with `pnpm
+  install` and `cargo update -p NAME`, or `cargo generate-lockfile`, and
+  commit them along.
 - `src-tauri/icons/` is generated from `icon.svg` and not committed, so the
   repository holds no binaries.
 - Processes are stopped with a signal, not a kill, and only killed if they are

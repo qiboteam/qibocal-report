@@ -30,7 +30,7 @@ LIVE_POLL_INTERVAL = 1.0
 
 
 def cached_inputs(report_dir: Path, current: dict) -> dict:
-    """Use saved fingerprints, or adopt existing legacy caches as a baseline."""
+    """Use saved fingerprints, or adopt a cache without them, as Qibocal writes it, as a baseline."""
     with report_generation_lock(report_dir):
         path = report_dir / "report" / ".live-inputs.json"
         if path.is_file():

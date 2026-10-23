@@ -149,11 +149,11 @@ def test_generator_modes():
     # Test error reporting when Qibocal is not available / cannot generate
     from unittest.mock import patch
 
-    from qibocal_report.reports.generator import generate_report_on_the_fly
+    from qibocal_report.reports.generator import GenerationError, generate_report_on_the_fly
 
     with patch(
         "qibocal_report.reports.generator._generate_qibocal_protocols",
-        return_value=(None, "Qibocal is not installed in the environment."),
+        return_value=(None, GenerationError("Qibocal is not installed in the environment.")),
     ):
         rep_unavail = test_reports / "nonexistent_run"
         rep_unavail.mkdir()
