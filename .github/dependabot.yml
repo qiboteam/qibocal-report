@@ -1,0 +1,15 @@
+# The launcher's Rust dependencies are locked (launcher/src-tauri/Cargo.lock),
+# so they move only through this: one grouped pull request a month, which
+# costs one cold Rust build instead of a cache that drifts a little every day
+# (#81). Security updates still come as soon as they are published.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /launcher/src-tauri
+    schedule:
+      interval: monthly
+    groups:
+      rust:
+        patterns: ["*"]
+    commit-message:
+      prefix: "launcher"

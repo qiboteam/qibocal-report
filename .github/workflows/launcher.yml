@@ -93,11 +93,17 @@ jobs:
       - name: Install the Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # Keyed on Cargo.lock, so a cache matches the crates it holds (#81).
+      # The prefix starts the caches afresh: v1 leaves behind the macOS one
+      # saved by the universal build, twice the size. Only main saves, so
+      # pull requests restore its caches without filling the quota.
       - name: Cache the Rust build
         uses: Swatinem/rust-cache@v2
         with:
+          prefix-key: v1-rust
           workspaces: launcher/src-tauri -> target
           key: ${{ matrix.label }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       # Both lockfiles are committed, and a build takes them as they are: a
       # tag rebuilds with the dependencies it was released with. A lockfile
