@@ -259,7 +259,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { state, ensureServersLoaded, hasActiveSearchFilters, isViewer, canEdit, canManageQibocal } from '../store.js'
 import { useReportDetail } from '../composables/useReportDetail.js'
 import { useMagneticFollow } from '../composables/useMagneticFollow.js'
-import { useReportSlideshow } from '../composables/useReportSlideshow.js'
+import { slideFromQuery, useReportSlideshow } from '../composables/useReportSlideshow.js'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Sidebar from '../components/Sidebar.vue'
 import ReportHeaderCard from '../components/report/ReportHeaderCard.vue'
@@ -315,11 +315,25 @@ provide('requestProtocolOutputs', requestProtocolOutputs)
 
 const reportPanel = ref(null)
 const protocolList = ref(null)
-const { slideshow, selectedId, slideIndex, selectSlide, moveSlide, handleKeydown } = useReportSlideshow({
+/**
+ * The slide in the address, `?protocol=`: each one a page of the browser's
+ * history, so Back returns from a protocol to the overview it was opened
+ * from, and the overview has none.
+ */
+function routeToSlide(id, { replace = false } = {}) {
+  const query = { ...route.query }
+  if (id === null) delete query.protocol
+  else query.protocol = id
+  if ((route.query.protocol ?? null) === (query.protocol ?? null)) return
+  router[replace ? 'replace' : 'push']({ query })
+}
+
+const { slideshow, selectedId, slideIndex, showSlide, selectSlide, moveSlide, handleKeydown } = useReportSlideshow({
   protocols: () => protocols.value,
   live: () => live.value,
   context: () => [reportId.value, state.activeServer?.id, state.activeServer?.url],
-  container: reportPanel
+  container: reportPanel,
+  navigate: routeToSlide
 })
 useMagneticFollow({
   protocols: () => protocols.value,
@@ -419,6 +433,8 @@ async function toggleSlideshow() {
     selectSlide(overview?.bottom > top ? null : visibleProtocol?.id ?? null)
   }
   slideshow.value = !slideshow.value
+  // The continuous view scrolls: only the slideshow keeps its place in the address.
+  routeToSlide(slideshow.value ? selectedId.value : null, { replace: true })
   await nextTick()
   if (slideshow.value) reportPanel.value.scrollTop = 0
   else navigateToProtocol(selectedId.value, false)
@@ -536,15 +552,20 @@ onBeforeUnmount(() => {
   publishPage(null)
 })
 
+/**
+ * The protocol the address names: the slide shown, Back and Forward
+ * included — the overview when it names none — or, in the continuous
+ * view, the card scrolled to. A protocol a Live report has not produced
+ * yet is shown when it arrives.
+ */
 watch(
-  () => [loading.value, route.query.protocol],
-  ([isLoading, targetProto]) => {
-    if (!isLoading && targetProto) {
-      setTimeout(() => {
-        const cleanId = String(targetProto).toLowerCase().trim()
-        const matched = protocols.value.find(p => p.id?.toLowerCase() === cleanId || p.name?.toLowerCase() === cleanId)
-        if (matched) navigateToProtocol(matched.id)
-      }, 150)
+  [() => loading.value, () => slideFromQuery(route.query.protocol, protocols.value)],
+  ([isLoading, id]) => {
+    if (isLoading) return
+    if (slideshow.value) {
+      if (id !== selectedId.value) showSlide(id)
+    } else if (id !== null) {
+      setTimeout(() => navigateToProtocol(id), 150)
     }
   },
   { immediate: true }

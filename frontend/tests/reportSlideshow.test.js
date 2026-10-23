@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createRenderer, h, nextTick, ref, shallowRef } from 'vue'
-import { useReportSlideshow } from '../src/composables/useReportSlideshow.js'
+import { slideFromQuery, useReportSlideshow } from '../src/composables/useReportSlideshow.js'
 
-function mount({ live = false, ids = ['first', 'second'] } = {}) {
+function mount({ live = false, ids = ['first', 'second'], navigate = null } = {}) {
   const protocols = ref(ids.map(id => ({ id })))
   const active = ref(live)
   const context = ref('report')
@@ -22,7 +22,8 @@ function mount({ live = false, ids = ['first', 'second'] } = {}) {
         protocols: () => protocols.value,
         live: () => active.value,
         context: () => context.value,
-        container
+        container,
+        navigate
       })
       return () => h('div')
     }
@@ -160,4 +161,41 @@ test('unmount stops Live selection updates', async () => {
   slides.protocols.value.push({ id: 'third' })
   await nextTick()
   assert.equal(slides.selectedId.value, 'second')
+})
+
+test('an address names a slide by id, or by name as a search links it', () => {
+  const list = [{ id: 'rabi-0', name: 'Rabi' }, { id: 'ramsey-0', name: 'Ramsey' }]
+  assert.equal(slideFromQuery('ramsey-0', list), 'ramsey-0')
+  assert.equal(slideFromQuery(' RABI ', list), 'rabi-0')
+  assert.equal(slideFromQuery(undefined, list), null)
+  assert.equal(slideFromQuery('', list), null)
+  assert.equal(slideFromQuery('t1-0', list), null, 'one the report does not hold is the overview')
+})
+
+test('with an address, the slideshow pushes the slides the user picks and replaces the ones it follows', async () => {
+  const visits = []
+  const slides = mount({ live: true, navigate: (id, { replace }) => visits.push([id, replace]) })
+  try {
+    slides.selectSlide('first')
+    key(slides, 'ArrowRight')
+    key(slides, 'ArrowUp')
+    assert.deepEqual(visits, [['first', false], ['second', false], [null, false]])
+    assert.equal(slides.selectedId.value, null, 'shown at once, before the address names it')
+    key(slides, 'ArrowDown')
+    visits.length = 0
+    slides.protocols.value = ['first', 'second', 'third'].map(id => ({ id }))
+    await nextTick()
+    assert.deepEqual(visits, [['third', true]], 'Live following adds no page to the history')
+    slides.protocols.value = [{ id: 'first' }]
+    await nextTick()
+    assert.deepEqual(visits.at(-1), [null, true])
+    visits.length = 0
+    slides.slideshow.value = false
+    slides.selectSlide('first')
+    assert.deepEqual(visits, [], 'the continuous view keeps the address')
+    slides.slideshow.value = true
+    slides.showSlide('first')
+    assert.deepEqual(visits, [], 'Back and Forward show a slide without asking for it again')
+    assert.equal(slides.selectedId.value, 'first')
+  } finally { slides.unmount() }
 })

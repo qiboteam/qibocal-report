@@ -39,6 +39,12 @@ as it nears the viewport, the rest in idle time. Sidebar entries
 work in both expanded and collapsed mode. Arrow shortcuts do not intercept text
 editing, chart interactions, or modal controls.
 
+Each slide is a page of the browser's history: its address names the protocol,
+`?protocol=<id>`, and the overview's names none. The browser's **Back** returns
+to the slide shown before — from a protocol opened on the overview, to the
+overview — and **Forward** goes again; a slide's address can be bookmarked or
+shared. Live following and the continuous view leave the history alone.
+
 In Live mode, viewing the last protocol slide follows newly arriving protocols.
 Selecting an earlier slide or the overview stops following; returning to the
 last protocol resumes it. The sidebar still follows independently when its index
