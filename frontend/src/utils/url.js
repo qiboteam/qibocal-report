@@ -59,7 +59,7 @@ export function getActiveWsUrl(path, activeServer, token = null) {
 }
 
 /** The deployed dashboard, where links lead when this page is not on the web: the desktop application's. */
-export const DEPLOYED_DASHBOARD = 'https://qibo.science/qibocal-report'
+export const DEPLOYED_DASHBOARD = 'https://qibo.science/qibocamp'
 
 /**
  * The dashboard a link should open: this very page on the web, wherever it

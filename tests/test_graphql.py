@@ -5,14 +5,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import sample_reports
-from qibocal_report import auth
-from qibocal_report.web.api import app, set_report_root
+from qibocamp import auth
+from qibocamp.web.api import app, set_report_root
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
-    monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.delenv("QIBOCAMP_AUTH_ENABLED", raising=False)
     reports = sample_reports(tmp_path / "sample_data")
     set_report_root(reports, is_original=True)
     return TestClient(app)
@@ -137,9 +137,9 @@ def test_the_session_is_one_request_too(client):
 
 
 def test_without_a_token_the_reports_answer_as_the_rest_api_does(client, monkeypatch):
-    from qibocal_report import auth
+    from qibocamp import auth
 
-    monkeypatch.setenv("QIBOCAL_AUTH_ENABLED", "1")
+    monkeypatch.setenv("QIBOCAMP_AUTH_ENABLED", "1")
     monkeypatch.setattr(auth, "_AUTH_ENABLED", None, raising=False)
     try:
         body = graphql(client, "{ session { auth_enabled user { id } } reports { total } }")
@@ -152,7 +152,7 @@ def test_without_a_token_the_reports_answer_as_the_rest_api_does(client, monkeyp
 
 
 def test_health_tells_a_stranger_nothing_of_the_reports(client, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_AUTH_ENABLED", "1")
+    monkeypatch.setenv("QIBOCAMP_AUTH_ENABLED", "1")
     auth.set_auth_enabled(True)
     try:
         health = graphql(client, "{ health { reports_count root_dir } }")["data"]["health"]

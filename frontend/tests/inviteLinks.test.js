@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { DEPLOYED_DASHBOARD, dashboardBase, inviteLink, parseServerAndInvite } from '../src/utils/url.js'
 
 test('a link opens this dashboard on the web, the deployed one from the application', () => {
-  assert.equal(dashboardBase({ protocol: 'https:', origin: 'https://qibo.science', pathname: '/qibocal-report/' }), 'https://qibo.science/qibocal-report')
+  assert.equal(dashboardBase({ protocol: 'https:', origin: 'https://qibo.science', pathname: '/qibocamp/' }), 'https://qibo.science/qibocamp')
   assert.equal(dashboardBase({ protocol: 'http:', origin: 'http://localhost:5173', pathname: '/' }), 'http://localhost:5173')
   assert.equal(dashboardBase({ protocol: 'tauri:', origin: 'tauri://localhost', pathname: '/dashboard.html' }), DEPLOYED_DASHBOARD)
 })

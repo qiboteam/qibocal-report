@@ -8,8 +8,8 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from qibocal_report.cli import main
-from qibocal_report.remote import notebook, notebook_worker as worker
+from qibocamp.cli import main
+from qibocamp.remote import notebook, notebook_worker as worker
 
 
 def runtime_with_pip(installed):
@@ -81,7 +81,7 @@ def test_requirements_are_a_connection_option_from_text_or_a_file(tmp_path, monk
     assert options.requirements == "numpy\nscipy\n"
     assert options.model_dump()["requirements"] == "numpy\nscipy\n", "it reaches the worker"
 
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path / "config"))
     (tmp_path / "config").mkdir()
     listing = tmp_path / "requirements.txt"
     listing.write_text("pandas\n")
@@ -132,7 +132,7 @@ def test_uv_makes_and_fills_environments_when_there_is_one(tmp_path, monkeypatch
 
 def test_without_uv_the_worker_installs_none_when_told_not_to(monkeypatch):
     monkeypatch.delitem(worker._UV, "path")
-    monkeypatch.setenv("QIBOCAL_NO_UV", "1")
+    monkeypatch.setenv("QIBOCAMP_NO_UV", "1")
     runtime = MagicMock()
     assert worker.find_uv(runtime) is None
     runtime.command.assert_not_called()
@@ -148,7 +148,7 @@ def test_a_rebuild_refuses_what_is_not_a_virtual_environment(tmp_path, monkeypat
         worker.rebuild_environment(MagicMock(), {"venv": str(folder)})
     assert (folder / "thesis.tex").exists()
     with pytest.raises(worker.WorkerError, match="must be separate"):
-        worker.rebuild_environment(MagicMock(), {"venv": str(tmp_path / "cache" / "qibocal" / "envs" / "jupyter")})
+        worker.rebuild_environment(MagicMock(), {"venv": str(tmp_path / "cache" / "qibocamp" / "envs" / "jupyter")})
 
 
 def test_rebuild_is_a_command_that_runs_the_worker_in_rebuild_mode(monkeypatch):
@@ -208,16 +208,16 @@ def test_explicit_requirements_override_the_defaults_and_the_dependencies(tmp_pa
 def test_the_reports_folder_is_a_connection_option_exported_to_the_session(tmp_path, monkeypatch):
     options = notebook.load_options(None, {"reports": "reports"})
     assert options.model_dump()["reports"] == "reports", "it reaches the worker"
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path / "config"))
     (tmp_path / "config").mkdir()
     result = CliRunner().invoke(main, ["notebook", "add", "lab", "--ssh", "lab", "--reports", "calibration"])
     assert result.exit_code == 0, result.output
     assert notebook.load_connections()["lab"]["reports"] == "calibration"
-    assert worker.REPORTS_VARIABLE == "QIBOCAL_REPORTS_DIR"
+    assert worker.REPORTS_VARIABLE == "QIBOCAMP_REPORTS_DIR"
 
 
 def test_a_remote_execution_connection_travels_with_the_session(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path / "config"))
     (tmp_path / "config").mkdir()
     (tmp_path / "config" / "remotes.json").write_text(json.dumps({"version": 1, "connections": {"lab": {"ssh": "me@login", "queue": "qpu"}}}))
     options = notebook.load_options(None, {"ssh": "login", "remote": "lab"})
@@ -229,7 +229,7 @@ def test_a_remote_execution_connection_travels_with_the_session(tmp_path, monkey
 
 
 def test_the_worker_writes_the_connection_where_the_notebook_runs_and_only_when_it_differs(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path))
     remotes = tmp_path / "remotes.json"
     remotes.write_text(json.dumps({"version": 1, "connections": {"other": {"ssh": "x"}}}))
     assert worker.install_remote_connection({"lab": {"queue": "qpu"}}) == "lab"
@@ -244,7 +244,7 @@ def test_the_worker_writes_the_connection_where_the_notebook_runs_and_only_when_
 
 
 def test_a_registered_connection_has_its_own_environment_by_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path))
     for name, venv in (("tuna", None), ("QW5Q platinum / v2", None), ("named", "shared")):
         CliRunner().invoke(main, ["notebook", "add", name, "--ssh", "lab", *(["--venv", venv] if venv else [])])
     assert notebook.load_options("tuna", {}).venv == "tuna"

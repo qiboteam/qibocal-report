@@ -10,8 +10,8 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from qibocal_report.cli import main
-from qibocal_report.remote import agents
+from qibocamp.cli import main
+from qibocamp.remote import agents
 
 # Patching `agents.subprocess.run` patches the module: the real one, kept.
 REAL_RUN = subprocess.run

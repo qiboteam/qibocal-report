@@ -7,7 +7,7 @@
         </svg>
       </div>
       <h1 class="text-2xl font-bold text-gray-900 tracking-tight">
-        {{ resetting ? 'Restore Access' : 'Join Qibocal Report Server' }}
+        {{ resetting ? 'Restore Access' : 'Join Qibocamp Server' }}
       </h1>
       <p class="mt-1.5 text-xs sm:text-sm text-gray-500">
         {{ resetting && inviteInfo?.target_username ? `Re-authenticate and restore access for ${inviteInfo.target_username}` : (resetting ? 'Choose a new password for your account.' : "You've been invited to access this report instance.") }}

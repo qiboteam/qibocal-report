@@ -7,7 +7,7 @@ on:
   # Changing the launcher, or this very workflow, rebuilds everything: the
   # installers are the only way to tell whether the desktop application still
   # builds on the three platforms. The Python package too: the application
-  # installs the qibocal-report of the very commit it is built from, and
+  # installs the qibocamp of the very commit it is built from, and
   # embeds the notebook worker's source, so a change there reaches it only
   # through a new build.
   pull_request:
@@ -226,7 +226,7 @@ jobs:
                  "downloaded applications it cannot check with Apple."
           fi
 
-      # The launcher installs the qibocal-report it is built from, so the
+      # The launcher installs the qibocamp it is built from, so the
       # command line it drives takes the flags it passes: build.rs reads the
       # commit — the branch head of a pull request, not its merge commit,
       # which the archive endpoint does not serve.
@@ -235,16 +235,16 @@ jobs:
         working-directory: launcher
         timeout-minutes: 45
         env:
-          QIBOCAL_BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          QIBOCAMP_BUILD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           # A release names itself by its tag; anything else by its commit —
           # never by a branch, which moves.
-          QIBOCAL_BUILD_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+          QIBOCAMP_BUILD_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
 
       - name: Report what macOS will make of the result
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          app="launcher/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Qibocal.app"
+          app="launcher/src-tauri/target/${{ matrix.target }}/release/bundle/macos/Qibocamp.app"
           if [ ! -d "$app" ]; then
             echo "::warning::$app not found, skipping the assessment."
             exit 0
@@ -276,7 +276,7 @@ jobs:
         if: matrix.label != 'Linux'
         uses: actions/upload-artifact@v6
         with:
-          name: qibocal-launcher-${{ matrix.label }}
+          name: qibocamp-${{ matrix.label }}
           path: artifacts/*
           if-no-files-found: error
 
@@ -287,7 +287,7 @@ jobs:
         if: matrix.label == 'Linux'
         uses: actions/upload-artifact@v6
         with:
-          name: qibocal-launcher-Linux-deb
+          name: qibocamp-Linux-deb
           path: artifacts/*.deb
           if-no-files-found: error
 
@@ -295,7 +295,7 @@ jobs:
         if: matrix.label == 'Linux'
         uses: actions/upload-artifact@v6
         with:
-          name: qibocal-launcher-Linux-rpm
+          name: qibocamp-Linux-rpm
           path: artifacts/*.rpm
           if-no-files-found: error
 
@@ -303,7 +303,7 @@ jobs:
         if: matrix.label == 'Linux'
         uses: actions/upload-artifact@v6
         with:
-          name: qibocal-launcher-Linux-appimage
+          name: qibocamp-Linux-appimage
           path: artifacts/*.AppImage
           if-no-files-found: error
 
@@ -322,7 +322,7 @@ jobs:
       - name: Download the installers
         uses: actions/download-artifact@v6
         with:
-          pattern: qibocal-launcher-*
+          pattern: qibocamp-*
           path: artifacts
           merge-multiple: true
 
@@ -374,7 +374,7 @@ jobs:
       - name: Download the Debian package
         uses: actions/download-artifact@v6
         with:
-          name: qibocal-launcher-Linux-deb
+          name: qibocamp-Linux-deb
           path: package
 
       # As a user would: apt resolves the package's dependencies, the

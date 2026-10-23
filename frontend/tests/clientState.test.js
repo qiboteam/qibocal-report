@@ -70,9 +70,9 @@ test('registration, customization, ordering and deletion use only browser storag
   assert.equal(await deleteServer(added.id), true)
   await fetchServers()
   assert.deepEqual(state.servers, [])
-  assert.deepEqual(JSON.parse(localStorage.getItem('qibocal_report_servers')), [])
+  assert.deepEqual(JSON.parse(localStorage.getItem('qibocamp_servers')), [])
   assert.equal(state.activeServer, null)
-  assert.equal(localStorage.getItem('qibocal_active_server_id'), null)
+  assert.equal(localStorage.getItem('qibocamp_active_server_id'), null)
 })
 
 test('a pending status refresh cannot resurrect a deleted server', async () => {
@@ -130,8 +130,8 @@ test('client state round-trips settings without credentials or transient state',
   state.searchState.currentPage = 3
   state.sidebarCollapsed = true
   state.currentReportData = { sensitive: 'transient' }
-  localStorage.setItem('qibocal_sidebar_width', '320')
-  localStorage.setItem('qibocal_report_table_columns_v1', '{"platform":160}')
+  localStorage.setItem('qibocamp_sidebar_width', '320')
+  localStorage.setItem('qibocamp_table_columns_v1', '{"platform":160}')
   localStorage.setItem('unrelated-app', 'preserve')
   localStorage.setItem('server_connection_second', 'online')
   const saved = JSON.parse(JSON.stringify(exportClientState()))
@@ -143,7 +143,7 @@ test('client state round-trips settings without credentials or transient state',
   state.servers = []
   state.history = []
   state.searchState.filters.q = ''
-  localStorage.setItem('qibocal_sidebar_width', '200')
+  localStorage.setItem('qibocamp_sidebar_width', '200')
   importClientState(saved)
   assert.deepEqual(exportClientState(), saved)
   assert.equal(state.activeServer.id, second.id)
@@ -152,22 +152,22 @@ test('client state round-trips settings without credentials or transient state',
   assert.equal(state.auth.user, null)
   assert.equal(state.auth.showLoginModal, false)
   assert.equal(state.currentReportData, null)
-  assert.equal(localStorage.getItem('qibocal_report_auth'), null)
+  assert.equal(localStorage.getItem('qibocamp_auth'), null)
   assert.equal(localStorage.getItem('server_connection_second'), null)
   assert.equal(localStorage.getItem('unrelated-app'), 'preserve')
-  assert.deepEqual(JSON.parse(sessionStorage.getItem('qibocal_report_search_state')), saved.searchState)
+  assert.deepEqual(JSON.parse(sessionStorage.getItem('qibocamp_search_state')), saved.searchState)
 })
 
 test('loading an empty registry replaces previous servers and layout preferences', () => {
   const saved = exportClientState()
   saved.servers = []
   saved.activeServerId = null
-  localStorage.setItem('qibocal_sidebar_width', '320')
+  localStorage.setItem('qibocamp_sidebar_width', '320')
   importClientState(saved)
   assert.deepEqual(state.servers, [])
   assert.equal(state.activeServer, null)
-  assert.equal(localStorage.getItem('qibocal_sidebar_width'), null)
-  assert.deepEqual(JSON.parse(localStorage.getItem('qibocal_report_servers')), [])
+  assert.equal(localStorage.getItem('qibocamp_sidebar_width'), null)
+  assert.deepEqual(JSON.parse(localStorage.getItem('qibocamp_servers')), [])
 })
 
 test('invalid client-state files leave existing state and storage untouched', () => {
@@ -180,8 +180,8 @@ test('invalid client-state files leave existing state and storage untouched', ()
     data => { data.servers[0].url = 'javascript:alert(1)' },
     data => { data.searchState.filters.qubits = {} },
     data => { data.searchState.currentPage = -1 },
-    data => { data.layout.qibocal_sidebar_width = 'NaN' },
-    data => { data.layout.qibocal_report_table_columns_v1 = '{"platform":"wide"}' }
+    data => { data.layout.qibocamp_sidebar_width = 'NaN' },
+    data => { data.layout.qibocamp_table_columns_v1 = '{"platform":"wide"}' }
   ]) {
     const invalid = structuredClone(original)
     corrupt(invalid)
@@ -196,7 +196,7 @@ test('unknown fields and authentication storage are excluded from files', () => 
   saved.auth = { token: 'secret' }
   saved.servers[0].token = 'secret'
   saved.history = [{ id: 'report', token: 'secret' }]
-  saved.layout.qibocal_report_auth = '{"token":"secret"}'
+  saved.layout.qibocamp_auth = '{"token":"secret"}'
   const parsed = parseClientState(saved)
   assert.equal(JSON.stringify(parsed).includes('secret'), false)
 })
@@ -208,7 +208,7 @@ test('failed imports roll back persisted settings before changing reactive state
   saved.servers = [second]
   const setItem = localStorage.setItem
   mock.method(localStorage, 'setItem', (key, value) => {
-    if (key === 'qibocal_report_history') throw new Error('Storage full')
+    if (key === 'qibocamp_history') throw new Error('Storage full')
     return setItem(key, value)
   })
   assert.throws(() => importClientState(saved), /Storage full/)

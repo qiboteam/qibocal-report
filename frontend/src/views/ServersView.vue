@@ -39,7 +39,7 @@
           Report Servers
         </h1>
         <p class="mt-1 text-xs sm:text-sm text-gray-500">
-          Connect to an instance, paste an invite link, or manage your registered Qibocal report endpoints.
+          Connect to an instance, paste an invite link, or manage your registered Qibocamp Servers.
         </p>
       </div>
 
@@ -271,7 +271,7 @@ function saveClientState() {
     url = URL.createObjectURL(new Blob([data], { type: 'application/json' }))
     const link = document.createElement('a')
     link.href = url
-    link.download = 'qibocal-report-client.json'
+    link.download = 'qibocamp-client.json'
     link.click()
     state.auth.errorMessage = ''
     toast('Client state saved without sign-in sessions.')
@@ -307,17 +307,17 @@ const dropTargetIndex = ref(null)
 const activeServer = computed(() => state.activeServer)
 
 // --- The desktop launcher's view of the servers ---------------------------
-// `window.qibocalDesktop` exists only inside the launcher: it tells which
+// `window.qibocampDesktop` exists only inside the launcher: it tells which
 // registered addresses the launcher manages, and which of them run now.
-const desktop = typeof window !== 'undefined' && typeof window.qibocalDesktop?.managedServers === 'function'
+const desktop = typeof window !== 'undefined' && typeof window.qibocampDesktop?.managedServers === 'function'
 const runningUrls = ref(new Set())
 const managedUrls = ref(new Set())
 const launcherServersUrl = computed(() =>
-  (desktop && typeof window.qibocalDesktop.launcherUrl === 'function') ? window.qibocalDesktop.launcherUrl('servers') : '#'
+  (desktop && typeof window.qibocampDesktop.launcherUrl === 'function') ? window.qibocampDesktop.launcherUrl('servers') : '#'
 )
 
 const same = (left, right) => {
-  const normalize = window.qibocalDesktop?.normalize || normalizeUrl
+  const normalize = window.qibocampDesktop?.normalize || normalizeUrl
   return normalize(left) === normalize(right)
 }
 const inSet = (set, url) => [...set].some(entry => same(entry, url))
@@ -334,7 +334,7 @@ const servers = computed(() =>
 async function syncWithLauncher() {
   if (!desktop) return
   try {
-    const { running = [], managed = [] } = await window.qibocalDesktop.managedServers()
+    const { running = [], managed = [] } = await window.qibocampDesktop.managedServers()
     runningUrls.value = new Set(running)
     managedUrls.value = new Set(managed)
   } catch (error) {

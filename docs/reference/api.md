@@ -1,6 +1,6 @@
 # Reference: REST API & WebSockets
 
-The `qibocal-report` backend exposes a fully typed OpenAPI 3.1 REST API along with real-time WebSocket capabilities.
+The Qibocamp Server exposes a fully typed OpenAPI 3.1 REST API along with real-time WebSocket capabilities.
 
 Interactive Swagger documentation is available at **`/api/docs/swagger`**, and the raw OpenAPI specification is available at **`/api/openapi.json`**.
 
@@ -58,11 +58,11 @@ Returns system status, active server identifier, report count, and scanned root 
 Whether the caller may upload reports here: `{"accepted", "auth_enabled"}`. A server without authentication accepts anyone; one with it, its administrators and whom its upload policy names. What a sender asks before uploading.
 
 ### `POST /api/uploads`
-Receive a report: the body is the zip of one report folder, as `/api/reports/{id}/download/full` gives it (`Content-Type: application/zip`). It is checked — one top-level folder holding a `meta.json`, no absolute path, no `..`, no link, at most `QIBOCAL_REPORT_UPLOAD_LIMIT` bytes unpacked (4 GiB) — and unpacked at the top of the reports directory under its folder's name. Answers `{"id", "name"}`; `401` to sign in, `403` for an account the policy leaves out, `409` when a report of that name is already there, which is never overwritten, `413` when too large.
+Receive a report: the body is the zip of one report folder, as `/api/reports/{id}/download/full` gives it (`Content-Type: application/zip`). It is checked — one top-level folder holding a `meta.json`, no absolute path, no `..`, no link, at most `QIBOCAMP_UPLOAD_LIMIT` bytes unpacked (4 GiB) — and unpacked at the top of the reports directory under its folder's name. Answers `{"id", "name"}`; `401` to sign in, `403` for an account the policy leaves out, `409` when a report of that name is already there, which is never overwritten, `413` when too large.
 
 ### Uploading a report by hand
 
-What `qibocal report upload` does, with `curl` — from any machine, with no Qibocal installed. Zip the report folder under its own name, from the folder holding it:
+What `qibocamp report upload` does, with `curl` — from any machine, with no Qibocamp installed. Zip the report folder under its own name, from the folder holding it:
 
 ```bash
 cd ./runs
@@ -94,7 +94,7 @@ The body is the zip itself, not a form: `--data-binary`, not `-F`. A refusal say
 Who may upload, beyond the administrators, who always may: `{"policy": "admins" | "editors" | "viewers", "users": [user ids]}` — editors too, every signed-in user, and chosen individuals. Kept in `auth.json`. Administrators only.
 
 ### `POST /api/admin/reports/infer-targets`
-Read every protocol's `action.yml` under the reports for the qubits, or pairs, it was run on, and write their union into each report's `meta.json` as `targets-inferred`, next to the session's own `targets`, which is kept; the list shows the inferred targets first. Answers `{"reports", "updated", "without_targets"}`. Reads every report, so it runs on request — here, from **Server Administration**, or with `qibocal report targets` — rather than at every scan. Administrators only.
+Read every protocol's `action.yml` under the reports for the qubits, or pairs, it was run on, and write their union into each report's `meta.json` as `targets-inferred`, next to the session's own `targets`, which is kept; the list shows the inferred targets first. Answers `{"reports", "updated", "without_targets"}`. Reads every report, so it runs on request — here, from **Server Administration**, or with `qibocamp report targets` — rather than at every scan. Administrators only.
 
 ---
 
@@ -102,7 +102,7 @@ Read every protocol's `action.yml` under the reports for the qubits, or pairs, i
 
 - **Compression.** Responses above a kilobyte are gzipped when the client accepts it; protocol figures, which are Plotly JSON, shrink five to ten times.
 - **Conditional requests.** `GET /api/reports` and `GET /api/reports/stats` carry a weak `ETag` — the newest modification time the report index was built from — and `Cache-Control: private, no-cache`. A request bringing the tag back in `If-None-Match` is answered `304 Not Modified`.
-- **Index validation.** The report index is validated by walking the report tree; a walk stands for `QIBOCAL_REPORT_SCAN_INTERVAL` seconds (default `2`; `0` walks at every request) before the next, so a burst of requests costs one walk.
+- **Index validation.** The report index is validated by walking the report tree; a walk stands for `QIBOCAMP_SCAN_INTERVAL` seconds (default `2`; `0` walks at every request) before the next, so a burst of requests costs one walk.
 - **What is not sent.** `search_index`, the server's full-text index of a report, stays on the server; `platform_snapshot` is no longer inlined in a report's detail, nor in the WebSocket `metadata` message. `GET /api/health` counts reports from the index as it stands, without validating it.
 
 ## 🧬 GraphQL

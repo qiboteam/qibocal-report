@@ -5,8 +5,8 @@ import { connectAddress, connectLink } from '../src/utils/url.js'
 
 test('a connect link carries the server, and only an http(s) address is taken from one', () => {
   assert.equal(
-    connectLink('https://reports.example.org/', { base: 'https://qibo.science/qibocal-report' }),
-    'https://qibo.science/qibocal-report/#/connect?server=https%3A%2F%2Freports.example.org'
+    connectLink('https://reports.example.org/', { base: 'https://qibo.science/qibocamp' }),
+    'https://qibo.science/qibocamp/#/connect?server=https%3A%2F%2Freports.example.org'
   )
   assert.equal(connectAddress('https://reports.example.org/prefix/'), 'https://reports.example.org/prefix')
   assert.equal(connectAddress('http://lab:8000'), 'http://lab:8000')

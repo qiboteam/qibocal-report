@@ -180,7 +180,7 @@
         >
           <div>
             <div class="font-bold text-sm">No Report Server Connected</div>
-            <div class="text-xs mt-1 text-purple-700">Connect to a local or remote Qibocal report server to explore and analyze calibration runs.</div>
+            <div class="text-xs mt-1 text-purple-700">Connect to a local or remote Qibocamp Server to explore and analyze calibration runs.</div>
           </div>
           <router-link
             to="/servers"

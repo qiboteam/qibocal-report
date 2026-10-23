@@ -7,7 +7,7 @@
         again with the figures a navigation bar cannot show.
       -->
       <div class="max-w-5xl mx-auto px-5 h-14 flex items-center">
-        <router-link to="/" class="lx-logo" title="Qibocal home" aria-label="Qibocal home">
+        <router-link to="/" class="lx-logo" title="Qibocamp home" aria-label="Qibocamp home">
           <launcher-logo />
         </router-link>
       </div>

@@ -56,7 +56,7 @@ test('routing preserves the entry point and restores shared pages after reload',
 
   try {
     for (const entry of [
-      'https://qibo.science/qibocal-report/',
+      'https://qibo.science/qibocamp/',
       'https://example.com/custom/client/',
       'http://localhost:8000/',
       'file:///tmp/export/index.html'

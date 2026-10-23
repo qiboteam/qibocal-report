@@ -1,9 +1,9 @@
 """Protocols on qubit pairs: a target that is not a single qubit."""
 
-from qibocal_report.reports import generator
+from qibocamp.reports import generator
 
-from qibocal_report.reports import scanner
-from qibocal_report.models import ReportSummary
+from qibocamp.reports import scanner
+from qibocamp.models import ReportSummary
 
 
 def test_targets_are_keyed_as_qibocal_keys_them():

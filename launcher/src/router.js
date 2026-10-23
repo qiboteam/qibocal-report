@@ -91,7 +91,7 @@ export const sections = [
     icon: 'Settings',
     accelerator: 'CmdOrCtrl+Comma',
     key: 'c',
-    summary: 'Which qibocal-report the launcher drives, and the configuration it shares with it.'
+    summary: 'Which qibocamp the launcher drives, and the configuration it shares with it.'
   },
   {
     name: 'help',

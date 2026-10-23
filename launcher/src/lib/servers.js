@@ -3,16 +3,16 @@ import { ADJECTIVES, SCIENTISTS, generateServerName } from '../../../frontend/sr
 
 export { ADJECTIVES, SCIENTISTS }
 
-export const DASHBOARD_SERVERS_KEY = 'qibocal_report_servers'
+export const DASHBOARD_SERVERS_KEY = 'qibocamp_servers'
 /** The servers shown in the dashboard without being registered: running, for a look. */
-export const TRANSIENT_SERVERS_KEY = 'qibocal_launcher_transient_servers'
+export const TRANSIENT_SERVERS_KEY = 'qibocamp_launcher_transient_servers'
 
 /** Leave the servers shown for a look out of a list the dashboard saves. */
 export function withoutTransient(servers, storage = typeof localStorage === 'undefined' ? null : localStorage) {
   const transient = new Set(storage ? readStored(storage, TRANSIENT_SERVERS_KEY) : [])
   return (Array.isArray(servers) ? servers : []).filter(server => !transient.has(serverUrl(server?.url)))
 }
-export const DASHBOARD_ACTIVE_KEY = 'qibocal_active_server_id'
+export const DASHBOARD_ACTIVE_KEY = 'qibocamp_active_server_id'
 
 export { normalizeUrl }
 
@@ -46,7 +46,7 @@ export function serverCommand(options = {}) {
   const ssh = typeof options.ssh === 'string' ? options.ssh.trim() : ''
   const name = typeof options.name === 'string' ? options.name.trim() : ''
   const directory = typeof options.directory === 'string' ? options.directory.trim() : ''
-  const parts = ['qibocal', 'report', mode]
+  const parts = ['qibocamp', 'report', mode]
   // No directory is the shared one, found and created where the server runs.
   if (directory) parts.push(directory)
   if (!ssh) {
@@ -74,15 +74,15 @@ export function serverCommand(options = {}) {
 }
 
 /**
- * The command that brings a remote server's qibocal-report up to date —
- * `qibocal report server upgrade` — word for word what `process.rs::upgrade_server`
- * assembles. Nothing for a server on this machine, whose qibocal-report is the
+ * The command that brings a remote server's qibocamp up to date —
+ * `qibocamp report server upgrade` — word for word what `process.rs::upgrade_server`
+ * assembles. Nothing for a server on this machine, whose qibocamp is the
  * launcher's own.
  */
 export function upgradeCommand(options = {}) {
   const ssh = typeof options.ssh === 'string' ? options.ssh.trim() : ''
   if (!ssh) return ''
-  const parts = ['qibocal', 'report', 'server', 'upgrade', '--ssh', ssh]
+  const parts = ['qibocamp', 'report', 'server', 'upgrade', '--ssh', ssh]
   for (const [flag, value] of [['--workdir', options.workdir], ['--venv', options.venv], ['--install', options.install]]) {
     const text = typeof value === 'string' ? value.trim() : ''
     if (text) parts.push(flag, text)
@@ -92,11 +92,11 @@ export function upgradeCommand(options = {}) {
 }
 
 /** Where the shared reports live, as the forms spell it out. */
-export const SHARED_DIRECTORY = '~/.local/share/qibocal/reports (or $XDG_DATA_HOME/qibocal/reports)'
+export const SHARED_DIRECTORY = '~/.local/share/qibocamp/reports (or $XDG_DATA_HOME/qibocamp/reports)'
 
 /** Where a server runs: the choice that decides which fields make sense. */
 export const PLACES = [
-  { value: 'local', label: 'This machine', help: 'Run qibocal here.' },
+  { value: 'local', label: 'This machine', help: 'Run qibocamp here.' },
   { value: 'ssh', label: 'Another machine', help: 'Reach a host over SSH, prepare an environment there, and tunnel the server back.' },
   { value: 'reachable', label: 'Already running', help: 'Register an address, starting nothing.' }
 ]
@@ -377,7 +377,7 @@ export function syncDashboardServers(configured, { storage, preferredUrl = null,
 }
 
 /** Where the dashboard keeps its sessions, one per server, by the server's id. */
-export const DASHBOARD_AUTH_KEY = 'qibocal_report_auth'
+export const DASHBOARD_AUTH_KEY = 'qibocamp_auth'
 
 /**
  * Sign the dashboard in to a server: the launcher page and the dashboard

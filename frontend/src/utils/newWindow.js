@@ -16,7 +16,7 @@ export function wantsNewWindow(event) {
  * the webview's own; false in a browser, whose menu knows the links.
  */
 export function showContextMenu(event, items) {
-  const host = typeof window !== 'undefined' ? window.qibocalDesktop : null
+  const host = typeof window !== 'undefined' ? window.qibocampDesktop : null
   if (typeof host?.contextMenu !== 'function') return false
   event.preventDefault()
   Promise.resolve(host.contextMenu({ items })).catch(error => console.warn('The context menu could not be shown', error))

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from qibocal_report.cli import main
+from qibocamp.cli import main
 
 
 def test_cli_help():
@@ -24,7 +24,7 @@ def test_config_help():
 
 def test_config_path(tmp_path, monkeypatch):
     config_dir = tmp_path / "missing-config"
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(config_dir))
     result = CliRunner().invoke(main, ["config", "path"])
     assert result.exit_code == 0
     assert result.stdout == f"{config_dir}\n"
@@ -33,35 +33,35 @@ def test_config_path(tmp_path, monkeypatch):
 
 
 def test_config_path_default(tmp_path, monkeypatch):
-    monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
+    monkeypatch.delenv("QIBOCAMP_CONFIG_DIR")
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
-    with patch("qibocal_report.config.Path.home", return_value=tmp_path):
+    with patch("qibocamp.config.Path.home", return_value=tmp_path):
         result = CliRunner().invoke(main, ["config", "path"])
     assert result.exit_code == 0
-    assert result.stdout == f"{tmp_path / '.config' / 'qibocal'}\n"
+    assert result.stdout == f"{tmp_path / '.config' / 'qibocamp'}\n"
     assert not (tmp_path / ".config").exists()
 
 
 @pytest.mark.parametrize("xdg", ["xdg-config", ""])
 def test_config_path_xdg(tmp_path, monkeypatch, xdg):
-    from qibocal_report import auth, config
+    from qibocamp import auth, config
 
-    monkeypatch.delenv("QIBOCAL_REPORT_CONFIG_DIR")
-    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    monkeypatch.delenv("QIBOCAMP_CONFIG_DIR")
+    monkeypatch.delenv("QIBOCAMP_AUTH_FILE", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
     root = tmp_path / xdg if xdg else tmp_path / ".config"
     monkeypatch.setenv("XDG_CONFIG_HOME", str(root) if xdg else "")
     result = CliRunner().invoke(main, ["config", "path"])
     assert result.exit_code == 0
-    assert result.stdout == f"{root / 'qibocal'}\n"
-    assert config.get_config_file(create=False) == root / "qibocal/servers.json"
-    assert auth.get_auth_file(create=False) == root / "qibocal/auth.json"
+    assert result.stdout == f"{root / 'qibocamp'}\n"
+    assert config.get_config_file(create=False) == root / "qibocamp/servers.json"
+    assert auth.get_auth_file(create=False) == root / "qibocamp/auth.json"
     assert not root.exists()
 
 
 def test_config_path_relative(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", "relative-config")
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", "relative-config")
     result = CliRunner().invoke(main, ["config", "path"])
     assert result.exit_code == 0
     assert result.stdout == f"{tmp_path / 'relative-config'}\n"
@@ -82,8 +82,8 @@ def test_config_path_relative(tmp_path, monkeypatch):
 def test_config_clean(tmp_path, monkeypatch, args, answer, removed):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
-    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("QIBOCAMP_AUTH_FILE", raising=False)
     for name in ("servers.json", "auth.json", "unrelated.txt"):
         (config_dir / name).write_text("{}", encoding="utf-8")
     reports = config_dir / "reports"
@@ -107,8 +107,8 @@ def test_config_clean_custom_auth_file(tmp_path, monkeypatch):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     custom_auth = tmp_path / "custom-auth.json"
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
-    monkeypatch.setenv("QIBOCAL_AUTH_FILE", str(custom_auth))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("QIBOCAMP_AUTH_FILE", str(custom_auth))
     (config_dir / "auth.json").write_text("{}", encoding="utf-8")
     custom_auth.write_text("{}", encoding="utf-8")
 
@@ -122,8 +122,8 @@ def test_config_clean_custom_auth_file(tmp_path, monkeypatch):
 def test_config_clean_missing_files(tmp_path, monkeypatch):
     config_dir = tmp_path / "missing-config"
     auth_file = tmp_path / "missing-auth" / "auth.json"
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
-    monkeypatch.setenv("QIBOCAL_AUTH_FILE", str(auth_file))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("QIBOCAMP_AUTH_FILE", str(auth_file))
     result = CliRunner().invoke(main, ["config", "clean"])
     assert result.exit_code == 0
     assert "No configuration files to remove." in result.stderr
@@ -140,8 +140,8 @@ def test_config_clean_symlink(tmp_path, monkeypatch, dangling):
         outside.write_text("{}", encoding="utf-8")
     link = config_dir / "servers.json"
     link.symlink_to(outside)
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
-    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("QIBOCAMP_AUTH_FILE", raising=False)
     result = CliRunner().invoke(main, ["config", "clean", "-f"])
     assert result.exit_code == 0
     assert not link.is_symlink()
@@ -155,9 +155,9 @@ def test_config_clean_deduplicates_custom_auth_path(tmp_path, monkeypatch):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     (config_dir / "auth.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(config_dir))
     monkeypatch.setenv(
-        "QIBOCAL_AUTH_FILE", str(config_dir / "unused" / ".." / "auth.json")
+        "QIBOCAMP_AUTH_FILE", str(config_dir / "unused" / ".." / "auth.json")
     )
     result = CliRunner().invoke(main, ["config", "clean", "-f"])
     assert result.exit_code == 0
@@ -170,8 +170,8 @@ def test_config_clean_refuses_directory(tmp_path, monkeypatch):
     config_dir.mkdir()
     (config_dir / "servers.json").write_text("{}", encoding="utf-8")
     (config_dir / "auth.json").mkdir()
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
-    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("QIBOCAMP_AUTH_FILE", raising=False)
     result = CliRunner().invoke(main, ["config", "clean", "-f"])
     assert result.exit_code == 1
     assert "Refusing to remove configuration directory" in result.stderr
@@ -183,9 +183,9 @@ def test_config_clean_reports_removal_error(tmp_path, monkeypatch):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     (config_dir / "servers.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(config_dir))
-    monkeypatch.delenv("QIBOCAL_AUTH_FILE", raising=False)
-    with patch("qibocal_report.cli.Path.unlink", side_effect=PermissionError("Denied")):
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(config_dir))
+    monkeypatch.delenv("QIBOCAMP_AUTH_FILE", raising=False)
+    with patch("qibocamp.cli.Path.unlink", side_effect=PermissionError("Denied")):
         result = CliRunner().invoke(main, ["config", "clean", "-f"])
     assert result.exit_code == 1
     assert "Could not remove" in result.stderr
@@ -211,11 +211,11 @@ def test_dev_command(tmp_path):
 
     with (
         patch(
-            "qibocal_report.cli.subprocess.Popen", return_value=mock_proc
+            "qibocamp.cli.subprocess.Popen", return_value=mock_proc
         ) as mock_popen,
-        patch("qibocal_report.cli.uvicorn.run") as mock_uvicorn,
+        patch("qibocamp.cli.uvicorn.run") as mock_uvicorn,
         # Whatever the machine has: the frontend server itself is mocked.
-        patch("qibocal_report.cli.shutil.which", return_value="/usr/bin/pnpm"),
+        patch("qibocamp.cli.shutil.which", return_value="/usr/bin/pnpm"),
     ):
         result = runner.invoke(
             main,
@@ -241,7 +241,7 @@ def test_server_command(tmp_path):
     sample_dir = tmp_path / "sample"
     sample_dir.mkdir()
 
-    with patch("qibocal_report.cli.uvicorn.run") as mock_uvicorn:
+    with patch("qibocamp.cli.uvicorn.run") as mock_uvicorn:
         result = runner.invoke(
             main,
             ["report", "server", str(sample_dir), "--port", "8001"],
@@ -256,7 +256,7 @@ def test_request_logging_configuration():
 
     from uvicorn.logging import AccessFormatter
 
-    from qibocal_report.logger import get_uvicorn_log_config
+    from qibocamp.logger import get_uvicorn_log_config
 
     cfg = get_uvicorn_log_config()
     access_fmt = cfg["formatters"]["access"]["fmt"]
@@ -286,13 +286,13 @@ def test_request_logging_configuration():
 
 def test_cli_server_registration_isolation(tmp_path):
     """Test that CLI commands register servers in the isolated config directory and unregister cleanly."""
-    from qibocal_report import config
+    from qibocamp import config
 
     runner = CliRunner()
     sample_dir = tmp_path / "isolated_sample"
     sample_dir.mkdir()
 
-    with patch("qibocal_report.cli.uvicorn.run"):
+    with patch("qibocamp.cli.uvicorn.run"):
         result = runner.invoke(
             main,
             ["report", "server", str(sample_dir), "--port", "8999"],
@@ -314,7 +314,7 @@ def test_admin_list_empty(tmp_path, monkeypatch):
     import json
     cfg_dir = tmp_path / "cli_cfg_empty"
     cfg_dir.mkdir()
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(cfg_dir))
 
     runner = CliRunner()
     res = runner.invoke(main, ["report", "admin", "list"])
@@ -328,11 +328,11 @@ def test_admin_list_empty(tmp_path, monkeypatch):
 
 def test_admin_list_with_users(tmp_path, monkeypatch):
     import json
-    from qibocal_report import auth
+    from qibocamp import auth
 
     cfg_dir = tmp_path / "cli_cfg_users"
     cfg_dir.mkdir()
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(cfg_dir))
 
     auth.create_user("alice_admin", "pass123", "admin")
     auth.create_user("bob_editor", "pass123", "editor")
@@ -361,11 +361,11 @@ def test_admin_list_with_users(tmp_path, monkeypatch):
 
 def test_admin_invite_non_interactive(tmp_path, monkeypatch):
     import json
-    from qibocal_report import auth
+    from qibocamp import auth
 
     cfg_dir = tmp_path / "cli_cfg_invite_nonint"
     cfg_dir.mkdir()
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(cfg_dir))
 
     auth.create_user("chief_admin", "adminpass", "admin")
 
@@ -386,7 +386,7 @@ def test_admin_invite_non_interactive(tmp_path, monkeypatch):
     assert res.exit_code == 0
     assert "chief_admin" in res.output
     # The link opens the dashboard on that server; the panel may fold it.
-    from qibocal_report import config
+    from qibocamp import config
 
     joined = "".join(res.output.split())
     assert f"{config.DASHBOARD_URL}/#/invite?token=" in joined
@@ -418,11 +418,11 @@ def test_admin_invite_non_interactive(tmp_path, monkeypatch):
 
 
 def test_admin_invite_interactive_and_shortcuts(tmp_path, monkeypatch):
-    from qibocal_report import auth
+    from qibocamp import auth
 
     cfg_dir = tmp_path / "cli_cfg_invite_int"
     cfg_dir.mkdir()
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(cfg_dir))
 
     auth.create_user("admin1", "pass123", "admin")
     auth.create_user("admin2", "pass123", "admin")
@@ -440,7 +440,7 @@ def test_admin_invite_interactive_and_shortcuts(tmp_path, monkeypatch):
     assert "admin2" in res_int.output
     assert "/#/invite?token=" in res_int.output
 
-    # Report direct shortcut `qibocal report invite <username>`
+    # Report direct shortcut `qibocamp report invite <username>`
     res_shortcut = runner.invoke(
         main,
         ["report", "invite", "admin1", "--json"],
@@ -471,7 +471,7 @@ def test_admin_invite_empty_instance(tmp_path, monkeypatch):
     import json
     cfg_dir = tmp_path / "cli_cfg_empty_instance"
     cfg_dir.mkdir()
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(cfg_dir))
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(cfg_dir))
 
     runner = CliRunner()
     res = runner.invoke(main, ["report", "admin", "invite", "--json"])
@@ -483,22 +483,22 @@ def test_admin_invite_empty_instance(tmp_path, monkeypatch):
 
 
 def test_server_without_a_directory_serves_the_shared_one(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_DATA_DIR", str(tmp_path / "data"))
-    with patch("qibocal_report.cli.uvicorn.run") as mock_uvicorn:
+    monkeypatch.setenv("QIBOCAMP_DATA_DIR", str(tmp_path / "data"))
+    with patch("qibocamp.cli.uvicorn.run") as mock_uvicorn:
         result = CliRunner().invoke(main, ["report", "server", "--port", "8003"])
         assert result.exit_code == 0, result.output
         assert mock_uvicorn.called
     served = tmp_path / "data" / "reports"
     assert served.is_dir()
-    assert os.environ["QIBOCAL_REPORT_DIR"] == str(served)
+    assert os.environ["QIBOCAMP_DIR"] == str(served)
 
 
 def test_server_registration_can_be_declined_and_named(tmp_path):
-    from qibocal_report import config
+    from qibocamp import config
 
     sample_dir = tmp_path / "sample"
     sample_dir.mkdir()
-    with patch("qibocal_report.cli.uvicorn.run"):
+    with patch("qibocamp.cli.uvicorn.run"):
         result = CliRunner().invoke(
             main, ["report", "server", str(sample_dir), "--port", "8004", "--no-register"]
         )

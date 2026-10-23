@@ -85,7 +85,7 @@ plots are generated like any other protocol's.
 The qubits a report lists are the session's `targets` in its `meta.json`,
 which is often empty or stale; its protocols know better, each naming in its
 `action.yml` what it was run on. **Infer targets**, in Server Administration —
-or `qibocal report targets` — gathers their union into the report's meta as
+or `qibocamp report targets` — gathers their union into the report's meta as
 `targets-inferred`, which the list, the header and the filters then show
 first; the session's own list is kept. It reads every report, so it runs on
 request rather than at every load.
@@ -158,9 +158,9 @@ use relative paths from that root when running `qq upload` on the server.
 
 A report can be copied to another report server, as `qq upload` copies one to a web page: **Upload to another server**, in the row of download buttons of a report's sidebar, or **Upload** in the bar that appears when reports are selected in the list. The dialog lists the other registered servers, each saying what it makes of uploads — *accepts uploads*, *sign in to this server*, *your account may not upload here* — and takes a server's address as well, under **By address**, but only one that accepts uploads without signing in: a server with authentication has to be registered, to sign in to it. Each report is downloaded from the server it is on — the same zip as the download button — and sent to the one chosen, where it lands at the top of the reports directory under its folder's name; a report of that name already there is left as it is, and said so. The dialog says how each report went.
 
-From the command line, `qibocal report upload PATH SERVER` sends a report folder of this machine, or the zip of one, the same way; see the [CLI reference](../reference/cli.md), and the [API reference](../reference/api.md) for the requests by hand.
+From the command line, `qibocamp report upload PATH SERVER` sends a report folder of this machine, or the zip of one, the same way; see the [CLI reference](../reference/cli.md), and the [API reference](../reference/api.md) for the requests by hand.
 
-A server without authentication accepts uploads from anyone who reaches it. One with authentication accepts them from its administrators, and from whom **Uploads**, in Server Administration, adds: editors, every signed-in user, or chosen individuals. A report is checked before anything is written — one folder holding a `meta.json`, no absolute path, no `..`, no link — and may not exceed 4 GiB once unpacked, or `QIBOCAL_REPORT_UPLOAD_LIMIT` bytes.
+A server without authentication accepts uploads from anyone who reaches it. One with authentication accepts them from its administrators, and from whom **Uploads**, in Server Administration, adds: editors, every signed-in user, or chosen individuals. A report is checked before anything is written — one folder holding a `meta.json`, no absolute path, no `..`, no link — and may not exceed 4 GiB once unpacked, or `QIBOCAMP_UPLOAD_LIMIT` bytes.
 
 ## 🔄 On-The-Fly Regeneration
 

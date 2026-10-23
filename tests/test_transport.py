@@ -5,14 +5,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import sample_reports
-from qibocal_report.reports import scanner
-from qibocal_report.web.api import app, set_report_root
+from qibocamp.reports import scanner
+from qibocamp.web.api import app, set_report_root
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("QIBOCAL_REPORT_CONFIG_DIR", str(tmp_path / "config"))
-    monkeypatch.delenv("QIBOCAL_AUTH_ENABLED", raising=False)
+    monkeypatch.setenv("QIBOCAMP_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.delenv("QIBOCAMP_AUTH_ENABLED", raising=False)
     reports = sample_reports(tmp_path / "sample_data")
     set_report_root(reports, is_original=True)
     scanner.invalidate_report_cache()
@@ -76,13 +76,13 @@ def test_the_index_is_validated_at_most_every_interval(client, monkeypatch):
         return original(root)
 
     monkeypatch.setattr(scanner, "get_directory_mtime", counted)
-    monkeypatch.setenv("QIBOCAL_REPORT_SCAN_INTERVAL", "60")
+    monkeypatch.setenv("QIBOCAMP_SCAN_INTERVAL", "60")
     scanner.invalidate_report_cache()
     for _ in range(3):
         assert client.get("/api/reports/stats").status_code == 200
     assert len(walks) == 1, "three requests, one walk"
 
-    monkeypatch.setenv("QIBOCAL_REPORT_SCAN_INTERVAL", "0")
+    monkeypatch.setenv("QIBOCAMP_SCAN_INTERVAL", "0")
     client.get("/api/reports/stats")
     client.get("/api/reports/stats")
     assert len(walks) == 3, "at zero, every request walks"
@@ -92,7 +92,7 @@ def test_health_does_not_walk_the_tree(client, monkeypatch):
     client.get("/api/reports")  # the index exists
     walks = []
     monkeypatch.setattr(scanner, "get_directory_mtime", lambda root: walks.append(root) or 0.0)
-    monkeypatch.setenv("QIBOCAL_REPORT_SCAN_INTERVAL", "0")
+    monkeypatch.setenv("QIBOCAMP_SCAN_INTERVAL", "0")
     health = client.get("/api/health").json()
     assert health["reports_count"] >= 1
     assert walks == []

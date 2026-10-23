@@ -99,7 +99,7 @@
         v-slot="{ id, control }"
         label="Address"
         required
-        info="Any reachable Qibocal report server. A bare host and port is accepted, and read as http."
+        info="Any reachable Qibocamp server. A bare host and port is accepted, and read as http."
         :error="errors.url"
       >
         <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="form.url" type="text" :class="['lx-input lx-mono', control]" placeholder="https://host:port" />
@@ -190,8 +190,8 @@ const remoteFields = [
   {
     name: 'venv',
     label: 'Server environment',
-    help: 'Default: qibocal-report',
-    info: 'An environment name, resolved under ~/.cache/qibocal/envs on that machine, or an absolute path there. Created when missing, and given the package below when it has no qibocal-report — the rule the notebook sessions follow too.'
+    help: 'Default: qibocamp',
+    info: 'An environment name, resolved under ~/.cache/qibocamp/envs on that machine, or an absolute path there. Created when missing, and given the package below when it has no qibocamp — the rule the notebook sessions follow too.'
   },
   {
     name: 'workdir',
@@ -202,8 +202,8 @@ const remoteFields = [
   {
     name: 'install',
     label: 'Package to install',
-    help: 'Default: the same qibocal-report as this launcher.',
-    info: 'What goes into the environment when it has no qibocal: by default the very commit this launcher was built from, so the two agree; or a release, a pinned version, a different distribution.'
+    help: 'Default: the same qibocamp as this launcher.',
+    info: 'What goes into the environment when it has no qibocamp: by default the very commit this launcher was built from, so the two agree; or a release, a pinned version, a different distribution.'
   }
 ]
 

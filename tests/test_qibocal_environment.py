@@ -18,16 +18,16 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from qibocal_report import auth, logger
+from qibocamp import auth, logger
 
-from qibocal_report.web import api
+from qibocamp.web import api
 
-from qibocal_report.reports import generation_worker
+from qibocamp.reports import generation_worker
 
-from qibocal_report.reports import generator
-from qibocal_report import qibocal_environment as environment
-from qibocal_report.web.api import app
-from qibocal_report.models import ProtocolDetail, QibocalInstallRequest, QibocalStatus
+from qibocamp.reports import generator
+from qibocamp import qibocal_environment as environment
+from qibocamp.web.api import app
+from qibocamp.models import ProtocolDetail, QibocalInstallRequest, QibocalStatus
 
 _REAL_SUBPROCESS_RUN = subprocess.run
 _REAL_SUBPROCESS_POPEN = subprocess.Popen
@@ -272,7 +272,7 @@ def test_open_server_can_administer_environment(
     mock_pypi(monkeypatch)
     installed = QibocalStatus(installed=True, version="0.2.7", source="pypi")
     installer = Mock(return_value=installed)
-    monkeypatch.setattr(environment, "install_qibocal", installer)
+    monkeypatch.setattr(environment, "install_cli", installer)
     stop = Mock()
     monkeypatch.setattr(environment, "stop_qibocal_installation", stop)
     assert client.get("/api/qibocal").json()["installed"] is False
@@ -831,7 +831,7 @@ def test_install_preserves_existing_report_caches(monkeypatch, tmp_path):
         cached_paths.append((cache, cache.read_text()))
     mock_metadata(monkeypatch, source="git")
     mock_installer(monkeypatch)
-    assert environment.install_qibocal("git").installed
+    assert environment.install_cli("git").installed
     assert all(path.read_text() == content for path, content in cached_paths)
 
 
@@ -1006,7 +1006,7 @@ def test_install_waits_for_active_generation(monkeypatch):
     monkeypatch.setattr(environment, "_installer_commands", commands)
     with ThreadPoolExecutor(max_workers=1) as executor:
         with environment.generation_environment():
-            install = executor.submit(environment.install_qibocal, "git")
+            install = executor.submit(environment.install_cli, "git")
             assert waiting_for_environment.wait(5)
             assert not installer_called.wait(0.1)
         assert install.result(timeout=5).installed is True
@@ -1154,7 +1154,7 @@ def test_stop_kills_installer_and_releases_locks(
             ready.set()
 
     with ThreadPoolExecutor(max_workers=1) as executor:
-        pending = executor.submit(environment.install_qibocal, "git", progress)
+        pending = executor.submit(environment.install_cli, "git", progress)
         assert ready.wait(5)
         response = client.post(
             "/api/admin/qibocal/install/stop", headers=credentials["admin"]
@@ -1180,7 +1180,7 @@ def test_stop_kills_installer_and_releases_locks(
     )
     mock_metadata(monkeypatch, source="git")
     mock_installer(monkeypatch)
-    assert environment.install_qibocal("git").installed
+    assert environment.install_cli("git").installed
 
 
 def test_stop_while_waiting_for_generation_never_starts_installer(monkeypatch):
@@ -1192,7 +1192,7 @@ def test_stop_while_waiting_for_generation_never_starts_installer(monkeypatch):
     )
     with environment.generation_environment():
         with ThreadPoolExecutor(max_workers=1) as executor:
-            pending = executor.submit(environment.install_qibocal, "git")
+            pending = executor.submit(environment.install_cli, "git")
             assert waiting.wait(5)
             environment.stop_qibocal_installation()
             with pytest.raises(
@@ -1227,7 +1227,7 @@ def test_installer_output_is_incremental_colored_and_utf8_safe(monkeypatch):
             process.stdin.write(b"x")
             process.stdin.close()
 
-    assert environment.install_qibocal("git", progress).installed
+    assert environment.install_cli("git", progress).installed
     assert incremental
     combined = "".join(chunks)
     assert "\x1b[32mfirst \u00e9\x1b[0m\n" in combined
@@ -1242,7 +1242,7 @@ def test_install_failure_keeps_only_bounded_output_tail(monkeypatch):
     mock_script_installer(monkeypatch, script)
     chunk_sizes = []
     with pytest.raises(environment.EnvironmentOperationError) as caught:
-        environment.install_qibocal("git", lambda text: chunk_sizes.append(len(text)))
+        environment.install_cli("git", lambda text: chunk_sizes.append(len(text)))
     error = caught.value
     assert error.status_code == 502
     prefix = "Qibocal installation failed (exit 1): "
@@ -1265,7 +1265,7 @@ def test_installer_timeout_kills_reaps_and_closes_pipe(monkeypatch, closed_outpu
     with pytest.raises(
         environment.EnvironmentOperationError, match="timed out"
     ) as caught:
-        environment.install_qibocal("git")
+        environment.install_cli("git")
     assert caught.value.status_code == 504
     process = installer.processes[0]
     assert process.poll() is not None
@@ -1290,7 +1290,7 @@ def test_unexpected_progress_error_propagates_with_process_and_lock_cleanup(
             raise RuntimeError("broken progress consumer")
 
     with pytest.raises(RuntimeError, match="broken progress consumer"):
-        environment.install_qibocal("git", progress)
+        environment.install_cli("git", progress)
     process = installer.processes[0]
     assert process.poll() is not None
     assert process.stdout.closed
@@ -1311,7 +1311,7 @@ def test_pipe_reader_error_propagates_with_process_and_lock_cleanup(monkeypatch)
 
     installer.side_effect = broken_output
     with pytest.raises(OSError, match="broken output pipe"):
-        environment.install_qibocal("git")
+        environment.install_cli("git")
     process = installer.processes[0]
     assert process.poll() is not None
     assert process.stdout.closed
@@ -1489,7 +1489,7 @@ async def test_disconnect_keeps_install_running_and_shutdown_waits(
 
 def test_generation_uses_result_file_not_qibocal_logs(monkeypatch, tmp_path):
     def run(command, **kwargs):
-        assert command[:3] == [sys.executable, "-m", "qibocal_report.reports.generation_worker"]
+        assert command[:3] == [sys.executable, "-m", "qibocamp.reports.generation_worker"]
         assert command[-2] == str(tmp_path.resolve())
         assert kwargs["timeout"] == environment.GENERATION_TIMEOUT
         assert kwargs.get("shell", False) is False
@@ -1509,7 +1509,7 @@ def test_generation_uses_result_file_not_qibocal_logs(monkeypatch, tmp_path):
     monkeypatch.setattr(subprocess, "run", run)
     protocols, error = generator._generate_qibocal_protocols(tmp_path)
     assert error is None and protocols[0].id == "rabi"
-    assert not list(tmp_path.glob(".qibocal-generation-*"))
+    assert not list(tmp_path.glob(".qibocamp-generation-*"))
 
 
 @pytest.mark.parametrize("failure", ["timeout", "exit", "no-result", "bad-result"])
@@ -1530,7 +1530,7 @@ def test_worker_failures_are_informative_and_cleaned(monkeypatch, tmp_path, fail
     assert protocols[0].error
     assert protocols[0].error_code is None
     assert "not installed" not in protocols[0].error
-    assert not list(tmp_path.glob(".qibocal-generation-*"))
+    assert not list(tmp_path.glob(".qibocamp-generation-*"))
 
 
 @pytest.mark.parametrize(
@@ -1713,4 +1713,4 @@ def test_fresh_worker_uses_changed_version_not_stale_parent_module(
         assert protocols and protocols[0].status == "success"
         assert protocols[0].html == f"<p>{version}</p>"
     assert sys.modules["qibocal"] is stale
-    assert not list(tmp_path.glob(".qibocal-generation-*"))
+    assert not list(tmp_path.glob(".qibocamp-generation-*"))

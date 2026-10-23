@@ -82,8 +82,8 @@ export const CONFIG_SHAPES = {
     kind: 'map',
     entry: 'preference',
     known: [
-      { name: 'executable', label: 'qibocal-report executable', type: 'text', mono: true },
-      { name: 'package', label: 'qibocal-report to install', type: 'text', mono: true },
+      { name: 'executable', label: 'qibocamp executable', type: 'text', mono: true },
+      { name: 'package', label: 'qibocamp to install', type: 'text', mono: true },
       { name: 'launches', label: 'Remembered server launches', type: 'json' },
       { name: 'queuePollSeconds', label: 'SLURM queue refresh (seconds)', help: 'Default 30, never under 10.', type: 'number' }
     ]
@@ -158,7 +158,7 @@ export function parseDocument(file, text) {
     return {
       value: null,
       version,
-      error: `${file} was written by another version of Qibocal (${declared}; this one reads ${CONFIG_VERSION}).`
+      error: `${file} was written by another version of Qibocamp (${declared}; this one reads ${CONFIG_VERSION}).`
     }
   }
   const value = unwrap(file, parsed)

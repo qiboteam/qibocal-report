@@ -8,7 +8,7 @@
  * covered by `tests/notices.test.js`.
  */
 
-export const NOTICES_KEY = 'qibocal_launcher_notices'
+export const NOTICES_KEY = 'qibocamp_launcher_notices'
 
 /** How many notifications are kept, newest first. */
 export const NOTICE_LIMIT = 50

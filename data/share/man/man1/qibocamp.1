@@ -1,0 +1,526 @@
+.TH QIBOCAMP 1 "October 23, 2026" "qibocamp" "User Commands"
+.SH NAME
+qibocamp \- serve calibration reports and dispatch interactive notebooks
+.SH SYNOPSIS
+.B qibocamp
+.RB [ \-\-version ]
+.RB [ \-\-help ]
+.I COMMAND
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+Qibocamp provides the qibocamp command for report servers, local
+configuration management, notebook sessions, and agent configurations.
+Every configuration file is a JSON object carrying its format version,
+{"version": 1, ...}; a file without a version, or with another one, is not
+read and never overwritten. Use
+.B qibocamp COMMAND \-\-help
+for the available command options.
+.SH NOTEBOOK
+.B qibocamp notebook connect
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+Start JupyterLab (default) or Marimo and open its authenticated URL in the
+local browser. Keep the command running for the lifetime of the session.
+Ctrl+C stops the notebook, releases its SLURM allocation,
+and closes the tunnels.
+.PP
+The connection layers compose:
+local machine, optional SSH access node, optional SLURM computing node.
+Omitting SSH submits from the local machine. Omitting SLURM runs on the access
+node. Omitting both starts a local notebook.
+.PP
+Each worker immediately logs its node identity to standard error:
+actual hostname, fully qualified domain name, user, OS release, architecture,
+Python executable and version, process ID, and working directory on arrival.
+SLURM sessions distinguish access and compute nodes and include available
+allocation details: cluster, job and step IDs, partition, node lists,
+CPU and memory allocation, and GPU IDs.
+Without SLURM, one node serves both access and compute roles.
+.PP
+Node details appear in labeled Rich panels, with colored startup stages
+and a ready banner. All formatting happens locally; remote workers forward
+structured diagnostics without requiring Rich or a terminal on SSH or SLURM
+nodes. Redirected output has no automatic ANSI colors.
+Diagnostics remain on standard error and the authenticated URL remains
+on its own line on standard output.
+.SS Connect options
+.TP
+.BI \-\-ssh " TEXT"
+SSH options followed by a host or user@host destination.
+Quote the entire value when including options, for example
+.BR "\-\-ssh '\-p 2222 \-i ~/.ssh/lab user@login'" .
+Host aliases, agent authentication, and jump hosts from SSH configuration work.
+The destination must be the last argument; do not include a remote command.
+.TP
+.BR \-q ", " \-\-queue " " \fIPARTITION\fR
+SLURM partition passed to srun on the access node.
+.TP
+.BI \-\-slurm " TEXT"
+Additional srun options as a quoted argument string, for example
+.BR "\-\-slurm '\-\-time=02:00:00 \-\-account=lab \-\-gres=gpu:1'" .
+Specifying this option alone also enables SLURM dispatch.
+Resource allocation must select one task on one computing node.
+Only common scheduling/resource options are accepted; command, IO,
+and working-directory overrides are rejected. Use separated short options
+(for example, \-c 2 rather than \-c2).
+.TP
+.BR \-w ", " \-\-workdir " " \fIDIRECTORY\fR
+Change directory on the access node before starting the session or submitting
+to SLURM. With SLURM, this directory must also be accessible on the computing
+node. Relative kernel paths are resolved in the notebook working directory.
+.TP
+.B \-\-marimo
+Run Marimo instead of JupyterLab.
+.TP
+.B \-\-jupyter
+Use JupyterLab, including when overriding a named Marimo connection.
+.TP
+.BR \-n ", " \-\-no\-interactive
+Print the authenticated URL without opening a browser. The command still
+stays attached to supervise the notebook and tunnels.
+.TP
+.B \-\-interactive
+Open the browser, including when overriding a named non-interactive connection.
+.TP
+.BI \-\-venv " NAME_OR_PATH"
+Kernel environment on the computing node; default: for a named connection,
+its name made safe for a folder (letters, digits, dots, underscores and
+hyphens, any other run of characters becoming a hyphen), so distinct
+connections have distinct environments; otherwise
+.BR qibocal .
+Names resolve under
+.BR $XDG_CACHE_HOME/qibocamp/envs/
+(fallback:
+.BR ~/.cache/qibocamp/envs/ ).
+Absolute paths and explicit relative paths (./env or ../env) are used directly.
+Existing environments are never overwritten. Jupyter leaves target environments
+unchanged; with \-\-marimo, Marimo is installed directly into the target environment.
+Any missing kernel environment, whether specified by name or path, is created with
+the latest public Qibocal release using pip install qibocal.
+You can replace it with a development version or manage its dependencies
+afterward.
+.TP
+.BI \-\-timeout " SECONDS"
+Maximum startup time, including environment preparation, queue wait, and
+tunnel setup. Default: 300. Increase this for long SLURM queue waits.
+.TP
+.BI \-\-subnet " CIDR"
+Restrict SLURM computing-node IP selection to an IPv4 or IPv6 subnet,
+for example 192.168.0.0/24. Among matching addresses, choose the IP with the
+longest network prefix in common with an access-node IP.
+Startup fails if no usable computing-node IP matches.
+Local and unscheduled SSH sessions still bind only to loopback.
+.TP
+.BI \-\-reports " DIR"
+Where the session keeps its reports, relative to the working directory:
+created when the session starts, and exported to the notebook and its
+kernels as QIBOCAMP_REPORTS_DIR. The working directory is unchanged.
+.TP
+.BI \-\-remote " NAME"
+A remote execution connection of remotes.json, for qibocal-widgets: exported
+to the notebook as QIBOCAL_WIDGETS_CONNECTION, and written to remotes.json
+where the notebook runs. Unless it names one, the connection has an environment
+of its own, named after it as a notebook connection is, under
+.BR _remote/ .
+.TP
+.B \-\-rebuild\-on\-compute
+Make
+.B qibocamp notebook rebuild
+regenerate the environment of a SLURM connection on a computing node, through
+srun.
+.TP
+.B \-\-rebuild\-on\-access
+Regenerate it on the access node (default).
+.TP
+.BI \-\-requirements " TEXT|@FILE"
+What the kernel environment must hold, in requirements.txt format: the text
+itself, or @FILE to read it from a local file. Stored with a named connection
+in notebooks.json. Installed with pip when the environment is created; at
+every later session, if the requirements differ from those last installed in
+that environment, they are installed on top of it. The environment is never
+rebuilt and nothing is uninstalled; a failed installation stops the session
+and is tried again at the next one.
+.SS Requirements and environments
+Local execution requires Python 3.10+ with venv support. SSH execution requires
+OpenSSH locally and python3 (3.10+) with venv support on the access
+and computing nodes. SLURM execution requires srun on the access node
+and network access from the access node to the allocated computing node.
+Both nodes need hostname \-I to report their interface addresses.
+The launcher selects a computing-node IP by the longest common network prefix
+with an access-node address; hostname resolution and SSH access to the computing
+node are not required.
+Address discovery and the notebook run in the same single SLURM allocation.
+Local and unscheduled SSH notebook servers bind only to loopback.
+SLURM notebook servers bind to the selected computing-node interface, not all
+interfaces, and are protected by a generated authentication token.
+The access worker relays its loopback port to that interface; SSH sessions
+tunnel access-node loopback to the local machine. The access-to-compute network
+hop is not encrypted, so use SLURM notebooks only on a trusted computing network.
+Every session uses a generated authentication token.
+.PP
+Jupyter server dependencies are installed on first use into the separate managed
+jupyter environment under $XDG_CACHE_HOME/qibocamp/envs/
+(fallback: ~/.cache/qibocamp/envs/), not the kernel environment.
+Marimo is installed directly into the target environment and launched with its
+Python; no separate Marimo environment is used. Installing notebook dependencies or
+Qibocal into a new kernel environment requires package-index access
+on the computing node and either ensurepip or pip (22.3+) in the worker's Python.
+Environments are created with uv venv \-\-seed and filled with uv pip install,
+using the uv on the PATH or one installed once under
+$XDG_CACHE_HOME/qibocamp/tools/uv; without either, or when QIBOCAMP_NO_UV is set,
+with venv and pip as described here.
+All newly created environments include pip. If ensurepip is unavailable,
+the worker uses the external installer to install pip and any requested
+dependencies into the new environment; system packages
+are not changed. This requires package-index access even for otherwise empty
+kernel environments. Existing Jupyter server environments are reused as-is.
+If first-time installation fails, repair that server environment explicitly
+using the command reported by the launcher; it is never implicitly overwritten.
+Jupyter exposes all managed kernel environments and environments previously selected
+for Jupyter with \-\-venv on the computing node. A named connection defaults
+to an environment of its own, named after it (see \-\-venv). The environments
+of remote execution connections, kept under
+.BR $XDG_CACHE_HOME/qibocamp/envs/_remote/ ,
+are not offered as kernels.
+The selected environment is the default kernel. The managed qibocal environment is
+named Qibocal; other managed kernels are named Qibocal (NAME).
+Path-based kernels also include their path in the label, with the home directory
+abbreviated as ~.
+Registrations persist under $XDG_CACHE_HOME/qibocamp/kernels/
+(fallback: ~/.cache/qibocamp/kernels/).
+Unavailable environments and the Jupyter server environment are not listed.
+Each kernel uses its environment's Python and packages, with server-provided
+ipykernel dependencies as a fallback.
+This keeps an existing Jupyter calibration environment unchanged; server dependencies
+may still appear in the notebook's import path.
+.SS Named connections
+Create a JSON object with the format version and, under connections, an
+object whose keys are connection names and values are options:
+.PP
+.nf
+{
+  "version": 1,
+  "connections": {
+    "mychip": {
+      "ssh": "myuser@login",
+      "queue": "mychip",
+      "workdir": "/shared/calibration",
+      "venv": "qibocal",
+      "slurm": "--time=02:00:00",
+      "marimo": false,
+      "no_interactive": false,
+      "timeout": 900
+    }
+  }
+}
+.fi
+.PP
+Save it to
+.BR $XDG_CONFIG_HOME/qibocamp/notebooks.json ,
+with
+.BR ~/.config/qibocamp/notebooks.json
+as the fallback. QIBOCAMP_CONFIG_DIR overrides its containing directory.
+Invoke
+.BR "qibocamp notebook connect mychip" .
+Explicit command-line options override the connection's values.
+Unknown options, invalid types, missing names, and malformed files are errors.
+A file without a version, or with another one, is not read: it holds no
+connections, and it is never overwritten.
+The connect command does not create or modify the connection file.
+.SS Adding connections
+.B qibocamp notebook add
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+With no options, prompt first for the connection name if not supplied, then show a
+multiple-selection menu of options to change from their defaults, then ask for
+each selected value. Unselected options retain their defaults.
+.PP
+To register a connection without the setup menu, provide its name and options
+together. The options are identical to those of
+.BR "qibocamp notebook connect" ;
+see Connect options above or
+.BR "qibocamp notebook connect \-\-help" .
+If options are provided without a name, prompt only for the name.
+A name alone opens the setup menu for that connection.
+Explicitly supplied options are saved in their JSON configuration representation.
+Other connections are preserved; an existing name is an error.
+Adding a connection does not start a notebook session.
+.SS Listing connections
+.B qibocamp notebook list
+.RB [ \-\-raw ]
+.PP
+Display registered names and their configured options in a Rich table.
+An empty registry is reported without creating a file.
+With \-\-raw, print the connection file verbatim, without formatting or JSON
+validation; a missing file is an error.
+.SS Updating connections
+.B qibocamp notebook update
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+Update an existing connection using the same options as connect.
+Explicitly supplied settings replace their stored values; unspecified settings
+and other connections are preserved. With no options, show the option-selection
+menu using the connection's current values. Prompt for the name if omitted.
+Missing connections and invalid resulting options are errors.
+Updating a connection does not start or stop a notebook session.
+.SS Removing connections
+.B qibocamp notebook remove
+.I CONNECTION
+.PP
+Remove the named connection immediately, without confirmation.
+The name must exist. Other connections, environments, and running sessions
+are unchanged. Removing the last connection leaves an empty connections object.
+.SS Rebuilding an environment
+.B qibocamp notebook rebuild
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+Remove the kernel environment of a connection entirely and create it again
+with qibocal and the \-\-requirements alone, in a single install. A SLURM
+connection is regenerated on the access node, which shares the home the
+environment lives in, unless \-\-rebuild\-on\-compute asks for a computing
+node, through srun. No notebook is started. Only a directory holding
+pyvenv.cfg is removed; the notebook server environment is never touched.
+.SS Looking at a queue
+.B qibocamp notebook queue
+.RI [ CONNECTION ]
+.RI [ OPTIONS ]
+.PP
+What a SLURM queue is doing, asked once: squeue, sinfo and whoami run in a
+single round trip, over SSH when a destination is given, and the answer is
+printed as a table. The host and the partition come from a saved connection,
+or from the options. Ask sparingly: every call costs the controller something.
+Options:
+.BI \-\-ssh " TEXT" ,
+.BR \-q ", " \-\-queue " " \fIPARTITION\fR
+(without it, every partition),
+.BR \-u ", " \-\-user " " \fIUSER\fR
+(only the jobs of this user),
+.BR \-t ", " \-\-state " " \fISTATE\fR
+(only jobs in this state, repeatable: PENDING, RUNNING, ...),
+.B \-\-json
+(the answer as JSON),
+.BI \-\-timeout " SECONDS"
+(seconds to wait for the controller; default: 30).
+.PP
+.B qibocamp notebook queues
+.RI [ OPTIONS ]
+.PP
+What a machine's SLURM queues are doing, asked once: the jobs of each
+partition given, and a line for every partition of the machine \(em its nodes
+and jobs by state, and how many are yours. One squeue for the whole machine,
+filtered on it, so only the jobs asked for travel back. Options:
+.BI \-\-ssh " TEXT"
+(the machine; without it, this one),
+.BR \-q ", " \-\-queue " " \fIPARTITION\fR
+(a partition whose jobs are wanted, repeatable),
+.B \-\-json
+and
+.BI \-\-timeout " SECONDS" .
+.SS Examples
+.nf
+qibocamp notebook connect
+qibocamp notebook connect --venv ./calibration-env --marimo
+qibocamp notebook connect --ssh myuser@login --workdir /shared/runs
+qibocamp notebook connect --queue mychip --no-interactive
+qibocamp notebook connect --ssh myuser@login -q mychip --timeout 900
+qibocamp notebook connect mychip --jupyter -n
+qibocamp notebook add
+qibocamp notebook add mychip --ssh myuser@login -q mychip
+qibocamp notebook list
+qibocamp notebook list --raw
+qibocamp notebook update mychip --subnet 192.168.0.0/24
+qibocamp notebook update mychip --requirements @requirements.txt
+qibocamp notebook rebuild mychip
+qibocamp notebook remove mychip
+qibocamp notebook queue mychip --user myuser
+.fi
+.SH REPORT COMMANDS
+.TP
+.BR "qibocamp report server" " [DIRECTORY]"
+Serve reports, here or on another machine. The server is headless: it
+serves the API the dashboard reads, and the dashboard, deployed at
+.B https://qibo.science/qibocamp
+and embedded in the desktop application, is given the server's address.
+Without a directory, the shared reports directory is served:
+.BR $QIBOCAMP_DATA_DIR/reports ,
+.B $XDG_DATA_HOME/qibocamp/reports
+or
+.BR ~/.local/share/qibocamp/reports ,
+created when missing. A named directory has to exist.
+Options: \-\-host (localhost), \-\-port (8000), \-\-auth/\-\-no-auth
+(default: no auth; with \-\-auth the initial administrator invitation
+is printed),
+.BI \-\-name " TEXT"
+(the name the server is registered under),
+\-\-register/\-\-no-register (whether it goes into servers.json at all;
+default: register), and the remote options below.
+.RS
+.PP
+With
+.BI \-\-ssh " TEXT"
+the directory is read on that host and the server is tunnelled back here:
+the destination comes last, as for
+.BR "qibocamp notebook connect" ,
+the remote server binds to its own loopback on a free port, and the local end
+of the tunnel is the address registered in servers.json. \-\-host and \-\-port
+then do not apply. The remote host needs an OpenSSH server and python3 (3.10+).
+.PP
+.BR \-w ", " \-\-workdir " " \fIDIRECTORY\fR
+sets the remote working directory (default: a fresh temporary directory).
+.BI \-\-venv " NAME_OR_PATH"
+selects the remote environment (default: qibocamp), resolved under
+.BR $XDG_CACHE_HOME/qibocamp/envs/
+(fallback:
+.BR ~/.cache/qibocamp/envs/ )
+as the notebook sessions resolve it; a missing environment is created, and an
+existing one without qibocamp has it installed.
+.BI \-\-install " TEXT"
+names the packages installed in that case (default: this qibocamp,
+from GitHub: the commit it was installed from, or main), and
+.BI \-\-timeout " SECONDS"
+bounds the startup, environment preparation included (default: 300).
+These options are refused without \-\-ssh.
+.RE
+.TP
+.B qibocamp report server upgrade
+Bring a remote server's qibocamp up to date, without starting it: the
+\-\-install packages are put back by force in the \-\-venv environment on the
+\-\-ssh host, the packages themselves first, then their dependencies. That
+environment otherwise keeps what it holds, since it is only filled when it has
+no qibocamp. Nothing is served; start the server as usual afterwards.
+Options:
+.BI \-\-ssh " TEXT"
+(required), \-w/\-\-workdir, \-\-venv (qibocamp),
+\-\-install (qibocamp), \-\-timeout (300), as for
+.BR "qibocamp report server" .
+.TP
+.BR "qibocamp report upload" " PATH SERVER"
+Upload a report to a server, as the dashboard's Upload does: PATH is a report
+folder, holding a meta.json, sent under its own name, or the zip of one, as a
+download gives it. A report of the same name there is never overwritten.
+.BI \-\-token " TOKEN"
+signs in with a token (also QIBOCAMP_TOKEN);
+.BI \-u ", " \-\-username " NAME"
+signs in as a user, the password asked or taken from QIBOCAMP_PASSWORD;
+.B \-\-json
+answers with the server's reply.
+.TP
+.BR "qibocamp report targets" " [DIRECTORY]"
+Gather each report's targets from its protocols: every protocol's action.yml
+under the directory (default: the shared reports directory) names the qubits,
+or pairs, it was run on, and their union goes into the report's meta.json as
+targets-inferred, next to the session's own targets. The dashboard shows the
+inferred targets first.
+.TP
+.BR "qibocamp report dev" " [DIRECTORY]"
+Run backend and Vite development servers. The directory defaults to the
+shared reports directory, as for
+.BR "qibocamp report server" .
+Options: \-\-host (localhost),
+\-\-port (8000), \-\-frontend-port (5173), \-\-reload/\-\-no-reload
+(default: reload), \-\-auth/\-\-no-auth, \-\-name, \-\-register/\-\-no-register.
+Requires the frontend sources and Node.js.
+.TP
+.B qibocamp report admin list
+List administrators. Options: \-\-all (include all users), \-\-json,
+and \-\-ssh, \-\-venv (qibocamp) for a server on another machine:
+its administrators are listed there.
+.TP
+.BR "qibocamp report admin invite" " [USERNAME]"
+Generate an administrator invitation. The link opens the dashboard,
+.BR $QIBOCAMP_DASHBOARD_URL/#/invite?token=...&server=... .
+Options: \-u/\-\-username,
+\-\-server-url, \-\-host, \-\-port, \-e/\-\-expires-in-hours (168, 0 for
+never), \-\-interactive/\-\-no-interactive, \-\-json, and \-\-ssh,
+\-\-venv (qibocamp) for a server on another machine: an invitation is
+valid only in the users of the server's own machine, so it is made there.
+.BR "qibocamp report invite"
+is a shortcut, without \-\-ssh and \-\-venv.
+.SH AGENTS COMMANDS
+.TP
+.BR "qibocamp agents push" " SSH"
+Write qibocal-agent configurations into agents.json on the SSH destination.
+.BI \-\-agents " JSON"
+gives the entries to write, as an object of agents.NAME entries, merged into
+the remote agents;
+.BI \-\-remove " NAME" ,
+repeatable, drops one there. Nothing else in the remote file changes, and
+nothing but the configuration travels, never environments or keys.
+.TP
+.B qibocamp agents install
+Install qibocal-agent where the desktop application keeps it,
+.IR ~/.cache/qibocal/agents/tools ,
+and print the path of its executable: the command an assistant registers. The
+environment is created when missing, with Python 3.12 or 3.13, which uv
+provides when needed;
+.BI \-\-ref " REF" ,
+a branch, tag or commit of qibocal-mcp-servers (default: main), replaces what
+was installed.
+.SH CONFIG COMMANDS
+.TP
+.B qibocamp config path
+Print the absolute report configuration directory without creating it.
+.TP
+.B qibocamp config clean
+Ask before removing servers.json and authentication data.
+\-f/\-\-force skips confirmation. Does not remove notebooks.json, notebook
+environments, reports, unrelated files, or directories.
+.SH ENVIRONMENT
+.TP
+.B QIBOCAMP_NO_UV
+When set, environments are created and filled with venv and pip, and uv is
+neither used nor installed.
+.TP
+.B XDG_CONFIG_HOME
+Configuration root for notebook connections.
+.TP
+.B XDG_CACHE_HOME
+Cache root for computing-node kernel and notebook server environments.
+Each node uses its own value; the local value is not forwarded over SSH.
+.TP
+.B XDG_RUNTIME_DIR
+Location for temporary notebook kernel specifications on the computing node.
+When unset, empty, or pointing to a missing directory, use the system temporary
+directory. A missing directory is reported in the startup diagnostics.
+.TP
+.B QIBOCAMP_CONFIG_DIR
+Override the local report and notebook connection configuration directory.
+.TP
+.B QIBOCAMP_AUTH_FILE
+Override the report authentication database; also removed by
+.BR "qibocamp config clean" .
+.TP
+.B QIBOCAMP_DIR
+Report directory used by the report server.
+.TP
+.B QIBOCAMP_DATA_DIR
+Override the data directory, whose reports/ subfolder is served when no
+directory is named. Default:
+.B $XDG_DATA_HOME/qibocamp/
+(fallback:
+.BR ~/.local/share/qibocamp/ ).
+.TP
+.B XDG_DATA_HOME
+Data root for the shared reports directory.
+.TP
+.B QIBOCAMP_DASHBOARD_URL
+The dashboard that invitation links open, told the server's address.
+Default:
+.BR https://qibo.science/qibocamp .
+.TP
+.B QIBOCAMP_ALLOWED_ORIGINS
+Further origins whose pages may call the server from a browser,
+comma-separated. The dashboard of QIBOCAMP_DASHBOARD_URL, the desktop launcher
+and pages of this machine (localhost) always may; any other page is refused,
+and a change it asks for, an upload included, is answered 403.
+.SH EXIT STATUS
+Zero on normal completion or an orderly notebook Ctrl+C shutdown.
+Nonzero on invalid configuration, startup failure, timeout, or session failure.
+.SH SEE ALSO
+.BR ssh (1),
+.BR srun (1),
+.BR python3 (1)

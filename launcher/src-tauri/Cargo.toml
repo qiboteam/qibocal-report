@@ -1,15 +1,16 @@
 [package]
-name = "qibocal-launcher"
+name = "qibocamp"
 version = "0.1.0"
-description = "Desktop launcher for Qibocal report servers and notebooks"
+description = "Qibocamp: the desktop application for Qibocamp servers and notebooks"
 authors = ["Qibo Team"]
 license = "Apache-2.0"
-repository = "https://github.com/qiboteam/qibocal-report"
+repository = "https://github.com/qiboteam/qibocamp"
 edition = "2021"
 rust-version = "1.77.2"
 
 [lib]
-name = "qibocal_launcher"
+# Not the binary's name: on Windows the two would write the same .pdb.
+name = "qibocamp_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

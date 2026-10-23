@@ -11,9 +11,9 @@ import pytest
 from fastapi.testclient import TestClient
 from rich.console import Console
 
-from qibocal_report import auth, logger
+from qibocamp import auth, logger
 
-from qibocal_report.web import api
+from qibocamp.web import api
 
 
 @pytest.fixture
@@ -199,7 +199,7 @@ def test_uvicorn_dict_config_captures_before_lifespan_without_duplicates():
 import json
 import logging
 import logging.config
-from qibocal_report import logger
+from qibocamp import logger
 logging.config.dictConfig(logger.get_uvicorn_log_config())
 logging.getLogger("uvicorn.error").info("early startup")
 logger.setup_uvicorn_logging()

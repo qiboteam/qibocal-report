@@ -1,6 +1,6 @@
 # User Guide: Dashboard & Server Management
 
-The `qibocal-report` dashboard provides a centralized management hub for exploring calibration history, filtering runs across multiple criteria, and managing distributed measurement servers.
+The Qibocamp Dashboard provides a centralized management hub for exploring calibration history, filtering runs across multiple criteria, and managing distributed measurement servers.
 
 ---
 
@@ -8,7 +8,7 @@ The `qibocal-report` dashboard provides a centralized management hub for explori
 
 Access the server registry via the **Servers** tab (`/#/servers`) in the top navigation or sidebar:
 
-- **Connect New Servers**: Paste the URL of any running `qibocal report server` instance into the input bar and press Enter.
+- **Connect New Servers**: Paste the URL of any running `qibocamp report server` instance into the input bar and press Enter.
 - **Names and Avatars**: Each server is assigned a name and an abstract geometric avatar, which you can customize.
 - **Customization**: Use the three-dots menu on any server card to update its name, description, avatar, or target address.
 - **Authentication Status**: Auth-enabled servers display a lock to the left of their name: closed when signed out, open when signed in. Open/no-auth servers have no lock and no **Administer** entry in their three-dots menu.

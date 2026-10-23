@@ -13,7 +13,7 @@ export const DEFAULT_DOCS_NAV = [
         id: 'index',
         path: 'index',
         title: 'Overview & Ecosystem',
-        description: 'Introduction to Qibo ecosystem, projects, and qibocal-report architecture'
+        description: 'Introduction to Qibo ecosystem, projects, and Qibocamp architecture'
       }
     ]
   },
@@ -49,7 +49,7 @@ export const DEFAULT_DOCS_NAV = [
         id: 'user-guide/launcher/installation',
         path: 'user-guide/launcher/installation',
         title: 'Installation',
-        description: 'Installers for each platform, opening an unsigned build, and the qibocal-report the launcher drives'
+        description: 'Installers for each platform, opening an unsigned build, and the Qibocamp Server the launcher drives'
       },
       {
         id: 'user-guide/launcher/sections',
@@ -64,9 +64,9 @@ export const DEFAULT_DOCS_NAV = [
         description: 'GitHub-style keys, the menu shortcuts, and the keys of each page'
       },
       {
-        id: 'user-guide/launcher/qibocal-report',
-        path: 'user-guide/launcher/qibocal-report',
-        title: 'Installing qibocal-report',
+        id: 'user-guide/launcher/qibocamp',
+        path: 'user-guide/launcher/qibocamp',
+        title: 'Installing Qibocamp',
         description: "The launcher's own environment, its version, and other environments"
       },
       {
@@ -181,7 +181,7 @@ export function docsSection(path, nav = DEFAULT_DOCS_NAV) {
 }
 
 /** The deployed dashboard's documentation: a link to it is to this very documentation. */
-const DEPLOYED_DOCS = /^https?:\/\/qibo\.science\/qibocal-report\/?#\/docs\/?(.*)$/i
+const DEPLOYED_DOCS = /^https?:\/\/qibo\.science\/qibocamp\/?#\/docs\/?(.*)$/i
 
 /** Every page of the documentation, by path: the sections' own and their items. */
 export function docPages(nav = DEFAULT_DOCS_NAV) {

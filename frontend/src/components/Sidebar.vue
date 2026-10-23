@@ -174,7 +174,7 @@ const {
   defaultSize: 288,
   min: 200,
   max: 520,
-  storageKey: 'qibocal_sidebar_width',
+  storageKey: 'qibocamp_sidebar_width',
   disabled: () => isCollapsed.value
 })
 
@@ -189,7 +189,7 @@ const {
   defaultSize: 215,
   min: 80,
   max: () => window.innerHeight - 180,
-  storageKey: 'qibocal_sidebar_top_height',
+  storageKey: 'qibocamp_sidebar_top_height',
   disabled: () => isCollapsed.value
 })
 
@@ -204,7 +204,7 @@ const {
   defaultSize: 320,
   min: 80,
   max: () => Math.max(80, window.innerHeight - topSectionHeight.value - 160),
-  storageKey: 'qibocal_sidebar_middle_height',
+  storageKey: 'qibocamp_sidebar_middle_height',
   disabled: () => isCollapsed.value
 })
 

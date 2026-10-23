@@ -1,9 +1,10 @@
-# Qibocal, the desktop application
+# Qibocamp, the desktop application
 
-Named after the command line it drives, there being nothing else to confuse it
-with: it spawns `qibocal` processes, edits the configuration shared with them,
-and embeds the web dashboard so there is no context switch between starting an
-instance and browsing its reports.
+Qibocamp itself, named as the command line it drives: it spawns `qibocamp`
+processes, edits the configuration shared with them, and embeds the Qibocamp
+Dashboard so there is no context switch between starting an instance and
+browsing its reports. Qibocamp builds on top of Qibocal, the calibration
+library, a separate project.
 
 The user-facing documentation lives in
 [`docs/user-guide/launcher/`](../docs/user-guide/launcher/index.md).
@@ -26,23 +27,23 @@ launcher/
 └── src-tauri/
     ├── src/
     │   ├── settings.rs config files shared with the CLI
-    │   ├── qibocal.rs  installing, finding and calling the command line
-    │   ├── setup.py    creates the launcher's own environment, run by qibocal.rs
+    │   ├── cli.rs      installing, finding and calling the command line
+    │   ├── setup.py    creates the launcher's own environment, run by cli.rs
     │   └── process.rs  the supervisor of long-running processes
     └── icon.svg        source of the icon set
 ```
 
-The launcher installs `qibocal-report` itself, into
-`~/.cache/qibocal/envs/launcher`, with the first Python 3.10+ it finds — not
+The launcher installs `qibocamp` itself, into
+`~/.cache/qibocamp/envs/launcher`, with the first Python 3.10+ it finds — not
 on opening, but the first time a server, a notebook or an invitation needs
-the command line (`ensureQibocal` in `state.js`, which then carries on with
+the command line (`ensureQibocamp` in `state.js`, which then carries on with
 the request). `setup.py` does the work, and borrows the environment code of
-`src/qibocal_report/notebook_worker.py`, which `qibocal.rs` embeds at build
+`src/qibocamp/remote/notebook_worker.py`, which `cli.rs` embeds at build
 time with `include_str!` — the Rust crate therefore depends on the Python
 package tree being where it is in this repository. What gets installed is
 the `package` preference of `launcher.json`, one pip requirement; without
 one, the archive of the commit the launcher was built from, which `build.rs`
-takes from `QIBOCAL_BUILD_COMMIT` (set by the workflow to the branch head)
+takes from `QIBOCAMP_BUILD_COMMIT` (set by the workflow to the branch head)
 or from `git rev-parse HEAD`, so that the command line takes exactly the
 flags the launcher passes. The same requirement goes to remote servers as
 `--install`. The version picker lists that commit, the PyPI releases and the
@@ -75,7 +76,7 @@ theme. The frontend keeps being built and deployed on its own; the launcher
 only bundles it as a second page of the same window. The registered servers
 are one list, `servers.json`: `openDashboard` publishes it to the dashboard's
 `localStorage` (plus the servers running unregistered, marked `tmp-`), and
-`dashboard.js` sets `window.qibocalDesktop` before mounting: `saveServers`,
+`dashboard.js` sets `window.qibocampDesktop` before mounting: `saveServers`,
 which the frontend store calls from `saveStoredServers`, so what the
 dashboard adds, renames or removes is written back to the file; and
 `managedServers`, which tells the dashboard's Report Servers page which
@@ -113,7 +114,7 @@ them for all three, on demand and on every release.
 - `src-tauri/icons/` is generated from `icon.svg` and not committed, so the
   repository holds no binaries.
 - Processes are stopped with a signal, not a kill, and only killed if they are
-  still around a few seconds later: `qibocal notebook connect` needs that window
+  still around a few seconds later: `qibocamp notebook connect` needs that window
   to close its SSH tunnels and remote workers.
 - The published builds are unsigned, so macOS and Windows block them on first
   launch; the way around it is in

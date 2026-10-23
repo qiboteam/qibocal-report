@@ -1,7 +1,7 @@
 /**
  * What the desktop launcher offers the dashboard when it embeds it.
  *
- * The launcher sets `window.qibocalDesktop` before this application mounts;
+ * The launcher sets `window.qibocampDesktop` before this application mounts;
  * in a browser there is no such thing, and everything here answers that
  * nothing is there. The dashboard then falls back to its own means — a
  * toast for a message, no bell in a toolbar — and stays the same page it is
@@ -11,7 +11,7 @@ import { markRaw } from 'vue'
 import { currentPage, pageShortcuts } from './shortcuts.js'
 
 function desktop() {
-  return typeof window !== 'undefined' ? window.qibocalDesktop : null
+  return typeof window !== 'undefined' ? window.qibocampDesktop : null
 }
 
 /**

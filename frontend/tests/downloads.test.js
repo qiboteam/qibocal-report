@@ -225,7 +225,7 @@ test('authenticated downloads and metadata previews', async t => {
     await t.test('inside the application, where no tab opens, the file is shown over the page', async () => {
       setupBrowser()
       const { fileViewer, closeFile } = await vite.ssrLoadModule('/src/utils/fileViewer.js')
-      window.qibocalDesktop = {}
+      window.qibocampDesktop = {}
       const open = mock.method(window, 'open', () => assert.fail('No tab inside the application'))
       mock.method(globalThis, 'fetch', async () => new Response('{"targets":[0,1]}', { headers: { 'Content-Type': 'application/json' } }))
       try {
@@ -234,7 +234,7 @@ test('authenticated downloads and metadata previews', async t => {
         assert.equal(fileViewer.open, true)
         assert.deepEqual(JSON.parse(fileViewer.text), { targets: [0, 1] })
       } finally {
-        delete window.qibocalDesktop
+        delete window.qibocampDesktop
         closeFile()
         mock.restoreAll()
       }

@@ -7,8 +7,8 @@ import stat
 import pytest
 from click.testing import CliRunner
 
-from qibocal_report.remote import slurm
-from qibocal_report.cli import main
+from qibocamp.remote import slurm
+from qibocamp.cli import main
 
 SQUEUE = """\
 101|gpu|train|ann|RUNNING|1:02:03|4:00:00|2|node[01-02]|1200|2026-10-16T08:00:00|2026-10-16T08:01:00

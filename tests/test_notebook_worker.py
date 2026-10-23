@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from qibocal_report.remote import notebook_worker as worker
+from qibocamp.remote import notebook_worker as worker
 
 
 def test_node_identity_logging(tmp_path, monkeypatch, capsys):
@@ -89,24 +89,24 @@ def test_environment_resolution(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    assert worker.environment_path("chip") == tmp_path / "cache/qibocal/envs/chip"
+    assert worker.environment_path("chip") == tmp_path / "cache/qibocamp/envs/chip"
     assert worker.environment_path("./chip") == tmp_path / "chip"
     assert worker.environment_path("../chip") == tmp_path.parent / "chip"
     assert worker.environment_path("~/chip") == tmp_path / "home/chip"
     monkeypatch.delenv("XDG_CACHE_HOME")
     assert (
         worker.environment_path("qibocal")
-        == tmp_path / "home/.cache/qibocal/envs/qibocal"
+        == tmp_path / "home/.cache/qibocamp/envs/qibocal"
     )
     monkeypatch.setenv("XDG_CACHE_HOME", "")
     assert (
         worker.environment_path("qibocal")
-        == tmp_path / "home/.cache/qibocal/envs/qibocal"
+        == tmp_path / "home/.cache/qibocamp/envs/qibocal"
     )
     with pytest.raises(worker.WorkerError):
         worker.environment_path("ambiguous/path")
     # A remote execution connection's own, kept apart; one level only.
-    assert worker.environment_path("_remote/lab") == tmp_path / "home/.cache/qibocal/envs/_remote/lab"
+    assert worker.environment_path("_remote/lab") == tmp_path / "home/.cache/qibocamp/envs/_remote/lab"
     for value in ("_remote/", "_remote/a/b", "_remote/.."):
         with pytest.raises(worker.WorkerError):
             worker.environment_path(value)
@@ -310,7 +310,7 @@ def test_symlinked_overlapping_environments_fail_without_creation(
     tmp_path, monkeypatch
 ):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
-    server_path = tmp_path / "qibocal/envs/jupyter"
+    server_path = tmp_path / "qibocamp/envs/jupyter"
     server_path.mkdir(parents=True)
     target_path = tmp_path / "target"
     target_path.symlink_to(server_path, target_is_directory=True)
@@ -323,7 +323,7 @@ def test_symlinked_overlapping_environments_fail_without_creation(
     ensure.assert_not_called()
 
 
-@pytest.mark.parametrize("venv", ["./qibocal/envs", "./qibocal/envs/jupyter/nested"])
+@pytest.mark.parametrize("venv", ["./qibocamp/envs", "./qibocamp/envs/jupyter/nested"])
 def test_nested_environments_fail_without_creation(tmp_path, monkeypatch, venv):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     monkeypatch.chdir(tmp_path)
@@ -542,7 +542,7 @@ def test_slurm_composition_and_readiness(tmp_path, monkeypatch, capsys, marimo, 
     command = spawn.call_args_list[0].args[0]
     assert command[:5] == ["srun", "--unbuffered", "--partition", "chip", "--mem=4G"]
     # Named, so the launcher finds the job in the queue as soon as it is submitted.
-    assert command[command.index("--job-name") + 1].startswith("qibocal-nb-")
+    assert command[command.index("--job-name") + 1].startswith("qibocamp-nb-")
     # The name sits after the caller's options; the fixed arguments follow it.
     assert command[7:13] == [
         "--nodes=1",
@@ -703,7 +703,7 @@ def test_compute_worker_binds_selected_interface(
         assert ensure.call_count == 2
         assert ensure.call_args_list[1].args == (
             runtime,
-            tmp_path / "qibocal/envs/jupyter",
+            tmp_path / "qibocamp/envs/jupyter",
         )
         assert ensure.call_args_list[1].kwargs == {"server": True}
         assert f"--ServerApp.ip={host}" in command
@@ -742,7 +742,7 @@ def test_marimo_install_failure_stops_startup(tmp_path, monkeypatch, seeded):
     ):
         worker.run({"marimo": True, "venv": "jupyter"})
     ensure.assert_called_once_with(
-        runtime, tmp_path / "qibocal/envs/jupyter", packages=("qibocal",)
+        runtime, tmp_path / "qibocamp/envs/jupyter", packages=("qibocal",)
     )
     sites.assert_not_called()
     spawn.assert_not_called()
@@ -899,7 +899,7 @@ def test_kernels_include_managed_and_previously_selected_environments(
 ):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    managed = tmp_path / "cache/qibocal/envs"
+    managed = tmp_path / "cache/qibocamp/envs"
     default = managed / "qibocal"
     named = managed / "newenv"
     server = managed / "jupyter"
@@ -976,7 +976,7 @@ def test_kernels_include_managed_and_previously_selected_environments(
 
 def test_invalid_kernel_registration_is_reported(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
-    registry = tmp_path / "qibocal/kernels"
+    registry = tmp_path / "qibocamp/kernels"
     registry.mkdir(parents=True)
     (registry / "invalid.json").write_text("{}")
     with pytest.raises(worker.WorkerError, match="Invalid kernel registration"):
@@ -1044,7 +1044,7 @@ def test_real_transported_script_lifecycle(
 ):
     cache = tmp_path / "cache"
     target = tmp_path / "target"
-    server = cache / "qibocal/envs/jupyter"
+    server = cache / "qibocamp/envs/jupyter"
     (target / "bin").mkdir(parents=True)
     if not marimo:
         (server / "bin").mkdir(parents=True)
@@ -1083,7 +1083,7 @@ def test_real_transported_script_lifecycle(
         XDG_CACHE_HOME=str(cache),
         XDG_RUNTIME_DIR=str(runtime_directory),
         # The fake environments here answer pip, not uv.
-        QIBOCAL_NO_UV="1",
+        QIBOCAMP_NO_UV="1",
         FAKE_PID=str(pidfile),
         EXPECTED_TARGET=str(target / "bin/python"),
     )
@@ -1126,7 +1126,7 @@ def test_real_transported_script_lifecycle(
         assert ready["host"] == socket.gethostname()
         assert pidfile.exists()
         if marimo:
-            assert not (cache / "qibocal/envs").exists()
+            assert not (cache / "qibocamp/envs").exists()
         if shutdown == "eof":
             process.stdin.close()
         else:
@@ -1147,7 +1147,7 @@ def test_real_transported_script_lifecycle(
         identity = event["identity"]
         assert identity["hostname"] == ready["host"]
         assert identity["pid"] == process.pid
-        assert not list(runtime_directory.glob("qibocal-kernels-*"))
+        assert not list(runtime_directory.glob("qibocamp-kernels-*"))
         with pytest.raises(OSError):
             os.kill(int(pidfile.read_text()), 0)
         with pytest.raises(OSError):

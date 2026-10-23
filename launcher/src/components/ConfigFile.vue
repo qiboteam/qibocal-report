@@ -47,7 +47,7 @@
     <div v-if="open" class="border-t border-gray-100 p-4 space-y-3">
       <!-- Another version's file, or one without a version: ignored, shown as it is, for a migration by hand. -->
       <p v-if="!entry.compatible" class="text-xs text-amber-800 bg-amber-50 rounded-xl px-3 py-2">
-        Written by another version of Qibocal — {{ entry.version === null ? 'no format version' : `format ${entry.version}` }}, where this one reads
+        Written by another version of Qibocamp — {{ entry.version === null ? 'no format version' : `format ${entry.version}` }}, where this one reads
         {{ entry.expected }}. The launcher and the command line leave it as it is and read nothing from it.
         Edit the JSON here to migrate it by hand: once it declares format {{ entry.expected }}, it is read again.
       </p>

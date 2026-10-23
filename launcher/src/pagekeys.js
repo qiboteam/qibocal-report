@@ -29,7 +29,7 @@ export const PAGE_KEYS = {
       e: 'Edit it',
       i: 'Administrator access: set a password, sign in',
       d: 'Duplicate it: the form for a new server, with its options',
-      u: 'Update its qibocal-report, and start it again'
+      u: 'Update its qibocamp, and start it again'
     }
   },
   processes: {

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from qibocal_report.reports.scanner import (
+from qibocamp.reports.scanner import (
     IGNORED_DIRS,
     compute_filter_stats,
     filter_reports,
@@ -105,7 +105,7 @@ def test_cache_invalidation_beneath_ignored_ancestor(
 ):
     # A validated index stands for a couple of seconds by default; this
     # test is about what a walk notices, so every scan walks.
-    monkeypatch.setenv("QIBOCAL_REPORT_SCAN_INTERVAL", "0")
+    monkeypatch.setenv("QIBOCAMP_SCAN_INTERVAL", "0")
     root = tmp_path / ".cache" / "runs"
     report_dir = root if root_is_report else root / "sessions" / "session"
     make_report(report_dir)

@@ -163,7 +163,7 @@ const { columns, totalTableWidth, resizingIndex, startResize, resetColumnWidth }
   { key: 'state', label: 'State', width: 110, minWidth: 70, resizable: true },
   { key: 'time', label: 'Time', width: 90, minWidth: 60, resizable: true },
   { key: 'nodes', label: 'Nodes', width: 220, minWidth: 80, resizable: true }
-], 'qibocal_launcher_queue_columns_v1')
+], 'qibocamp_launcher_queue_columns_v1')
 const pollSeconds = queuePollSeconds
 const shown = computed(() => filterJobs(entry.value?.data?.jobs || [], {
   mine: filters.mine,

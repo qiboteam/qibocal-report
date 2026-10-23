@@ -47,7 +47,7 @@
 import { computed, ref, watch } from 'vue'
 import FormField from './FormField.vue'
 import { desktop } from '../bridge.js'
-import { launchOptionsFor, withQibocal } from '../state.js'
+import { launchOptionsFor, withQibocamp } from '../state.js'
 import { serverUrl, storeDashboardSession } from '../lib/servers.js'
 
 const props = defineProps({
@@ -77,7 +77,7 @@ async function load(server) {
   loading.value = true
   error.value = ''
   try {
-    const users = await withQibocal(() => desktop.administrators(machineOf(server)))
+    const users = await withQibocamp(() => desktop.administrators(machineOf(server)))
     admins.value = (Array.isArray(users) ? users : []).filter(user => user.role === 'admin')
     username.value = admins.value[0]?.username || ''
   } catch (failure) {
@@ -95,7 +95,7 @@ async function submit() {
   try {
     const url = serverUrl(props.server.url)
     // A short invitation, made where the server keeps its users, and used at once.
-    const invitation = await withQibocal(() => desktop.reissueInvite({
+    const invitation = await withQibocamp(() => desktop.reissueInvite({
       username: admins.value.length ? username.value : null,
       serverUrl: url,
       expiresInHours: 1,

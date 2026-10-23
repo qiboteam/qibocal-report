@@ -4,12 +4,12 @@ import json
 
 from fastapi.testclient import TestClient
 
-from qibocal_report import __version__, auth, version
-from qibocal_report.web.api import app
+from qibocamp import __version__, auth, version
+from qibocamp.web.api import app
 
 
 def test_the_version_is_public_and_the_package_s(monkeypatch):
-    monkeypatch.setenv("QIBOCAL_AUTH_ENABLED", "1")
+    monkeypatch.setenv("QIBOCAMP_AUTH_ENABLED", "1")
     auth.set_auth_enabled(True)
     try:
         answer = TestClient(app).get("/api/version")
@@ -34,9 +34,9 @@ class Recorded:
 def test_the_commit_is_the_one_pip_recorded(monkeypatch):
     sha = "0123456789abcdef0123456789abcdef01234567"
     cases = [
-        ({"url": "https://github.com/qiboteam/qibocal-report", "vcs_info": {"vcs": "git", "commit_id": sha}}, sha),
-        ({"url": f"https://github.com/qiboteam/qibocal-report/archive/{sha}.tar.gz", "archive_info": {}}, sha),
-        ({"url": "https://github.com/qiboteam/qibocal-report/archive/refs/heads/main.tar.gz"}, None),
+        ({"url": "https://github.com/qiboteam/qibocamp", "vcs_info": {"vcs": "git", "commit_id": sha}}, sha),
+        ({"url": f"https://github.com/qiboteam/qibocamp/archive/{sha}.tar.gz", "archive_info": {}}, sha),
+        ({"url": "https://github.com/qiboteam/qibocamp/archive/refs/heads/main.tar.gz"}, None),
         ({"url": "file:///src", "dir_info": {"editable": True}}, None),
         (None, None),
     ]

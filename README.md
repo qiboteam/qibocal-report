@@ -1,11 +1,11 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/qibocal_logo_light.svg" />
-  <img src="docs/assets/qibocal_logo_dark.svg" alt="Qibocal" width="300" style="margin: 1.2rem 0;" />
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/qibocamp_logo_light.svg" />
+  <img src="docs/assets/qibocamp_logo_dark.svg" alt="Qibocamp" width="300" style="margin: 1.2rem 0;" />
 </picture>
 
-**The desktop application for [Qibocal](https://github.com/qiboteam/qibocal) calibrations: notebooks, report servers, remote execution and agents, wherever they run, and their reports, in one place.**
+**Qibocamp, the desktop application for [Qibocal](https://github.com/qiboteam/qibocal) calibrations: notebooks, report servers, remote execution and agents, wherever they run, and their reports, in one place.**
 
 [![Python](https://img.shields.io/badge/python-3.10+-purple.svg)](https://www.python.org/)
 [![Tauri](https://img.shields.io/badge/app-Tauri_2-24c8db.svg)](https://tauri.app/)
@@ -15,13 +15,16 @@
 
 </div>
 
-**Qibocal**, the application, gathers the whole calibration workflow around the
-[Qibocal](https://github.com/qiboteam/qibocal) library: it opens notebook
-sessions, starts and updates report servers, dispatches acquisitions and
-calibration agents — on this machine, over SSH, or through SLURM — and reads
-the reports they produce in the dashboard it embeds. Two of its components
-stand on their own as well: the **dashboard**, deployed as a web page, and the
-**report servers**, deployed wherever the reports are.
+**Qibocamp** gathers the whole calibration workflow around
+[Qibocal](https://github.com/qiboteam/qibocal), the calibration library: it
+opens notebook sessions, starts and updates report servers, dispatches
+acquisitions and calibration agents — on this machine, over SSH, or through
+SLURM — and reads the reports they produce in the dashboard it embeds.
+Qibocamp builds on top of Qibocal, but is a separate project: Qibocal runs
+the calibrations, Qibocamp organizes them and their reports. It comes in three
+components: the **Qibocamp** desktop application itself, the **Qibocamp
+Dashboard**, also deployed as a web page, and the **Qibocamp Server**, deployed
+wherever the reports are.
 
 ## ⚡ The application
 
@@ -34,16 +37,16 @@ stand on their own as well: the **dashboard**, deployed as a web page, and the
 - **Configuration**: the files it shares with the command line, edited in place; a tray icon and keyboard shortcuts throughout.
 
 Installers for macOS, Linux and Windows are attached to every
-[release](https://github.com/qiboteam/qibocal-report/releases). They are not
+[release](https://github.com/qiboteam/qibocamp/releases). They are not
 signed yet: see [Installation](docs/user-guide/launcher/installation.md) for
-opening them the first time. The application installs the `qibocal` command
+opening them the first time. The application installs the `qibocamp` command
 line it drives by itself, the first time it is needed; a Python 3.10 or newer
 is all it asks of the machine.
 
-## 📊 The dashboard
+## 📊 The Qibocamp Dashboard
 
 A static single-page application, from [`frontend/`](frontend/), deployed at
-[qibo.science/qibocal-report](https://qibo.science/qibocal-report) and embedded
+[qibo.science/qibocamp](https://qibo.science/qibocamp) and embedded
 in the application. It connects to any number of report servers from the
 browser:
 
@@ -54,31 +57,31 @@ browser:
 - **Administration**: users, roles and invitations of a server with authentication.
 
 Any static host serves it: `cd frontend && pnpm run build`, and a server lets
-it call with `QIBOCAL_ALLOWED_ORIGINS`.
+it call with `QIBOCAMP_ALLOWED_ORIGINS`.
 
-## 🖥️ The report servers
+## 🖥️ The Qibocamp Server
 
 A headless server reads a folder of Qibocal runs and answers the dashboard's
 REST and GraphQL API. Install it from GitHub — it is not on PyPI yet — and point
 it at the runs:
 
 ```bash
-pip install git+https://github.com/qiboteam/qibocal-report
-qibocal report server ./runs --port 8000 --auth
+pip install git+https://github.com/qiboteam/qibocamp
+qibocamp report server ./runs --port 8000 --auth
 ```
 
 With `--auth` it prints the invitation of its first administrator. Without a
-folder, the shared `~/.local/share/qibocal/reports` is served. When the runs
+folder, the shared `~/.local/share/qibocamp/reports` is served. When the runs
 live on another machine, `--ssh` starts the server there, in an environment of
-its own with this very qibocal-report installed, and tunnels it back:
+its own with this very Qibocamp installed, and tunnels it back:
 
 ```bash
-qibocal report server /shared/calibration --ssh myuser@login
+qibocamp report server /shared/calibration --ssh myuser@login
 ```
 
-The same command line opens notebooks — `qibocal notebook connect --ssh
+The same command line opens notebooks — `qibocamp notebook connect --ssh
 myuser@login -q mychip` — and manages everything the application does: see
-**`man qibocal`** ([source](data/share/man/man1/qibocal.1)) and the
+**`man qibocamp`** ([source](data/share/man/man1/qibocamp.1)) and the
 [CLI reference](docs/reference/cli.md). Every server documents its API at
 `/api/docs/swagger`, and says what it is at `/api/version`.
 
@@ -86,7 +89,7 @@ myuser@login -q mychip` — and manages everything the application does: see
 
 ```bash
 unzip -q sample_data/test-data.zip -d sample_data   # the sample reports travel zipped
-qibocal report dev ./sample_data   # server with auto-reload, dashboard with HMR on :5173
+qibocamp report dev ./sample_data   # server with auto-reload, dashboard with HMR on :5173
 cd launcher && pnpm install && pnpm run icons && pnpm run app
 ```
 
@@ -100,7 +103,7 @@ workflows build the installers and deploy the dashboard. See the
 The [user guide](docs/user-guide/index.md), the
 [administrator's guide](docs/admin-guide/index.md) and the references, also
 under **Documentation** in the dashboard, or at
-[qibo.science/qibocal-report/#/docs](https://qibo.science/qibocal-report/#/docs).
+[qibo.science/qibocamp/#/docs](https://qibo.science/qibocamp/#/docs).
 
 ## 📄 License
 

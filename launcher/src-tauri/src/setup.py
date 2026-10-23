@@ -1,8 +1,8 @@
-"""Create the launcher's own Qibocal environment, or bring it up to date.
+"""Create the launcher's own Qibocamp environment, or bring it up to date.
 
 Run by the launcher as ``python setup.py '<json>'`` with the environment
 ``path``, the ``packages`` to put in it, whether to ``upgrade`` them, and a
-``timeout`` in seconds. The notebook worker that ships with qibocal-report
+``timeout`` in seconds. The notebook worker that ships with qibocamp
 already knows how to create and fill an environment — with uv, installed
 once under the cache when there is none, or with venv and pip — so it is
 written next to this file and executed from here, the way the report worker
@@ -18,11 +18,11 @@ from pathlib import Path
 def main():
     options = json.loads(sys.argv[1])
     path = Path(options["path"])
-    packages = list(options.get("packages") or ["qibocal-report"])
+    packages = list(options.get("packages") or ["qibocamp"])
     upgrade = bool(options.get("upgrade"))
 
     worker = Path(__file__).with_name("notebook_worker.py")
-    shared = {"__name__": "qibocal_report.remote.notebook_worker"}
+    shared = {"__name__": "qibocamp.remote.notebook_worker"}
     exec(compile(worker.read_text(encoding="utf-8"), str(worker), "exec"), shared)  # noqa: S102
     # Progress as plain lines: the launcher shows the output as it comes.
     shared["event"] = lambda kind, **details: print(details.get("message", kind), flush=True)
@@ -32,16 +32,16 @@ def main():
     try:
         if os.name == "nt":
             python = path / "Scripts" / "python.exe"
-            executable = path / "Scripts" / "qibocal.exe"
+            executable = path / "Scripts" / "qibocamp.exe"
             if not python.is_file():
                 print(f"Creating environment: {path}", flush=True)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 runtime.command([sys.executable, "-m", "venv", str(path)])
         else:
             python = Path(shared["ensure_environment"](runtime, path))
-            executable = path / "bin" / "qibocal"
+            executable = path / "bin" / "qibocamp"
 
-        marker = path / "qibocal-launcher.json"
+        marker = path / "qibocamp.json"
         try:
             held = json.loads(marker.read_text(encoding="utf-8")).get("package")
         except (OSError, ValueError, AttributeError):
@@ -64,7 +64,7 @@ def main():
             runtime.command(install(upgrade=True))
         if not executable.is_file():
             raise WorkerError(
-                f"{path} has no qibocal after installing {', '.join(packages)}; "
+                f"{path} has no qibocamp after installing {', '.join(packages)}; "
                 "check the version chosen in the developer options"
             )
         # Which requirement the environment holds, for the launcher to show.
@@ -72,7 +72,7 @@ def main():
             json.dumps({"package": packages[0], "packages": packages}, indent=2) + "\n",
             encoding="utf-8",
         )
-        print(f"Qibocal is ready: {executable}", flush=True)
+        print(f"qibocamp is ready: {executable}", flush=True)
     except (WorkerError, OSError) as error:
         print(f"Setup failed: {error}", file=sys.stderr, flush=True)
         return 1

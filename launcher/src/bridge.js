@@ -13,7 +13,7 @@ import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 export const isDesktop = typeof window !== 'undefined' &&
   Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
 
-const UNAVAILABLE = 'This action needs the Qibocal desktop application window.'
+const UNAVAILABLE = 'This action needs the Qibocamp desktop application window.'
 
 function call(command, args) {
   if (!isDesktop) return Promise.reject(new Error(UNAVAILABLE))
@@ -23,7 +23,7 @@ function call(command, args) {
 export const desktop = {
   environment: () => call('environment'),
   setExecutable: path => call('set_executable', { path }),
-  installQibocal: upgrade => call('install_qibocal', { upgrade }),
+  installCli: upgrade => call('install_cli', { upgrade }),
   freePort: () => call('free_port'),
   platform: () => call('platform_summary'),
 
@@ -63,10 +63,10 @@ export const desktop = {
   removeRemote: name => call('remove_remote', { name }),
 
   startServer: options => call('start_server', { options }),
-  /** `qibocal report server upgrade` on another machine, as a process of its own. */
+  /** `qibocamp report server upgrade` on another machine, as a process of its own. */
   upgradeServer: options => call('upgrade_server', { options }),
   startNotebook: options => call('start_notebook', { options }),
-  /** `qibocal notebook rebuild`: the kernel environment destroyed and made again. */
+  /** `qibocamp notebook rebuild`: the kernel environment destroyed and made again. */
   rebuildNotebook: options => call('rebuild_notebook', { options }),
   processes: () => call('processes'),
   processLog: id => call('process_log', { id }),
@@ -141,7 +141,7 @@ export async function revealInFileManager(path) {
  * Ask before something that cannot be undone: the system's own dialog in
  * the application, the browser's in a plain page. True when confirmed.
  */
-export async function confirmAction(message, { title = 'Qibocal', okLabel = 'OK' } = {}) {
+export async function confirmAction(message, { title = 'Qibocamp', okLabel = 'OK' } = {}) {
   if (!isDesktop) return typeof window !== 'undefined' && window.confirm(message)
   return confirmDialog(message, { title, kind: 'warning', okLabel, cancelLabel: 'Cancel' })
 }

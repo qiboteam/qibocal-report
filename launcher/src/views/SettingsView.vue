@@ -13,7 +13,7 @@
       pointing it elsewhere, are developer options, folded away.
     -->
     <section class="bm-card p-5">
-      <h2 class="text-sm font-semibold text-gray-900 mb-3">qibocal-report</h2>
+      <h2 class="text-sm font-semibold text-gray-900 mb-3">qibocamp</h2>
 
       <div v-if="environment?.executable" class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-xs">
         <span class="inline-flex items-center gap-1.5">
@@ -26,17 +26,17 @@
       </div>
       <p v-else-if="installing" class="text-xs text-gray-700 bg-[#f7f5ff] rounded-xl px-3 py-2 mb-4 inline-flex items-center gap-2">
         <Loader2 class="w-3.5 h-3.5 lx-spin text-[#833dff]" />
-        <span>Installing qibocal-report, {{ describeSpec(environment?.package, environment) }}: the progress is in
+        <span>Installing qibocamp, {{ describeSpec(environment?.package, environment) }}: the progress is in
           <router-link to="/processes" class="text-[#833dff] hover:text-[#6b21a8]">Running</router-link>.</span>
       </p>
       <p v-else-if="environment?.python" class="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-2 mb-4">
-        qibocal-report is not installed. The launcher installs it the first time a server, a notebook or an invitation
-        needs it; <em>Install qibocal-report</em> does it now. The output goes to
+        qibocamp is not installed. The launcher installs it the first time a server, a notebook or an invitation
+        needs it; <em>Install qibocamp</em> does it now. The output goes to
         <router-link to="/processes" class="hover:text-amber-900">Running</router-link>.
       </p>
 
       <p v-if="environment && !environment.python" class="text-xs text-red-700 bg-red-50 rounded-xl px-3 py-2 mb-4">
-        No Python 3.10 or newer was found on this machine to install qibocal-report with. Install one — from
+        No Python 3.10 or newer was found on this machine to install qibocamp with. Install one — from
         <button type="button" class="text-[#833dff] hover:text-[#6b21a8]" @click="openExternal('https://www.python.org/downloads/')">python.org</button>
         or the system package manager — and come back: the launcher creates its environment with it.
       </p>
@@ -51,7 +51,7 @@
         >
           <Loader2 v-if="installing" class="w-3.5 h-3.5 lx-spin" />
           <Download v-else class="w-3.5 h-3.5" />
-          {{ installing ? 'Installing…' : 'Install qibocal-report' }}
+          {{ installing ? 'Installing…' : 'Install qibocamp' }}
         </button>
         <button
           v-else-if="switchable"
@@ -86,7 +86,7 @@
       <details class="lx-more">
         <summary><ChevronRight class="lx-chevron w-3.5 h-3.5" /> Developer options</summary>
         <div class="lx-more-body space-y-4">
-          <!-- Which qibocal-report goes into the launcher's environment -->
+          <!-- Which qibocamp goes into the launcher's environment -->
           <form-field
             v-slot="{ id }"
             label="Version"
@@ -126,7 +126,7 @@
             help="Anything pip install accepts."
             info="A pinned version, a pre-release, a Git URL, a local checkout — one requirement, as it would be typed after pip install."
           >
-            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="custom" type="text" class="lx-input lx-mono" placeholder="qibocal-report==0.2.0" />
+            <input spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" :id="id" v-model.trim="custom" type="text" class="lx-input lx-mono" placeholder="qibocamp==0.2.0" />
           </form-field>
 
           <div class="flex flex-wrap items-center gap-2">
@@ -140,7 +140,7 @@
           <div>
             <p class="lx-label">Another environment</p>
             <p class="lx-help !mt-0 mb-2">
-              For a checkout of qibocal-report, or any environment that already has it: the choice wins over the
+              For a checkout of qibocamp, or any environment that already has it: the choice wins over the
               launcher's own installation, until <em>Detect again</em>. The command line must take the options this
               launcher passes, as the current sources do.
             </p>
@@ -271,7 +271,7 @@ import { chooseDirectory, chooseFile, desktop, openExternal, revealInFileManager
 import {
   state,
   attempt,
-  installQibocal,
+  installCli,
   installing,
   refreshConfigEntries,
   refreshEnvironment,
@@ -291,7 +291,7 @@ import {
   versionOptions
 } from '../lib/versions.js'
 
-const WEB_FRONTEND = 'https://qibo.science/qibocal-report'
+const WEB_FRONTEND = 'https://qibo.science/qibocamp'
 /** The select value that reveals the free-text requirement. */
 const CUSTOM = ' custom'
 
@@ -321,7 +321,7 @@ const { focused } = usePageKeys({
 const sourceLabel = computed(() => ({
   managed: 'the launcher\'s own installation',
   preference: 'chosen in the developer options',
-  environment: 'from QIBOCAL_EXECUTABLE',
+  environment: 'from QIBOCAMP_EXECUTABLE',
   path: 'found on the PATH',
   'well-known': 'found in a usual place'
 })[environment.value?.source] || '')
@@ -424,7 +424,7 @@ function toggle(name) {
 }
 
 async function install(upgrade) {
-  const started = await attempt(() => installQibocal(upgrade))
+  const started = await attempt(() => installCli(upgrade))
   if (started) router.push({ name: 'processes' })
 }
 
@@ -435,7 +435,7 @@ async function pickExecutable(directory) {
       : chooseFile('Choose the qibocal executable')
   )
   if (!picked) return
-  const updated = await attempt(() => desktop.setExecutable(picked), 'qibocal-report installation updated.', 'settings')
+  const updated = await attempt(() => desktop.setExecutable(picked), 'qibocamp installation updated.', 'settings')
   if (!updated) return
   state.environment = updated
   await refreshPreferences()

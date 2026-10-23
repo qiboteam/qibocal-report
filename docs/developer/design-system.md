@@ -1,6 +1,6 @@
 # Developer: Design System & Aesthetics
 
-`qibocal-report` implements a modern, editorial aesthetic inspired by *BackMarket* design principles, favoring spacious layouts, subtle monochromatic purple accents, and warm typography over generic enterprise dashboard designs.
+Qibocamp implements a modern, editorial aesthetic inspired by *BackMarket* design principles, favoring spacious layouts, subtle monochromatic purple accents, and warm typography over generic enterprise dashboard designs.
 
 ---
 

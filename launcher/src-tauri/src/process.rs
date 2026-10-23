@@ -1,4 +1,4 @@
-//! Supervise the long-running `qibocal` processes started from the interface.
+//! Supervise the long-running `qibocamp` processes started from the interface.
 //!
 //! Every managed process keeps a bounded log, streams its output to the
 //! interface through events, and is terminated gracefully when the launcher
@@ -15,7 +15,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::qibocal;
+use crate::cli;
 
 /// Lines kept per process: enough to diagnose a failed start, bounded for memory.
 const LOG_LIMIT: usize = 2000;
@@ -242,7 +242,7 @@ impl Supervisor {
             .collect()
     }
 
-    /// Start a `qibocal` subcommand under supervision.
+    /// Start a `qibocamp` subcommand under supervision.
     pub fn spawn(
         &self,
         app: &AppHandle,
@@ -253,8 +253,8 @@ impl Supervisor {
         working_directory: Option<PathBuf>,
         url: Option<String>,
     ) -> Result<ProcessInfo, String> {
-        let program = qibocal::executable()?;
-        let command = qibocal::command(&program);
+        let program = cli::executable()?;
+        let command = cli::command(&program);
         let display = std::iter::once(program.display().to_string())
             .chain(arguments.clone())
             .collect();
@@ -553,12 +553,12 @@ pub struct UpgradeOptions {
     pub timeout: Option<f64>,
 }
 
-/// Bring a remote server's qibocal-report up to date: `report server upgrade`,
+/// Bring a remote server's qibocamp up to date: `report server upgrade`,
 /// supervised like any other process, so its output is in Running and the
 /// launcher knows when it is done.
 #[tauri::command]
 pub async fn upgrade_server(app: AppHandle, options: UpgradeOptions) -> Result<ProcessInfo, String> {
-    qibocal::off_main(move || upgrade(app, options)).await?
+    cli::off_main(move || upgrade(app, options)).await?
 }
 
 fn upgrade(app: AppHandle, options: UpgradeOptions) -> Result<ProcessInfo, String> {
@@ -578,14 +578,14 @@ fn upgrade(app: AppHandle, options: UpgradeOptions) -> Result<ProcessInfo, Strin
             .install
             .clone()
             .filter(|value| !value.trim().is_empty())
-            .or_else(|| Some(qibocal::default_package())),
+            .or_else(|| Some(cli::default_package())),
     );
     if let Some(timeout) = options.timeout {
         arguments.push("--timeout".to_string());
         arguments.push(format!("{timeout}"));
     }
     let label = format!("Update {}", options.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| format!("ssh {ssh}")));
-    let detail = format!("ssh {ssh} · {}", options.venv.clone().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "qibocal-report".to_string()));
+    let detail = format!("ssh {ssh} · {}", options.venv.clone().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "qibocamp".to_string()));
     supervisor.spawn(&app, "update", label, detail, arguments, None, None)
 }
 
@@ -662,7 +662,7 @@ pub fn start_server(
         push_text(&mut arguments, "--ssh", ssh.clone());
         push_text(&mut arguments, "--workdir", options.workdir.clone());
         push_text(&mut arguments, "--venv", options.venv.clone());
-        // The remote environment gets the same qibocal-report as this
+        // The remote environment gets the same qibocamp as this
         // launcher, unless told otherwise: the command line's own default is
         // the PyPI release, which may not exist yet.
         push_text(
@@ -672,7 +672,7 @@ pub fn start_server(
                 .install
                 .clone()
                 .filter(|value| !value.trim().is_empty())
-                .or_else(|| Some(qibocal::default_package())),
+                .or_else(|| Some(cli::default_package())),
         );
         if let Some(timeout) = options.timeout {
             arguments.push("--timeout".to_string());
@@ -724,7 +724,7 @@ pub struct NotebookOptions {
     pub subnet: Option<String>,
     /// What the kernel environment must hold, in requirements.txt format.
     pub requirements: Option<String>,
-    /// Where the session keeps its reports, exported as QIBOCAL_REPORTS_DIR.
+    /// Where the session keeps its reports, exported as QIBOCAMP_REPORTS_DIR.
     pub reports: Option<String>,
     /// The remote execution connection, exported as QIBOCAL_WIDGETS_CONNECTION.
     pub remote: Option<String>,
@@ -736,7 +736,7 @@ pub struct NotebookOptions {
 /// A fresh directory under the system temporary folder, for a process to start from.
 fn scratch_directory() -> Result<PathBuf, String> {
     let path = std::env::temp_dir().join(format!(
-        "qibocal-launcher-{}-{}",
+        "qibocamp-{}-{}",
         std::process::id(),
         now_millis()
     ));
@@ -754,7 +754,7 @@ fn push_text(arguments: &mut Vec<String>, flag: &str, value: Option<String>) {
     }
 }
 
-/// `qibocal notebook <subcommand> [CONNECTION] <options>`, and the connection's name.
+/// `qibocamp notebook <subcommand> [CONNECTION] <options>`, and the connection's name.
 fn notebook_arguments(subcommand: &str, options: &NotebookOptions) -> (Vec<String>, Option<String>) {
     let mut arguments = vec!["notebook".to_string(), subcommand.to_string()];
     let connection = options
@@ -788,7 +788,7 @@ fn notebook_arguments(subcommand: &str, options: &NotebookOptions) -> (Vec<Strin
 }
 
 /// Destroy a connection's kernel environment and make it again from qibocal
-/// and its requirements: `qibocal notebook rebuild`, supervised like any
+/// and its requirements: `qibocamp notebook rebuild`, supervised like any
 /// other process, so its output is in Running.
 #[tauri::command]
 pub fn rebuild_notebook(
@@ -807,7 +807,7 @@ pub fn rebuild_notebook(
 }
 
 /// Install qibocal-agent where the launcher keeps it, at a branch, tag or
-/// commit: `qibocal agents install`, as a process of its own in Running.
+/// commit: `qibocamp agents install`, as a process of its own in Running.
 #[tauri::command]
 pub fn install_agent_tools(
     app: AppHandle,
@@ -824,7 +824,7 @@ pub fn install_agent_tools(
         "--ref".to_string(),
         reference.clone(),
     ];
-    let detail = format!("qibocal-mcp-servers {reference} · {}", qibocal::agent_tools_directory().display());
+    let detail = format!("qibocal-mcp-servers {reference} · {}", cli::agent_tools_directory().display());
     supervisor.spawn(&app, "update", "Install qibocal-agent".to_string(), detail, arguments, None, None)
 }
 

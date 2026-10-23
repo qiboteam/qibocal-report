@@ -1,6 +1,6 @@
 # 👥 User Roles & Permissions Matrix
 
-`qibocal-report` implements a three-tier Role-Based Access Control (RBAC) model. Each role is designed for specific laboratory workflows while guaranteeing data integrity.
+The Qibocamp Server implements a three-tier Role-Based Access Control (RBAC) model. Each role is designed for specific laboratory workflows while guaranteeing data integrity.
 
 ---
 

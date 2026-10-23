@@ -9,15 +9,15 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from qibocal_report import auth
+from qibocamp import auth
 
-from qibocal_report.web import api
+from qibocamp.web import api
 
-from qibocal_report.reports import generator
+from qibocamp.reports import generator
 
-from qibocal_report.reports import live
-from qibocal_report.reports.live_inputs import metadata_inputs, protocol_inputs
-from qibocal_report.models import ProtocolDetail
+from qibocamp.reports import live
+from qibocamp.reports.live_inputs import metadata_inputs, protocol_inputs
+from qibocamp.models import ProtocolDetail
 
 
 @pytest.fixture
@@ -48,7 +48,7 @@ def test_input_fingerprints_ignore_outputs_and_metadata(report_dir):
     before = protocol_inputs(report_dir)
     meta_before = metadata_inputs(report_dir)
     (report_dir / "report" / "another.json").write_text("{}")
-    (report_dir / ".qibocal-generation-result.json").write_text("{}")
+    (report_dir / ".qibocamp-generation-result.json").write_text("{}")
     (report_dir / "meta.json").write_text('{"author": "changed"}')
     assert protocol_inputs(report_dir) == before
     assert metadata_inputs(report_dir) != meta_before
@@ -168,7 +168,7 @@ def test_worker_forwards_selection_and_uses_fresh_process(tmp_path, monkeypatch)
     import subprocess
 
     def run(command, **options):
-        assert command[:3] == [sys.executable, "-m", "qibocal_report.reports.generation_worker"]
+        assert command[:3] == [sys.executable, "-m", "qibocamp.reports.generation_worker"]
         assert json.loads(command[-1]) == ["rabi-1"]
         (tmp_path / command[-2]).write_text(
             json.dumps({"protocols": [{"id": "rabi-1", "name": "Rabi"}], "error": None})

@@ -62,9 +62,9 @@ watch(() => state.notifications, notices => storeNotices(session, notices), { de
 /** What is new: said and not yet archived. */
 export const inbox = computed(() => state.notifications.filter(entry => !entry.archived))
 
-export const hasQibocal = computed(() => Boolean(state.environment?.executable))
+export const hasQibocamp = computed(() => Boolean(state.environment?.executable))
 
-/** Whether the launcher is installing or updating its own qibocal-report right now. */
+/** Whether the launcher is installing or updating its own qibocamp right now. */
 export const installing = computed(() =>
   state.processes.some(process => process.kind === 'setup' && process.status === 'running')
 )
@@ -286,9 +286,9 @@ export async function refreshPreferences() {
 
 // --- The command line, installed when first needed ---------------------------
 
-/** Create the launcher's own qibocal-report environment, or update it. */
-export async function installQibocal(upgrade = false) {
-  const info = await desktop.installQibocal(upgrade)
+/** Create the launcher's own qibocamp environment, or update it. */
+export async function installCli(upgrade = false) {
+  const info = await desktop.installCli(upgrade)
   mergeProcess(info)
   return info
 }
@@ -303,7 +303,7 @@ let followedBuild = false
  * up to date with this launcher, updating it if it is not.
  *
  * Nothing is installed on opening the application: the first server,
- * notebook or invitation that needs qibocal-report starts the installation,
+ * notebook or invitation that needs qibocamp starts the installation,
  * and goes on by itself once it is done — with a word in the status bar
  * meanwhile, and the output in Running. The launcher's own installation
  * follows the build, or the version chosen in Configuration: a launcher
@@ -311,40 +311,40 @@ let followedBuild = false
  * takes what the launcher asks of it. Should that update fail — offline,
  * say — the installed one serves, and it is not tried again this session.
  */
-export async function ensureQibocal() {
-  const behind = hasQibocal.value && !followedBuild && installationBehind(state.environment)
-  if (hasQibocal.value && !behind) return
-  if (!hasQibocal.value && !state.environment?.python) {
-    fail('No Python 3.10 or newer was found to install qibocal-report with.', 'settings')
-    throw new Error('No Python 3.10 or newer was found to install qibocal-report with; see Configuration.')
+export async function ensureQibocamp() {
+  const behind = hasQibocamp.value && !followedBuild && installationBehind(state.environment)
+  if (hasQibocamp.value && !behind) return
+  if (!hasQibocamp.value && !state.environment?.python) {
+    fail('No Python 3.10 or newer was found to install qibocamp with.', 'settings')
+    throw new Error('No Python 3.10 or newer was found to install qibocamp with; see Configuration.')
   }
   if (behind) followedBuild = true
-  if (!installing.value) await installQibocal(behind)
+  if (!installing.value) await installCli(behind)
   try {
     await new Promise((resolve, reject) => awaitingSetup.push({ resolve, reject }))
   } catch (error) {
     if (!behind) throw error
-    notify('qibocal-report could not be updated to this build; carrying on with the installed one.', 'settings')
+    notify('qibocamp could not be updated to this build; carrying on with the installed one.', 'settings')
   }
 }
 
 /** Run something that needs the command line, installing it first if needed. */
-export async function withQibocal(action) {
-  await ensureQibocal()
+export async function withQibocamp(action) {
+  await ensureQibocamp()
   return action()
 }
 
 async function settleSetup(info) {
   await refreshEnvironment()
   const waiting = awaitingSetup.splice(0)
-  if (hasQibocal.value) {
-    notify(waiting.length ? 'qibocal-report is installed; carrying on.' : 'qibocal-report is installed.', 'settings')
+  if (hasQibocamp.value) {
+    notify(waiting.length ? 'qibocamp is installed; carrying on.' : 'qibocamp is installed.', 'settings')
     waiting.forEach(entry => entry.resolve())
     return
   }
   const reason = info.status === 'failed'
-    ? 'The installation of qibocal-report failed; its output is in Running.'
-    : 'qibocal-report is still missing after the installation; see Running.'
+    ? 'The installation of qibocamp failed; its output is in Running.'
+    : 'qibocamp is still missing after the installation; see Running.'
   waiting.forEach(entry => entry.reject(new Error(reason)))
   if (!waiting.length) fail(reason, 'processes')
 }
@@ -415,7 +415,7 @@ const pending = new Map()
  * there is one: its entry is what the new address belongs to.
  */
 export async function startServer(options, { url = null } = {}) {
-  const info = await withQibocal(() => desktop.startServer(options))
+  const info = await withQibocamp(() => desktop.startServer(options))
   state.launches[info.id] = { kind: 'server', options, url }
   mergeProcess(info)
   if (!info.url && options.ssh) {
@@ -439,8 +439,8 @@ export async function awaitExit(id, timeoutMs = 15_000) {
 }
 
 /**
- * Bring a registered server's qibocal-report up to date, and start it
- * again. A server on another machine has `qibocal report server upgrade`
+ * Bring a registered server's qibocamp up to date, and start it
+ * again. A server on another machine has `qibocamp report server upgrade`
  * run against its environment — a process of its own, in Running — and is
  * started once that is done; one on this machine runs the launcher's own
  * installation, which is updated first. A running server is stopped, and
@@ -456,12 +456,12 @@ export async function updateServerInstallation(server) {
   }
   if (!options.ssh) {
     // The launcher's own installation: updated, awaited, then the server as before.
-    const setup = await installQibocal(true)
+    const setup = await installCli(true)
     await awaitExit(setup.id, 30 * 60_000)
     await refreshEnvironment()
     return startServer(options, { url: server.url })
   }
-  const update = await withQibocal(() => desktop.upgradeServer({
+  const update = await withQibocamp(() => desktop.upgradeServer({
     name: options.name || server.name || null,
     ssh: options.ssh,
     workdir: options.workdir || null,
@@ -478,7 +478,7 @@ export async function updateServerInstallation(server) {
 
 /** Open a notebook session, installing the command line first if needed. */
 export async function startNotebook(options) {
-  const info = await withQibocal(() => desktop.startNotebook(options))
+  const info = await withQibocamp(() => desktop.startNotebook(options))
   state.launches[info.id] = { kind: 'notebook', options, url: null }
   mergeProcess(info)
   // Dispatched to a partition: its queue is asked now, so the answer is
@@ -528,7 +528,7 @@ export function sessionsOf(connection) {
  * and its requirements, as a process of its own in Running.
  */
 export async function rebuildNotebook(options) {
-  const info = await withQibocal(() => desktop.rebuildNotebook(options))
+  const info = await withQibocamp(() => desktop.rebuildNotebook(options))
   // Through SLURM only when asked: then its queue is shown in Running, as a session's is.
   const queued = options.rebuild_on_compute ? options : { ...options, queue: undefined }
   state.launches[info.id] = { kind: 'rebuild', options: queued, rerun: options, url: null }
@@ -790,7 +790,7 @@ export async function refreshMachine(ssh, { force = false, also = [] } = {}) {
   entry.loading = true
   for (const queueEntry of queueEntries) queueEntry.loading = true
   try {
-    const data = await withQibocal(() => desktop.slurmMachine({ ssh: ssh || null, partitions, timeout: 30 }))
+    const data = await withQibocamp(() => desktop.slurmMachine({ ssh: ssh || null, partitions, timeout: 30 }))
     entry.data = data
     entry.error = data?.error || null
     entry.fetchedAt = Date.now()
@@ -935,7 +935,7 @@ export async function refreshAgentTools() {
 
 /** Install qibocal-agent at a branch, tag or commit, as a process of its own in Running. */
 export async function installAgentTools(reference = 'main') {
-  const info = await withQibocal(() => desktop.installAgentTools(reference))
+  const info = await withQibocamp(() => desktop.installAgentTools(reference))
   state.launches[info.id] = { kind: 'tools', options: { reference }, url: null }
   mergeProcess(info)
   return info
